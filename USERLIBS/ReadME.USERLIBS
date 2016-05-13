@@ -1,0 +1,1181 @@
+As of VARTOOLS version 1.3 it is possible for users to incorporate
+their own commands into the program using dynamically loaded
+libraries. To do this one must create a library of the form
+$LIBNAME.la (or other architecture-dependent extension). The command
+can then be called from VARTOOLS with a syntax such as: 'vartools -L
+$PATHTOLIB/$LIBNAME.la -$USERCOMMAND ...'  where $PATHTOLIB is the
+full path to the shared object library file which you have created,
+the -L option loads the file within VARTOOLS, and the -$USERCOMMAND
+statement tells VARTOOLS to execute the command on the light curve
+(generally one should create the library such that
+$LIBNAME=$USERCOMMAND). Note, if the library is installed by the 'make
+install' process into the directory DATAROOTDIR/vartools/userlibs as
+set by 'configure', and if you have set $LIBNAME=$USERCOMMAND, then it
+is not necessary to explicitly load it with the '-L
+$PATHTOLIB/$LIBNAME.la', you can instead simply execute 'vartools
+-$USERCOMMAND ...' and the library will be automatically loaded. 
+
+You can find examples of user libraries under the src
+subdirectory. The simplest example, which illustrates the Application
+Programming Interface (API) is magadd.la, together with its source
+code magadd.h and magadd.c. A user created command consists of two
+components: a light curve processing algorithm, which can be written
+in any language callable from c, and a wrapper to this algorithm,
+written in c, which interfaces the command with VARTOOLS. This ReadME
+focuses on how to create the wrapper. We leave implementation of the
+processing algorithm up to the user. We also assume familiarity with
+the C programming syntax, any basic C tutorial on the web should be
+sufficient. In particular you will need to be familiar with the use of
+pointers in C to understand this ReadME, and to write the wrapper.
+
+Structure of Wrapper:
+---------------------
+
+While not strictly necessary, the user may wish to create two files
+for the wrapper: $LIBNAME.c and $LIBNAME.h. The former will store the
+functions required by VARTOOLS to interface with the command, the
+latter will define a data-structure needed to pass data to the command
+(see for example "src/magadd.h"). At the top of $LIBNAME.c you should
+include the vartools library header file using a statement like
+'include "../../vartools.h"' where you would want to adjust the path
+to vartools.h as appropriate. You will also need to link to the
+libvartools.a library when you build your library.
+
+There are 5 specially named functions which the wrapper must provide
+in order for VARTOOLS to call this command. These are:
+
+    void $LIBNAME_Initialize(char *commandname, int *RequireReadAll,
+                                 size_t *sizeuserdata);
+
+    int $LIBNAME_ParseCL(ProgramData *p, Command *c, void *userdata,
+                             int *iret, char **argv, int argc);
+
+    void $LIBNAME_ShowSyntax(FILE *outfile);
+
+    void $LIBNAME_ShowHelp(FILE *outfile);
+
+    void $LIBNAME_RunCommand(ProgramData *p, void *userdata,
+                                 int lc_name-num, int lc_num);
+
+Note that in all cases $LIBNAME above must be the same as in the name
+of the library file $LIBNAME.la. We discuss each of these
+functions in turn.
+
+1. $LIBNAME_Initialize:
+
+       This function is called immediately by VARTOOLS when the user
+       loads the library with the -L option. This function tells
+       VARTOOLS three things about the command, the first is the
+       command name, which is returned in the input character array
+       commandname, the second is whether the command requires all
+       light curves to be read-in at once, or if it can process light
+       curves sequentially (returned in the variable RequireReadAll),
+       and the third is the amount of memory required by the user's
+       data structure, which can be determined with the sizeof(***)
+       macro. Note that the command name must have less than 256
+       characters.
+
+       See the function magadd_Initialize in the file src/magadd.c for
+       an example of how to implement this function.
+
+2. $LIBNAME_ParseCL:
+
+       This function is called whenever VARTOOLS finds that the user
+       has issued the commandname on the command-line. For example, if
+       the user executes: "vartools -i EXAMPLES/3 -L
+       USERLIBS/src/magadd.so -magadd 5", VARTOOLS will call
+       magadd_ParseCL when it comes across "-magadd" while parsing the
+       command-line. This function is responsible for 3 things:
+
+         1. It checks that the user has issued a valid command syntax,
+         returning 0 if the syntax is valid, or 1 if it is not.
+
+         2. It parses the command-line to read any optional or
+         required parameters into appropriate variables.
+
+         3. It registers data vectors or matrices with VARTOOLS (these
+         are variables which hold data calculated by the command for
+         each light curve, parameters which should be read-in from the
+         input list file or another source (a previously issued
+         command, fixed on the command-line), or additional data to be
+         read-in from the light curve) and also tells VARTOOLS which
+         data will be printed on the output ascii table.
+
+     The function takes the following input variables:
+
+         ProgramData *p - A pointer to a structure containing general
+                          program data. Although the user can do
+                          whatever s/he wishes with the data in this
+                          structure, in most cases this variable is
+                          only passed to other functions from the
+                          VARTOOLS API (like RegisterDataVector) and
+                          is not used directly by the user.
+         
+         Command *c -     A pointer to a generic container for this command.
+                          As with p, this is typically only needed by other
+                          functions that might be called here
+                          (RegisterDataVector).
+
+         void *userdata - Pointer to the structure storing data for this
+                          command. This should be cast to the appropriate type
+                          and the data there-in should be modified as needed by
+                          the ParseCL function. In the magadd example, userdata
+                          corresponds to the _Magadd structure which stores the
+                          values to be added to the light curves.
+
+         int *iret      - Command-line argument index. Initially argv[*iret] 
+                          is the command-line argument storing the command
+                          name. On return this should be set to the index of
+                          the last argument parsed by this function. Note that
+                          if you only use VARTOOLS API functions to parse the
+                          command-line, then this will be handled automatically.
+                          In the magadd example, if the user issues the command
+                          "-magadd fix 5.", the return value of iret should be
+                          equal to its input value + 2.
+
+         char **argv    - Array of command-line arguments. If i is equal to the
+                          value of *iret on input, argv[i] is the name of the
+                          command.
+
+         int argc       - The total number of command-line arguments in the
+                          argv array (including 0). In general it is the user's
+                          responsibility to check that i < argc before
+                          attempting to parse argv[i], failure to do so may 
+                          lead to segmentation violations. If you only use
+                          VARTOOLS API functions to parse the command-line, 
+                          then these checks will be done automatically.
+
+       See the function magadd_ParseCL in the file src/magadd.c for
+       an example of how to implement this function. 
+
+       Note that the following API functions, described below, may be useful 
+       for this function:
+
+           VARTOOLS_ParseParameter - Fairly general function for parsing a 
+                           labelled parameter from the command-line.
+
+           VARTOOLS_ParseConstantParameter - Parses an expression of the form
+                           keyword value [value2 value3 ... valueNvec]
+
+           VARTOOLS_ParseOutNameKeyword - Parses an expression of the form
+                           keyword outdir ["nameformat" format]
+
+           VARTOOLS_ParseFixSpecFixcolumn - Parses an expression of the form
+                           <"fix" value | "list" ["column" col] | 
+                            "fixcolumn" <colname | colnum> | "expr" expression>
+
+           VARTOOLS_RegisterDataVector - registers a data vector, see the
+                           section below on registering data vectors.
+
+3. $LIBNAME_ShowSyntax:
+
+      This function is called whenever VARTOOLS needs to show the syntax of
+      the command to the user.  This takes as input a single parameter of the
+      form FILE *outfile. The user should use fprintf to output the syntax to
+      this file.
+
+      See magadd_ShowSyntax in the file src/magadd.c for an example of how to
+      implement this function.
+
+4. $LIBNAME_ShowHelp:
+
+      This function is called whenever the user requests detailed help
+      about the command. Like $LIBNAME_ShowSyntax, this takes one
+      argument: FILE *outfile. Use fprintf to output a verbose
+      description of the command to outfile.
+
+      See magadd_ShowHelp in the file src/magadd.c for an example of
+      how to implement this function.
+
+5. $LIBNAME_RunCommand:
+
+      Run the command on one or more light curves. This function takes
+      the data from VARTOOLS and runs the light curve processing
+      algorithm on the light curve(s).
+
+      This function takes the following input parameters:
+
+          ProgramData *p - pointer to a structure containing various
+                           general program data (in particular, the
+                           light curves, and times and magnitude
+                           uncertainties are accessed through this
+                           structure).
+
+          void *userdata - pointer to the structure containing the
+                           command specific data (including control
+                           parameters and vectors to store output
+                           results). This should be cast to the
+                           appropriate data type before using. For
+                           example, in magadd.c this is cast to type
+                           (_Magadd *).
+
+          int lc_name_num - this is the index to use to access the light curve
+                            name. This will be -1 if the command is expected to
+                            process all light curves (this will happen if you 
+                            have the $LIBNAME_Initialize function set
+                            *RequireReadAll = 1;)
+
+          int lc_num -      this is the index to use to access the light
+                            curve and data from Registered
+                            vectors. This will be -1 if the command is
+                            expected to process all light curves (this
+                            will happen if you have the
+                            $LIBNAME_Initialize function set
+                            *RequireReadAll = 1;)
+
+      This function could either execute the processing algorithm directly, or
+      you might prefer to have it simply translate the data structures and
+      arrays received from VARTOOLS into a more convenient form, and then pass
+      that data to a separate function to execute the algorithm. 
+
+      Some particular variables that you might wish to access, if (lc_num >= 0
+      and lc_name_num >= 0):
+
+         p->NJD[lc_num]   --- The number of points in the current light curve.
+                              This is of type (int).
+
+         p->t[lc_num]     --- An array containing the times of observation in
+                              the current light curve. This is of type
+			      (double *).
+
+         p->mag[lc_num]   --- An array containing the magnitude values in the
+                              current light curve. This is of type (double *).
+
+         p->sig[lc_num]   --- An array containing the magnitude uncertainty
+                              values in the current light curve. This is of 
+                              type (double *).
+
+         p->lcnames[lc_name_num] --- The name of the current light curve. This
+                                     is of type (char *).
+
+      If lc_num < 0 (the command is expected to process all of the light curves
+      simultaneously, which happens if and only if you set RequireReadAll = 1 in
+      the Initialize function), then you would want to use:
+
+         p->Nlcs          --- The number of light curves to process.
+         p->NJD[i]        --- The number of points in light curve i, i ranges from
+                              0 to p->Nlcs - 1.
+         p->t[i][j]       --- Time j in light curve i. i ranges from 0 to p->Nlcs - 1
+                              and j from 0 to p->NJD[i]-1.
+         p->mag[i][j]     --- ditto, for the magnitude.
+         p->sig[i][j]     --- ditto, for the light curve uncertainty.
+         p->lcnames[i]    --- The name of light curve i.
+
+      NOTE: DO NOT USE STATIC OR GLOBAL VARIABLES. If the user uses
+      the -parallel option, this function, as well as other functions
+      called by it, will be executed in parallel on several light
+      curves. If you use a static or global variable, changes to it
+      made in one thread will be seen by all other threads, generally
+      giving unpredictable and undesired behavior.
+
+Registering Data Vectors:
+-------------------------
+
+      Variables used to store light curve specific data should be
+      registered with VARTOOLS. This will ensure that memory is
+      properly allocated to store the data, that the data will be
+      read-in from the correct source, and that computed results will
+      be included in the output ascii table. The primary function
+      which accomplishes this is VARTOOLS_RegisterDataVector. Calls to
+      this function should be made from within $LIBNAME_ParseCL. Some
+      functions provided by the VARTOOLS API for parsing parameters
+      from the command-line will also internally register these
+      vectors. In general, variables registered with VARTOOLS should be
+      declared within your user command structure.
+
+void VARTOOLS_RegisterDataVector(ProgramData *p, Command *c, void *dataptr, 
+			int datatype, int Ncolumns, int source, 
+			int output, char *outname, ...) 
+   Use this function to register data for a user command. The data is
+   a vector, or 2-d array, for which each row corresponds to a
+   different light curve, or to a different observation within a light curve. 
+   In general, data which holds input or output parameters which are
+   light curve dependent, or which are read-in from the light curves,
+   should be registered with this function.
+
+   The program will take care of allocating memory for registered
+   vectors, and will align the vector with its appropriate data-source
+   if necessary (input list, a previously executed command, or a light curve)
+
+   p = pointer to the main ProgramData structure.
+
+   c = pointer to the command structure for the given user command.
+
+   dataptr = pointer to array storing the data. For example, if the
+             user wishes to register a vector of doubles, they should
+             define it as a pointer (e.g. double* mydoubles) and then
+             pass a pointer to it to this function (&mydoubles).
+
+   datatype = VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_INT, VARTOOLS_TYPE_SHORT,
+              VARTOOLS_TYPE_FLOAT, VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_CHAR,
+              VARTOOLS_TYPE_STRING, VARTOOLS_TYPE_USERDEF.
+
+   Ncolumns = Number of columns in the array. If this is 0 and the
+              source is not VARTOOLS_SOURCE_LC, then dataptr is a
+              pointer to a vector (e.g. double **), if it is > 0 then
+              it is a pointer to an array (e.g. double ***). If the
+              source is VARTOOLS_SOURCE_LC, then if this is 0 it is a
+              pointer to an array (e.g. it should be type double ***), if
+              it is > 0 or < 0 it is a pointer to a 3-d array (e.g. type
+	      double ****). For VARTOOLS_SOURCE_LC, Nc=0 implies that
+              the array will be indexed as (*dataptr)[Nthread][NJD]. Nc > 0
+              means it is indexed as (*dataptr)[Nthread][Nc][NJD]. Nc < 0
+              means it is indexed as (*dataptr)[Nthread][NJD][Nc].
+
+   source = VARTOOLS_SOURCE_INLIST -- data to be read in from an input list.
+            VARTOOLS_SOURCE_COMPUTED -- data that will be computed by the
+                                        command.
+            VARTOOLS_SOURCE_FIXED -- data that will be fixed for each light
+                                    curve (typically read from the command
+                                    line).
+            VARTOOLS_SOURCE_PRIORCOLUMN -- data to be taken from the output
+                                          of a previous command.
+            VARTOOLS_SOURCE_LC -- data to be read in as a column from each
+                                  light curve.
+            VARTOOLS_SOURCE_RECENTCOMMAND -- similar to 
+                                  VARTOOLS_SOURCE_PRIORCOLUMN, in this case
+                                  the data is to be taken from the most recent
+                                  instance of a command. This will determine
+                                  the appropriate column name for the desired
+                                  parameter. Ncolumns must be <= 0.
+            VARTOOLS_SOURCE_EVALEXPRESSION -- data that will be determined by
+                                  evaluating an expression.
+
+   output = 1 if the data should be included in the output ascii table, 
+            0 if it will not be included. Note, if the source is 
+            VARTOOLS_SOURCE_LC, then the data will not be included in the
+            ascii table, no matter what output is set equal to.
+
+   outname = root name of the corresponding column in the output ascii
+             table (can be NULL if output == 0). The name of the
+             library will be added as prefix to the name, and the
+             column number (if Ncolumns >= 1) and command numbers will
+             be appended to the name.
+
+   ... --- additional variables depend on the source and possibly the type:
+
+   VARTOOLS_TYPE_USERDEF:
+
+        In this case the data type is some user-defined structure.
+	The following additional parameters are then given in the
+	function call. Note that this datatype can only
+        be used for VARTOOLS_SOURCE_COMPUTED.
+
+        size_t sizeusertype - Size of the user-defined data type.
+
+	void (*initialize_usertype)(int lc_num, 
+	                    void *userdata, 
+			    void *userdata2) - 
+                             
+                             Optional function to call
+                             after allocating memory for this data.
+                             lc_num will be the index as in
+                               the *_RunCommand functions, userdata is a pointer
+                               to the data structure in question, and 
+                               userdata2 is an optional pointer to additional
+                               data used in the initialization procedure.
+
+        void *userdata2 - An optional pointer to additional data that will be
+                          passed to the initialize_usertype function. 
+
+
+   VARTOOLS_SOURCE_INLIST:
+        const char *name - string giving the name to associate with this 
+                           input column (used with -inputlistformat option).
+
+        int colnum - Column number in the input list from which to read this
+                     data. (== 0, the program will take the next column in
+                     the list, < 0, the data will not be read-in from the list
+		     but memory will be allocated for it (this has the same
+		     effect as VARTOOLS_SOURCE_COMPUTED)).
+
+   VARTOOLS_SOURCE_COMPUTED: No additional variables.
+
+   VARTOOLS_SOURCE_FIXED:
+
+        void *fixptr - pointer to a variable storing the fixed value
+                       to assign. If Ncolumns >= 1, then fixptr should
+                       be a pointer to a vector with Ncolumns rows.
+
+   VARTOOLS_SOURCE_PRIORCOLUMN: 
+
+        char *colname - If Ncolumns <= 0: string giving the name or
+                        number of the prior column to associate with
+                        this data vector.
+
+        char **colnames - If Ncolumns >= 1: array of strings giving the name
+                          or number of the prior columns to associate with
+                          each column in this data array.
+
+   VARTOOLS_SOURCE_LC:
+
+        const char *name - string giving the base name to associate with this
+                           input column (use with -showinputlcformat option,
+                           which is in development).
+
+        int colnum - Column number in the input light curve from which
+                     to read this data. (== 0, the program will take
+                     the next column in the light curve, it is not
+                     suggested to use this option as the number of the
+                     next available column can not easily be
+                     determined by the user; < 0, the program will not
+                     read-in the data from the light curve, but it
+                     will allocate memory to store the data; If Nc >
+                     0, then this specified the column number for the
+                     first column in the data array, subsequent
+                     columns in the array are assumed to come from
+                     sequential columns in the light curve).
+
+	char *scanformat - A scanf format string to use in reading in
+                     the light curve. If it is NULL, then the full
+                     input column string will be converted directly to
+                     the appropriate data type. If the colnum < 0
+                     (data not read-in from the light curve) and the
+                     format is not NULL, then it will be treated as an
+                     analytic expression which the vector is to be
+                     initialized to. Use this, for example, to
+                     initialize a vector to the contents of an
+                     existing variable rather than reading it in from
+                     the light curve directly. An error will be given
+                     if Ncolumns != 0, colnum < 0 and this is not
+                     NULL.
+
+	char *varnameout - For Ncolumns=0, Optionally associate this
+                     data with a (possibly new) variable. This creates
+                     a variable that the user can use to access this
+                     data from subsequent commands.
+
+   VARTOOLS_SOURCE_RECENTCOMMAND: 
+
+        Note - Ncolumns must be <= 0 for this option.
+
+        int cnum - the command-type to take data from:
+                   Allowed values are:
+                   CNUM_BLS -- A -BLS command
+                   CNUM_AOV -- A -aov command
+                   CNUM_LS  -- A -LS command
+                   CNUM_HARMAOV -- A -aov_harm command
+        
+        char *paramname - the type of parameter to take the data from.
+                          Allowed values depend on cnum. For any cnum
+                          you can provide "Period", for CNUM_BLS this
+                          can also be "Tc" or "Q".
+
+    VARTOOLS_SOURCE_EVALEXPRESSION:
+
+        Note - Ncolumns must be == 0 for this option.
+
+        char *exprstring - a string with the expression to be parsed.
+
+Some common examples of how this might be used:
+
+1. Registering a vector to hold a computed value for each light
+curve, and to have that value included in the output ASCII table.
+
+    typedef struct {
+        double *computeddata;
+    } _UserCommand;
+
+    int UserCommand_ParseCL(ProgramData *p, Command *c, void *userdata,
+                             int *iret, char **argv, int argc)
+    {
+        _UserCommand *UserCommand;
+
+        UserCommand = (_UserCommand *) userdata;
+
+        ******* Parse the command line ********
+
+
+        VARTOOLS_RegisterDataVector(p, c, (void *) (&UserCommand->computeddata),
+                 VARTOOLS_TYPE_DOUBLE, 0, VARTOOLS_SOURCE_COMPUTED, 1,
+                 "ComputedData");
+
+        ******* Continue parsing the command line *****
+    }
+
+    In this case computeddata will store a single double precision
+    value computed for each light curve. Note that because VARTOOLS
+    may have to store values for more than one light curve at a time,
+    computeddata will be an array. We pass a pointer to computeddata,
+    cast as (void *) for the third argument to
+    VARTOOLS_RegisterDataVector. The keyword VARTOOLS_TYPE_DOUBLE
+    (defined in vartools.h) indicates that this vector will hold
+    double-precision data. We give 0 for the fifth argument, to
+    indicate that computedata is a 1-dimensional array. We then use
+    the keyword VARTOOLS_SOURCE_COMPUTED to indicate that that this
+    vector stores computed data (VARTOOLS uses this to determine how
+    much memory to allocate for the data, and whether it will be
+    responsible for filling in the vector with data). The seventh
+    argument is 1 to indicate that we do wish the data stored in this
+    vector to be included in the output ascii table. In the eighth
+    argument we give a string, which VARTOOLS will use in creating the
+    column heading for this data in the output table.
+
+2. Registering a vector to hold a value for each light curve which is
+read-in from the input list.
+
+    typedef struct {
+        double *datafromlist;
+    } _UserCommand;
+
+    int UserCommand_ParseCL(ProgramData *p, Command *c, void *userdata,
+                             int *iret, char **argv, int argc)
+    {
+        _UserCommand *UserCommand;
+
+        UserCommand = (_UserCommand *) userdata;
+
+        ******* Parse the command line ********
+
+
+        VARTOOLS_RegisterDataVector(p, c, (void *) (&UserCommand->datafromlist),
+                 VARTOOLS_TYPE_DOUBLE, 0, VARTOOLS_SOURCE_INLIST, 0,
+                 "DataFromInputList", 0);
+
+        ******* Continue parsing the command line *****
+    }
+
+    The syntax in this case is quite similar to the previous case of
+    storing computed data. Here the variable datafromlist will store a
+    single double precision value read-in from the next available
+    column in the input list file (this is indicated by the last 0
+    given to the RegisterDataVector function; if a non-zero value was
+    used, then the data would be read from that particular column of
+    the list file). If the user gives the "-showinputlistformat"
+    option on the command line, the data to be stored in the
+    datafromlist vector will be labelled "DataFromInputList".
+
+3. Registering data that is to be read-in from each light curve (i.e.,
+   an additional column in each light curve file).
+
+    typedef struct {
+        double **datafromlc;
+    } _UserCommand;
+
+    int UserCommand_ParseCL(ProgramData *p, Command *c, void *userdata,
+                             int *iret, char **argv, int argc)
+    {
+        _UserCommand *UserCommand;
+        int lccolnum;
+
+        UserCommand = (_UserCommand *) userdata;
+
+        ******* Parse the command line ********
+        ******* including determining lccolnum, the column to read ****
+        ******* from the light curve file *****
+
+
+        VARTOOLS_RegisterDataVector(p, c, (void *) (&UserCommand->datafromlist),
+                 VARTOOLS_TYPE_DOUBLE, 0, VARTOOLS_SOURCE_LC, 0,
+                 "DataFromLightCurve", lccolnum, NULL, NULL);
+
+        ******* Continue parsing the command line *****
+    }
+
+    In this case datafromlc is a matrix indexed by
+    datafromlc[0...Nthread-1][0....Ntime-1], where Nthread is the
+    number of light curves being processed simultaneously (=1 if
+    VARTOOLS is not run in parallel mode), and Ntime is the number of
+    observations in the indexed light curve.  If the user gives the
+    "-showinputlcformat" option, this column will include
+    "DataFromLightCurve" in its label. lccolnum is the column to read
+    from the light curve into this array.  The first of the two NULLs
+    is used to indicate that VARTOOLS should just convert the entire
+    column into a double without any special scanf parsing. The last
+    NULL indicates that we will not be associating a variable name with
+    this data for the user to access it outside of this command.
+
+Compiling the wrapper:
+----------------------
+
+    You will need to compile and link the code implementing your
+    command into a dynamically callable shared object library. The
+    method for compiling a shared object library is, unfortunately,
+    highly dependent on system architecture. In an attempt to hide the
+    architecture-dependent details from users VARTOOLS uses the GNU
+    libtools program together with its associated libltdl.la library
+    for creating and loading these libraries. To follow this method
+    for creating the library you will need to have installed the GNU
+    autobuild utilities including: aclocal, autoconf, autoheader
+    automake and libtool (on a Ubuntu linux system you can install
+    these via 'sudo apt-get install libtool automake autoconf
+    autotools-dev' on Mac OS X you can get these via 'brew install
+    libtool automake autoconf' assuming you're using the homebrew
+    package manager).
+
+    Edit the file USERLIBS/src/Makefile.am
+
+    If the source for your library consists only of the c file
+    $LIBNAME.c and $LIBNAME.h, and you do not need to link to external
+    libraries (other than libvartools), you can simply add
+    '$LIBNAME.la' to the list of libraries following
+    'userlibs_LTLIBRARIES =' and then add the lines
+
+    $LIBNAME_la_SOURCES = $LIBNAME.c $LIBNAME.h
+    $LIBNAME_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+    $LIBNAME_la_LDFLAGS = -module
+
+    to the end of the file.  Note that you should substitute $LIBNAME
+    above with the name of your library, but $(abs_top_srcdir) should
+    be written exactly as is.  
+
+    For more complicated examples (including compiling a fortran
+    library) you can follow the example of jktebop (and associated
+    libjktebop), fastchi2, or macula (and associated libmacula) in
+    Makefile.am.
+
+    After editing Makefile.am you will need to re-run the autobuild
+    utilities to create a new Makefile.in file which will be used by
+    configure. You can do this by running
+
+    ./autogen.sh
+
+    from the base directory.  Assuming all goes well, you can then run
+    './configure' and 'make' as usual from the base directory. 
+
+    If you don't want to use the autobuild system (which admittedly,
+    can be very frustrating to get to work), you can also compile the
+    shared library manually, and then create the .la wrapper for it.
+
+    To do this on a linux system with gcc, you would do:
+
+    gcc -fPIC -c $LIBNAME.c
+    gcc -fPIC -c $OTHERFILE.c
+    gcc -shared -Wl,-soname,$LIBNAME.so.1 \
+        -o $LIBNAME.so.1.0 $LIBNAME.o $OTHERFILE.o \
+        -L ../.. -lvartools
+    ln -sf $LIBNAME.so.1.0 $LIBNAME.so
+
+    where $OTHERFILE stands for any additional source files that are
+    part of your command, and ../.. should be changed to the relative
+    PATH to the libvartools.a file.
+
+    If some of your command is implemented in FORTRAN on linux you
+    would use gfortran (or g77) to invoke the linker. 
+
+    On a Mac you would do
+
+    gcc -fPIC -c $LIBNAME.c
+    gcc -fPIC -c $OTHERFILE.c
+    gcc -dynamiclib -o $LIBNAME.dylib $LIBNAME.o $OTHERFILE.o \
+        -L ../.. -lvartools
+
+    On either system you should then do
+    cp magadd.la $LIBNAME.la
+
+    edit the file $LIBNAME.la and change instances of magadd to
+    $LIBNAME. You would also want to set the dlname to $LIBNAME.so
+    (rather than, for example, $LIBNAME.so.0). The commands for
+    compiling would differ on a Mac or Windows system.
+
+API
+---
+
+The following functions are included in the libvartools.a library and can
+be called from your command:
+
+1. Functions related to parsing the command line, registering data vectors, getting filenames:
+----------------------------------------------------------------------------------------------
+
+int VARTOOLS_ParseParameter(ProgramData *p,
+			    Command *c,
+			    int *iret,
+			    char **argv,
+			    int argc,
+			    const char *keyword,
+			    int Nvec,
+			    ...)
+/* Use this function to parse a command of the form:
+   "keyword" <"fix" value | "list" ["column" col] | "fixcolumn" <colname | colnum> | "expr" expression>
+
+   p - pointer to the ProgramData struct
+
+   c - pointer to the Command struct associated with this UserCommand
+
+   iret - pointer to a variable storing the current command line index
+          number.  On input this should be the term storing "keyword".
+          This is updated on output.
+
+   argv - Standard array holding the command-line strings.
+
+   argc - Number of terms on the CL.
+
+   keyword - the keyword to check.
+
+   Nvec - Number of terms to parse
+
+   .... - For each term to parse, the following additional arguments must be
+          provided:
+
+         datatype - VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_FLOAT,
+                    VARTOOLS_TYPE_INT, VARTOOLS_TYPE_SHORT,
+                    VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_STRING,
+                    VARTOOLS_TYPE_CHAR
+
+         dataptr - Pointer to the vector or array that will store the input
+                   data.
+
+         Ncolumns - Number of columns in the array, if it is <= 0 then
+                    dataptr is taken to be a vector rather than an array
+                    (e.g. dataptr is a pointer to an variable of type double*
+                     rather than double**).
+
+         output - 1 if this data should be included in the output ascii table,
+                  0 if it should not be.
+
+         name - root name of the data vector for display in the output
+             ascii table and for the input table (if the user gives
+             the \"spec\" keyword on the command line, and issues the
+             -inputlistformat command). The name of the library will
+             be added as prefix to the name, and the column number (if
+             Ncolumns >= 1) and command numbers will be appended to
+             the name.  
+
+	 initialize - 1 if the data vector/array should be created and fixed
+                        to a default value when the "keyword" is not given on 
+                        the command-line. 
+                      0 if the data vector/array should not be created.
+
+         defaultval - the default value to initialize the array to.
+
+    Return values:
+       0 - command is successfully parsed.
+       1 - "keyword" is not given, command is not parsed.
+       2 - "keyword" is given, but the rest of the command is not parsed.
+*/
+
+int VARTOOLS_ParseOutNameKeyword(ProgramData *p,
+				 Command *c,
+				 int *iret,
+				 char **argv,
+				 int argc,
+				 const char *keyword,
+				 int *outputflag,
+				 char **outdir,
+				 int *formatflag,
+				 char **format)
+/* Use this function to parse a command of the form:
+   "keyword" outdir ["nameformat" format]
+
+   p - pointer to the ProgramData struct
+
+   c - pointer to the Command struct associated with this UserCommand
+
+   iret - pointer to a variable storing the current command line index
+          number.  On input this should be the term storing "keyword".
+          This is updated on output.
+
+   argv - Standard array holding the command-line strings.
+
+   argc - Number of terms on the CL.
+
+   keyword - the keyword to check. If this is NULL, then the keyword will
+             not be checked.
+
+   outputflag - integer flag set to 1 if the command is parsed or 0 if not.
+
+   outdir - pointer to a char* variable to store the name of the output
+            directory. Memory will be allocated to store the string by this
+            command. This will be returned as NULL if the keyword is not
+            given.
+
+   formatflag - integer flag set to 1 if the user gave the "nameformat" keyword,
+           or 0 if not.
+
+   format - pointer to a char* variable to store the format string. Memory
+            will be allocated to store the string by this command. This will
+            be returned as NULL if the keyword is not given.
+
+Return values:
+      0 - command is successfully parsed.
+      1 - "keyword" is not given, command is not parsed.
+      2 - "keyword" is given, outdir is not given. Or "nameformat" is given but
+          the output format is not given.
+*/
+
+int VARTOOLS_ParseConstantParameter(ProgramData *p,
+				    Command *c,
+				    int *iret,
+				    char **argv,
+				    int argc,
+				    const char *keyword,
+				    int datatype,
+				    void *dataptr,
+				    int Ncolumns)
+/* Use this function to parse a command of the form:
+   "keyword" value [value2 value3 ... valueNvec]
+
+   or of the form:
+   value [value2 value3 ... valueNvec]
+
+   p - pointer to the ProgramData struct
+
+   c - pointer to the Command struct associated with this UserCommand
+
+   iret - pointer to a variable storing the current command line index
+          number.  On input this should be the term storing "keyword" or 
+          value if the keyword is not used. This is updated on output.
+
+   argv - Standard array holding the command-line strings.
+
+   argc - Number of terms on the CL.
+
+   keyword - the keyword to check. If this is NULL, then the keyword will
+             not be checked.
+
+   datatype - VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_FLOAT,
+              VARTOOLS_TYPE_INT, VARTOOLS_TYPE_SHORT,
+              VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_STRING,
+              VARTOOLS_TYPE_CHAR
+
+   dataptr - Pointer to the variable or vector that will store the
+             input data. If Ncolumns <= 0, you should declare a
+             variable like "double dblval", and then pass &dblval to
+             this function. If Ncolumns > 0, you should declare
+             "double *dblval", and then pass &dblval to this
+             function. Note that memory will be allocated for the
+             vector by this routine if the command is successfully
+             parsed.  If it is not parsed, then memory will not be
+             allocated. If the datatype is a string, then memory to
+             store the string will be allocated whether the data is a
+             scalar or a vector.  In otherwords, if Ncolumn <= 0, and
+             you are reading a string into a variable stringvar. You
+             would declare stringvar as "char *stringvar;" rather than
+             as "char stringvar[sizestring];", then pass &stringvar to
+             this function for dataptr. If Ncolumn > 0, you would
+             declare stringvar as "char **stringvar", and pass
+             &stringvar to this function for dataptr.
+
+   Ncolumns - Number of parameters to read in. If it is <= 0 then one
+              parameter is read in, and dataptr is a pointer to a
+              scalar variable. If it is > 0, then Ncolumns terms are
+              read in, and stored in the vector pointed to be
+              dataptr. 
+
+   Return values:
+      0 - command is successfully parsed.
+      1 - "keyword" is not given, command is not parsed.
+      2 - "keyword" is given, but the rest of the command is not parsed
+          successfully.
+*/
+
+int VARTOOLS_ParseFixSpecFixcolumn(ProgramData *p,
+				  Command *c,
+				  int *iret,
+				  char **argv,
+				  int argc,
+				  int Nvec,
+				  ...)
+/* Use this function to parse a command of the form:
+   <"fix" value | "list" [\"column\" col] | "fixcolumn" <colname | colnum> |
+    "expr" expression>
+
+   p - pointer to the ProgramData struct
+
+   c - pointer to the Command struct associated with this UserCommand
+
+   iret - pointer to a variable storing the current command line index
+          number.  On input this should be the term storing "fix",
+          "list", "fixcolumn", or "expr". This is updated on output.
+
+   argv - Standard array holding the command-line strings.
+
+   argc - Number of terms on the CL.
+
+   Nvec - Number of terms to parse
+
+   .... - For each term to parse, the following additional arguments must be
+          provided:
+
+         datatype - VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_FLOAT,
+                    VARTOOLS_TYPE_INT, VARTOOLS_TYPE_SHORT,
+                    VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_STRING,
+                    VARTOOLS_TYPE_CHAR
+
+         dataptr - Pointer to the vector or array that will store the input
+                   data.
+
+         Ncolumns - Number of columns in the array, if it is <= 0 then
+                    dataptr is taken to be a vector rather than an array
+                    (e.g. dataptr is a pointer to an variable of type double*
+                     rather than double**).
+
+         output - 1 if this data should be included in the output ascii table,
+                  0 if it should not be.
+
+         name - root name of the data vector for display in the output
+             ascii table and for the input table (if the user gives
+             the \"spec\" keyword on the command line, and issues the
+             -inputlistformat command). The name of the library will
+             be added as prefix to the name, and the column number (if
+             Ncolumns >= 1) and command numbers will be appended to
+             the name.  
+*/
+
+void VARTOOLS_RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
+				 int datatype, int Ncolumns, int source,
+				 int output, char *outname, ...);
+/* See the above setion on Registering Data Vectors */
+
+void VARTOOLS_GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
+				char *suffix, char *format, int lc_name_num);
+/* Determines the name for an output file following the options
+   associated with, for example, the -o vartools command.
+
+     lcoutname - the output file name to use is returned in this variable.
+
+     lcname - the input file name.
+
+     outdir - the base directory to output the file to.
+
+     suffix - a string which is appended to the end of the file name.
+
+     format - an optional format string to use in determining the
+              filename. This is parsed following the rules of the
+              "nameformat" option to the vartools -o command. This is
+              ignored if it is NULL.
+
+     lc_name_num - the light curve number index (needed in case the
+              format contains at %d flag).
+*/
+
+2. Functions related to model-fitting
+-------------------------------------
+
+int VARTOOLS_amoeba(double **p, double *y, int *ia, int ndim, double ftol, double (*funk)(double *, int, int, double *, double *, double *, void *), int *nfunk, int maxeval, int N, double *t, double *mag, double *sig, void *userparams);
+/* This function runs the amoeba downhill simplex algorithm.
+   p - a 2-d array storing the simplex
+   y - a vector storing the chi2 values for each row in the simplex
+   ia - an integer array storing flags that indicate whether or
+        not the parameter is to be varied. The function will allocate memory for
+        the ia array, and update it, for each parameter added. This array will
+        be passed to amoeba.
+   ndim - the number of parameters in the simplex.
+   ftol - the fractional in chi2 to decide when to stop the minimization.
+   funk - a pointer to a function which provides chi2.
+      funk has the expected format:
+      double funk(double *param, int ndim, int N, double *t, double *mag,
+                  double *sig, void *userparams)
+           where param is a set of parameter values to calculate chi2 for,
+           and the function should return chi2.
+      The other input parameters to funk are as described below.
+   nfunk - on return, this stores the number of function calls executed by
+           amoeba.
+   maxeval - maximum number of function evaluations to perform before giving
+             up. If this is <= 0 then the default number is used.
+   The following terms are passed directly to funk and not actually used
+   elsewhere within amoeba, they can, but do not have to, take on the context
+   given below:
+    N - number of points in the time series that is being fit.
+    t - times of observation
+    mag - set of observed magnitude values being fit
+    sig - set of magnitude uncertainties
+    userparams - structure containing other user-defined parameters.
+         must be cast to the appropriate type by funk.
+*/
+
+void VARTOOLS_incrementparameters_foramoeba(int *Nparameters, int *Ntovary, double ***p, int **ia, int varyparam, double initialval, double stepval);
+/* This function sets up the initial simplex for amoeba.
+   This is called once for each parameter that one wishes to include in the
+   simplex.
+   Nparameters - the number of parameters in the simplex before adding the new
+                 parameter. On output this will be the number of parameters
+		 including the new parameter. Nparameters should be zero on
+		 input for the first parameter added to the simplex.
+   Ntovary - the total number of parameters that are free to vary. This is
+             incremented by the function if varyparam == 1.
+   p - pointer to a 2-d array storing the simplex. The function will allocate
+       memory for p, and update it, for each parameter added. This array will
+       then be passed to amoeba.
+   ia - pointer to an integer array storing flags that will indicate whether or
+        not the parameter is to be varied. The function will allocate memory for
+        the ia array, and update it, for each parameter added. This array will
+        be passed to amoeba.
+   varyparam - a flag indicating whether or not the new parameter is to be
+        varied. 1 - yes, 0 - no.
+   initialval - initial value to adopt for the parameter.
+   stepval - initial step-size to use for this parameter in defining the
+             simplex.
+*/
+
+void VARTOOLS_amoeba_cleanup(int *Nparameters, int *Ntovary, double ***p, int **ia)
+/* Cleans up data allocated by VARTOOLS_incrementparameters_foramoeba */
+
+double VARTOOLS_fitpoly(int N, double *x, double *y, double *sig, int order,
+			int subtractfit, double *fitparams, double *paramerrs);
+/* This function provides easy access to the docorr and magcorr functions
+   to fit a polynomial of the form y = sum_i=0^i=order{a_i*x^i}.
+   It returns chi2 (or the sum of residuals squared if sig=NULL).
+
+   N - the number of points in the x and y vectors.
+   x - vector of independent variables.
+   y - vector of dependent variables.
+   sig - optional uncertainty vector. If this is NULL then uniform weighting
+         of points will be assumed.
+   order - order of the polynomial to fit. Must be >= 0.
+   subtractfit - 1 to subtract the best-fit model from y (the contents of the
+      vector y will be modified in this case). 0 to not subtract it.
+   fitparams - The fitted coefficients a_0 through a_N. This must be a vector
+         of size order+1, or it can be NULL (in which case the parameters will
+         not be returned.)
+   paramerrs - The formal uncertainties on the fitted coefficients a_0 through
+         a_N. This must also be a vector of size order+1, or it can be NULL (in
+         which case the parameters will not be returned.)
+*/
+
+void VARTOOLS_mandelagoltransitmodel(int Npoints, double *phase, double *outlc,
+				     int type, double *ldcoeffs, double sin_i,
+				     double a, double e, double p, 
+				     double omega);
+/* Returns a Mandel & Agol transit model evaluated at particular phases. 
+
+   Npoints - the number of points in the light curve to evaluate the model at.
+   phase - vector of phases to evaluate the model at (phase=0, and phase=1 is 
+           the time of mid transit).
+   outlc - vector to output the model fractional fluxes to (fractional flux
+           is defined such that 1 = no transit).
+   type - 0 for quadratic limb darkening (2 parameters in ldcoeffs), 1 for
+          non-linear limb-darkening (4 parameters in ldcoeffs).
+   ldcoeffs - array of limb-darkening coefficients.
+   sin_i - sin of the inclination angle of the orbit. sin_i = 1 corresponds to
+          an edge on orbit (with transits), sin_i = 0 corresponds to a face-on
+          orbit (no transits)
+   a - ratio of semi-major axis to star radius.
+   e - eccentricity of the orbit.
+   p - ratio of planet radius to star radius.
+   omega - argument of periastron (in radians)
+*/
+
+void VARTOOLS_integratemandelagoltransitmodel(double exptime_phase, int Npoints,
+					      double *phase, double *outlc, 
+					      int type, double *ldcoeffs, 
+					      double sin_i, double a, double e,
+					      double p, double omega, 
+					      int Nresamp);
+/* Returns a Mandel & Agol transit model including integration over exposures 
+
+   exptime_phase - the exposure time to integrate over, in units of phase.
+   Npoints - the number of points in the light curve to evaluate the model at.
+   phase - vector of phases to evaluate the model at (phase=0, and phase=1 is 
+           the time of mid transit).
+   outlc - vector to output the model fractional fluxes to (fractional flux
+           is defined such that 1 = no transit).
+   type - 0 for quadratic limb darkening (2 parameters in ldcoeffs), 1 for
+          non-linear limb-darkening (4 parameters in ldcoeffs).
+   ldcoeffs - array of limb-darkening coefficients.
+   sin_i - sin of the inclination angle of the orbit. sin_i = 1 corresponds to
+          an edge on orbit (with transits), sin_i = 0 corresponds to a face-on
+          orbit (no transits)
+   a - ratio of semi-major axis to star radius.
+   e - eccentricity of the orbit.
+   p - ratio of planet radius to star radius.
+   omega - argument of periastron (in radians)
+   Nresamp - Number of points per integration at which to evaluate the M&A
+             model
+*/
+
+3. Spline Functions
+-------------------
+
+void VARTOOLS_spline(double *x,double *y,int n,double yp1,double ypn,
+		     double *y2,double *u);
+
+void VARTOOLS_splint(double *xa,double *ya,double *y2a,int n,double x,
+		     double *y);
+
+void VARTOOLS_spline_monotonic(int N, double *x, double *y, double *yprime);
+
+double VARTOOLS_splint_monotonic(int N, double *x, double *y, double *yprime, 
+				 double xt);
+
+
+4. Statistics Functions
+-----------------------
+
+void VARTOOLS_medianfilter(int N, double *t, double *mag, double *sig, 
+			   double timesize, int meanflag, int replace);
+
+double VARTOOLS_getweightedmean(int n, double *data, double *sig);
+
+double VARTOOLS_getmean(int n, double *data);
+
+double VARTOOLS_median(int n, double *data);
+
+double VARTOOLS_MAD(int n, double *data);
+
+double VARTOOLS_stddev(int n, double *data);
+
+double VARTOOLS_kurtosis(int n, double *data);
+
+double VARTOOLS_skewness(int n, double *data);
+
+double VARTOOLS_chi2(int N, double *t, double *mag, double *err, 
+		     double *weighted_average, int *Ngood);
+
+5. Error reporting
+------------------
+
+void VARTOOLS_error(int errflag);
+
+void VARTOOLS_error2(int errflag, char *s);
+
+6. Sorting
+----------
+
+void VARTOOLS_sort_generic(int N, int isreverse, int *index, int Nms, ...);
+/* This function can be used to sort one or more data vectors of various types.
+   The syntax is as follows:
+      N - number of datapoints in each of the vectors.
+      isreverse - 0 = sort from low to high.
+                  1 = sort from high to low.
+      index - = An array of integer indices to be provided if we don't want to
+                transpose the data for at least one of the vectors. Set this
+                to NULL if all of the vectors will be transposed. If this is
+                not null, it should initially store the values 0 to N-1 in
+                order. The values of index will then be transposed such that
+                dataN[index[i=0 ... N-1]] will be sorted based on the key.
+      Nms - The number of data vectors. This must be >= 1 or else VARTOOLS
+            will abort with an error.
+      ...
+          - For each data vector provide the additional input arguments
+            given below. Note that the first vector described will be the
+            key used for the sorting. Additional vectors will be re-ordered
+            with the key.
+
+            int datatype = the datatype for this vector. Allowed values are
+                           VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_STRING,
+                           VARTOOLS_TYPE_INT, VARTOOLS_TYPE_FLOAT,
+                           VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_CHAR,
+                           VARTOOLS_TYPE_SHORT, VARTOOLS_TYPE_USERDEF (for
+                               an array of user-defined structures).
+            void *dataptr = the data vector (e.g. if the vector is
+                           s of type (double *), one would pass (void *)s
+                           for this argument).
+            int useindex = 0 - the data in the vector will be transposed.
+                           1 - the data will not be transposed and instead
+                               will be indexed. Note that if this is one,
+                               then index above cannot be NULL.
+
+          - If datatype is VARTOOLS_TYPE_STRING the following additional
+            argument is needed.
+
+            size_t sizeobj = the size of single string element.
+
+          - If datatype is VARTOOLS_TYPE_USERDEF the following additional
+            two arguments are needed.
+
+            size_t sizeobj = the size of a single element.
+
+            int (*comp_func)((void *),(void *)) = a pointer to a function
+                used to compare two elements. This function is of the form
+                used by the qsort function (e.g. strcmp for strings).
+                If this vector is not the key then this can be NULL.
+*/
+
+void VARTOOLS_sortvec_double(int N, double *data1);
+/* This function sorts the data in vector data1 from low to high */
+
+7. Other miscellaneous
+----------------------
+
+int VARTOOLS_isDifferentPeriods (double period1, double period2, double TimeSpan);

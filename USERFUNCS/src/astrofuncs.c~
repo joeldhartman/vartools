@@ -1,0 +1,254 @@
+#include "../../src/vartools.h"
+
+/* This is the source code for a user-defined function to be used with
+   vartools.
+
+   This library defines a number of functions that can be included in
+   vartools analytic expressions.
+*/
+
+void astrofuncs_Initialize(ProgramData *p) 
+/* This function is used to initialize the library. Every library loadable
+   with the name $LIBNAME.so that is loaded with the VARTOOLS -F option must 
+   contain a function with the name $LIBNAME_Initialize which is used to
+   register the new analytic functions with VARTOOLS.
+*/
+{
+  double astrofuncs_eccentricAnomaly(double *);
+  double astrofuncs_meanAnomaly(double *);
+  double astrofuncs_meanAnomalyConjunction(double *);
+  double astrofuncs_transitquadLD(double *);
+  double astrofuncs_transitnonlinLD(double *);
+
+  /* Use the VARTOOLS_RegisterUserFunction procedure to register each
+     function that this library
+     provides. VARTOOLS_RegisterUserFunction takes as input a pointer
+     to the ProgramData structure p, the name of the function to use
+     in the analytic expression evaluator, the number of arguments
+     required by the function, and a pointer to the function */
+  VARTOOLS_RegisterUserFunction(p, "EccentricAnomaly", 2, &astrofuncs_eccentricAnomaly);
+  VARTOOLS_RegisterUserFunction(p, "MeanAnomaly", 3, &astrofuncs_meanAnomaly);
+  VARTOOLS_RegisterUserFunction(p, "MeanAnomalyConjunction", 4, &astrofuncs_meanAnomalyConjunction);
+  VARTOOLS_RegisterUserFunction(p, "TransitQuadLD", 9, &astrofuncs_transitquadLD);
+  VARTOOLS_RegisterUserFunction(p, "TransitNonlinLD", 11, &astrofuncs_transitnonlinLD);
+}
+
+#define BISECTION_SAFETY_MAX_ITERATIONS 1000
+#define ECC_ANOMALY_MAX_ERROR 1.0e-4  // Convergence threshold (average error is less than a third of this)
+double astrofuncs_eccentricAnomaly(double *param) 
+/* This function returns the eccentric anomaly E given a mean anomaly M 
+   and eccentricity e by solving Kepler's equation.
+
+   param[0] = mean anomaly in radians
+   param[1] = eccentricity
+
+   return value = eccentric anomaly in radians
+*/
+{
+  double M, e;
+  int counter = BISECTION_SAFETY_MAX_ITERATIONS ;
+  double Emin, Emax, E;
+  double f, dfm, dE ;
+
+  M = param[0];
+  e = param[1];
+  Emin = M - 1.0; Emax = M + 1.0; E = M;
+  do
+    {
+      f = M + (e * sin(E)) - E ;  // May be optimized by setting cos=sqrt(1-sin^2)
+      dfm = 1.0 - (e * cos(E)) ;  // Minus differential of f (always non-negative)
+      dE = dfm * ECC_ANOMALY_MAX_ERROR ;
+
+      if (f > dE)
+	{
+	  Emin = E ;
+	  dE = Emax - Emin ;
+
+	  if ((dfm * dE) > f)
+	    E += (f / dfm) ;
+	  else
+	    E = 0.5 * (Emax + Emin) ;
+	}
+      else if (f < (-dE))
+	{
+	  Emax = E ;
+	  dE = Emax - Emin ;
+
+	  if ((dfm * dE) > -f)
+	    E += (f / dfm) ;
+	  else
+	    E = 0.5 * (Emax + Emin) ;
+	}
+      else return (E) ;
+    }
+  while ((dE > ECC_ANOMALY_MAX_ERROR) && ((--counter) > 0)) ;
+
+  return (E) ;  // should almost never exits here
+}
+
+double astrofuncs_meanAnomaly(double *param) 
+/* This function returns the mean anomaly M given the time since periastron dt
+   and the orbital period P.
+
+   param[0] = time since periastron dt = (t-T)
+   param[1] = orbital period P
+
+   return value = mean anomaly in radians
+*/
+{
+  double phase;
+  phase = param[0]/param[1] - floor(param[0]/param[1]);
+  return (2.0*M_PI*phase);
+}
+
+double astrofuncs_phaseofconjunction (double e, double omega){
+  double E, nu, M, x, y, r, phi_c;
+  nu = M_PI/2.0 - omega;
+  while(nu < 0.)
+    nu += 2.0*M_PI;
+  while(nu > 2.0*M_PI)
+    nu -= 2.0*M_PI;
+  r = (1 - e*e)/(1 + e*cos(nu));
+  x = e + r*cos(nu);
+  y = sqrt(fabs(1 - x*x));
+  if(nu > M_PI) y = -1*y;
+  E = atan2(y,x);
+  M = E - e*sin(E);
+  phi_c = M/2.0/M_PI;
+  return phi_c;  
+}
+
+
+double astrofuncs_meanAnomalyConjunction(double *param) 
+/* This function returns the mean anomaly M given the time since
+   conjunction (or transit) d, the orbital period P, the eccentricity
+   e and the argument of periastron omega.
+
+   param[0] = time since conjunction dt = (t-Tc)
+   param[1] = orbital period P
+   param[2] = eccentricity e
+   param[3] = argument of periastron, omega, in degrees.
+
+   return value = mean anomaly in radians
+*/
+{
+  double phase, phaseC, M;
+  phase = param[0]/param[1] - floor(param[0]/param[1]);
+
+  phaseC = astrofuncs_phaseofconjunction(param[2],(param[3]*M_PI/180.0));
+  M = (2.0*M_PI*(phase + phaseC));
+  if(M > 2.0*M_PI) {
+    M -= 2.0*M_PI;
+  }
+  return M;
+}
+
+#define SQR_(A) ((A)*(A))
+
+double astrofuncs_getinstantimpactparameter_transit(double phase, double sin_i, double a, double e, double omega, double phi_c, double p)
+{
+  const double meanAnomaly = 2.0 * M_PI * (phase + phi_c);
+  double D2, D, E;
+
+  if(e > 0)
+    E = eccentricAnomaly(meanAnomaly, e);
+  else
+    E = meanAnomaly;
+  D2 = SQR_(1.0 - (e * cos(E))) - SQR_((((cos(E) - e) * sin(omega)) + (sqrt(1.0 - (e*e)) * sin(E) * cos(omega))) * sin_i) ;
+  D = sqrt(D2) * a;
+
+  /* Check which side of the orbit the planet is, if the planet is behind the star set D to be something out of transit */
+  if(sin(E + omega) < 0.)
+    D = p + 2.0;
+  return D;
+}
+
+
+double astrofuncs_transitquadLD(double *param)
+/* This function returns the relative flux of a source in transit using
+   the Mandel & Agol 2002 semi-analytic transit model.  
+   
+   param[0] = time since transit center dt = (t-T0)
+   param[1] = orbital period P
+   param[2] = normalized impact parameter (normalized to R*);
+   param[3] = Rp/R*;
+   param[4] = a/R*;
+   param[5] = eccentricity;
+   param[6] = omega (argument of periastron, in degrees).
+   param[7] = u1 (first limb darkening coefficient)
+   param[8] = u2 (second limb darkening coefficient)
+
+   return value = relative flux (=1 means out of transit, <1 in transit)
+*/
+{
+  double dt, P, bimp, rprstar, arstar, eccen, omega, u1, u2;
+  double phase_c, omega_rad, phase, sin_i, cos_i, z, flux1, flux2;
+
+  dt = param[0]; P = param[1]; bimp = param[2]; rprstar = param[3];
+  arstar = param[4]; eccen = param[5]; omega = param[6]; u1 = param[7];
+  u2 = param[8];
+
+  omega_rad = omega*M_PI/180.0;
+
+  phase_c = astrofuncs_phaseofconjunction(eccen, omega_rad);
+
+  phase = (dt/P) - floor(dt/P);
+
+  cos_i = bimp*(1. + eccen)*cos(omega_rad)/(1. - eccen*eccen)/arstar;
+
+  sin_i = sqrt(1. - cos_i*cos_i);
+
+  z = astrofuncs_getinstantimpactparameter_transit(phase, sin_i, arstar, eccen, omega_rad, phase_c, rprstar);
+
+  VARTOOLS_occultquad(&z, u1, u2, rprstar, &flux1, &flux2, 1);
+  
+  return flux1;
+}
+
+double astrofuncs_transitnonlinLD(double *param)
+/* This function returns the relative flux of a source in transit using
+   the Mandel & Agol 2002 semi-analytic transit model.  
+   
+   param[0] = time since transit center dt = (t-T0)
+   param[1] = orbital period P
+   param[2] = normalized impact parameter (normalized to R*);
+   param[3] = Rp/R*;
+   param[4] = a/R*;
+   param[5] = eccentricity;
+   param[6] = omega (argument of periastron, in degrees).
+   param[7] = a1 (first limb darkening coefficient)
+   param[8] = a2 (second limb darkening coefficient)
+   param[9] = a3 (third limb darkening coefficient)
+   param[10] = a4 (fourth limb darkening coefficient)
+
+   return value = relative flux (=1 means out of transit, <1 in transit)
+*/
+{
+  double dt, P, bimp, rprstar, arstar, eccen, omega, a1, a2, a3, a4;
+  double phase_c, omega_rad, phase, sin_i, cos_i, z, flux1;
+  double *flux2;
+
+  flux2 = (double *) malloc(5*sizeof(double));
+
+  dt = param[0]; P = param[1]; bimp = param[2]; rprstar = param[3];
+  arstar = param[4]; eccen = param[5]; omega = param[6]; a1 = param[7];
+  a2 = param[8]; a3 = param[9]; a4 = param[10];
+
+  omega_rad = omega*M_PI/180.0;
+
+  phase_c = astrofuncs_phaseofconjunction(eccen, omega_rad);
+
+  phase = (dt/P) - floor(dt/P);
+
+  cos_i = bimp*(1. + eccen)*cos(omega_rad)/(1. - eccen*eccen)/arstar;
+
+  sin_i = sqrt(1. - cos_i*cos_i);
+
+  z = astrofuncs_getinstantimpactparameter_transit(phase, sin_i, arstar, eccen, omega_rad, phase_c, rprstar);
+
+  VARTOOLS_occultnl(rprstar, a1, a2, a3, a4, &z, &flux1, &flux2, 1);
+  
+  free(flux2);
+
+  return flux1;
+}

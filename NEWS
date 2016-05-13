@@ -1,0 +1,214 @@
+January 23, 2015: Version 1.32: Switched to autobuild tools for
+building vartools.
+
+January 20, 2015: Version 1.31: The following new commands have been
+added: -BlsFixDurTc, -copylc, -nonlinfit, -resample, and
+-WWZ. Significantly revised -addnoise command allowing simulation of
+time-correlated noise via a Gaussian process model. Modified routines
+for loading user-developed libraries (initialization function now
+requires more input values). Auto sort light curves on input. Added
+"wmedian" and "wpct" statistics to -stats command. Added "niter" and
+"median" options to -clip. Added "format" option to -linfit.
+
+September 11, 2014: fixed bug causing buffer overflow or seg-fault
+when outputting the model function in the -Killharm command. Thanks to
+T. Bovaird for the bug report.
+
+July 16, 2014: corrected bugs related to compiling without libraries,
+and to compiling on windows.
+
+June 17, 2014: fixed bug in vartools_functionpointers.h preventing
+compilation with PARALLEL option turned off.
+
+April 22, 2014: Version 1.3: Major update. The following new commands
+have been added: -changevariable, -expr, -if -else -elif -fi, -linfit,
+-restricttimes, -stats. The following new options have been added:
+-inputlcformat, -inlistvars, -showinputlistformat, -showinputlcformat,
+-log-command-line, -functionlist, -L and -F. The following new
+extension commands have been added: -fastchi2, -jktebop, -macula,
+-magadd. Changed the "spec" keyword to "list" for all commands, which
+is hopefully a bit more intuitive. Changed the syntax for -o to allow
+greater control over the formatting of the output. Changed -aov_harm
+to correct for a singularity which can appear when applying the method
+to evenly sampled data (thanks to A. Schwarzenberg-Czerny for pointing
+this out). Changed -binlc and -clip to handle all light curve related
+vectors, not just t, mag and err. Allow reading in rows of arbitrary
+length from ascii files. Significant new features include: the ability
+to handle analytic expressions and to assign variable names to input
+vectors and scalars; the ability to read-in many columns from a light
+curve as vectors and to change the vectors which commands will operate
+on with the -changevariable command; support for user developed
+extensions (including adding your own commands to vartools, or adding
+new functions to be used with -expr, -linfit or other commands which
+handle analytic expressions).
+
+July 18, 2013: added Mac installation notes. Thanks to J. Pepper and
+his research team for providing this.
+
+May 15, 2013: updated help for the -Jstet command to note a difference
+between the J statistic computed by vartools and that defined in
+Stetson's paper. Thanks to L. Macri for reporting this.
+
+Apr 23, 2012: Version 1.202: Fixed bugs in -converttime related to
+location of observer and handling of input-ppm, also corrected bug in
+-converttime causing loss of timing precision from accumulated
+rounding errors. Time conversions should now by precise to ~0.1
+millisecond near JD2000.0. Reworked the internal method for parsing
+light curve data, if bugs are encountered the "-D _USE_PARSELC" term
+in the makefile can be deleted to return to the old method. This
+change should not affect the behavior of the program, but should make
+future developments (e.g. support for multi-filter or multi-aperture
+light curves) easier. Changed -readformat to allow reading in light
+curves that are missing one or more of the JD, mag, or sig
+columns. Fixed memory leak in -getampthresh. A lot of code has been
+added related to supporting user-developed extensions to vartools; at
+present this feature is not fully functional and by default is not
+compiled into the program.
+
+Feb 8, 2012: Fixed bug in -decorr causing the LCColumn_?_coeff_err_?_?
+to not be output correctly. Thanks to D. Flateau for the report.
+
+Feb 3, 2012: Version 1.201: Fixed bug in -BLSFixPer causing incorrect
+periods to be printed to ascii output table when using "list". Thanks
+to J. Pepper for the bug report.
+
+Feb 1, 2012: Fixed seg-fault when using -inputlistformat with -SYSREM,
+also corrected a bug in the output table when combining -header and
+-redirectstats. Thanks to D. Flateau for the bug report.
+
+Nov 10, 2011: Updated descriptions of some commands on the website.
+
+Oct 21, 2011: Version 1.2. Significant changes including: added
+"-addnoise" and "-converttime" commands, and "-example",
+"-inputlistformat" and "-parallel" options. Significant internal
+revisions to the code to allow for parallel processing of light curves
+(affecting many commands which had previously used global or static
+variables; there may be bugs introduced as a result, please let me
+know if you encounter unexpected behavior). Added options to most
+commands to specify the column number for parameters taken from the
+input list file. Added "inpututc" option to "-readformat". Changed
+"-help" to only provide a brief synopsis of the program, "-help all"
+gives the previous behavior of "-help". Changed -MandelAgolTransit and
+-SoftenedTransit to internally vary the initial and final transit
+epochs rather than the period and epoch, also improved the initial
+parameter estimates based on -BLS. Added "dilute" option to
+-Injecttransit to simulate diluted transits.
+
+Apr 6, 2011: Version 1.158. Added "fittrap" option to BLS and
+BLSFixPer which fits a trapezoid transit at each peak period. Added
+"nobinnedrms" option to BLS. This option speeds up the running of BLS,
+but results in a BLS_SN statistic that is suppressed. Use this option
+if not using BLS_SN to select transits. Added ophcurve and ojdcurve
+options to BLS. Fixed a bug in BLS which caused period "-1" peaks to
+be listed before the correct peaks in cases where fewer than Npeaks
+periods were found. Added "-oneline" option which provides easier to
+read output when processing a single light curve.
+
+Apr 5, 2011: Version 1.157. Fixed bug in BLS causing integer overflow
+for large frequency number searches. Thanks to B. Sipöcz for pointing
+out the bug, and the fix.
+
+Mar 1, 2011: Version 1.156. Fixed bug in BLS causing memory
+leak. Thanks to R. Siverd for debugging this.
+
+Feb 25, 2011: Version 1.155. Fixed bug in BLS causing the wrong
+transit time center to be output. Thanks to T. Beatty for reporting
+the bug.
+
+Feb 14, 2011: Version 1.154. Minor change to inputoutput.c to correct
+unpredictable behavior when reading fits files, thanks to J. Rasor for
+reporting the bug. Fix bug relating to the file names of bls
+periodograms and added version number to the help and usage functions
+(thanks to R. Siverd for the report/suggestion).
+
+Feb 10, 2011: Version 1.153. Added the ability to read in binary fits
+table files. Renamed old -fluxtomag command as -difffluxtomag and
+added a new -fluxtomag command. Added option to use amplitude spectra
+with -dftclean. Added replace option to -medianfilter command. Some
+improvements to the -Phase command. Fixed a bug in -starspot which
+prevented the model from being output when no fitting was
+done. Modified output of -BLS and -BLSFixPer commands to include the
+epoch of transit center for the first transit after the start of the
+light curve.
+
+Aug 13, 2009: Version 1.152. Added the -microlens command, changed the
+DFT routine in -dftclean from the brute force to the FDFT algorithm,
+fixed a bug in the calculation of S/N for the -LS command, added GNU
+license.
+
+May 19, 2009: Version 1.151. Added the -findblends command (thanks to
+Kris Stanek for the suggestion).
+
+Mar 3, 2009: New Version 1.15. Changes include: 1. Added whiten, and
+clip options to aov, aov_harm and LS commands. Also added SNR output
+to these commands, and the option to determine the SNR at a fixed
+period for these commands. Note that the default behavior now for -aov
+is to give the AoV statistic and the SNR of the AoV statistics,
+previously the behavior was to give the SNR of the log AoV statistic
+which tended to suppress the detection significance for large
+amplitude variables. To get the previous behavior use the "uselog"
+option for this command. 2. Added the -Injecttransit command. 3. Fixed
+a bug in the aov peak finder that could cause it to miss the peak in
+some cases. 4. Fixed a bug in the -MandelAgolTransit algorithm that
+caused the transit to not appear at the correct phase for some values
+of omega. Changed -MandelAgolTransit to input/output omega in
+degrees. 5. Fixed an incompatibility between the -clip command and
+several other commands. 6. Added the -savelc and -restorelc
+commands. 7. Changed -autocorrelation to use the Discrete Correlation
+Function (binning is done on the ACF rather than on the lc, this also
+yields error estimates for the ACF). 8. Added the ability to reference
+arbitrary previously computed statistics by output column name or
+number. This option has not yet been fully extended to all commands
+that can use results from previous calculations. 9. Added the option
+of reading in signals from a file to the -GetLSAmpThresh
+command. 10. Added the option of simultaneously fitting a fourier
+series to a light curve with TFA to the -TFA_SR command.
+
+Dec 11, 2008: Changed -Killharm to allow different output formats,
+fixed a bug with the phaserel and amprel options to -Injectharm, added
+an example on injecting and recovering a simulated RR Lyrae signal.
+
+Dec 10, 2008: Substantial changes. Added several new commands:
+-autocorrelation, -changeerror, -dftclean, -Injectharm, and
+-TFA_SR. Added the following new options: -matchstringid, -quiet,
+-randseed, -numbercolumns, -listcommands. Changed the -help option to
+allow displaying help for individual commands. Modified Killharm to
+allow "injectharm" and "fix" options for inputting periods, also added
+the "fitonly" option and changed the output format/column headings for
+this command. Modified TFA to allow specification of readformat of
+trend lcs. Added fitRV options to -MandelAgolTransit, this hasn't been
+fully debugged yet, so I suggest not using this feature for the
+moment.
+
+Sep 25, 2008: Changed the "Mean_Mag" output for the -Killharm command
+to be the fitted mean rather than the statistical mean, this is now in
+line with the way this was presented in Example 2 above.
+
+Sep 22, 2008: Added -nobuffer option (thanks to Rob Siverd).
+
+Aug 18, 2008: Fixed seg. fault when reading long input lists (thanks
+to Josh Pepper).
+
+July 31, 2008: Added -headeronly option.
+
+July 2, 2008: Modified to allow input from stdin.
+
+May 27, 2008: Modified the -BLS and -BLSFixPer commands to output the
+number of points in transit, the number of transits, the number of
+points before and after transit, the red and white noise of the signal
+after removing the bls model and the signal to pink noise ratio of the
+transit.
+
+May 25, 2008: Fixed seg. fault in initialize_tfa routine. Added
+examples. (thanks to Rob Siverd)
+
+Mar 26, 2008: Fixed memory leak in -aov command. (thanks to David Nataf)
+
+Jan 16, 2008: Fixed isinf portability problem. (thanks to Alceste Bonanos)
+
+Nov 26, 2007: Added -SYSREM and -binlc commands and the -jdtol option.
+
+Nov 19, 2007: Added -TFA and -fluxtomag commands.
+
+Nov 15, 2007: Added -MandelAgolTransit, -GetLSAmpThresh, and -aov_harm
+commands.

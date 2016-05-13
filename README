@@ -1,0 +1,310 @@
+1. Description:
+---------------
+The VARTOOLS program is a command line utility that provides tools for
+processing and analyzing astronomical time series data (a.k.a. light
+curves). It includes methods for calculating variability/periodicity
+statistics of light curves; for filtering, transforming, and otherwise
+modifying light curves; and for modeling light curves. It is intended
+primarily for batch processing a large number of light curves. The
+program is run by issuing a sequence of commands to perform actions on
+light curves, each command is executed in turn with the resulting
+light curves passed to the next command. Statistics computed by each
+command are sent to stdout as an ascii table.
+
+2. Disclaimer:
+--------------
+This program is available without any warranty - use it at your own
+risk. If you do find a bug, please let me know so that I can fix it
+(jhartman@astro.princeton.edu). Also feel free to let me
+know if there are any commands/algorithms that you would like to see
+added to this program.
+
+3. Citation:
+------------
+If you use this program, please cite Hartman et al., 2008,
+ApJ, 675, 1254. Also, be sure to cite the relevant sources for the
+algorithms that you use.
+
+4. Documentation on Usage:
+--------------------------
+Help on usage of the program can be found at
+http://www.astro.princeton.edu/~jhartman/vartools.html
+
+5. General Installation notes:
+------------------------------
+As of VARTOOLS version 1.32 the GNU autobuild system is used for
+configuring, compiling and installing the software. The program was
+developed in a 64-bit linux environment (specifically Ubuntu 14.04),
+so it has been most fully-debugged in linux or other POSIX-compatible
+environments. It has been successfully installed on Mac (using Xcode
+and homebrew GNU packages) and Windows 32 (mingw) systems as well.
+
+6. Dependencies:
+----------------
+Although VARTOOLS can be compiled without using non-standard external
+libraries, several features depend on outside libraries. To use these
+features you will need to install the following libraries on your
+system.
+
+   A. CFITSIO:
+      Needed for reading binary-fits format light curves (e.g. processing
+         Kepler light curves).
+      http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html
+
+   B. PTHREAD:
+      Needed for parallel processing of light curves. This is standard on
+      linux and Mac, for windows you will need to install the pthreads-win32
+      library (http://sourceforge.net/projects/pthreads4w/)
+
+   C. GSL (GNU scientific library):
+      Needed for the -addnoise, -microlens, -resample commands.
+      http://www.gnu.org/s/gsl/
+
+   D. DYNAMIC LIBRARY SUPPORT:
+      User-compiled commands and analytic functions are supported through
+      loading dynamically linked libraries. The 'configure' script should 
+      detect and make use of whatever framework your system uses to
+      accomplish this. On linux you would need libdl.so, dlfcn.h and ctype.h.
+      On Mac you would need dlfcn.h and ctype.h, but not libdl.so. On windows
+      DLL support is accomplished through windows.h. I have not fully tested
+      this feature on Mac or Windows, so bugs may be present.
+
+   E. JPL NAIF CSPICE:
+      Needed for converting to/from BJD and UTC/TDB in the -converttime
+         command.
+      http://naif.jpl.nasa.gov/naif/toolkit_C.html
+
+      Additionally, the following kernel files storing ancillary
+         time/solar-system data should be downloaded and stored in 
+         e.g. the ${HOME}/.vartools directory:
+
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de432s.bsp
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/naif0011.tls
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/pck00010.tpc
+
+      Note that new versions of these files are regularly released. 
+      You should check the directories (e.g.
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/
+      ftp://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/ )
+      For any newer versions. Also note that whenever there is a leapsecond
+      you will need to download and install the newest version of
+      naif*.tls.
+
+      On a *nix system you may want to add the following lines to your
+      .bashrc file (or the equivalent version to your .cshrc file):
+
+      export CSPICE_EPHEM_FILE=${HOME}/.vartools/de432s.bsp
+      export CSPICE_LEAPSEC_FILE=${HOME}/.vartools/naif0011.tls
+      export CSPICE_PLANETDATA_FILE=${HOME}/.vartools/pck00010.tpc
+
+      Alternatively the path to these files can be specified on the
+      command line when calling VARTOOLS.
+
+7. Download and unpack the VARTOOLS source:
+-------------------------------------------
+
+   For example, the following commands might be used:
+
+      cd ${HOME}/src/
+
+      wget \
+        http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.33.tar.gz
+
+      tar -xzvf vartools-1.33.tar.gz
+
+      cd vartools-1.33
+
+8. Configure VARTOOLS:
+----------------------
+
+   Type './configure' to create the Makefile. You will probably need
+   to supply some options and set some environment variables so that
+   VARTOOLS installs to the correct location on your system, and so
+   that all of the necessary library and header files can be found (in
+   particular, if CFITSIO, GSL and/or CSPICE are not installed to
+   locations in your LD_LIBRARY_PATH). You may also need to change the
+   compiler (and compiler options) used.  
+
+   The following directories are used for installation:
+
+      PREFIX=/usr/local
+      BINDIR=$(PREFIX)/bin
+      LIBDIR=$(PREFIX)/lib
+      DATAROOTDIR=$(PREFIX)/share
+      DOCDIR=$(DATAROOTDIR)/doc/vartools      
+
+      vartools executable -->  $(BINDIR)
+      libvartools --> $(LIBDIR)
+      Documentation --> $(DATAROOTDIR)
+      User-developed commands --> $(DATAROOTDIR)/vartools/USERLIBS/
+      User-developed functions --> $(DATAROOTDIR)/vartools/USERFUNCS/
+      Data for examples --> $(DATAROOTDIR)/vartools/EXAMPLES
+
+   These may be changed using options such as
+
+      --prefix=${HOME}/ (install vartools to the bin subdirectory of
+        your home directory, the documentation to
+        ${HOME}/share/doc/vartools/, etc.)
+
+      --bindir=${HOME}/bin  (modify only the bin directory)
+
+      --libdir=${HOME}/lib
+
+      --datarootdir=${HOME}/share
+
+      --docdir=${HOME}/doc
+
+      Note that if you do not change the prefix, you will need to have
+      root permission to carry out 'make install'
+
+   You will also likely need to supply additional paths for locating
+   libraries and header files. These can be set using the LDFLAGS and
+   CPPFLAGS variables, respectively. They can either be exported as
+   environment variables before running configure, or passed to
+   configure as options. Note that these variables are passed directly
+   to the linker and compiler, and so need to include the appropriate
+   flags. For example, if the CFITSIO library file libcfitsio.so is in
+   the directory /home/jhartman/src/cfitsio/ and the header file
+   fitsio.h is in this same directory, running
+       './configure LDFLAGS=-L/home/jhartman/src/cfitsio/ \
+           CPPFLAGS=-I/home/jhartman/src/cfitsio/'
+   will make sure that the library and header files for cfitsio may be found.
+
+   Finding the cspice library is a special case due to the non-standard
+   naming convention which prevents the linker for automatically
+   finding it. By default the configure script will search for the
+   library at /usr/lib/cspice.a and for the SpiceUsr.h header file in
+   /usr/include/cspice. If it does not find these files, it will not
+   include the CSPICE features in VARTOOLS. You can specify an
+   alternative location for these files using the --with-cspice-lib
+   and --with-cspice-include options to configure.  For example, if
+   you have cspice.a in /home/jhartman/src/cspice/lib and SpiceUsr.h is in
+   /home/jhartman/src/cspice/include you would do:
+      './configure --with-cspice-lib=/home/jhartman/src/cspice/lib/cspice.a \
+           --with-cspice-include=/home/jhartman/src/cspice/include/'
+   Note that --with-cspice-lib includes the cspice.a name of the file,
+   whereas --with-cspice-include is just the directory.
+
+   Another issue to consider is the fortran compiler, which is used to
+   compile some of the extensions. You can change the fortran compiler
+   using the FC and F77 variables (the former is used for f90 code,
+   the later for f77 code). On my own system running ubuntu 14.04
+   these default to gcc, which fails to compile the command
+   extensions, so I need to set both to gfortran.
+
+   Below is an example run of configure which sets things to install
+   the vartools binary in ${HOME}/bin, the library in ${HOME}/lib and
+   the shared data (extensions, documents, example data) in
+   ${HOME}/share, and which adds options for finding the cfitsio, and
+   cspice libraries, and specifies gfortran as the fortran compiler:
+
+   ./configure --prefix=${HOME}/ \
+      --with-cspice-lib=${HOME}/src/cspice/lib/cspice.a \
+      --with-cspice-include=${HOME}/src/cspice/include \
+      CPPFLAGS="-I${HOME}/src/cfitsio" \
+      LDFLAGS="-L${HOME}/src/cfitsio" \
+      F77=gfortran FC=gfortran
+
+9. Compiling VARTOOLS:
+----------------------
+
+   To do the compilation type:
+
+      make
+
+   If it's successful a 'vartools' executable file will be created in
+   the src subdirectory.  If it fails and you cannot figure out the
+   problem, feel free to contact the author (see section 13
+   below). Note that the executable created in the src subdirectory
+   will most likely fail with an error about missing libraries if you
+   try to run it. You need to issue 'make install' and then execute
+   the version installed to the binary directory.
+
+10. Installing VARTOOLS:
+------------------------
+
+   To install type:
+
+      make install
+
+   See section 3 for changing the installation location. Note that if
+   you are installing to the default location of /usr/local you will
+   need root permission to do this, so may need to run
+
+      sudo make install
+
+   If you don't have root permission, or do not want to make a
+   system-wide installation, you should re-run configure with the
+   --prefix option to set the installation to a location where you
+   have write permission.
+
+11. Testing VARTOOLS:
+---------------------
+
+   If your bin directory is in your PATH, then you should be able to
+   type 'vartools' to execute the program. Otherwise you will need to
+   specify the path on the command line (e.g. 'src/vartools'). The
+   discussion below assumes that it has been installed somewhere in
+   your PATH.
+
+  The command:
+
+      vartools -help
+
+   will give you a brief synopsis of the program.
+
+      vartools -listcommands
+
+   will give you a list of all commands which may be issued.
+   You can use the -example command to get various examples. e.g.:
+
+      vartools -example -LS
+
+   The command
+
+      vartools -i EXAMPLES/2 -oneline -ascii \
+          -LS 0.1 10. 0.1 5 1 EXAMPLES/OUTDIR1 whiten clip 5. 1
+
+   If run from the same directory where you did 'make' and 'make
+   install' should produce the output:
+
+      Name                     = EXAMPLES/2
+      LS_Period_1_0            =     1.23440877
+      Log10_LS_Prob_1_0        = -4000.59209
+      LS_Periodogram_Value_1_0 =    0.99619
+      LS_SNR_1_0               =  116.60562
+      LS_Period_2_0            =     0.55747493
+      Log10_LS_Prob_2_0        =  -85.74406
+      LS_Periodogram_Value_2_0 =    0.11152
+      LS_SNR_2_0               =   14.48656
+      LS_Period_3_0            =     0.54669773
+      Log10_LS_Prob_3_0        =  -42.14997
+      LS_Periodogram_Value_3_0 =    0.05837
+      LS_SNR_3_0               =    8.23508
+      LS_Period_4_0            =     0.33412568
+      Log10_LS_Prob_4_0        =  -33.07258
+      LS_Periodogram_Value_4_0 =    0.04868
+      LS_SNR_4_0               =    9.78596
+      LS_Period_5_0            =     0.25922584
+      Log10_LS_Prob_5_0        =  -24.23642
+      LS_Periodogram_Value_5_0 =    0.03682
+      LS_SNR_5_0               =    9.51180
+
+12. Creating VARTOOLS Extensions:
+---------------------------------
+
+   It is possible to add new commands and analytic functions to
+   VARTOOLS by creating dynamic libraries that are loaded at
+   run-time. Help on creating commands can be found in
+   USERLIBS/ReadME.USERLIBS while help on adding analytic functions
+   recognized by the VARTOOLS analytic expression evaluation can be
+   found in USERFUNCS/ReadME.USERFUNCS.
+
+13. Bugs/Feedback:
+------------------
+
+   Please send bug reports or other feedback to Joel Hartman 
+   (jhartman AT astro DOT princeton DOT edu).
+
+

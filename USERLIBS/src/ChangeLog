@@ -1,0 +1,65 @@
+------------------------------------------------------------------------
+r3115 | jhartman | 2014-08-29 22:09:57 -0400 (Fri, 29 Aug 2014) | 1 line
+
+vartools: added -resample command
+------------------------------------------------------------------------
+r3039 | jhartman | 2014-07-22 18:14:03 -0400 (Tue, 22 Jul 2014) | 1 line
+
+vartools: added -nonlinfit command to do amoeba or de-mcmc fits
+------------------------------------------------------------------------
+r2873 | jhartman | 2014-02-12 19:27:15 -0500 (Wed, 12 Feb 2014) | 1 line
+
+vartools: added expr option to most commands
+------------------------------------------------------------------------
+r2631 | jhartman | 2013-08-22 13:18:45 -0400 (Thu, 22 Aug 2013) | 1 line
+
+jktebop.c: modified to restrict fitting to physical parameter ranges
+------------------------------------------------------------------------
+r2624 | jhartman | 2013-08-15 10:26:17 -0400 (Thu, 15 Aug 2013) | 1 line
+
+vartools: more Makefile fixing
+------------------------------------------------------------------------
+r2622 | jhartman | 2013-08-15 09:46:41 -0400 (Thu, 15 Aug 2013) | 1 line
+
+vartools: fixed bug in USERLIBS/src/Makefile
+------------------------------------------------------------------------
+r2620 | jhartman | 2013-08-14 15:09:58 -0400 (Wed, 14 Aug 2013) | 1 line
+
+vartools:medlc added
+------------------------------------------------------------------------
+r2619 | jhartman | 2013-08-14 15:07:13 -0400 (Wed, 14 Aug 2013) | 1 line
+
+vartools: fixed bug in parsing multi-column fix values, bug in jktebop parsing, and changed spec keyword to list
+------------------------------------------------------------------------
+r2574 | jhartman | 2013-05-10 13:02:22 -0400 (Fri, 10 May 2013) | 1 line
+
+vartools: added support for reading in LCs in Kalos binary format; more development required to support headers and output data in this format.
+------------------------------------------------------------------------
+r2560 | jhartman | 2013-04-23 17:28:19 -0400 (Tue, 23 Apr 2013) | 1 line
+
+vartools: added -restricttimes option, to be used with the custom-target aperture photometry script under development
+------------------------------------------------------------------------
+r2488 | jhartman | 2013-01-17 15:50:39 -0500 (Thu, 17 Jan 2013) | 1 line
+
+vartools: various modifications, including support for macula, user developed functions, added some examples, various debugging
+------------------------------------------------------------------------
+r2409 | jhartman | 2012-11-14 09:22:30 -0500 (Wed, 14 Nov 2012) | 1 line
+
+vartools: various changes, including change to sigclip used in calculating autocorr for individual HS stations
+------------------------------------------------------------------------
+r2308 | jhartman | 2012-09-05 13:13:30 -0400 (Wed, 05 Sep 2012) | 1 line
+
+vartools: various modifications
+------------------------------------------------------------------------
+r2293 | jhartman | 2012-08-14 16:48:01 -0400 (Tue, 14 Aug 2012) | 1 line
+
+vartools: wide variety of modifications, including support for analytic expressions, linear fitting of lcs, further development of userlib functions, addition of several userlibs
+------------------------------------------------------------------------
+r2138 | jhartman | 2012-03-30 13:27:59 -0400 (Fri, 30 Mar 2012) | 1 line
+
+vartools/USERLIBS: example user libraries for vartools
+------------------------------------------------------------------------
+r1946 | jhartman | 2011-11-23 12:58:20 -0500 (Wed, 23 Nov 2011) | 1 line
+
+vartools: includes -converttime support for user run-time libraries, and some other minor changes
+------------------------------------------------------------------------

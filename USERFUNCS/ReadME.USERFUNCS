@@ -1,0 +1,166 @@
+As of VARTOOLS version 1.3 it is possible for users to define their
+own functions to be callable as analytic expressions. These functions
+are incorporated into the program using dynamically loaded
+libraries. To do this one must create a shared object library of the
+form $LIBNAME.so. The command can then be called from VARTOOLS with a
+syntax such as: 'vartools -F $PATHTOLIB/$LIBNAME.la ...'  where
+$PATHTOLIB is the full path to the shared object library file which
+you have created, and the -F option loads the file within
+VARTOOLS. Note, if the library is installed by the 'make install'
+process into the directory DATAROOTDIR/vartools/userfuncs as set by
+'configure' then you can skip the $PATHTOLIB and instead just to '-F
+$LIBNAME'.
+
+You can find example libraries under the src subdirectory. Note that
+this is distinct from the '-L' option which can be used to load new
+user commands. Libraries loaded with the -F option in general are much
+simpler, and are only used to extend the list of functions supported
+by the VARTOOLS analytic expression evaluator. The simplest example of
+a library that can be included with the -F option is
+examplefunction.so, together with its source code
+examplefunction.c. This library consists of two components: one or
+more functions which take a vector of doubles and return a double
+(i.e. the function to be callable from the analytic expression
+evaluator), and a simple initialization function with a standardized
+name which is called by VARTOOLS upon loading the library to determine
+basic information about the new analytic function(s) that are supplied
+by the library. In this ReadME we assume familiarity with the C
+programming syntax, any basic C tutorial on the web should be
+sufficient. In particular you will need to be familiar with the use of
+pointers in C to understand this ReadME, and to write the
+library. Also note that while the analytic functions may be written in
+any language callable from C, this ReadME assumes they will be written
+in C.
+
+See also the ReadME.USERLIBS file in the USERLIBS sub-directory for
+additional information, including the list of functions that can can
+be called from the vartools library.
+
+Structure of Library:
+---------------------
+
+While not strictly necessary, the user may wish to create two files
+for the wrapper: $LIBNAME.c and $LIBNAME.h. The former will store the
+functions required by VARTOOLS to interface with the command, the
+latter will define a data-structure needed to pass data to the command
+(see for example "src/magadd.h"). At the top of $LIBNAME.c you should
+include the vartools library header file using a statement like
+'include "../../vartools.h"' where you would want to adjust the path
+to vartools.h as appropriate. You will also need to link to the
+libvartools.a library when you build your library.
+
+The library requires 1 specially named C function for initializing, as
+well as one C function per analytic function enabled by the
+library. The initialization function should be named as:
+
+    void $LIBNAME_Initialize(ProgramData *p)
+
+The C functions that implement the analytic functions can be named as
+desired by the user (the initialization function tells VARTOOLS how to
+find these functions), but should take as input a variable of type
+(double *), and return a double. So, for example, the addvals function
+in USERFUNCS/src/examplefunctions.c is of type:
+
+    double addvals(double *param);
+
+The input will be such that param[0] is the first argument passed to
+the function, param[1] is the second argument, and so-on.
+
+1. $LIBNAME_Initialize:
+
+   This function will be called whenever the library is loaded by the
+   user, and should register all analytic functions enabled by the
+   library. The registration is done by calling the function
+   VARTOOLS_RegisterUserFunction which takes 4 arguments: the
+   ProgramData pointer p, a string giving the name of the function
+   that should be used in analytic expression to call it, the number
+   of arguments that the function accepts, and a pointer to the C
+   function which is called whenever the user gives this function in
+   an analytic expression. For example, in examplefunctions.c the
+   "addvals" function is registered through:
+
+   VARTOOLS_RegisterUserFunction(p, "addvals", 2, &addvals);
+
+Compiling the wrapper:
+----------------------
+
+    You will need to compile and link the code implementing your
+    command into a dynamically callable shared object library. The
+    method for compiling a shared object library is, unfortunately,
+    highly dependent on system architecture. In an attempt to hide the
+    architecture-dependent details from users VARTOOLS uses the GNU
+    libtools program together with its associated libltdl.la library
+    for creating and loading these libraries. To follow this method
+    for creating the library you will need to have installed the GNU
+    autobuild utilities including: aclocal, autoconf, autoheader
+    automake and libtool (on a Ubuntu linux system you can install
+    these via 'sudo apt-get install libtool automake autoconf
+    autotools-dev' on Mac OS X you can get these via 'brew install
+    libtool automake autoconf' assuming you're using the homebrew
+    package manager).
+
+    Edit the file USERFUNCS/src/Makefile.am
+
+    If the source for your library consists only of the c file
+    $LIBNAME.c and $LIBNAME.h, and you do not need to link to external
+    libraries (other than libvartools), you can simply add
+    '$LIBNAME.la' to the list of libraries following
+    'userfuncs_LTLIBRARIES =' and then add the lines
+
+    $LIBNAME_la_SOURCES = $LIBNAME.c $LIBNAME.h
+    $LIBNAME_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+    $LIBNAME_la_LDFLAGS = -module
+
+    to the end of the file.  Note that you should substitute $LIBNAME
+    above with the name of your library, but $(abs_top_srcdir) should
+    be written exactly as is.  
+
+    For more complicated examples (including compiling a fortran
+    library) you can follow the example of jktebop (and associated
+    libjktebop), fastchi2, or macula (and associated libmacula) from
+    the Makefile.am file in USERLIBS/src/ changing occurrences of
+    userlibs to userfuncs as needed.
+
+    After editing Makefile.am you will need to re-run the autobuild
+    utilities to create a new Makefile.in file which will be used by
+    configure. You can do this by running
+
+    ./autogen.sh
+
+    from the base directory.  Assuming all goes well, you can then run
+    './configure' and 'make' as usual from the base directory. 
+
+    If you don't want to use the autobuild system (which admittedly,
+    can be very frustrating to get to work), you can also compile the
+    shared library manually, and then create the .la wrapper for it.
+
+    To do this on a linux system with gcc, you would do:
+
+    gcc -fPIC -c $LIBNAME.c
+    gcc -fPIC -c $OTHERFILE.c
+    gcc -shared -Wl,-soname,$LIBNAME.so.1 \
+        -o $LIBNAME.so.1.0 $LIBNAME.o $OTHERFILE.o \
+        -L ../.. -lvartools
+    ln -sf $LIBNAME.so.1.0 $LIBNAME.so
+
+    where $OTHERFILE stands for any additional source files that are
+    part of your command, and ../.. should be changed to the relative
+    PATH to the libvartools.a file.
+
+    If some of your command is implemented in FORTRAN on linux you
+    would use gfortran (or g77) to invoke the linker. 
+
+    On a Mac you would do
+
+    gcc -fPIC -c $LIBNAME.c
+    gcc -fPIC -c $OTHERFILE.c
+    gcc -dynamiclib -o $LIBNAME.dylib $LIBNAME.o $OTHERFILE.o \
+        -L ../.. -lvartools
+
+    On either system you should then do
+    cp examplefunction.la $LIBNAME.la
+
+    edit the file $LIBNAME.la and change instances of examplefunction to
+    $LIBNAME. You would also want to set the dlname to $LIBNAME.so
+    (rather than, for example, $LIBNAME.so.0). The commands for
+    compiling would differ on a Windows system.
