@@ -3655,6 +3655,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  c[cn].Outputlcs->useformat = 0;
 	  c[cn].Outputlcs->usecolumnformat = 0;
+	  c[cn].Outputlcs->sepchar = ' ';
 	  c[cn].Outputlcs->variables = NULL;
 	  c[cn].Outputlcs->Nvar = 0;
 	  c[cn].Outputlcs->printfformats = NULL;
@@ -3688,6 +3689,23 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  if(i < argc) {
 		    sprintf(c[cn].Outputlcs->columnformat,"%s",argv[i]);
 		    ParseOutputColumnFormat(c[cn].Outputlcs);
+		  }
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"delimiter"))
+		{
+		  i++;
+		  if(i < argc) {
+		    c[cn].Outputlcs->sepchar =  argv[i][0];
 		  }
 		  else
 		    listcommands(argv[iterm],p);
@@ -8779,6 +8797,16 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    help(argv[iterm],p);
+	}
+
+      /* -f functiondefinition */
+      else if(!strcmp(argv[i],"-f"))
+	{
+	  iterm = i;
+	  i++;
+	  if(i >= argc)
+	    help(argv[iterm],p);
+	  ParseDefineAnalyticUserFunction(p,argv[i]);
 	}
 
       /* User Commands */

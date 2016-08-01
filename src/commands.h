@@ -893,6 +893,7 @@ typedef struct {
   _Variable **variables;
   char **printfformats;
   char **varnames;
+  char sepchar;
 } _Outputlcs;
 
 typedef struct {

@@ -20,11 +20,6 @@
 #define DYNAMICLIB 1
 #endif
 
-#ifdef DYNAMICLIB
-#ifndef _USERLIB_STRUCT_DEFINE
-#include "userfunc.h"
-#endif
-#endif
 
 #ifndef _ANALYTIC_HEADER_INCLUDE
 
@@ -118,11 +113,18 @@ typedef struct {
   double op2_constant;
 } _Expression;
 
+#ifdef DYNAMICLIB
+#ifndef _USERLIB_STRUCT_DEFINE
+#include "userfunc.h"
+#endif
+#endif
+
 typedef struct {
   int functionid;
   int Nexpr;
 #ifdef DYNAMICLIB
   _UserFunc *UserFunc;
+  _AnalyticUserFunc *AnalyticUserFunc;
 #endif
   _Expression **arguments;
 } _FunctionCall;

@@ -60,7 +60,7 @@ void ProcessCommandSingle(ProgramData *, Command *, int, int, int);
 void ProcessCommandAll(ProgramData *, Command *, int);
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname, 
 		      int usecolumnformat, int Nvars, _Variable **variables, 
-		      char **formats, int noclobber);
+		      char **formats, int noclobber, char sepchar);
 void ReadGlobalDecorr(ProgramData *, Command *);
 void DetermineColumns(ProgramData *, Command *);
 void Filldecorr_matrix(ProgramData *, Command *, int);
@@ -334,3 +334,4 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid);
 int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 			       _HarmonicFilter *c, int cnum);
+void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv);

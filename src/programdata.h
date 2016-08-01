@@ -265,6 +265,9 @@ typedef struct {
   _UserFunc *UserFunc;
   int NUserFunc;
 
+  _AnalyticUserFunc *AnalyticUserFunc;
+  int NAnalyticUserFunc;
+
 #endif
 
   int maxinputcolumn;
@@ -387,3 +390,7 @@ typedef struct {
 #define ERR_INTERP_NOTENOUGHPOINTS 96
 #define ERR_INVALIDVARIABLELCVARIABLE 97
 #define ERR_INVALIDEXECCOMMANDSTRFORMAT 98
+#define ERR_INVALIDANALYTICFUNCTIONDEFINITION 99
+#define ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG 100
+#define ERR_FUNCNAMETOOLONG 101
+

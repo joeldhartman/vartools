@@ -32,9 +32,11 @@ void CompileAllExpressions(ProgramData *p, Command *c)
   _DataFromInputList *d2;
   /* Setup any Variables associated with the output columns */
   for(i=0; i < p->Ncolumns; i++) {
-    CreateVariable(p, p->outcolumns[i].columnname, VARTOOLS_TYPE_DOUBLE,
-		   VARTOOLS_VECTORTYPE_OUTCOLUMN, p->outcolumns[i].ptr,
-		   &(p->outcolumns[i]));
+    if(p->outcolumns[i].type != VARTOOLS_TYPE_STRING &&
+       p->outcolumns[i].type != VARTOOLS_TYPE_CHAR)
+      CreateVariable(p, p->outcolumns[i].columnname, p->outcolumns[i].type,
+		     VARTOOLS_VECTORTYPE_OUTCOLUMN, p->outcolumns[i].ptr,
+		     &(p->outcolumns[i]));
   }
 
   /* Look for -expr, -linfit, -nonlinfit, -if -elif or -else commands and set up their expressions */
@@ -437,6 +439,113 @@ void ParseOutputColumnFormat(_Outputlcs *o)
   } while(o->columnformat[i-1] != '\0');
 }
 
+int CheckFunctionArgVariableNameNotAcceptable(char *varname, ProgramData *p) {
+  int i, j, userindx;
+
+  /* Check if the variable name is not legitimate */
+  if(varname[0] != '_' && !(varname[0] >= 'A' && varname[0] <= 'Z')
+     && !(varname[0] >= 'a' && varname[0] <= 'z')) {
+    return(ERR_BADVARIABLENAME);
+  }
+  i = 1;
+  while(varname[i] != '\0') {
+    if(varname[i] != '_' && !(varname[i] >= '0' && varname[i] <= '9')
+       && !(varname[i] >= 'A' && varname[i] <= 'Z')
+       && !(varname[i] >= 'a' && varname[i] <= 'z'))
+      return(ERR_BADVARIABLENAME);
+    i++;
+  }
+  return 0;
+}
+
+int CheckVariableNameNotAcceptable(char *varname, ProgramData *p) {
+  int i, j, userindx;
+  /* Check if this variable name is already defined */
+  if(!strcmp(varname,"NR") || !strcmp(varname,"NF"))
+    return(ERR_VARIABLEALREADYINUSE);
+  for(i = 0; i < p->NDefinedVariables; i++) {
+    if(!strcmp(p->DefinedVariables[i]->varname,varname)) {
+      return(ERR_VARIABLEALREADYINUSE);
+    }
+  }
+
+  /* Check if it is the name of a function that has been defined already */
+  if(!strcmp(varname,"exp") ||
+     !strcmp(varname,"log") ||
+     !strcmp(varname,"log10") ||
+     !strcmp(varname,"sqrt") ||
+     !strcmp(varname,"abs") ||
+     !strcmp(varname,"max") ||
+     !strcmp(varname,"min") ||
+     !strcmp(varname,"hypot") ||
+     !strcmp(varname,"sin") ||
+     !strcmp(varname,"sindegr") ||
+     !strcmp(varname,"cos") ||
+     !strcmp(varname,"cosdegr") ||
+     !strcmp(varname,"tan") ||
+     !strcmp(varname,"tandegr") ||
+     !strcmp(varname,"asin") ||
+     !strcmp(varname,"asindegr") ||
+     !strcmp(varname,"acos") ||
+     !strcmp(varname,"acosdegr") ||
+     !strcmp(varname,"atan2") ||
+     !strcmp(varname,"atan2degr") ||
+     !strcmp(varname,"ceil") ||
+     !strcmp(varname,"floor") ||
+     !strcmp(varname,"cosh") ||
+     !strcmp(varname,"sinh") ||
+     !strcmp(varname,"tanh") ||
+     !strcmp(varname,"erf") ||
+     !strcmp(varname,"erfc") ||
+     !strcmp(varname,"lgamma") ||
+     !strcmp(varname,"gamma") ||
+     !strcmp(varname,"round") ||
+     !strcmp(varname,"theta") ||
+     !strcmp(varname,"acosh") ||
+     !strcmp(varname,"asinh") ||
+     !strcmp(varname,"atanh") ||
+     !strcmp(varname,"rand") ||
+     !strcmp(varname,"gauss")) {
+      return(ERR_VARIABLEALREADYINUSE);
+  }
+
+#ifdef DYNAMICLIB
+  if(p->NUserFunc > 0) {
+    for(userindx=0; userindx < p->NUserFunc; userindx++) {
+      if(!strcmp(varname,p->UserFunc[userindx].funcname)) {
+	return(ERR_VARIABLEALREADYINUSE);
+	break;
+      }
+    }
+  }
+  if(p->NAnalyticUserFunc > 0) {
+    for(userindx=0; userindx < p->NAnalyticUserFunc; userindx++) {
+      if(!strcmp(varname,p->AnalyticUserFunc[userindx].funcname)) {
+	return(ERR_VARIABLEALREADYINUSE);
+	break;
+      }
+    }
+  }
+#endif
+
+
+  /* Check if the variable name is not legitimate */
+  if(varname[0] != '_' && !(varname[0] >= 'A' && varname[0] <= 'Z')
+     && !(varname[0] >= 'a' && varname[0] <= 'z')) {
+    return(ERR_BADVARIABLENAME);
+  }
+  i = 1;
+  while(varname[i] != '\0') {
+    if(varname[i] != '_' && !(varname[i] >= '0' && varname[i] <= '9')
+       && !(varname[i] >= 'A' && varname[i] <= 'Z')
+       && !(varname[i] >= 'a' && varname[i] <= 'z'))
+      return(ERR_BADVARIABLENAME);
+    i++;
+  }
+  return 0;
+}
+
+
 _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vectortype, void *vptrinput, ...)
 {
   va_list varlist;
@@ -467,9 +576,22 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
   _Variable *v;
   int j, i, len;
   void *vptr;
+  int testval;
 
   if(vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN && vptrinput == NULL)
     error(ERR_CREATEVARIABLE_OUTCOLUMN_NEEDS_VPTRINPUT);    
+
+
+  if(vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+    va_start(varlist,vptrinput);
+    i=0;
+    while(varname[i] != '\0' ? (varname[i] >= '0' && varname[i] <= '9') || varname[i] == '_' : 0) i++;
+    varname += i;
+  }
+
+  testval = CheckVariableNameNotAcceptable(varname, p);
+  if(testval)
+    error2(testval, varname);
 
   j = p->NDefinedVariables;
 
@@ -489,34 +611,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
   v = p->DefinedVariables[j];
 
   if(vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
-    va_start(varlist,vptrinput);
     v->outc = va_arg(varlist,OutColumn *);
-    i=0;
-    while(varname[i] != '\0' ? (varname[i] >= '0' && varname[i] <= '9') || varname[i] == '_' : 0) i++;
-    varname += i;
-  }
-
-  /* Check if this variable name is already defined */
-  if(!strcmp(varname,"NR") || !strcmp(varname,"NF"))
-    error2(ERR_VARIABLEALREADYINUSE, varname);
-  for(i = 0; i < j; i++) {
-    if(!strcmp(p->DefinedVariables[i]->varname,varname)) {
-      error2(ERR_VARIABLEALREADYINUSE, varname);
-    }
-  }
-
-  /* Check if the variable name is not legitimate */
-  if(varname[0] != '_' && !(varname[0] >= 'A' && varname[0] <= 'Z')
-     && !(varname[0] >= 'a' && varname[0] <= 'z')) {
-    error2(ERR_BADVARIABLENAME, varname);
-  }
-  i = 1;
-  while(varname[i] != '\0') {
-    if(varname[i] != '_' && !(varname[0] >= '0' && varname[0] <= '9')
-       && !(varname[0] >= 'A' && varname[0] <= 'Z')
-       && !(varname[0] >= 'a' && varname[0] <= 'z'))
-      error2(ERR_BADVARIABLENAME, varname);
-    i++;
   }
   
   len = strlen(varname)+1;
@@ -1258,6 +1353,15 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
       outval = call->UserFunc->EvalFunction_ptr(val);
       break;
     }
+    else if(call->AnalyticUserFunc != NULL) {
+      if(call->Nexpr != call->AnalyticUserFunc->Nargs)
+	error2(ERR_FUNCTIONCALL_INVALIDNEXPR, call->AnalyticUserFunc->funcname);
+      for(i=0; i < call->Nexpr; i++) {
+	SetVariable_Value_Double(lcindex, threadindex, jdindex, call->AnalyticUserFunc->input_argvars[i], val[i]);
+      }
+      outval = EvaluateExpression(lcindex, threadindex, jdindex, call->AnalyticUserFunc->func_expression);
+      break;
+    }
     else {
 #endif
       error(ERR_CODEERROR);
@@ -1526,12 +1630,23 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	  test = 1;
 	}
 #ifdef DYNAMICLIB
-        else if(p->NUserFunc > 0) {
-	  for(userindx=0; userindx < p->NUserFunc; userindx++) {
-	    if(!strcmp(term2,p->UserFunc[userindx].funcname)) {
-	      *functionid = VARTOOLS_FUNCTIONCALL_USERFUNC + userindx;
-	      test = 1;
-	      break;
+        else {
+	  if(p->NUserFunc > 0) {
+	    for(userindx=0; userindx < p->NUserFunc; userindx++) {
+	      if(!strcmp(term2,p->UserFunc[userindx].funcname)) {
+		*functionid = VARTOOLS_FUNCTIONCALL_USERFUNC + userindx;
+		test = 1;
+		break;
+	      }
+	    }
+	  }
+	  if(!test && p->NAnalyticUserFunc > 0) {
+	    for(userindx=0; userindx < p->NAnalyticUserFunc; userindx++) {
+	      if(!strcmp(term2,p->AnalyticUserFunc[userindx].funcname)) {
+		*functionid = VARTOOLS_FUNCTIONCALL_USERFUNC + p->NUserFunc + userindx;
+		test = 1;
+		break;
+	      }
 	    }
 	  }
 	}
@@ -1623,6 +1738,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
 
 #ifdef DYNAMICLIB
   retval->UserFunc = NULL;
+  retval->AnalyticUserFunc = NULL;
 #endif
 
   retval->functionid = functionid;
@@ -1760,6 +1876,14 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
       if(Nexpr != p->UserFunc[indx].Nargs)
 	error2(ERR_ANALYTICPARSE, term);
       retval->UserFunc = &(p->UserFunc[indx]);
+      break;
+    }
+    else if(retval->functionid >= VARTOOLS_FUNCTIONCALL_USERFUNC + p->NUserFunc && 
+	    retval->functionid < VARTOOLS_FUNCTIONCALL_USERFUNC + p->NUserFunc + p->NAnalyticUserFunc) {
+      indx = retval->functionid - VARTOOLS_FUNCTIONCALL_USERFUNC - p->NUserFunc;
+      if(Nexpr != p->AnalyticUserFunc[indx].Nargs)
+	error2(ERR_ANALYTICPARSE, term);
+      retval->AnalyticUserFunc = &(p->AnalyticUserFunc[indx]);
       break;
     }
 #endif
@@ -2428,3 +2552,248 @@ void CheckCreateCommandOutputLCVariable(char *varname, _Variable **omodelvar, Pr
   }
 }
 
+void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
+{
+#ifdef DYNAMICLIB
+  int i, iterm, k, j, m, m2, testval, sizeterm;
+  _AnalyticUserFunc *f;
+  char *funcname = NULL, **outargvars = NULL, **inargvars = NULL, *funcexprstr = NULL;
+  int Narg, *inlen = NULL, *outlen = NULL, lenexpr, sizeexpr;
+  if(!p->NAnalyticUserFunc) {
+    if((p->AnalyticUserFunc = malloc(sizeof(_AnalyticUserFunc))) == NULL)
+      error(ERR_MEMALLOC);
+  } else {
+    if((p->AnalyticUserFunc = realloc(p->AnalyticUserFunc,(p->NAnalyticUserFunc+1)*sizeof(_AnalyticUserFunc))) == NULL)
+      error(ERR_MEMALLOC);
+  }
+
+  /* Remove any white space from the expression */
+  i = 0, j = 0;
+  while(argv[i] != '\0') {
+    if(argv[i] != ' ' && argv[i] != '\t' && argv[i] != '\n') {
+      argv[j] = argv[i];
+      j++;
+    }
+    i++;
+  }
+  argv[j] = argv[i];
+  sizeterm = j;
+
+
+  /* First find the name of the function, and make sure that it is an acceptable name */
+  i = 0;
+  while(argv[i] != '\0' && argv[i] != '(') i++;
+  if(argv[i] != '(' || i == 0)
+    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+
+  if((funcname = malloc((i+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  for(j=0; j < i; j++)
+    funcname[j] = argv[j];
+  funcname[j] = '\0';
+
+  testval = CheckVariableNameNotAcceptable(funcname, p);
+  if(testval)
+    error2(testval, funcname);
+
+  if(strlen(funcname) >= MAXFUNCNAMELENGTH) {
+    error2(ERR_FUNCNAMETOOLONG, funcname);
+  }
+
+  /* determine the number of arguments */
+
+  Narg = 0;
+  i++;
+  if(argv[i] != ')') Narg = 1;
+  k = i;
+  while(argv[i] != '\0' && argv[i] != ')') {
+    if(argv[i] == ',') Narg++;
+    i++;
+  }
+  if(argv[i] != ')' || i == k)
+    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+  
+  if(Narg > 0) {
+    if((inargvars = (char **) malloc(Narg*sizeof(char *))) == NULL ||
+       (outargvars = (char **) malloc(Narg*sizeof(char *))) == NULL ||
+       (inlen = (int *) malloc(Narg*sizeof(int))) == NULL ||
+       (outlen = (int *) malloc(Narg*sizeof(int))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+  }
+  for(j=0; j < Narg; j++) {
+    if((inargvars[j] = (char *) malloc((i-k + 2)*sizeof(char))) == NULL)
+      error(ERR_MEMALLOC);
+  }
+
+  /* Get the names of the input argument variables, and make sure they are
+   legitimate */
+
+  i = k;
+  j = 0;
+  m = 0;
+  while(argv[i] != '\0' && argv[i] != ')') {
+    if(argv[i] == ',') {
+      inargvars[m][j] = '\0';
+      m++; j = 0;
+    } else {
+      inargvars[m][j] = argv[i];
+      j++;
+    }
+    i++;
+  }
+  inargvars[m][j] = '\0';
+
+  for(j=0; j < Narg; j++) {
+    testval = CheckFunctionArgVariableNameNotAcceptable(inargvars[j],p);
+    if(testval)
+      error2(testval,inargvars[j]);
+    inlen[j] = strlen(inargvars[j]);
+    for(m=j+1; m < Narg; m++) {
+      if(!strcmp(inargvars[j],inargvars[m])) {
+	error2(ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG,inargvars[j]);
+      }
+    }
+  }
+
+  /* Generate a set of internal variables to substitute in place of these
+     external variables */
+  for(j=0; j < Narg; j++) {
+    outargvars[j] = GenerateInternalVariableName(p);
+    outlen[j] = strlen(outargvars[j]);
+  }
+
+  /* Make sure the next term is an equal sign */
+  i++;
+  if(argv[i] != '=')
+    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+
+  sizeexpr = 2048;
+  if((funcexprstr = (char *) malloc(sizeexpr*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+
+  i++;
+
+  lenexpr = 0;
+  /* Copy the remaining expression to funcexprstr, substituting internal variable names as needed */
+  while(argv[i] != '\0') {
+    /* Check if this is the start of a variable name */
+    if(argv[i] == '_' || (argv[i] >= 'A' && argv[i] <= 'Z')
+       || (argv[i] >= 'a' && argv[i] <= 'z')) {
+      testval = 0;
+      for(j=0; j < Narg; j++) {
+	if(argv[i] == inargvars[j][0]) {
+	  for(m = 1; m < inlen[j]; m++) {
+	    if(argv[i+m] != inargvars[j][m])
+	      break;
+	  }
+	  if(m == inlen[j]) {
+	    /* If there is still a variable name underway, break */
+	    if(argv[i+m] == '_' || (argv[i+m] >= '0' && argv[i+m] <= '9')
+	       || (argv[i+m] >= 'A' && argv[i+m] <= 'Z')
+	       || (argv[i+m] >= 'a' && argv[i+m] <= 'z'))
+	      continue;
+	  
+	    /* Otherwise copy out the substitution */
+	    for(k=0; k < outlen[j]; k++) {
+	      if(lenexpr >= sizeexpr) {
+		sizeexpr *= 2;
+		if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
+		  error(ERR_MEMALLOC);
+	      }
+	      funcexprstr[lenexpr] = outargvars[j][k];
+	      lenexpr++;
+	    }
+	    i = i+m;
+	    testval = 1;
+	    break;
+	  }
+	}
+      }
+      if(!testval) {
+	/* This is not one of the input arguments copy the variable expression to the string */
+	if(lenexpr >= sizeexpr) {
+	  sizeexpr *= 2;
+	  if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	funcexprstr[lenexpr] = argv[i];
+	lenexpr++;
+	i++;
+	while(argv[i] == '_' || (argv[i] >= '0' && argv[i] <= '9') ||
+	      (argv[i] >= 'A' && argv[i] <= 'Z') ||
+	      (argv[i] >= 'a' && argv[i] <= 'z')) {
+	  if(lenexpr >= sizeexpr) {
+	    sizeexpr *= 2;
+	    if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	  funcexprstr[lenexpr] = argv[i];
+	  lenexpr++;
+	  i++;
+	}
+      }
+    }
+    else {
+      /* This is not a variable, just copy it */
+      if(lenexpr >= sizeexpr) {
+	sizeexpr *= 2;
+	if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+      funcexprstr[lenexpr] = argv[i];
+      lenexpr++;
+      i++;
+    }
+  }
+  if(lenexpr >= sizeexpr) {
+    sizeexpr *= 2;
+    if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
+      error(ERR_MEMALLOC);
+  }
+  funcexprstr[lenexpr] = '\0';
+
+  /* Copy everything over to the userfunction */
+  iterm = p->NAnalyticUserFunc;
+  p->NAnalyticUserFunc += 1;
+
+  f = &(p->AnalyticUserFunc[iterm]);
+
+  sprintf(f->funcname,"%s",funcname);
+  f->Nargs = Narg;
+  if(Narg > 0) {
+    if((f->input_argvars = (_Variable **) malloc(Narg * sizeof(_Variable *))) == NULL)
+      error(ERR_MEMALLOC);
+    for(m=0; m < Narg; m++) {
+      f->input_argvars[m] = CreateVariable(p, outargvars[m], 
+					   VARTOOLS_TYPE_DOUBLE,
+					   VARTOOLS_VECTORTYPE_CONSTANT, NULL);
+    }
+  }
+
+  /* Create the expression */
+  f->func_expression = ParseExpression(funcexprstr, p);
+
+  /* Clean up any temporary storage */
+  if(funcname != NULL) free(funcname);
+  if(outargvars != NULL) {
+    for(i=0; i < Narg; i++)
+      free(outargvars[i]);
+    free(outargvars);
+  }
+  if(inargvars != NULL) {
+    for(i=0; i < Narg; i++)
+      free(inargvars[i]);
+    free(inargvars);
+  }
+  if(funcexprstr != NULL)
+    free(funcexprstr);
+  if(inlen != NULL)
+    free(inlen);
+  if(outlen != NULL)
+    free(outlen);
+  return;
+#else
+  return;
+#endif
+}

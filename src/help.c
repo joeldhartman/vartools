@@ -493,7 +493,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strncmp(c,"-o",2) && strlen(c) == 2))
     {
       printtostring(s,"-o <outdir | outname> [\"nameformat\" formatstring]\n");
-      printtostring(s,"\t[\"columnformat\" formatstring]\n");
+      printtostring(s,"\t[\"columnformat\" formatstring] [\"delimiter\" delimchar]\n");
       printtostring(s,"\t[\"fits\"] [\"noclobber\"]\n");
       commandfound = 1;
     }
@@ -737,7 +737,7 @@ void usage_common(OutText *s)
   printtostring(s, "\t[-parallel Nproc] [-functionlist]\n");
 #endif
 #ifdef DYNAMICLIB
-  printtostring(s, "\t[-L libraryfile] [-F libraryfile]\n");
+  printtostring(s, "\t[-L libraryfile] [-F libraryfile] [-f functodefine]\n");
 #endif
 #ifdef VARTOOLS_VERSION
     printtostring(s, "\t[-version]\n");
@@ -1005,6 +1005,12 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-F libraryfile\n\n");
       printtostring(&s,"Dynamically load a user compiled library defining new functions which may be used in the evaluation of analytic expressions. Here libraryfile is the name of the library. This option allows users to define their own functions that may be used with the \"-expr\", \"-linfit\", \"-if\", and other commands that handle analytic expressions. See the ReadME file in the USERFUNCS directory included with this distribution for examples of how to write, compile, and use your own analytic function libraries. See also the \"-L\" option which can be used to load libraries defining new vartools processing commands.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strcmp(c,"-f")))
+    {
+      printtostring(&s,"-f functodefine\n\n");
+      printtostring(&s,"Define an analytic function. Here functodefine should have the format \"funcname(arg1,arg2,....,argN)=function_expression\". Once defined, the function may then be used in subsequent analytic expressions given on the command line.\n\n");
       commandfound = 1;
     }
 #endif
@@ -1285,7 +1291,7 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-o",p,&s);
 
-      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve. You can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/file2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/file2.lc\" to \"./directory/file2.lc00002.txt\". If a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
+      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve. You can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/file2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/file2.lc\" to \"./directory/file2.lc00002.txt\". If a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
       commandfound = 1;
     }
   if(all == 1 || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))

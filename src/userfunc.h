@@ -16,10 +16,21 @@
 /*     Copyright 2007, 2008, 2009  Joel Hartman                              */
 /*                                                                           */
 #ifndef _USERFUNC_STRUCT_DEFINE
+#define MAXFUNCNAMELENGTH 256
 typedef struct {
-  char funcname[256];
+  char funcname[MAXFUNCNAMELENGTH];
   double (*EvalFunction_ptr)(double *);
   int Nargs;
 } _UserFunc;
 #define _USERFUNC_STRUCT_DEFINE
+#endif
+
+#ifndef _ANALYTIC_USERFUNC_STRUCT_DEFINE
+typedef struct {
+  char funcname[MAXFUNCNAMELENGTH];
+  int Nargs;
+  _Variable **input_argvars;
+  _Expression *func_expression;
+} _AnalyticUserFunc;
+#define _ANALYTIC_USERFUNC_STRUCT_DEFINE
 #endif

@@ -231,6 +231,9 @@ int main(int argc, char **argv)
 #ifdef DYNAMICLIB
   p.NUserLib = 0;
   p.NUserFunc = 0;
+  p.UserFunc = NULL;
+  p.NAnalyticUserFunc = 0;
+  p.AnalyticUserFunc = NULL;
 #endif
 
   InitLinkedList(&(p.lcs_to_proc));
@@ -240,6 +243,7 @@ int main(int argc, char **argv)
   for(i=0; i < p.sizecommandvector; i++) {
     c[i].require_sort = 0;
     c[i].require_distinct = 0;
+    c[i].N_setparam_expr = 0;
   }
 
 #ifdef DYNAMICLIB

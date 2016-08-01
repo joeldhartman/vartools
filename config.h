@@ -230,7 +230,7 @@
 #define PACKAGE_NAME "vartools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "vartools 1.33"
+#define PACKAGE_STRING "vartools 1.34"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "vartools"
@@ -239,13 +239,13 @@
 #define PACKAGE_URL "http://www.astro.princeton.edu/~jhartman/vartools.html"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.33"
+#define PACKAGE_VERSION "1.34"
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.33"
+#define VERSION "1.34"
 
 /* Define so that glibc/gnulib argp.h does not typedef error_t. */
 /* #undef __error_t_defined */

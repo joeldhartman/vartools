@@ -1414,6 +1414,8 @@ void get_fitslc_header_columns(fitsfile *infile,
   }
 }
 
+#endif
+
 FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
 /* This function uses popen to carry out a requested shell command in
    opening a light curve */
@@ -1487,6 +1489,8 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
   }
   return return_pipe;
 }
+
+#ifdef USECFITSIO
 
 int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 {

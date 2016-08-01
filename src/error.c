@@ -356,6 +356,18 @@ void error2(int errflag, char *s)
       fprintf(stderr,"The variable \"%s\" is being used with conflicting types on the command-line.\n", s);
       exit(ERR_INVALIDVARIABLEFORNONLINFIT);
       break;
+    case ERR_INVALIDANALYTICFUNCTIONDEFINITION:
+      fprintf(stderr,"Error - \"%s\" is not a valid format for defining an analytic function. The expected syntax has the form \"funcname(arg1,arg2,...,argN)=valid_analytic_expression\".\n",s);
+      exit(ERR_INVALIDANALYTICFUNCTIONDEFINITION);
+      break;
+    case ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG:
+      fprintf(stderr,"Error - The variable name \"%s\" appears more than once in the input argument string to an analytic function defined through the \"-f\" option.\n",s);
+      exit(ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG);
+      break;
+    case ERR_FUNCNAMETOOLONG:
+      fprintf(stderr,"Error - the function name \"%s\" is too long.\n",s);
+      exit(ERR_FUNCNAMETOOLONG);
+      break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);

@@ -1071,7 +1071,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 		      int usecolumnformat, int Nvars, _Variable **variables,
-		      char **formats, int noclobber)
+		      char **formats, int noclobber, char sepchar)
 {
   FILE *out;
   int i, closefile=1, N, j, idx;
@@ -1124,11 +1124,11 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
     N = p->NJD[threadid];
     for(i=0;i<N;i++)
       if(!isnan(mag[i]))
-	fprintf(out,"%17.9f %9.5f %9.5f\n",t[i],mag[i],sig[i]);
+	fprintf(out,"%17.9f%c%9.5f%c%9.5f\n",t[i],sepchar,mag[i],sepchar,sig[i]);
   } else {
     for(i=0;i<p->NJD[threadid];i++) {
       for(j=0; j < Nvars; j++) {
-	if(j) fprintf(out," ");
+	if(j) fprintf(out,"%c",sepchar);
 	switch(variables[j]->vectortype) {
 	case VARTOOLS_VECTORTYPE_CONSTANT:
 	  switch(variables[j]->datatype) {
@@ -1454,7 +1454,7 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber);
+	writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar);
     }
   else if(p->fileflag && !p->Ncopycommands)
     {
@@ -1471,7 +1471,7 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber);
+	writelightcurves(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar);
     }
 }
 
