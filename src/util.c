@@ -163,6 +163,159 @@ void convertUTCtoJD(char *inputUTC, char *UTCformat, int *UTCindex, double *outJ
   *outJD = jd;
 }
 
+void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent)
+{
+  int l, lold, j, k, k1, k2, space_indent, m;
+  while(Ntab_indent*TAB_SPACE_SIZE >= LINEWRAP_LENGTH-1) {
+    Ntab_indent--;
+  }
+  space_indent = Ntab_indent*TAB_SPACE_SIZE;
+  l = strlen(stoadd);
+  lold = text->len_s;
+  if(!text->space)
+    {
+      text->Nchar_cur_line = 0;
+      text->space = MAXLEN;
+      if((text->s = malloc(MAXLEN)) == NULL)
+	error(ERR_MEMALLOC);
+      text->s[0] = '\0';
+    }
+
+  k = 0;
+  j = lold;
+  do {
+    k1 = k;
+    while(stoadd[k] != '\0' && stoadd[k] != '\t'
+	  && stoadd[k] != '\n' && stoadd[k] != ' ')
+      k++;
+    while(text->len_s + (k-k1) + 2 >= text->space) {
+      text->space = text->space * 2;
+      if((text->s = realloc(text->s, text->space)) == NULL)
+	error(ERR_MEMALLOC);
+    }
+    if(text->Nchar_cur_line + (k - k1) > LINEWRAP_LENGTH) {
+      text->s[j] = '\n';
+      j++;
+      while(text->len_s + (k-k1) + 2 + space_indent >= text->space) {
+	text->space = text->space * 2;
+	if((text->s = realloc(text->s, text->space)) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+      for(m=0; m < space_indent; m++) {
+	text->s[j] = ' ';
+	j++;
+	text->len_s += 1;
+      }
+      text->Nchar_cur_line = space_indent;
+      text->s[j] = '\0';
+      text->len_s += 1;
+    }
+    while(k1 < k) {
+      if(stoadd[k1] == '~')
+	text->s[j] = ' ';
+      else
+	text->s[j] = stoadd[k1];
+      text->Nchar_cur_line += 1;
+      j++;
+      k1++;
+    }
+    text->s[j] = '\0';
+    text->len_s = j;
+    while(stoadd[k] == '\t' || stoadd[k] == ' ' || stoadd[k] == '\n') {
+      if(stoadd[k] == '\t') {
+	while(text->len_s + TAB_SPACE_SIZE + 1 >= text->space) {
+	  text->space = text->space * 2;
+	  if((text->s = realloc(text->s, text->space)) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	if(text->Nchar_cur_line + TAB_SPACE_SIZE >= LINEWRAP_LENGTH) {
+	  text->s[j] = '\n';
+	  j++;
+	  while(text->len_s + space_indent + 1 >= text->space) {
+	    text->space = text->space * 2;
+	    if((text->s = realloc(text->s, text->space)) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	  for(m=0; m < space_indent; m++) {
+	    text->s[j] = ' ';
+	    j++;
+	    text->len_s += 1;
+	  }
+	  text->s[j] = '\0';
+	  text->len_s += 1;
+	  text->Nchar_cur_line = space_indent;
+	}
+	else {
+	  for(k2 = 0; k2 < TAB_SPACE_SIZE; k2++) {
+	    text->s[j] = ' ';
+	    j++;
+	    text->s[j] = '\0';
+	    text->len_s += 1;
+	    text->Nchar_cur_line += 1;
+	  }
+	}
+	k++;
+      }
+      else if(stoadd[k] == ' ') {
+	while(text->len_s + 2 >= text->space) {
+	  text->space = text->space * 2;
+	  if((text->s = realloc(text->s, text->space)) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	if(text->Nchar_cur_line + 1 >= LINEWRAP_LENGTH) {
+	  text->s[j] = '\n';
+	  j++;
+	  while(text->len_s + space_indent + 1 >= text->space) {
+	    text->space = text->space * 2;
+	    if((text->s = realloc(text->s, text->space)) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	  for(m=0; m < space_indent; m++) {
+	    text->s[j] = ' ';
+	    j++;
+	    text->len_s += 1;
+	  }
+	  text->s[j] = '\0';
+	  text->len_s += 1;
+	  text->Nchar_cur_line = space_indent;
+	}
+	if(text->Nchar_cur_line != space_indent) {
+	  text->s[j] = ' ';
+	  j++;
+	  text->s[j] = '\0';
+	  text->len_s += 1;
+	  text->Nchar_cur_line += 1;
+	}
+	k++;
+      }
+      else if(stoadd[k] == '\n') {
+	while(text->len_s + 1 >= text->space) {
+	  text->space = text->space * 2;
+	  if((text->s = realloc(text->s, text->space)) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	text->s[j] = '\n';
+	j++;
+	while(text->len_s + space_indent + 1 >= text->space) {
+	  text->space = text->space * 2;
+	  if((text->s = realloc(text->s, text->space)) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	for(m=0; m < space_indent; m++) {
+	  text->s[j] = ' ';
+	  j++;
+	  text->len_s += 1;
+	}
+	text->s[j] = '\0';
+	text->len_s += 1;
+	text->Nchar_cur_line = space_indent;
+	k++;
+      }
+    }
+  } while(stoadd[k] != '\0');
+}
+
+
 void printtostring_nowrap(OutText *text, const char *stoadd)
 {
   int l, lold, j, k, k1, k2;
@@ -248,6 +401,13 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
   } while(stoadd[k] != '\0');
 }
 
+void InitOutTextStruct(OutText *text)
+{
+  text->s = NULL;
+  text->space = 0;
+  text->len_s = 0;
+  text->Nchar_cur_line = 0;
+}
 
 void printtostring(OutText *text, const char *stoadd)
 {

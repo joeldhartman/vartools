@@ -15,12 +15,20 @@
 /*                                                                           */
 /*     Copyright 2007, 2008, 2009  Joel Hartman                              */
 /*                                                                           */
+#ifndef _OUTTEXTSTRUCTDEFINE
+#include "OutText.h"
+#endif 
+
 #ifndef _USERFUNC_STRUCT_DEFINE
 #define MAXFUNCNAMELENGTH 256
 typedef struct {
   char funcname[MAXFUNCNAMELENGTH];
   double (*EvalFunction_ptr)(double *);
   int Nargs;
+  int ishelp;
+  OutText helptext;
+  OutText *argnames;
+  OutText *argsummaries;
 } _UserFunc;
 #define _USERFUNC_STRUCT_DEFINE
 #endif

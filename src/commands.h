@@ -258,12 +258,9 @@
 #define VARTOOLS_BINLC_TIMETYPE_MEDIAN 2
 #define VARTOOLS_BINLC_TIMETYPE_NOSHRINK 3
 
-typedef struct {
-  char *s;
-  int space;
-  int len_s;
-  int Nchar_cur_line;
-} OutText;
+#ifndef _OUTTEXTSTRUCTDEFINE
+#include "OutText.h"
+#endif
 
 typedef struct {
   double sigclip;
@@ -1071,6 +1068,15 @@ typedef struct {
   _Variable *outputvar;
   char *lhsstring;
   char *rhsstring;
+  double **tmpoutvals;
+  int lhs_indx_type;
+  char *lhsindexstring1;
+  char *lhsindexstring2;
+  _Expression *lhs_indx_expr1;
+  _Expression *lhs_indx_expr2;
+  char lhs_indx_range_startmin;
+  char lhs_indx_range_stopmax;
+  char initialize_output_var;
 } _ExpressionCommand;
 
 typedef struct {

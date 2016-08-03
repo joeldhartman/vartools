@@ -139,6 +139,6 @@ void VARTOOLS_sort_generic(int N, int isreverse, int *index, int Nms, ...);
 
 void VARTOOLS_sortvec_double(int N, double *data1);
 
-int VARTOOLS_RegisterUserFunction(ProgramData *, char *, int, double (*)(double *));
+int VARTOOLS_RegisterUserFunction(ProgramData *, char *, int, double (*)(double *), int, ...);
 
 void VARTOOLS_occultquad(double *z0, double u1, double u2, double p, double *muo1, double *mu0, int nz);

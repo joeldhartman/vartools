@@ -146,6 +146,7 @@ typedef struct {
   int inlistvars;
   int Nlcs;
   int Ncommands;
+  int Nthread;
   double **mag, **sig, **t;
   char ***stringid;
   int **stringid_idx;
@@ -393,4 +394,6 @@ typedef struct {
 #define ERR_INVALIDANALYTICFUNCTIONDEFINITION 99
 #define ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG 100
 #define ERR_FUNCNAMETOOLONG 101
-
+#define ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION 102
+#define ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND 103
+#define ERR_FUNCTIONCALL_LENINVALIDOPERAND 104

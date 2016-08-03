@@ -409,8 +409,10 @@ int load_userfunction_library(char *libname, ProgramData *p) {
 #endif
 }
 
-int RegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*func)(double *)) {
+int vRegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*func)(double *), int ishelp, va_list varlist) {
 #ifdef DYNAMICLIB
+  int i, j;
+  char *instr;
   if(p->NUserFunc == 0) {
     p->NUserFunc = 1;
     if((p->UserFunc = (_UserFunc *) malloc(sizeof(_UserFunc))) == NULL)
@@ -423,7 +425,39 @@ int RegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*fun
   sprintf(p->UserFunc[p->NUserFunc - 1].funcname, "%s", funcname);
   p->UserFunc[p->NUserFunc - 1].Nargs = Nexpr;
   p->UserFunc[p->NUserFunc - 1].EvalFunction_ptr = func;
+  p->UserFunc[p->NUserFunc - 1].ishelp = ishelp;
+  if(ishelp) {
+    InitOutTextStruct(&(p->UserFunc[p->NUserFunc - 1].helptext));
+    instr = va_arg(varlist, char *);
+    printtostring_nowrap(&(p->UserFunc[p->NUserFunc - 1].helptext), instr);
+    if(Nexpr > 0) {
+      if((p->UserFunc[p->NUserFunc - 1].argnames = (OutText *) malloc(Nexpr * sizeof(OutText))) == NULL ||
+	 (p->UserFunc[p->NUserFunc - 1].argsummaries = (OutText *) malloc(Nexpr * sizeof(OutText))) == NULL)
+	error(ERR_MEMALLOC);
+    }
+    for(i = 0; i < Nexpr; i++) {
+      InitOutTextStruct(&(p->UserFunc[p->NUserFunc - 1].argnames[i]));
+      InitOutTextStruct(&(p->UserFunc[p->NUserFunc - 1].argsummaries[i]));
+      instr = va_arg(varlist, char *);
+      printtostring_nowrap(&(p->UserFunc[p->NUserFunc - 1].argnames[i]), instr);
+      instr = va_arg(varlist, char *);
+      printtostring_nowrap(&(p->UserFunc[p->NUserFunc - 1].argsummaries[i]), instr);
+    }
+  }
   return 0;
+#else
+  return 1;
+#endif
+}
+
+int RegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*func)(double *), int ishelp, ...) {
+#ifdef DYNAMICLIB
+  va_list varlist;
+  int retval;
+  va_start(varlist, ishelp);
+  retval = vRegisterUserFunction(p, funcname, Nexpr, func, ishelp, varlist);
+  va_end(varlist);
+  return retval;
 #else
   return 1;
 #endif
@@ -3502,7 +3536,7 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->isDifferentPeriods = &isDifferentPeriods;
   fptr->vsort_generic = &vsort_generic;
   fptr->sortvec_double = &mysort1;
-  fptr->RegisterUserFunction = &RegisterUserFunction;
+  fptr->vRegisterUserFunction = &vRegisterUserFunction;
   fptr->occultquad = &occultquad;
   fptr->occultnl = &occultnl;
 #else

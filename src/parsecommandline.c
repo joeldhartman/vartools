@@ -8472,7 +8472,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       /* -functionlist */
       else if(!strcmp(argv[i],"-functionlist"))
 	{
-	  PrintVartoolsFunctionList();
+	  PrintVartoolsFunctionList(p);
 	}
 
       /* -inputlcformat var1:col1[:type1[:fmt1][,var2:col2[:vtype2[:fmt2]],...]]

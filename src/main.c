@@ -161,6 +161,7 @@ int main(int argc, char **argv)
   p.Nlcs = 0;
   p.Ncommands = 0;
   p.NJD = 0;
+  p.Nthread = 0;
   p.readallflag = 0;
   p.listflag = 0;
   p.fileflag = 0;

@@ -567,6 +567,7 @@ void InitializeMemAllocDataFromLightCurve(ProgramData *p, int Nthread) {
   float ****float2ptr;
   long ***longptr;
   long ****long2ptr;
+  p->Nthread = Nthread;
   if(p->readimagestring) {
     if((p->stringid_idx = (int **) malloc(Nthread * sizeof(int *))) == NULL ||
        (p->stringid = (char ***) malloc(Nthread * sizeof(char **))) == NULL)
@@ -792,6 +793,8 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
       if(p->readimagestring) {
 	if((p->stringid_idx[threadid] = (int *) malloc(s * sizeof(int))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(j=0; j < s; j++)
+	  p->stringid_idx[threadid][j] = 0;
       }
       for(i=0; i < p->NDataFromLightCurve; i++) {
 	d = &(p->DataFromLightCurve[i]);
@@ -802,11 +805,13 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    dblptr = (double ***) d->dataptr;
 	    if(((*dblptr)[threadid] = (double *) malloc(s * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*dblptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
 	    dblptr = (double ***) d->dataptr;
 	    if(((*dblptr)[threadid] = (double *) malloc(s * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*dblptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    stringptr = (char ****) d->dataptr;
@@ -815,32 +820,38 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*stringptr)[threadid][j] = (char *) malloc(d->maxstringlength)) == NULL)
 		error(ERR_MEMALLOC);
+	      (*stringptr)[threadid][j][0] = '\0';
 	    }
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    intptr = (int ***) d->dataptr;
 	    if(((*intptr)[threadid] = (int *) malloc(s * sizeof(int))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*intptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    shortptr = (short ***) d->dataptr;
 	    if(((*shortptr)[threadid] = (short *) malloc(s * sizeof(short))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*shortptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    floatptr = (float ***) d->dataptr;
 	    if(((*floatptr)[threadid] = (float *) malloc(s * sizeof(float))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*floatptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    longptr = (long ***) d->dataptr;
 	    if(((*longptr)[threadid] = (long *) malloc(s * sizeof(long))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*longptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    charptr = (char ***) d->dataptr;
 	    if(((*charptr)[threadid] = (char *) malloc(s * sizeof(char))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(j=0; j < s; j++) (*charptr)[threadid][j] = 0;
 	    break;
 	  default:
 	    error(ERR_BADTYPE);
@@ -852,6 +863,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc(s * sizeof(double))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
@@ -859,6 +871,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc(s * sizeof(double))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_STRING:
@@ -869,6 +882,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	      for(k=0; k < s; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
 		  error(ERR_MEMALLOC);
+		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	    }
 	    break;
@@ -877,6 +891,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*int2ptr)[threadid][j] = (int *) malloc(s * sizeof(int))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*int2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
@@ -884,6 +899,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*short2ptr)[threadid][j] = (short *) malloc(s * sizeof(short))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*short2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
@@ -891,6 +907,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*float2ptr)[threadid][j] = (float *) malloc(s * sizeof(float))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*float2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_LONG:
@@ -898,6 +915,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*long2ptr)[threadid][j] = (long *) malloc(s * sizeof(long))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*long2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
@@ -905,6 +923,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < Nc; j++) {
 	      if(((*char2ptr)[threadid][j] = (char *) malloc(s)) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < s; k++) (*char2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  default:
@@ -919,6 +938,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
@@ -928,6 +948,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_STRING:
@@ -937,9 +958,10 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*string2ptr)[threadid][j] = (char **) malloc((-Nc) * sizeof(char *))) == NULL)
 		error(ERR_MEMALLOC);
-	      for(k=0; k < s; k++) {
+	      for(k=0; k < -Nc; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
 		  error(ERR_MEMALLOC);
+		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	    }
 	    break;
@@ -950,6 +972,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*int2ptr)[threadid][j] = (int *) malloc((-Nc) * sizeof(int))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*int2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
@@ -959,6 +982,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*short2ptr)[threadid][j] = (short *) malloc((-Nc) * sizeof(short))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*short2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
@@ -968,6 +992,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*float2ptr)[threadid][j] = (float *) malloc((-Nc) * sizeof(float))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*float2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_LONG:
@@ -977,6 +1002,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*long2ptr)[threadid][j] = (long *) malloc((-Nc) * sizeof(long))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*long2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
@@ -986,6 +1012,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(j=0; j < s; j++) {
 	      if(((*char2ptr)[threadid][j] = (char *) malloc((-Nc) * sizeof(char))) == NULL)
 		error(ERR_MEMALLOC);
+	      for(k=0; k < -Nc; k++) (*char2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  default:
@@ -1002,6 +1029,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
     if(p->readimagestring) {
       if((p->stringid_idx[threadid] = (int *) realloc(p->stringid_idx[threadid], s * sizeof(int))) == NULL)
 	error(ERR_MEMALLOC);
+      for(k=oldsizesinglelc; k < s; k++) p->stringid_idx[threadid][k] = 0;
     }
     for(i=0; i < p->NDataFromLightCurve; i++) {
       d = &(p->DataFromLightCurve[i]);
@@ -1012,11 +1040,13 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  dblptr = (double ***) d->dataptr;
 	  if(((*dblptr)[threadid] = (double *) realloc((*dblptr)[threadid], s * sizeof(double))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*dblptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
 	  dblptr = (double ***) d->dataptr;
 	  if(((*dblptr)[threadid] = (double *) realloc((*dblptr)[threadid], s * sizeof(double))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*dblptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  stringptr = (char ****) d->dataptr;
@@ -1025,32 +1055,38 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*stringptr)[threadid][j] = (char *) malloc(d->maxstringlength)) == NULL)
 	      error(ERR_MEMALLOC);
+	    (*stringptr)[threadid][j][0] = '\0';
 	  }
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  intptr = (int ***) d->dataptr;
 	  if(((*intptr)[threadid] = (int *) realloc((*intptr)[threadid], s * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*intptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  shortptr = (short ***) d->dataptr;
 	  if(((*shortptr)[threadid] = (short *) realloc((*shortptr)[threadid], s * sizeof(short))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*shortptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  floatptr = (float ***) d->dataptr;
 	  if(((*floatptr)[threadid] = (float *) realloc((*floatptr)[threadid], s * sizeof(float))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*floatptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  longptr = (long ***) d->dataptr;
 	  if(((*longptr)[threadid] = (long *) realloc((*longptr)[threadid], s * sizeof(long))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*longptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  charptr = (char ***) d->dataptr;
 	  if(((*charptr)[threadid] = (char *) realloc((*charptr)[threadid], s * sizeof(char))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=oldsizesinglelc; k < s; k++) (*charptr)[threadid][k] = 0;
 	  break;
 	default:
 	  error(ERR_BADTYPE);
@@ -1062,6 +1098,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) realloc((*dbl2ptr)[threadid][j], s * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
@@ -1069,6 +1106,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) realloc((*dbl2ptr)[threadid][j], s * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
@@ -1079,6 +1117,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	      for(k=oldsizesinglelc; k < s; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
 		  error(ERR_MEMALLOC);
+		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	  }
 	  break;
@@ -1087,6 +1126,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*int2ptr)[threadid][j] = (int *) realloc((*int2ptr)[threadid][j], s * sizeof(int))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*int2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_SHORT:
@@ -1094,6 +1134,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*short2ptr)[threadid][j] = (short *) realloc((*short2ptr)[threadid][j], s * sizeof(short))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*short2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
@@ -1101,6 +1142,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*float2ptr)[threadid][j] = (float *) realloc((*float2ptr)[threadid][j], s * sizeof(float))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*float2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_LONG:
@@ -1108,6 +1150,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*long2ptr)[threadid][j] = (long *) realloc((*long2ptr)[threadid][j], s * sizeof(long))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*long2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CHAR:
@@ -1115,6 +1158,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=0; j < Nc; j++) {
 	    if(((*char2ptr)[threadid][j] = (char *) realloc((*char2ptr)[threadid][j], s)) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=oldsizesinglelc; k < s; k++) (*char2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	default:
@@ -1129,6 +1173,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
@@ -1138,6 +1183,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
@@ -1150,6 +1196,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    for(k=0; k < (-Nc); k++) {
 	      if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
 		error(ERR_MEMALLOC);
+	      (*string2ptr)[threadid][j][k][0] = '\0';
 	    }
 	  }
 	  break;
@@ -1160,6 +1207,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*int2ptr)[threadid][j] = (int *) malloc((-Nc) * sizeof(int))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*int2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_SHORT:
@@ -1169,6 +1217,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*short2ptr)[threadid][j] = (short *) malloc((-Nc) * sizeof(short))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*short2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
@@ -1178,6 +1227,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*float2ptr)[threadid][j] = (float *) malloc((-Nc) * sizeof(float))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*float2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_LONG:
@@ -1187,6 +1237,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*long2ptr)[threadid][j] = (long *) malloc((-Nc) * sizeof(long))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*long2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CHAR:
@@ -1196,6 +1247,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*char2ptr)[threadid][j] = (char *) malloc((-Nc) * sizeof(char))) == NULL)
 	      error(ERR_MEMALLOC);
+	    for(k=0; k < -Nc; k++) (*char2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	default:

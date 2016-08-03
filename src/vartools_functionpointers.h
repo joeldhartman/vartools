@@ -64,7 +64,7 @@ typedef struct {
   /* Sort functions */
   void (*vsort_generic)(int, int, int *, int, mysort_generic_struct *);
   void (*sortvec_double)(int, double *);
-  int (*RegisterUserFunction)(ProgramData *, char *, int, double (*)(double *));
+  int (*vRegisterUserFunction)(ProgramData *, char *, int, double (*)(double *), int, va_list argp);
   void (*occultquad)(double *, double, double, double, double *, double *, int);
   void (*occultnl)(double, double, double, double, double, double *, double *, double **, int);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

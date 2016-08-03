@@ -206,6 +206,9 @@ void error(int errflag)
     case ERR_INVALIDEXECCOMMANDSTRFORMAT:
       fprintf(stderr,"Error: unable to parse the shell command given after the \"opencommand\" keyword.\n");
       exit(ERR_INVALIDEXECCOMMANDSTRFORMAT);
+    case ERR_FUNCTIONCALL_LENINVALIDOPERAND:
+      fprintf(stderr,"Error: the argument to the len() function must be a single variable or number, it does not accept expressions.\n");
+      exit(ERR_FUNCTIONCALL_LENINVALIDOPERAND);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
@@ -367,6 +370,14 @@ void error2(int errflag, char *s)
     case ERR_FUNCNAMETOOLONG:
       fprintf(stderr,"Error - the function name \"%s\" is too long.\n",s);
       exit(ERR_FUNCNAMETOOLONG);
+      break;
+    case ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION:
+      fprintf(stderr,"Error - attempting to index the variable \"%s\" which is not an array of other a type that supports indexing.\n",s);
+      exit(ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION);
+      break;
+    case ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND:
+      fprintf(stderr,"Error - the term \"%s\", which includes a light curve vector, is given as part of an index range on the left hand side of an expression command. This is not allowed.\n",s);
+      exit(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND);
       break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");

@@ -655,12 +655,17 @@ void VARTOOLS_sortvec_double(int N, double* data1)
 }
 
 int VARTOOLS_RegisterUserFunction(ProgramData *p, char *funcname, int Nexpr,
-				  double (*func)(double *))
+				  double (*func)(double *), int ishelp, ...)
 {
+  va_list varlist;
   int retval;
-  retval = VARTOOLS_FUNCTION_POINTER_STRUCT.RegisterUserFunction(p,
+  va_start(varlist, ishelp);
+  retval = VARTOOLS_FUNCTION_POINTER_STRUCT.vRegisterUserFunction(p,
 								 funcname,
-								 Nexpr, func);
+								  Nexpr, func,
+								  ishelp,
+								  varlist);
+  va_end(varlist);
   return retval;
 }
 

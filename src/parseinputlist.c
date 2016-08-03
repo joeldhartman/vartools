@@ -344,6 +344,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	dblptr = (double **) d->dataptr;
 	if(((*dblptr) = (double *) malloc(Nlc * sizeof(double))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*dblptr)[k] = 0.;
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ***) d->dataptr;
@@ -352,32 +353,38 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*stringptr)[j]) = (char *) malloc(MAXLEN)) == NULL)
 	    error(ERR_MEMALLOC);
+	  (*stringptr)[j][0] = '\0';
 	}
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int **) d->dataptr;
 	if(((*intptr) = (int *) malloc(Nlc * sizeof(int))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*intptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short **) d->dataptr;
 	if(((*shortptr) = (short *) malloc(Nlc * sizeof(short))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*shortptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float **) d->dataptr;
 	if(((*floatptr) = (float *) malloc(Nlc * sizeof(float))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*floatptr)[k] = 0.;
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long **) d->dataptr;
 	if(((*longptr) = (long *) malloc(Nlc * sizeof(long))) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*longptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char **) d->dataptr;
 	if(((*charptr) = (char *) malloc(Nlc)) == NULL)
 	  error(ERR_MEMALLOC);
+	for(k=0; k < Nlc; k++) (*charptr)[k] = 0;
 	break;
       default:
 	error(ERR_BADTYPE);
@@ -391,6 +398,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j<Nlc; j++) {
 	  if((((*dbl2ptr)[j]) = (double *) malloc(Nc * sizeof(double))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*dbl2ptr)[j][k] = 0.;
 	}
 	break;
       case VARTOOLS_TYPE_STRING:
@@ -403,6 +411,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	  for(k=0; k < Nc; k++) {
 	    if((((*string2ptr)[j][k]) = (char *) malloc(MAXLEN)) == NULL)
 	      error(ERR_MEMALLOC);
+	    (*string2ptr)[j][k][0] = '\0';
 	  }
 	}
 	break;
@@ -413,6 +422,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*int2ptr)[j]) = (int *) malloc(Nc * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*int2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_SHORT:
@@ -422,6 +432,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*short2ptr)[j]) = (short *) malloc(Nc * sizeof(short))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*short2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_FLOAT:
@@ -431,6 +442,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*float2ptr)[j]) = (float *) malloc(Nc * sizeof(float))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*float2ptr)[j][k] = 0.;
 	}
 	break;
       case VARTOOLS_TYPE_LONG:
@@ -440,6 +452,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*long2ptr)[j]) = (long *) malloc(Nc * sizeof(long))) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*long2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_CHAR:
@@ -449,6 +462,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	for(j=0; j < Nlc; j++) {
 	  if((((*char2ptr)[j]) = (char *) malloc(Nc)) == NULL)
 	    error(ERR_MEMALLOC);
+	  for(k=0; k < Nc; k++) (*char2ptr)[j][k] = 0;
 	}
 	break;
       default:

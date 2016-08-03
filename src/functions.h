@@ -195,6 +195,7 @@ int sortlcbytime(int size, double *t, int lc, ProgramData *p);
 double ran1(void);
 double gasdev(void);
 void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid);
+void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent);
 void printtostring(OutText *text, const char *stoadd);
 void printtostring_nowrap(OutText *text, const char *stoadd);
 void convertUTCtoJD(char *inputUTC, char *UTCformat, int *UTCindex, double *outJD);
@@ -231,7 +232,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid);
 _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm, ProgramData *p);
 _Expression* ParseExpression(char *term, ProgramData *p);
-void PrintVartoolsFunctionList(void);
+void PrintVartoolsFunctionList(ProgramData *p);
 void ParseOutputColumnFormat(_Outputlcs *o);
 void SetTimeMagSigPointers(ProgramData *p, int threadid);
 void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid);
@@ -335,3 +336,4 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
 int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 			       _HarmonicFilter *c, int cnum);
 void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv);
+void InitOutTextStruct(OutText *text);
