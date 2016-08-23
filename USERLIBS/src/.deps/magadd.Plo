@@ -32,9 +32,9 @@ magadd.lo: magadd.c /usr/include/stdc-predef.h ../../src/vartools.h \
  /usr/include/x86_64-linux-gnu/bits/nan.h \
  /usr/include/x86_64-linux-gnu/bits/mathdef.h \
  /usr/include/x86_64-linux-gnu/bits/mathcalls.h ../../src/outcolumn.h \
- ../../src/analytic.h ../../src/userfunc.h ../../src/mysort.h \
- ../../src/ifelse.h ../../src/userlib.h ../../src/programdata.h \
- /usr/include/pthread.h /usr/include/sched.h \
+ ../../src/analytic.h ../../src/userfunc.h ../../src/OutText.h \
+ ../../src/mysort.h ../../src/ifelse.h ../../src/userlib.h \
+ ../../src/programdata.h /usr/include/pthread.h /usr/include/sched.h \
  /usr/include/x86_64-linux-gnu/bits/sched.h \
  /usr/include/x86_64-linux-gnu/bits/setjmp.h /usr/include/semaphore.h \
  /usr/include/x86_64-linux-gnu/bits/semaphore.h ../../src/binarylcio.h \
@@ -138,6 +138,8 @@ magadd.lo: magadd.c /usr/include/stdc-predef.h ../../src/vartools.h \
 ../../src/analytic.h:
 
 ../../src/userfunc.h:
+
+../../src/OutText.h:
 
 ../../src/mysort.h:
 

@@ -87,6 +87,9 @@ int ParseInListVarsString(char *argv, ProgramData *p)
 	else if(!strcmp(parsecopy,"char")) {
 	  datatype = VARTOOLS_TYPE_CHAR;
 	}
+	else if(!strcmp(parsecopy,"string")) {
+	  datatype = VARTOOLS_TYPE_STRING;
+	}
 	else if(!strcmp(parsecopy,"utc")) {
 	  datatype = VARTOOLS_TYPE_CONVERTJD;
 	}

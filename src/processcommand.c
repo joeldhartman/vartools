@@ -221,15 +221,17 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	else if(c->RestrictTimes->maxJDtype == PERTYPE_SPECIFIED) {
 	  d2 = c->RestrictTimes->maxJD[lc];
 	}
-	else if(c->RestrictTimes->minJDtype == PERTYPE_EXPR) {
+	else if(c->RestrictTimes->maxJDtype == PERTYPE_EXPR) {
 	  d2 = EvaluateExpression(lc, lc2, 0, c->RestrictTimes->maxJDexpr);
 	  c->RestrictTimes->maxJD[lc2] = d2;
 	}
-	RestrictTimes_JDrange_apply(p->NJD[lc2], p->t[lc2], lc2, p, d1, d2,
+	RestrictTimes_JDrange_apply(p->NJD[lc2], p->t[lc2], lc2, p, 
+				    c->RestrictTimes, d1, d2,
 				    c->RestrictTimes->exclude);
       }
       else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_JDLIST) {
 	RestrictTimes_JDlist_apply(p->NJD[lc2], p->t[lc2], lc2, p,
+				   c->RestrictTimes,
 				   c->RestrictTimes->JD_restrictlist,
 				   c->RestrictTimes->N_restrictlist,
 				   c->RestrictTimes->exclude);
@@ -237,11 +239,19 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_IMAGELIST) {
 	RestrictTimes_imagelist_apply(p->NJD[lc2], p->stringid[lc2], 
 				      p->stringid_idx[lc2], lc2, p,
+				      c->RestrictTimes,
 				      c->RestrictTimes->image_restrictlist,
 				      c->RestrictTimes->image_restrictlist_indx,
 				      c->RestrictTimes->N_restrictlist,
 				      c->RestrictTimes->exclude);
       }
+      else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_EXPR) {
+	RestrictTimes_expr_apply(p, c->RestrictTimes, lc2, lc);
+      }
+      break;
+
+    case CNUM_RESTORETIMES:
+      RestoreTimes(p, c->RestoreTimes, lc2, lc2);
       break;
 
     case CNUM_CHI2_NOBIN:
@@ -1601,6 +1611,13 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
     case CNUM_USERCOMMAND:
       RunUserCommand(p,c,lc,lc2);
       break;
+
+#ifdef _HAVE_PYTHON
+    case CNUM_PYTHON:
+      RunPythonCommand(p, lc, lc2, lc2, c->PythonCommand);
+      break;
+#endif
+
 #endif
 
     case CNUM_IF:
@@ -1904,19 +1921,29 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  else if(c->RestrictTimes->minJDtype == PERTYPE_FIX) {
 	    c->RestrictTimes->minJD[lc] = c->RestrictTimes->minJDfixval;
 	  }
+	  else if(c->RestrictTimes->minJDtype == PERTYPE_EXPR) {
+	    d1 = EvaluateExpression(lc, lc, 0, c->RestrictTimes->minJDexpr);
+	    c->RestrictTimes->minJD[lc] = d1;
+	  }
 	  if(c->RestrictTimes->maxJDtype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->RestrictTimes->maxJD_linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &(c->RestrictTimes->maxJD[lc]));
 	  }
 	  else if(c->RestrictTimes->maxJDtype == PERTYPE_FIX) {
 	    c->RestrictTimes->maxJD[lc] = c->RestrictTimes->maxJDfixval;
 	  }
+	  else if(c->RestrictTimes->maxJDtype == PERTYPE_EXPR) {
+	    d2 = EvaluateExpression(lc, lc, 0, c->RestrictTimes->maxJDexpr);
+	    c->RestrictTimes->maxJD[lc] = d2;
+	  }
 	  RestrictTimes_JDrange_apply(p->NJD[lc], p->t[lc], lc, p,
+				      c->RestrictTimes,
 				      c->RestrictTimes->minJD[lc],
 				      c->RestrictTimes->maxJD[lc],
 				      c->RestrictTimes->exclude);
 	}
 	else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_JDLIST) {
 	  RestrictTimes_JDlist_apply(p->NJD[lc], p->t[lc], lc, p,
+				     c->RestrictTimes,
 				     c->RestrictTimes->JD_restrictlist,
 				     c->RestrictTimes->N_restrictlist,
 				     c->RestrictTimes->exclude);
@@ -1924,12 +1951,22 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_IMAGELIST) {
 	  RestrictTimes_imagelist_apply(p->NJD[lc], p->stringid[lc], 
 					p->stringid_idx[lc], lc, p,
+					c->RestrictTimes,
 					c->RestrictTimes->image_restrictlist,
 					c->RestrictTimes->image_restrictlist_indx,
 					c->RestrictTimes->N_restrictlist,
 					c->RestrictTimes->exclude);
 	}
+	else if(c->RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_EXPR) {
+	  RestrictTimes_expr_apply(p, c->RestrictTimes, lc, lc);
+	}
       }
+      break;
+
+    case CNUM_RESTORETIMES:
+      /* Restore the saved light curve */
+      for(lc=0;lc<p->Nlcs;lc++)
+	RestoreTimes(p, c->RestoreTimes, lc, lc);
       break;
 
     case CNUM_CHI2_BIN:
@@ -3543,6 +3580,43 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	    RunUserCommand(p,c,lc,lc);
 	  }
+      }
+      break;
+#endif
+
+#ifdef _HAVE_PYTHON
+    case CNUM_PYTHON:
+      if(c->PythonCommand->RequireReadAll) {
+	RunPythonCommand_all_lcs(p, c->PythonCommand);
+	if(!c->PythonCommand->iscontinueprocess &&
+	   c->PythonCommand->Nchildren == 0) {
+	  StopRunningPythonCommand(p, 0, c->PythonCommand);
+	}
+	else if(c->PythonCommand->iscontinueprocess) {
+	  if(((_PythonCommand **)((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->childcommandptrs)[(((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->Nchildren)-1] == c->PythonCommand) {
+	    StopRunningPythonCommand(p, 0, c->PythonCommand);
+	  }
+	}
+      } else {
+	for(lc = 0; lc < p->Nlcs; lc++)
+	  {
+	    if(p->isifcommands) {
+	      if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+		SkipCommand(p, c, thisindex, lc, lc);
+		continue;
+	      }
+	    }
+	    RunPythonCommand(p, lc, lc, 0, c->PythonCommand);
+	  }
+	if(!c->PythonCommand->iscontinueprocess &&
+	   c->PythonCommand->Nchildren == 0) {
+	  StopRunningPythonCommand(p, 0, c->PythonCommand);
+	}
+	else if(c->PythonCommand->iscontinueprocess) {
+	  if(((_PythonCommand **)((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->childcommandptrs)[(((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->Nchildren)-1] == c->PythonCommand) {
+	    StopRunningPythonCommand(p, 0, c->PythonCommand);
+	  }
+	}
       }
       break;
 #endif

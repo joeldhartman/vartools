@@ -678,3 +678,8 @@ void VARTOOLS_occultnl(double rl, double c1, double c2, double c3, double c4, do
 {
   VARTOOLS_FUNCTION_POINTER_STRUCT.occultnl(rl, c1, c2, c3, c4, b0, mulimb0, mulimbf, nb);
 }
+
+void VARTOOLS_MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.memallocdatafromlightcurve(p, threadid, Nterm);
+}

@@ -5,10 +5,9 @@ example_files = \
  EXAMPLES/3.gz \
  EXAMPLES/lc_list_tfa \
  EXAMPLES/lc_list_testblend \
- EXAMPLES/2.resample.example1 \
  EXAMPLES/6.gz \
  EXAMPLES/5 \
- EXAMPLES/4.resample.example3 \
+ EXAMPLES/1.png \
  EXAMPLES/OUTDIR1/10.phase.txt \
  EXAMPLES/OUTDIR1/10.bls.model \
  EXAMPLES/OUTDIR1/4.bls.phcurve \
@@ -132,27 +131,28 @@ example_files = \
  EXAMPLES/OUTDIR1/noisesim.txt \
  EXAMPLES/OUTDIR1/3.bls.model \
  EXAMPLES/9.gz \
+ EXAMPLES/2.png \
  EXAMPLES/4.gz \
  EXAMPLES/2.fits \
  EXAMPLES/7.gz \
  EXAMPLES/3.macula \
  EXAMPLES/lc_list_tfa_sr_bin \
  EXAMPLES/10.gz \
+ EXAMPLES/plotlc.py~ \
  EXAMPLES/1.gz \
  EXAMPLES/lc_list_gz \
  EXAMPLES/trendlist_tfa \
  EXAMPLES/lc_list_tfa_sr_harm \
  EXAMPLES/2.testblend \
  EXAMPLES/dates_tfa \
- EXAMPLES/2.resample.example2 \
  EXAMPLES/8 \
  EXAMPLES/10 \
  EXAMPLES/4.microlensinject \
  EXAMPLES/3.transit \
- EXAMPLES/1.resample.example4 \
  EXAMPLES/lc_list_tfa_sr_decorr \
  EXAMPLES/2 \
  EXAMPLES/7 \
+ EXAMPLES/plotlc.py \
  EXAMPLES/4 \
  EXAMPLES/3.maculacurve \
  EXAMPLES/5.gz \

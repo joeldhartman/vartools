@@ -450,6 +450,46 @@ void InitCommands(ProgramData *p, Command *c)
 		error(ERR_MEMALLOC);
 	    }
 	  }
+	  if(c[i].RestrictTimes->saveexcludedpoints) {
+	    if((c[i].RestrictTimes->s = (_Savelc *) malloc(sizeof(_Savelc))) == NULL)
+	      error(ERR_MEMALLOC);
+	    if((c[i].RestrictTimes->s->NJD = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->lclistindx = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->dblterms = (double ***) malloc(Nlcs * sizeof(double **))) == NULL ||
+	       (c[i].RestrictTimes->s->sterms = (char ***) malloc(Nlcs * sizeof(char ***))) == NULL ||
+	       (c[i].RestrictTimes->s->iterms = (int ***) malloc(Nlcs * sizeof(int ***))) == NULL ||
+	       (c[i].RestrictTimes->s->lterms = (long ***) malloc(Nlcs * sizeof(long ***))) == NULL ||
+	       (c[i].RestrictTimes->s->shterms = (short ***) malloc(Nlcs * sizeof(short ***))) == NULL ||
+	       (c[i].RestrictTimes->s->fterms = (float ***) malloc(Nlcs * sizeof(float ***))) == NULL ||
+	       (c[i].RestrictTimes->s->cterms = (char ***) malloc(Nlcs * sizeof(char ***))) == NULL ||
+	       (c[i].RestrictTimes->s->Nshterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Nlterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Niterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Nfterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Ncterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->stringid_idx = (int **) malloc(Nlcs * sizeof(int *))) == NULL ||
+	       (c[i].RestrictTimes->s->sizestringid_idxvecs = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->sizevecs = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->sizesvecs = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Ndblterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->Nsterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].RestrictTimes->s->runyet = (int *) malloc(Nlcs * sizeof(int))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      {
+		c[i].RestrictTimes->s->runyet[j] = 0;
+		c[i].RestrictTimes->s->sizevecs[j] = 0;
+		c[i].RestrictTimes->s->sizesvecs[j] = 0;
+		c[i].RestrictTimes->s->dblterms[j] = NULL;
+		c[i].RestrictTimes->s->sterms[j] = NULL;
+		c[i].RestrictTimes->s->stringid_idx[j] = NULL;
+		c[i].RestrictTimes->s->iterms[j] = NULL;
+		c[i].RestrictTimes->s->lterms[j] = NULL;
+		c[i].RestrictTimes->s->shterms[j] = NULL;
+		c[i].RestrictTimes->s->fterms[j] = NULL;
+		c[i].RestrictTimes->s->cterms[j] = NULL;
+	      }
+	  }
 	  break;
         case CNUM_CHI2_NOBIN:
 	  if((c[i].Chi2_NoBin->chi2val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1119,6 +1159,9 @@ void InitCommands(ProgramData *p, Command *c)
 	    if((c[i].IfCommand->ifs->wasfoundtrue = (char *) malloc(Nlcs * sizeof(char))) == NULL)
 	      error(ERR_MEMALLOC);
 	  }
+	  break;
+	case CNUM_PYTHON:
+	  InitPythonCommand(p, c[i].PythonCommand, Nlcs);
 	  break;
 	default:
 	  break;

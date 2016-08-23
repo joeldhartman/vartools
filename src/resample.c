@@ -787,10 +787,10 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
   int nbreaks, spline_order;
   _DataFromLightCurve *d;
   va_list varlist;
-  _Variable *tvar;
+  /*_Variable *tvar;
   _Variable *magvar;
   _Variable *sigvar;
-  _Variable *stringidvar;
+  _Variable *stringidvar;*/
   
   int interp_mode_near;
 
@@ -829,9 +829,10 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 
   /* Grow the light curve vectors to store the interpolated data if
      needed */
-  tvar = NULL; magvar = NULL; sigvar = NULL; stringidvar = NULL;
+  /*tvar = NULL; magvar = NULL; sigvar = NULL; stringidvar = NULL;*/
   if(Ninterp > p->NJD[threadid]) {
-    for(i=0; i < p->NDefinedVariables; i++) {
+    MemAllocDataFromLightCurveMidProcess(p, threadid, Ninterp);
+    /*for(i=0; i < p->NDefinedVariables; i++) {
       if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC && (
 	 p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_DOUBLE ||
 	 p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_CONVERTJD)) {
@@ -859,7 +860,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
     if(sigvar != NULL)
       p->sig[threadid] = (*((double ***) sigvar->dataptr))[threadid];
     if(stringidvar != NULL)
-      p->stringid[threadid] = (*((char ****) stringidvar->dataptr))[threadid];
+    p->stringid[threadid] = (*((char ****) stringidvar->dataptr))[threadid];*/
   }
     
   /* If we're doing or Gap-interpolation, B-splines, then take care of

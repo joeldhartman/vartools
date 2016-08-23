@@ -72,6 +72,10 @@
 #define _HAVE_CSPICE 1
 #endif
 
+#ifdef HAVE_PYTHON
+#define _HAVE_PYTHON 1
+#endif
+
 #define DYNAMICLIB 1
 
 /*
@@ -161,8 +165,10 @@
 #define CNUM_RESAMPLE 50
 #define CNUM_BLSFIXDURTC 51
 #define CNUM_HARMONICFILTER 52
+#define CNUM_PYTHON 53
+#define CNUM_RESTORETIMES 54
 
-#define TOT_CNUMS 52
+#define TOT_CNUMS 54
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -1259,6 +1265,7 @@ typedef struct {
 #define VARTOOLS_RESTRICTTIMES_JDRANGE 0
 #define VARTOOLS_RESTRICTTIMES_JDLIST 1
 #define VARTOOLS_RESTRICTTIMES_IMAGELIST 2
+#define VARTOOLS_RESTRICTTIMES_EXPR 3
 
 typedef struct {
   char restricttype;
@@ -1279,7 +1286,16 @@ typedef struct {
   _Expression *maxJDexpr;
   char *minJDexprstring;
   char *maxJDexprstring;
+  char *restrictexprstring;
+  _Expression *restrictexpr;
+  _Savelc *s;
+  int saveexcludedpoints;
 } _RestrictTimes;
+
+typedef struct {
+  int restrictnum;
+  _RestrictTimes *RestrictTimes;
+} _RestoreTimes;
 
 typedef struct {
   double cterm;
@@ -1469,6 +1485,70 @@ typedef struct {
 
 } _HarmonicFilter;
 
+#ifdef _HAVE_PYTHON
+typedef struct {
+  int Nvars;
+  _Variable **vars;
+  int *isvaroutput;
+  int Nvars_outonly;
+  _Variable **outonlyvars;
+  int Nlcvars_nonupdate;
+  int **outlcvecs_invars;
+  int **outlcvecs_outonlyvars;
+  _Variable **lcvars_nonupdate;
+  int *IsPythonRunning;
+  int **sockets;
+  char *progname;
+  char *pythoninitializationtext;
+  long len_pythoninitializationtextstring;
+  char *pythoncommandstring;
+  long len_pythoncommandstring;
+  char *inputpythonfilename;
+  void *pythonobjects;
+  int iscontinueprocess;
+  void *continueprocesscommandptr;
+
+  int Nchildren;
+  void *childcommandptrs;
+  int *childcnumvals;
+
+  int cid;
+
+  char *inoutvarliststring;
+  char **inoutvarnames;
+  int Ninoutvarnames;
+
+  char *invarliststring;
+  char *outvarliststring;
+
+  char **invarnames;
+  char **outvarnames;
+
+  int Ninvarnames;
+  int Noutvarnames;
+
+  char *outcolumnliststring;
+  char **outcolumnnames;
+  int Noutcolumnvars;
+  _Variable **outcolumnvars;
+
+  double **outcolumndata;
+
+  int processallvariables;
+
+  int cnum;
+
+  int RequireReadAll;
+
+  void *FullList;
+
+} _PythonCommand;
+#else
+typedef struct {
+  int cnum;
+} _PythonCommand;
+#endif
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -1524,11 +1604,13 @@ typedef struct {
   _Stats *Stats;
   _IfCommand *IfCommand;
   _RestrictTimes *RestrictTimes;
+  _RestoreTimes *RestoreTimes;
   _WWZ *WWZ;
   _CopyLC *CopyLC;
   _Resample *Resample;
   _Stitch *Stitch;
   _HarmonicFilter *HarmonicFilter;
+  _PythonCommand *PythonCommand;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

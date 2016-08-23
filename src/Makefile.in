@@ -79,12 +79,14 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@PYTHON_USE_TRUE@am__append_1 = libvartoolsrunpython.la
 bin_PROGRAMS = vartools$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp ChangeLog
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/argz.m4 \
+	$(top_srcdir)/m4/ax_python_embed.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltdl.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
@@ -131,6 +133,17 @@ AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
+libvartoolsrunpython_la_LIBADD =
+am__libvartoolsrunpython_la_SOURCES_DIST = runpython.c runpython.h
+@PYTHON_USE_TRUE@am_libvartoolsrunpython_la_OBJECTS =  \
+@PYTHON_USE_TRUE@	libvartoolsrunpython_la-runpython.lo
+libvartoolsrunpython_la_OBJECTS =  \
+	$(am_libvartoolsrunpython_la_OBJECTS)
+libvartoolsrunpython_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(libvartoolsrunpython_la_CFLAGS) $(CFLAGS) \
+	$(libvartoolsrunpython_la_LDFLAGS) $(LDFLAGS) -o $@
+@PYTHON_USE_TRUE@am_libvartoolsrunpython_la_rpath = -rpath $(libdir)
 PROGRAMS = $(bin_PROGRAMS)
 am_vartools_OBJECTS = vartools-alarm.$(OBJEXT) vartools-aov.$(OBJEXT) \
 	vartools-aov_harm.$(OBJEXT) vartools-amoeba.$(OBJEXT) \
@@ -169,7 +182,7 @@ am_vartools_OBJECTS = vartools-alarm.$(OBJEXT) vartools-aov.$(OBJEXT) \
 	vartools-userlib.$(OBJEXT) vartools-linfit.$(OBJEXT) \
 	vartools-help.$(OBJEXT) vartools-resample.$(OBJEXT) \
 	vartools-restricttimes.$(OBJEXT) vartools-mcmcfit.$(OBJEXT) \
-	vartools-wwz.$(OBJEXT)
+	vartools-wwz.$(OBJEXT) vartools-callrunpython.$(OBJEXT)
 vartools_OBJECTS = $(am_vartools_OBJECTS)
 am__DEPENDENCIES_1 =
 AM_V_P = $(am__v_P_@AM_V@)
@@ -206,8 +219,11 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libvartools_la_SOURCES) $(vartools_SOURCES)
-DIST_SOURCES = $(libvartools_la_SOURCES) $(vartools_SOURCES)
+SOURCES = $(libvartools_la_SOURCES) $(libvartoolsrunpython_la_SOURCES) \
+	$(vartools_SOURCES)
+DIST_SOURCES = $(libvartools_la_SOURCES) \
+	$(am__libvartoolsrunpython_la_SOURCES_DIST) \
+	$(vartools_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -304,6 +320,8 @@ MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NUMPY_HEADER = @NUMPY_HEADER@
+NUMPY_INCLUDE_DIR = @NUMPY_INCLUDE_DIR@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OTOOL = @OTOOL@
@@ -316,6 +334,13 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PYTHON = @PYTHON@
+PYTHONBINPATH = @PYTHONBINPATH@
+PYTHONHOMEPATH = @PYTHONHOMEPATH@
+PYTHON_CSPEC = @PYTHON_CSPEC@
+PYTHON_EXECPREFIX = @PYTHON_EXECPREFIX@
+PYTHON_LSPEC = @PYTHON_LSPEC@
+PYTHON_PREFIX = @PYTHON_PREFIX@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -360,7 +385,7 @@ htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
-libdir = @libdir@
+libdir = $(USERLIBSDIR)
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
@@ -382,8 +407,11 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-lib_LTLIBRARIES = libvartools.la
+lib_LTLIBRARIES = libvartools.la $(am__append_1)
 libvartools_la_SOURCES = vartools.c
+@PYTHON_USE_TRUE@libvartoolsrunpython_la_SOURCES = runpython.c runpython.h
+@PYTHON_USE_TRUE@libvartoolsrunpython_la_CFLAGS = @PYTHON_CSPEC@
+@PYTHON_USE_TRUE@libvartoolsrunpython_la_LDFLAGS = @PYTHON_LSPEC@
 vartools_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c \
 	binlc.c binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c \
 	doublelinklist.c error.c fluxtomag.c getampthresh.c ifelse.c \
@@ -397,14 +425,16 @@ vartools_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c \
 	saverestorelistdata.c outcolumns.c medianfilter.c findblends.c \
 	microlens.c fittrap.c addnoise.c example.c parseinputlist.c \
 	parselc.c converttime.c userlib.c linfit.c help.c resample.c \
-	restricttimes.c mcmcfit.c wwz.c analytic.h functions.h \
-	nonlinfit.h userlib.h binarylcio.h ifelse.h outcolumn.h \
-	vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
-	vartools.h doublelinklist.h mysort.h userfunc.h statistics.h \
-	OutText.h
+	restricttimes.c mcmcfit.c wwz.c callrunpython.c analytic.h \
+	functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
+	outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h \
+	programdata.h vartools.h doublelinklist.h mysort.h userfunc.h \
+	statistics.h OutText.h
 vartools_CPPFLAGS = $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
-vartools_LDADD = libvartools.la $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
-vartools_DEPENDENCIES = $(LTDLDEPS) libvartools.la
+@PYTHON_USE_FALSE@vartools_LDADD = libvartools.la $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+@PYTHON_USE_TRUE@vartools_LDADD = libvartools.la libvartoolsrunpython.la $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+@PYTHON_USE_FALSE@vartools_DEPENDENCIES = $(LTDLDEPS) libvartools.la
+@PYTHON_USE_TRUE@vartools_DEPENDENCIES = $(LTDLDEPS) libvartools.la libvartoolsrunpython.la
 all: all-am
 
 .SUFFIXES:
@@ -477,6 +507,9 @@ clean-libLTLIBRARIES:
 
 libvartools.la: $(libvartools_la_OBJECTS) $(libvartools_la_DEPENDENCIES) $(EXTRA_libvartools_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libvartools_la_OBJECTS) $(libvartools_la_LIBADD) $(LIBS)
+
+libvartoolsrunpython.la: $(libvartoolsrunpython_la_OBJECTS) $(libvartoolsrunpython_la_DEPENDENCIES) $(EXTRA_libvartoolsrunpython_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libvartoolsrunpython_la_LINK) $(am_libvartoolsrunpython_la_rpath) $(libvartoolsrunpython_la_OBJECTS) $(libvartoolsrunpython_la_LIBADD) $(LIBS)
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
@@ -537,6 +570,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolsrunpython_la-runpython.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-GetBLSsignaltorednoise.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-addnoise.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-alarm.Po@am__quote@
@@ -547,6 +581,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-autocorrelation.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-binarylcio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-binlc.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-callrunpython.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-chi2rms.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-converttime.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-copylc.Po@am__quote@
@@ -627,6 +662,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LTCOMPILE) -c -o $@ $<
+
+libvartoolsrunpython_la-runpython.lo: runpython.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libvartoolsrunpython_la_CFLAGS) $(CFLAGS) -MT libvartoolsrunpython_la-runpython.lo -MD -MP -MF $(DEPDIR)/libvartoolsrunpython_la-runpython.Tpo -c -o libvartoolsrunpython_la-runpython.lo `test -f 'runpython.c' || echo '$(srcdir)/'`runpython.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolsrunpython_la-runpython.Tpo $(DEPDIR)/libvartoolsrunpython_la-runpython.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='runpython.c' object='libvartoolsrunpython_la-runpython.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libvartoolsrunpython_la_CFLAGS) $(CFLAGS) -c -o libvartoolsrunpython_la-runpython.lo `test -f 'runpython.c' || echo '$(srcdir)/'`runpython.c
 
 vartools-alarm.o: alarm.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vartools-alarm.o -MD -MP -MF $(DEPDIR)/vartools-alarm.Tpo -c -o vartools-alarm.o `test -f 'alarm.c' || echo '$(srcdir)/'`alarm.c
@@ -1537,6 +1579,20 @@ vartools-wwz.obj: wwz.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='wwz.c' object='vartools-wwz.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-wwz.obj `if test -f 'wwz.c'; then $(CYGPATH_W) 'wwz.c'; else $(CYGPATH_W) '$(srcdir)/wwz.c'; fi`
+
+vartools-callrunpython.o: callrunpython.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vartools-callrunpython.o -MD -MP -MF $(DEPDIR)/vartools-callrunpython.Tpo -c -o vartools-callrunpython.o `test -f 'callrunpython.c' || echo '$(srcdir)/'`callrunpython.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/vartools-callrunpython.Tpo $(DEPDIR)/vartools-callrunpython.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='callrunpython.c' object='vartools-callrunpython.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-callrunpython.o `test -f 'callrunpython.c' || echo '$(srcdir)/'`callrunpython.c
+
+vartools-callrunpython.obj: callrunpython.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vartools-callrunpython.obj -MD -MP -MF $(DEPDIR)/vartools-callrunpython.Tpo -c -o vartools-callrunpython.obj `if test -f 'callrunpython.c'; then $(CYGPATH_W) 'callrunpython.c'; else $(CYGPATH_W) '$(srcdir)/callrunpython.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/vartools-callrunpython.Tpo $(DEPDIR)/vartools-callrunpython.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='callrunpython.c' object='vartools-callrunpython.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-callrunpython.obj `if test -f 'callrunpython.c'; then $(CYGPATH_W) 'callrunpython.c'; else $(CYGPATH_W) '$(srcdir)/callrunpython.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

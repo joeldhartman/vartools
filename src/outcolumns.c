@@ -116,6 +116,7 @@ void addcolumn(ProgramData *p, int cnum, int type, int stringsize, void *ptr, ch
     sprintf(colnamefmtcpy,"%s",columnnamefmt);
   vsprintf(c->columnname,colnamefmtcpy,varlist);
   c->length_columnname = strlen(c->columnname);
+  c->cnum = cnum;
 }
 
 /* Add a new command to the list of commands that have input read from a previous output column */
@@ -1742,6 +1743,14 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    }
 	  }
 	  break;
+#ifdef _HAVE_PYTHON
+	case CNUM_PYTHON:
+	  for(i=0; i < c[l].PythonCommand->Noutcolumnvars; i++) {
+	    sprintf(tmpstring,"PYTHON_%s_%%d",c[l].PythonCommand->outcolumnnames[i]);
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].PythonCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	  }
+	  break;
+#endif
 	}
     }
 }

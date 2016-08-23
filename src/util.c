@@ -401,6 +401,50 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
   } while(stoadd[k] != '\0');
 }
 
+void printtostring_nowrap_tabindent(OutText *text, const char *stoadd)
+{
+  int l, lold, j, k, k1, k2;
+  l = strlen(stoadd);
+  lold = text->len_s;
+  if(!text->space)
+    {
+      text->Nchar_cur_line = 0;
+      text->space = MAXLEN;
+      if((text->s = malloc(MAXLEN)) == NULL)
+	error(ERR_MEMALLOC);
+      text->s[0] = '\0';
+    }
+
+  k = 0;
+  j = lold;
+  k1 = k;
+  while(stoadd[k] != '\0') {
+    if(stoadd[k] != '\n')
+      k++;
+    else
+      k += 2;
+  }
+  while(text->len_s + (k-k1) + 2 >= text->space) {
+    text->space = text->space * 2;
+    if((text->s = realloc(text->s, text->space)) == NULL)
+      error(ERR_MEMALLOC);
+  }
+  while(k1 < k) {
+    text->s[j] = stoadd[k1];
+    text->Nchar_cur_line += 1;
+    if(stoadd[k1] == '\n') {
+      j++;
+      text->s[j] = '\t';
+      text->Nchar_cur_line = 1;
+    }
+    j++;
+    k1++;
+  }
+  text->s[j] = '\0';
+  text->len_s = j;
+}
+
+
 void InitOutTextStruct(OutText *text)
 {
   text->s = NULL;

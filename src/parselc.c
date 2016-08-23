@@ -1259,6 +1259,45 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
   
 }
 
+/* The version of MemAllocDataFromLightCurve below should be called if additional space needs to be allocated for the light curves within a processing thread; This version takes care of re-aligning the pointers to t, mag, err and id. */
+void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm) {
+  int i;
+  _Variable *tvar = NULL;
+  _Variable *magvar = NULL;
+  _Variable *sigvar = NULL;
+  _Variable *stringidvar = NULL;
+
+  for(i=0; i < p->NDefinedVariables; i++) {
+    if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC && (
+       p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_DOUBLE ||
+       p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_CONVERTJD)) {
+      if(p->t[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+	tvar = p->DefinedVariables[i];
+      }
+      if(p->mag[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+	magvar = p->DefinedVariables[i];
+      }
+      if(p->sig[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+	sigvar = p->DefinedVariables[i];
+      }
+    } 
+    else if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC &&
+	    p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_STRING) {
+      if(p->stringid[threadid] == (*((char ****) p->DefinedVariables[i]->dataptr))[threadid])
+	stringidvar = p->DefinedVariables[i];
+    }
+  }
+  MemAllocDataFromLightCurve(p, threadid, Nterm);
+  if(tvar != NULL)
+    p->t[threadid] = (*((double ***) tvar->dataptr))[threadid];
+  if(magvar != NULL)
+    p->mag[threadid] = (*((double ***) magvar->dataptr))[threadid];
+  if(sigvar != NULL)
+    p->sig[threadid] = (*((double ***) sigvar->dataptr))[threadid];
+  if(stringidvar != NULL)
+    p->stringid[threadid] = (*((char ****) stringidvar->dataptr))[threadid];
+}
+
 void DoChangeVariable(ProgramData *p, _Changevariable *c, int threadid)
 {
   int i;

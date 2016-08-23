@@ -100,19 +100,36 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 /* This function generates _Expression objects for all of the 
    analytic expressions to be evaluated by the program */
 {
-  int i, j, k, test;
+  int i, j, k, test, sizetmpstr = MAXLEN;
   _DataFromLightCurve *d;
   _DataFromInputList *d2;
+  char *tmpstr;
+  if((tmpstr = (char *) malloc(sizetmpstr * sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
   /* Setup any Variables associated with the output columns */
   for(i=0; i < p->Ncolumns; i++) {
-    if(p->outcolumns[i].type != VARTOOLS_TYPE_STRING &&
-       p->outcolumns[i].type != VARTOOLS_TYPE_CHAR)
-      CreateVariable(p, p->outcolumns[i].columnname, p->outcolumns[i].type,
-		     VARTOOLS_VECTORTYPE_OUTCOLUMN, p->outcolumns[i].ptr,
-		     &(p->outcolumns[i]));
+    //if(p->outcolumns[i].type != VARTOOLS_TYPE_STRING &&
+    // p->outcolumns[i].type != VARTOOLS_TYPE_CHAR)
+    if(strlen(p->outcolumns[i].columnname) >= sizetmpstr) {
+      sizetmpstr *= 2;
+      if((tmpstr = (char *) realloc(tmpstr, sizetmpstr*sizeof(char))) == NULL)
+	error(ERR_MEMALLOC);
+    }
+    // Change Any forbidden characters in the column name to "_"
+    sprintf(tmpstr,"%s",p->outcolumns[i].columnname);
+    for(j=0; j < strlen(p->outcolumns[i].columnname); j++) {
+      if(tmpstr[j] != '_' && !(tmpstr[j] >= '0' && tmpstr[j] <= '9')
+	 && !(tmpstr[j] >= 'A' && tmpstr[j] <= 'Z')
+	 && !(tmpstr[j] >= 'a' && tmpstr[j] <= 'z'))
+	tmpstr[j] = '_';
+    }
+    CreateVariable(p, tmpstr, p->outcolumns[i].type,
+		   VARTOOLS_VECTORTYPE_OUTCOLUMN, p->outcolumns[i].ptr,
+		   &(p->outcolumns[i]));
   }
+  free(tmpstr);
 
-  /* Look for -expr, -linfit, -nonlinfit, -if -elif or -else commands and set up their expressions */
+  /* Look for -expr, -linfit, -nonlinfit, -if, -elif or -else commands and set up their expressions */
   for(i=0; i < p->Ncommands; i++) {
     if(c[i].cnum == CNUM_EXPRESSION) {
       /* Check if a new variable is being defined here */
@@ -192,6 +209,9 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  c[i].RestrictTimes->maxJDexpr = ParseExpression(c[i].RestrictTimes->maxJDexprstring, p);
 	}
       }
+      else if(c[i].RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_EXPR) {
+	c[i].RestrictTimes->restrictexpr = ParseExpression(c[i].RestrictTimes->restrictexprstring, p);
+      }
     }
     else if(c[i].cnum == CNUM_PHASE) {
       CheckCreateCommandOutputLCVariable(c[i].Phase->phasevarname,&(c[i].Phase->phasevar),p);
@@ -200,6 +220,11 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       CheckCreateCommandOutputLCVariable(c[i].MandelAgolTransit->modelvarname,&(c[i].MandelAgolTransit->modelvar),p);
     }
 #ifdef DYNAMICLIB
+#ifdef _HAVE_PYTHON
+    else if(c[i].cnum == CNUM_PYTHON) {
+      SetupRunPythonVariables(c[i].PythonCommand,p);
+    }
+#endif
     else if(c[i].cnum == CNUM_USERCOMMAND) {
       for(j=0; j < c[i].UserCommand->Nexpr; j++) {
 	*(c[i].UserCommand->UserDataExpressions[j]) = ParseExpression(c[i].UserCommand->expr_strings[j], p);
@@ -3162,6 +3187,11 @@ void PrintVartoolsFunctionList(ProgramData *p)
   printtostring(&s,"a||b\t\t- Logical \"or\" comparison\n\n");
   printtostring(&s,"!a\t\t- Logical \"not\"\n\n");
 
+  printtostring(&s,"Indexing Arrays:\n\n");
+  printtostring(&s,"----------------\n\n");
+  printtostring_indentwrap(&s,"a[b]\t\t- returns the b-th component of vector a, where b may be any analytic expression. Indexing starts at 0. The value of b will be rounded to the nearest integer. If b is outside of the array bounds, then 0.0 will be returned, but no error or warning message will be given. For the case of array assignment through the \"-expr\" command (i.e., an array appearing on the left-hand-side of the equation in a call to \"-expr\") the indexing is handled differently. See \"vartools -help -expr\" for details.",8);
+  printtostring(&s,"\n\n");
+
   printtostring(&s,"Functions:\n\n");
   printtostring(&s,"----------\n\n");
   printtostring(&s,"exp(x)\t\t- exponential of x.\n\n");
@@ -3203,7 +3233,7 @@ void PrintVartoolsFunctionList(ProgramData *p)
   printtostring(&s,"\n\n");
   printtostring(&s,"Vector Functions:\n\n");
   printtostring(&s,"-----------------\n\n");
-  printtostring_indentwrap(&s,"len(x)\t\t- returns the length of a vector. x must be a single number or variable, more complicated expressions are not permitted as arguments.",8);
+  printtostring_indentwrap(&s,"len(x)\t\t- returns the length of a vector. x must be a single number or variable, more complicated expressions are not permitted as arguments to this function.",8);
   printtostring(&s,"\n\n");
   printtostring(&s,"Constants:\n");
   printtostring(&s,"----------\n\n");

@@ -540,6 +540,9 @@ int main(int argc, char **argv)
     }
   if(outfile != stdout)
     fclose(outfile);
+#ifdef _HAVE_PYTHON
+  KillAllPythonProcesses(&p, &c);
+#endif
   exit(0);
 }
 

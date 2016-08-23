@@ -14,7 +14,10 @@ typedef struct {
   PyObject **UserFunctionToRun;
   PyObject **Variables;
   PyObject *VariableList;
+  PyObject *VariableListOut;
   int Nvars;
   _PythonArrayData *data;
+  PyObject *FullList;
+  PyObject *FullListOut;
 } _PythonObjectContainer;
 

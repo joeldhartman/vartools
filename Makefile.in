@@ -87,6 +87,7 @@ DIST_COMMON = $(srcdir)/examplefiles.mk INSTALL NEWS README AUTHORS \
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/argz.m4 \
+	$(top_srcdir)/m4/ax_python_embed.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltdl.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
@@ -227,14 +228,14 @@ distuninstallcheck_listfiles = find . -type f -print
 am__distuninstallcheck_listfiles = $(distuninstallcheck_listfiles) \
   | sed 's|^\./|$(prefix)/|' | grep -v '$(infodir)/dir$$'
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = @ACLOCAL@ || echo
+ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 ARGZ_H = @ARGZ_H@
-AUTOCONF = @AUTOCONF@ || echo
-AUTOHEADER = @AUTOHEADER@ || echo
-AUTOMAKE = @AUTOMAKE@ || echo
+AUTOCONF = @AUTOCONF@
+AUTOHEADER = @AUTOHEADER@
+AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 BUILDDIR = @BUILDDIR@
 CC = @CC@
@@ -298,6 +299,8 @@ MANIFEST_TOOL = @MANIFEST_TOOL@
 MKDIR_P = @MKDIR_P@
 NM = @NM@
 NMEDIT = @NMEDIT@
+NUMPY_HEADER = @NUMPY_HEADER@
+NUMPY_INCLUDE_DIR = @NUMPY_INCLUDE_DIR@
 OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
 OTOOL = @OTOOL@
@@ -310,6 +313,13 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PYTHON = @PYTHON@
+PYTHONBINPATH = @PYTHONBINPATH@
+PYTHONHOMEPATH = @PYTHONHOMEPATH@
+PYTHON_CSPEC = @PYTHON_CSPEC@
+PYTHON_EXECPREFIX = @PYTHON_EXECPREFIX@
+PYTHON_LSPEC = @PYTHON_LSPEC@
+PYTHON_PREFIX = @PYTHON_PREFIX@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -385,10 +395,9 @@ example_files = \
  EXAMPLES/3.gz \
  EXAMPLES/lc_list_tfa \
  EXAMPLES/lc_list_testblend \
- EXAMPLES/2.resample.example1 \
  EXAMPLES/6.gz \
  EXAMPLES/5 \
- EXAMPLES/4.resample.example3 \
+ EXAMPLES/1.png \
  EXAMPLES/OUTDIR1/10.phase.txt \
  EXAMPLES/OUTDIR1/10.bls.model \
  EXAMPLES/OUTDIR1/4.bls.phcurve \
@@ -512,27 +521,28 @@ example_files = \
  EXAMPLES/OUTDIR1/noisesim.txt \
  EXAMPLES/OUTDIR1/3.bls.model \
  EXAMPLES/9.gz \
+ EXAMPLES/2.png \
  EXAMPLES/4.gz \
  EXAMPLES/2.fits \
  EXAMPLES/7.gz \
  EXAMPLES/3.macula \
  EXAMPLES/lc_list_tfa_sr_bin \
  EXAMPLES/10.gz \
+ EXAMPLES/plotlc.py~ \
  EXAMPLES/1.gz \
  EXAMPLES/lc_list_gz \
  EXAMPLES/trendlist_tfa \
  EXAMPLES/lc_list_tfa_sr_harm \
  EXAMPLES/2.testblend \
  EXAMPLES/dates_tfa \
- EXAMPLES/2.resample.example2 \
  EXAMPLES/8 \
  EXAMPLES/10 \
  EXAMPLES/4.microlensinject \
  EXAMPLES/3.transit \
- EXAMPLES/1.resample.example4 \
  EXAMPLES/lc_list_tfa_sr_decorr \
  EXAMPLES/2 \
  EXAMPLES/7 \
+ EXAMPLES/plotlc.py \
  EXAMPLES/4 \
  EXAMPLES/3.maculacurve \
  EXAMPLES/5.gz \

@@ -141,6 +141,9 @@
 /* Define if you have lpthread */
 #undef HAVE_PTHREAD
 
+/* Define if we are compiling with python */
+#undef HAVE_PYTHON
+
 /* Define to 1 if you have the `readdir' function. */
 #undef HAVE_READDIR
 
@@ -219,6 +222,9 @@
 /* Define if dlsym() requires a leading underscore in symbol names. */
 #undef NEED_USCORE
 
+/* Set to the header file to include for numpy */
+#undef NUMPY_HEADER_FILE
+
 /* Name of package */
 #undef PACKAGE
 
@@ -239,6 +245,9 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Set to the PYTHONHOME */
+#undef PYTHONHOMEPATH
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS

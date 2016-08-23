@@ -67,4 +67,5 @@ typedef struct {
   int (*vRegisterUserFunction)(ProgramData *, char *, int, double (*)(double *), int, va_list argp);
   void (*occultquad)(double *, double, double, double, double *, double *, int);
   void (*occultnl)(double, double, double, double, double, double *, double *, double **, int);
+  void (*memallocdatafromlightcurve)(ProgramData *, int, int);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

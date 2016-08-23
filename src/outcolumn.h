@@ -47,6 +47,7 @@ typedef struct {
   char columnname[MAX_COLNAME_LENGTH];
   char outputformat[MAX_COLNAME_LENGTH];
   int length_columnname;
+  int cnum;
 } OutColumn;
 #define OUTCOLUMNHEADERREAD 1
 #endif

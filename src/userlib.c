@@ -3214,7 +3214,7 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	  increaselinkedcols(p, (OutColumn **) outcolumn, priornames[0], cnum);
 	} else {
 	  for(k=0; k < Ncolumns; k++) {
-	    increaselinkedcols(p, (*((OutColumn ***) outcolumn))[k], priornames[k], cnum);
+	    increaselinkedcols(p, &((*((OutColumn ***) outcolumn))[k]), priornames[k], cnum);
 	  }
 	}
       }
@@ -3539,6 +3539,7 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->vRegisterUserFunction = &vRegisterUserFunction;
   fptr->occultquad = &occultquad;
   fptr->occultnl = &occultnl;
+  fptr->memallocdatafromlightcurve = &MemAllocDataFromLightCurve;
 #else
   return;
 #endif

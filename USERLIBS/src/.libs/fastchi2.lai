@@ -17,7 +17,7 @@ old_library='fastchi2.a'
 inherited_linker_flags=''
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/home/jhartman/SVN/HATpipe/source/fpack_modified /home/jhartman/SVN/HATpipe/lib/libvartools.la -lm -ldl'
+dependency_libs=' -L/home/jhartman/SVN/HATpipe/source/fpack_modified /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS/libvartools.la -lm -ldl'
 
 # Names of additional weak libraries provided by this library
 weak_library_names=''

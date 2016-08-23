@@ -22,21 +22,211 @@ void astrofuncs_Initialize(ProgramData *p)
   double astrofuncs_BroadeningProfile(double *);
   double astrofuncs_TransitProjectedX(double *);
   double astrofuncs_TransitProjectedY(double *);
+  double astrofuncs_RV(double *);
+  double astrofuncs_RVM(double *);
+  double astrofuncs_RVdt(double *);
+  double astrofuncs_RVdtp(double *);
 
   /* Use the VARTOOLS_RegisterUserFunction procedure to register each
      function that this library
      provides. VARTOOLS_RegisterUserFunction takes as input a pointer
      to the ProgramData structure p, the name of the function to use
      in the analytic expression evaluator, the number of arguments
-     required by the function, and a pointer to the function */
-  VARTOOLS_RegisterUserFunction(p, "EccentricAnomaly", 2, &astrofuncs_eccentricAnomaly);
-  VARTOOLS_RegisterUserFunction(p, "MeanAnomaly", 3, &astrofuncs_meanAnomaly);
-  VARTOOLS_RegisterUserFunction(p, "MeanAnomalyConjunction", 4, &astrofuncs_meanAnomalyConjunction);
-  VARTOOLS_RegisterUserFunction(p, "TransitQuadLD", 9, &astrofuncs_transitquadLD);
-  VARTOOLS_RegisterUserFunction(p, "TransitNonlinLD", 11, &astrofuncs_transitnonlinLD);
-  VARTOOLS_RegisterUserFunction(p, "BroadeningProfile", 12, &astrofuncs_BroadeningProfile);
-  VARTOOLS_RegisterUserFunction(p, "TransitProjectedX", 8, &astrofuncs_TransitProjectedX);
-  VARTOOLS_RegisterUserFunction(p, "TransitProjectedY", 8, &astrofuncs_TransitProjectedY);
+     required by the function, a pointer to the function, and then either 0
+     if no additional help will be provided for this function, or 1 if you
+     will provide some text to describe the purpose of the function and its
+     arguments. If you give one, then you will need to provide 1 + 2*Narg
+     additional arguments. The first is a string giving a brief statement
+     of the purpose of the function. Following this you should provide strings
+     giving a variable name for each argument, and a brief description of it.*/
+
+  VARTOOLS_RegisterUserFunction(p, "EccentricAnomaly", 2, 
+				&astrofuncs_eccentricAnomaly, 1, 
+				"returns the eccentric anomaly in radians", 
+				"M", "mean anomaly in radians", 
+				"e", "eccentricity");
+
+  VARTOOLS_RegisterUserFunction(p, "MeanAnomaly", 2, 
+				&astrofuncs_meanAnomaly, 1, 
+				"returns the mean anomaly in radians", 
+				"dt", "the time since periastron", 
+				"P", "the orbital period");
+
+  VARTOOLS_RegisterUserFunction(p, "MeanAnomalyConjunction", 4, 
+				&astrofuncs_meanAnomalyConjunction, 1, 
+				"returns the mean anomaly in radians", 
+				"dt", "time since conjunction (or transit)", 
+				"P", "the orbital period", 
+				"e", "eccentricity", 
+				"omega", "argument of periastron in degrees");
+
+  VARTOOLS_RegisterUserFunction(p, "TransitQuadLD", 9, 
+				&astrofuncs_transitquadLD, 1,
+				"returns the relative flux of a source "
+				"in transit using the Mandel & Agol 2002 "
+				"semi-analytic transit model for quadratic "
+				"limb darkening (=1 means out of transit, "
+				"<1 means in transit).",
+				"dt", "time since transit center", 
+				"P", "orbital period", 
+				"b", "impact parameter at conjunction "
+				     "normalized to the stellar radius", 
+				"Rp/R*", "planet to stellar radius ratio", 
+				"a/R*", "semi-major axis in units of the "
+				        "stellar radius", 
+				"e", "eccentricity", 
+				"omega", "argument of periastron", 
+				"u1", "first limb darkening coefficient "
+				      "for a quadratic law", 
+				"u2", "second limb darkening coefficient "
+				      "for a quadratic law");
+
+  VARTOOLS_RegisterUserFunction(p, "TransitNonlinLD", 11, 
+				&astrofuncs_transitnonlinLD, 1,
+				"returns the relative flux of a source "
+				"in transit using the Mandel & Agol 2002 "
+				"semi-analytic transit model for a 4 parameter "
+				"non-linear limb darkening law "
+				"(=1 means out of transit, "
+				"<1 means in transit).",
+				"dt", "time since transit center", 
+				"P", "orbital period", 
+				"b", "impact parameter at conjunction "
+				     "normalized to the stellar radius", 
+				"Rp/R*", "planet to stellar radius ratio", 
+				"a/R*", "semi-major axis in units of the "
+				        "stellar radius", 
+				"e", "eccentricity", 
+				"omega", "argument of periastron", 
+				"a1", "first limb darkening coefficient "
+				      "for a non-linear law", 
+				"a2", "second limb darkening coefficient "
+				      "for a non-linear law",
+				"a3", "third limb darkening coefficient "
+				      "for a non-linear law",
+				"a4", "fourth limb darkening coefficient "
+				      "for a non-linear law");
+
+  VARTOOLS_RegisterUserFunction(p, "BroadeningProfile", 12, 
+				&astrofuncs_BroadeningProfile, 1,
+				"returns the (distorted) line broadening "
+				"function at a "
+				"given wavelength for a star with a "
+				"transiting planet",
+				"delv", "(wl - wl0)*c_light/wl0, where wl is "
+				        "the wavelength to return the "
+                                        "broadening function at, wl0 is the "
+                                        "central wavelength of the line, and "
+                                        "c_light is the speed of light in "
+				        "km/s.",
+				"dt", "time since transit center",
+				"P", "orbital period",
+				"lambda", "projected obliquity angle in "
+				          "degrees",
+				"vsini", "projected equatorial rotation "
+				         "velocity of the star, in km/s",
+				"b", "impact parameter of the planet at "
+                                     "conjunction, normalized to the stellar "
+ 				     "radius.",
+                                "Rp/R*", "planet to stellar radius ratio",
+                                "a/R*", "semi-major axis in units of the "
+				        "stellar radius",
+                                "e", "eccentricity",
+                                "omega", "argument of periastron in degrees",
+                                "u1", "first limb darkening coefficient "
+				      "for a quadratic law", 
+				"u2", "second limb darkening coefficient "
+				      "for a quadratic law");
+
+  VARTOOLS_RegisterUserFunction(p, "TransitProjectedX", 8, 
+				&astrofuncs_TransitProjectedX, 1,
+				"returns the sky-projected X position of the "
+				"center of a planet in its orbit in front of "
+				"the star, in units of the stellar radius. The "
+				"coordinate system used has the rotation axis "
+				"of the star along the Y direction.",
+				"dt", "time since transit center",
+				"P", "orbital period",
+				"lambda", "sky-projected obliquity angle in "
+				          "degrees",
+				"b", "impact parameter of the planet at "
+                                     "conjunction, normalized to the stellar "
+ 				     "radius.",
+                                "Rp/R*", "planet to stellar radius ratio",
+                                "a/R*", "semi-major axis in units of the "
+				        "stellar radius",
+                                "e", "eccentricity",
+                                "omega", "argument of periastron in degrees");
+
+  VARTOOLS_RegisterUserFunction(p, "TransitProjectedY", 8, 
+				&astrofuncs_TransitProjectedY, 1,
+				"returns the sky-projected Y position of the "
+				"center of a planet in its orbit in front of "
+				"the star, in units of the stellar radius. The "
+				"coordinate system used has the rotation axis "
+				"of the star along the Y direction.",
+				"dt", "time since transit center",
+				"P", "orbital period",
+				"lambda", "sky-projected obliquity angle in "
+				          "degrees",
+				"b", "impact parameter of the planet at "
+                                     "conjunction, normalized to the stellar "
+ 				     "radius.",
+                                "Rp/R*", "planet to stellar radius ratio",
+                                "a/R*", "semi-major axis in units of the "
+				        "stellar radius",
+                                "e", "eccentricity",
+                                "omega", "argument of periastron in degrees");
+
+  VARTOOLS_RegisterUserFunction(p, "RV_E", 4, 
+				&astrofuncs_RV, 1,
+				"returns the radial velocity of an object "
+				"on a Keplerian orbit given the eccentric "
+				"anomaly as the input time unit. The radial "
+				"velocity will be in the same units as K.",
+				"E", "eccentric anomaly in radians",
+				"e", "eccentricity",
+				"omega", "argument of periastron, in degrees.",
+				"K", "RV semi-amplitude");
+
+  VARTOOLS_RegisterUserFunction(p, "RV_M", 4, 
+				&astrofuncs_RVM, 1,
+				"returns the radial velocity of an object "
+				"on a Keplerian orbit given the mean "
+				"anomaly as the input time unit. The radial "
+				"velocity will be in the same units as K.",
+				"M", "mean anomaly in radians",
+				"e", "eccentricity",
+				"omega", "argument of periastron, in degrees.",
+				"K", "RV semi-amplitude");
+
+  VARTOOLS_RegisterUserFunction(p, "RV_dt", 5, 
+				&astrofuncs_RVdt, 1,
+				"returns the radial velocity of an object "
+				"on a Keplerian orbit given the time from "
+				"conjunction of its companion as the input "
+				"time unit. E.g., this is the "
+				"radial velocity of a transiting planet host "
+				"star given the time since transit. The radial "
+				"velocity will be in the same units as K.",
+				"dt", "time from conjunction",
+				"P", "orbital period",
+				"e", "eccentricity",
+				"omega", "argument of periastron, in degrees.",
+				"K", "RV semi-amplitude");
+
+  VARTOOLS_RegisterUserFunction(p, "RV_dtp", 5, 
+				&astrofuncs_RVdtp, 1,
+				"returns the radial velocity of an object "
+				"on a Keplerian orbit given the time from "
+				"periastron as the "
+				"input time unit. The radial "
+				"velocity will be in the same units as K.",
+				"dtp", "time from periastron",
+				"P", "orbital period",
+				"e", "eccentricity",
+				"omega", "argument of periastron, in degrees.",
+				"K", "RV semi-amplitude");
 }
 
 #define BISECTION_SAFETY_MAX_ITERATIONS 1000
@@ -489,3 +679,117 @@ double astrofuncs_TransitProjectedY(double *param)
 
   return y;
 }
+
+double astrofuncs_RV(double *param)
+  /* This function computes the radial velocity of an object on a 
+     Keplerian orbit given eccentric anomaly as the input time unit
+
+     param[0] = eccentric anomaly in radians
+     param[1] = eccentricity
+     param[2] = omega (argument of periastron, in degrees);
+     param[3] = K - RV semi-amplitude.
+
+     return value = Radial velocity in the same units as K.
+*/
+{
+  double E, e, omega, K, cosE, sinE, nu, RVout;
+
+  E = param[0]; e = param[1]; omega = param[2]; K = param[3];
+
+  cosE = cos(E); sinE = sin(E);
+  nu = acos((cosE - e)/(1. - e*cosE));
+  if(sinE < 0.)
+    nu = 2.0*M_PI - nu;
+  
+  omega = M_PI*omega/180.0;
+
+  RVout = K*(cos(nu + omega) + e*cos(omega));
+
+  return RVout;
+}
+
+
+double astrofuncs_RVM(double *param)
+  /* This function computes the radial velocity of an object on a 
+     Keplerian orbit given mean anomaly as the input time unit
+
+     param[0] = mean anomaly in radians
+     param[1] = eccentricity
+     param[2] = omega (argument of periastron, in degrees);
+     param[3] = K - RV semi-amplitude.
+
+     return value = Radial velocity in the same units as K.
+*/
+{
+  double M, E, e, omega, K, RVout;
+
+  double param2[4];
+
+  M = param[0]; e = param[1]; omega = param[2]; K = param[3];
+
+  E = astrofuncs_eccentricAnomaly(param);
+
+  param2[0] = E; param2[1] = e; param2[2] = omega; param2[3] = K;
+
+  RVout = astrofuncs_RV(&(param2[0]));
+  return RVout;
+}
+
+double astrofuncs_RVdt(double *param)
+  /* This function computes the radial velocity of an object on a 
+     Keplerian orbit given time from conjunction as the input time unit
+
+     param[0] = dt = (T - T0), where T0 is the time of conjunction
+     param[1] = P = orbital period
+     param[2] = eccentricity
+     param[3] = omega (argument of periastron, in degrees);
+     param[4] = K - RV semi-amplitude.
+
+     return value = Radial velocity in the same units as K.
+*/
+{
+  double M, E, e, omega, K, RVout, P, dt;
+
+  double param2[4];
+
+  dt = param[0]; P = param[1]; e = param[2]; omega = param[3]; K = param[4];
+
+  param2[0] = dt; param2[1] = P; param2[2] = e; param2[3] = omega;
+
+  M = astrofuncs_meanAnomalyConjunction(&(param2[0]));
+
+  param2[0] = M; param2[1] = e; param2[2] = omega; param2[3] = K;
+
+  RVout = astrofuncs_RVM(&(param2[0]));
+  return RVout;
+}
+
+double astrofuncs_RVdtp(double *param)
+  /* This function computes the radial velocity of an object on a 
+     Keplerian orbit given time from periastron as the input time unit
+
+     param[0] = dtp = (T - TP), where TP is the time of periastron
+     param[1] = P = orbital period
+     param[2] = eccentricity
+     param[3] = omega (argument of periastron, in degrees);
+     param[4] = K - RV semi-amplitude.
+
+     return value = Radial velocity in the same units as K.
+*/
+{
+  double M, E, e, omega, K, RVout, P, dt;
+
+  double param2[4];
+
+  dt = param[0]; P = param[1]; e = param[2]; omega = param[3]; K = param[4];
+
+  param2[0] = dt; param2[1] = P;
+
+  M = astrofuncs_meanAnomaly(&(param2[0]));
+
+  param2[0] = M; param2[1] = e; param2[2] = omega; param2[3] = K;
+
+  RVout = astrofuncs_RVM(&(param2[0]));
+  return RVout;
+}
+

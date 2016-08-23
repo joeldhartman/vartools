@@ -840,6 +840,95 @@ void example(char *c, ProgramData *p)
 		    "Example illustrating the use of the -Phase command. We apply -BLS to identify a transit signal in the light curve EXAMPLES/3.transit. We then phase the light curve taking the period from bls, and the time of zero phase from bls. We set the phase of mid-transit to 0.0, and store the phases to the variable ph, rather than overwriting the times. We use the \"startphase -0.5\" term to have the phases run from -0.5 to 0.5, rather than from 0 to 1. We output the result to EXAMPLES/OUTDIR1/3.phase.txt using the \"columnformat\" keyword to include the phases in the fourth column of the output. We then use the \"-changevariable\" command to switch the time variable to \"ph\", and then median-bin the phased light curve using 200 phase bins, and output the result to EXAMPLES/OUTDIR1/3.phasebin.txt.\n");
       commandfound=1;
     }
+  if(!strcmp(c,"-python"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-python 'b = numpy.var(mag)' invars mag outvars b outputcolumns b\n\n");
+      printtostring(&s,
+		    "Example of using python to calculate the variance in the magnitudes for each light curve read from the list file EXAMPLES/lc_list. The python expression \"b = numpy.var(mag)\" will be evaluated for each light curve. The variable \"mag\" will be passed as an input to the python command (it will be treated as a numpy array within python), and the variable \"b\" will be read out from the command. The value of this variable, which stores the variance, will be included as a column in the output ASCII table. The full output from this command is:\n\n#Name PYTHON_b_0\n"
+		    "EXAMPLES/1 0.025422461711037084\n"
+		    "EXAMPLES/2 0.0013420988067623005\n"
+		    "EXAMPLES/3 2.3966645306408949e-05\n"
+		    "EXAMPLES/4 4.3733138204733634e-06\n"
+		    "EXAMPLES/5 8.2971716866526236e-06\n"
+		    "EXAMPLES/6 4.3664615059428104e-06\n"
+		    "EXAMPLES/7 1.216345131566495e-05\n"
+		    "EXAMPLES/8 5.0623773543353351e-06\n"
+		    "EXAMPLES/9 3.4861868515750583e-06\n"
+		    "EXAMPLES/10 5.5813996936871234e-06\n");
+      printtostring(&s,
+		    "\n");
+      printtostring(&s,
+		    "\nExample 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\n> cat EXAMPLES/plotlc.py\n\n");
+      printtostring(&s,
+		    "import matplotlib.pyplot as plt\n"
+		    "\n"
+		    "def plotlc(lcname,outdir,t,ph,mag,P):\n"
+		    "\tlcbasename = lcname.split('/')[-1]\n"
+		    "\tplt.figure(1)\n"
+		    "\tplt.subplot(211)\n"
+		    "\tplt.gca().invert_yaxis()\n"
+		    "\ttcorr = t - t[0]\n"
+		    "\tplt.plot(tcorr, mag, 'bo', markersize=0.5)\n"
+		    "\tplt.ylabel('magnitude')\n"
+		    "\tplt.title(lcbasename+' P='+str(P))\n"
+		    "\tplt.xlabel('time - '+str(t[0]))\n"
+		    "\tplt.subplot(212)\n"
+		    "\tplt.gca().invert_yaxis()\n"
+		    "\tplt.plot(ph, mag, 'bo', markersize=0.5)\n"
+		    "\tplt.ylabel('magnitude')\n"
+		    "\tplt.xlabel('phase')\n"
+		    "\tplt.savefig(outdir+'/'+lcbasename+'.png',format=\"png\")\n"
+		    "\tplt.close()\n");
+
+      printtostring(&s,
+		    "\n> vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-LS 0.1 100. 0.1 1 0 \\\n");
+      printtostring(&s,
+		    "\t-if 'Log10_LS_Prob_1_0<-100' \\\n");
+      printtostring(&s,
+		    "\t\t-Phase ls phasevar ph \\\n");
+      printtostring(&s,
+		    "\t\t-python 'plotlc(Name,\"EXAMPLES/\",t,ph,mag,LS_Period_1_0)' \\\n");
+      printtostring(&s,
+		    "\t\t\tinit file EXAMPLES/plotlc.py \\\n");
+      printtostring(&s,
+		    "\t-fi\n");
+      printtostring(&s,
+		    "\nExample of running the Lomb-Scargle periodogram on light curves in the list file EXAMPLES/lc_list, and then using matplotlib.pyplot in python to create .png plots of those light curves which have a log10 false alarm probability from LS of less than -100.  The routine for plotting a light curve is stored in the file EXAMPLES/plotlc.py, where we import the matplotlib.pyplot module and then define a python function for making a plot. We use the \"init file\" option to the -python command in VARTOOLS to load this code on initialization (technically the code is incorporated into a module together with a function that VARTOOLS constructs for calling the python commands to be run on each light curve). The expression 'plotlc(Name,\"EXAMPLES/\",t,ph,mag,LS_Period_1_0)' will then be executed on each light curve, where the variable \"Name\" stores the full light curve name, \"ph\" stores the phases which are calculated with the -Phase command, and \"LS_Period_1_0\" is the period returned by the -LS command.\n\nWhen run on the files in EXAMPLES/lc_list this will produce the plots EXAMPLES/1.png and EXAMPLES/2.png showing the light curves vs time and phase.\n\nNote that to run this example vartools will need to be compiled against a version of python which is able to import matplotlib.\n");
+      printtostring(&s,
+		    "\nExample 3:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\n> vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-LS 0.1 100. 0.1 1 0 \\\n");
+      printtostring(&s,
+		    "\t-Phase ls phasevar ph \\\n");
+      printtostring(&s,
+		    "\t-python \\\n");
+      printtostring(&s,
+		    "\t\t'for i in range(0,len(mag)):\n\t\t\tplotlc(Name[i],\"EXAMPLES/\",t[i],ph[i],mag[i],LS_Period_1_0[i])' \\\n");
+      printtostring(&s,
+		    "\t\tinit file EXAMPLES/plotlc.py \\\n");
+      printtostring(&s,
+		    "\t\tprocess_all_lcs\n");
+      printtostring(&s,
+		    "\nSame as in example 2, except here we plot all of the light curves (no \"-if\" command to VARTOOLS), and we use the \"process_all_lcs\" keyword to send all of the light curves to python at once. In this case VARTOOLS supplies these as lists of numpy arrays, so we use the for loop to cycle through all of the light curves calling plotlc on each light curve in turn.\n");
+      commandfound = 1;
+    }
   if(!strcmp(c,"-resample"))
     {
       printtostring(&s,
@@ -903,6 +992,62 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "Rescale the formal errors in the light curve EXAMPLES/4 such that chi2 per degree of freedom equals 1. We call -chi2 before and after -rescalesig to demonstrate that this rescaling has been done.\n");
       commandfound=1;
+    }
+  if(!strcmp(c,"-restricttimes"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3 -stats t min,max \\\n");
+      printtostring(&s,
+		    "\t-restricttimes JDrange 53740 53750 \\\n");
+      printtostring(&s,
+		    "\t-stats t min,max -oneline\n\n");
+      printtostring(&s,
+		    "Filter the light curve to remove any points outside the range 53740 < t < 5370. The calls to -stats before and after the call to -restricttimes show how the command affects the timespan of the light curve. The output from this command is:\n\n");
+      printtostring(&s,
+"Name                  = EXAMPLES/3\n"
+"STATS_t_MIN_0         = 53725.173920000001\n"
+"STATS_t_MAX_0         = 53756.281021000003\n"
+"RestrictTimes_MinJD_1 = 53740\n"
+"RestrictTimes_MaxJD_1 = 53750\n"
+"STATS_t_MIN_2         = 53740.336210000001\n"
+		    "STATS_t_MAX_2         = 53745.478681000001\n");
+      printtostring(&s,
+		    "\nExample 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3 -stats mag min,max \\\n");
+      printtostring(&s,
+		    "\t-restricttimes expr '(mag>10.16311)&&(mag<10.17027)' \\\n");
+      printtostring(&s,
+		    "\t-stats mag min,max -oneline\n\n");
+      printtostring(&s,
+		    "Filter the light curve to remove any points outside the range 10.16311 < mag < 10.17027. The calls to -stats before and after the call to -restricttimes show how the commands affects the light curve range. The output from this command is:\n\n");
+      printtostring(&s,
+		    "Name            = EXAMPLES/3\n"
+		    "STATS_mag_MIN_0 = 10.141400000000001\n"
+		    "STATS_mag_MAX_0 = 10.1921\n"
+		    "STATS_mag_MIN_2 = 10.163119999999999\n"
+		    "STATS_mag_MAX_2 = 10.170260000000001\n\n");
+      printtostring(&s,
+		    "\nExample 3:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3 -stats mag pct20.0,pct80.0 \\\n");
+      printtostring(&s,
+		    "\t-restricttimes expr \\\n");
+      printtostring(&s,
+		    "\t\t'(mag>STATS_mag_PCT20_00_0)&&(mag<STATS_mag_PCT80_00_0)' \\\n");
+      printtostring(&s,
+		    "\t-stats mag min,max -oneline\n\n");
+      printtostring(&s,
+		    "Same as Example 2, but here we make the cut in terms of the magnitude percentiles, which are calculated with the -stats command, rather than giving the magnitude range explicitly.\n\n");
+      commandfound = 1;
     }
   if(!strncmp(c,"-restorelc",10) && strlen(c) == 10)
     {

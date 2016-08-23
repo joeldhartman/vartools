@@ -51,5 +51,13 @@ typedef struct {
   void *fixptr;
 } _ParseParameter_InitializeStruct;
 
+#ifdef _HAVE_PYTHON
+typedef struct {
+  void *ParsePythonCommand_ptr;
+  void *RunPythonCommand_ptr;
+  void *InitPythonCommand_ptr;
+} _VartoolsPythonLibStruct;
+#endif
+
 #define _USERLIB_STRUCT_DEFINE
 #endif

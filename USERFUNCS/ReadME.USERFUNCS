@@ -71,15 +71,28 @@ the function, param[1] is the second argument, and so-on.
    This function will be called whenever the library is loaded by the
    user, and should register all analytic functions enabled by the
    library. The registration is done by calling the function
-   VARTOOLS_RegisterUserFunction which takes 4 arguments: the
+   VARTOOLS_RegisterUserFunction which takes 5+ arguments: the
    ProgramData pointer p, a string giving the name of the function
    that should be used in analytic expression to call it, the number
-   of arguments that the function accepts, and a pointer to the C
-   function which is called whenever the user gives this function in
-   an analytic expression. For example, in examplefunctions.c the
+   of arguments that the function accepts, a pointer to the C function
+   which is called whenever the user gives this function in an
+   analytic expression, and an integer indicating whether or not text
+   giving help on the usage of the function will be provided. If this
+   latter integer is 0, then those are all of the arguments to be
+   given to this function. If the integer is not zero, then you must
+   supply 1 + 2*Narg additional arguments which are strings giving
+   text to be displayed if the user loads this library and issues the
+   "-functionlist" option. The first string displays a brief summary
+   of the function indicating in particular what it returns. Following
+   this, for each argument give a string providing the symbolic name
+   of the argument, and a string giving a short summary of what that
+   argument represents. For example, in examplefunctions.c the
    "addvals" function is registered through:
 
-   VARTOOLS_RegisterUserFunction(p, "addvals", 2, &addvals);
+   VARTOOLS_RegisterUserFunction(p, "addvals", 2, &addvals, 1,
+                                 "add two numbers",
+                                 "a", "first number to add",
+                                 "b", "second number to add");
 
 Compiling the wrapper:
 ----------------------

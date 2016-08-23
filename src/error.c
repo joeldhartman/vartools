@@ -379,6 +379,12 @@ void error2(int errflag, char *s)
       fprintf(stderr,"Error - the term \"%s\", which includes a light curve vector, is given as part of an index range on the left hand side of an expression command. This is not allowed.\n",s);
       exit(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND);
       break;
+    case ERR_BADVECTORTYPEFOROUTPUTCOLUMNVARIABLE:
+      fprintf(stderr,"Error - the variable \"%s\" is not of the correct type to be written to the output ascii table. Light curve vectors, or variables storing ascii data (char or string) cannot be included in this list.\n",s);
+      break;
+    case ERR_PYTHONOUTPUTUNDEFINEDVARIABLE:
+      fprintf(stderr,"Error - the variable \"%s\" included in the list of outputcolumns variables supplied to a -python command is not defined.\n",s);
+      break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);

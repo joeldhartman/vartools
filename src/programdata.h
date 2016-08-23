@@ -269,6 +269,9 @@ typedef struct {
   _AnalyticUserFunc *AnalyticUserFunc;
   int NAnalyticUserFunc;
 
+#ifdef _HAVE_PYTHON
+  _VartoolsPythonLibStruct VartoolsPythonLib;
+#endif
 #endif
 
   int maxinputcolumn;
@@ -290,6 +293,8 @@ typedef struct {
 
   char skipmissing;
   char skipempty;
+
+  int pythonlibraryloaded;
 
 } ProgramData;
 
@@ -397,3 +402,6 @@ typedef struct {
 #define ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION 102
 #define ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND 103
 #define ERR_FUNCTIONCALL_LENINVALIDOPERAND 104
+#define ERR_BADVECTORTYPEFOROUTPUTCOLUMNVARIABLE 105
+#define ERR_PYTHONOUTPUTUNDEFINEDVARIABLE 106
+#define ERR_MISSINGRESTRICTTIMES 107

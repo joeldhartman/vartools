@@ -83,6 +83,7 @@ DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp ChangeLog
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/argz.m4 \
+	$(top_srcdir)/m4/ax_python_embed.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltdl.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
@@ -272,6 +273,8 @@ MANIFEST_TOOL = :
 MKDIR_P = /bin/mkdir -p
 NM = /usr/bin/nm -B
 NMEDIT = 
+NUMPY_HEADER = yes
+NUMPY_INCLUDE_DIR = /home/jhartman/anaconda2/envs/astro/lib/python2.7/site-packages/numpy/core/include
 OBJDUMP = objdump
 OBJEXT = o
 OTOOL = 
@@ -284,6 +287,13 @@ PACKAGE_TARNAME = vartools
 PACKAGE_URL = http://www.astro.princeton.edu/~jhartman/vartools.html
 PACKAGE_VERSION = 1.34
 PATH_SEPARATOR = :
+PYTHON = /home/jhartman/anaconda2/envs/astro/bin/python
+PYTHONBINPATH = /home/jhartman/anaconda2/envs/astro/bin
+PYTHONHOMEPATH = /home/jhartman/anaconda2/envs/astro
+PYTHON_CSPEC = -fPIC -I/home/jhartman/anaconda2/envs/astro/include/python2.7
+PYTHON_EXECPREFIX = /home/jhartman/anaconda2/envs/astro
+PYTHON_LSPEC = -L/home/jhartman/anaconda2/envs/astro/lib -Wl,-rpath=/home/jhartman/anaconda2/envs/astro/lib,--no-as-needed -L/home/jhartman/anaconda2/envs/astro/lib/python2.7/config -lm -lpthread -ldl  -lutil -lpython2.7 -Xlinker -export-dynamic
+PYTHON_PREFIX = /home/jhartman/anaconda2/envs/astro
 RANLIB = ranlib
 SED = /bin/sed
 SET_MAKE = 

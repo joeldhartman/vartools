@@ -219,6 +219,8 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
 				int Nonuniformnames, char *scanformat, 
 				_Variable *variable, ...);
 void InitializeMemAllocDataFromLightCurve(ProgramData *p, int Nthread);
+void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
+void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm);
 void CompileAllExpressions(ProgramData *p, Command *c);
 void RunExpressionCommand(int lcindex, int threadindex, 
 			  ProgramData *p, _ExpressionCommand *c);
@@ -268,13 +270,13 @@ void help(char *c, ProgramData *p);
 void RestrictTimes_readJDlist(char *filename, double **JDlist, int *Nlist);
 void RestrictTimes_readimagelist(char *filename, char ***imagelist, int **imagelist_indx, int *Nlist);
 int RestrictTimes_JDrange_apply(int N, double *t,
-				int lc, ProgramData *p,
+				int lc, ProgramData *p, _RestrictTimes *c,
 				double JDmin, double JDmax, char exclude);
 int RestrictTimes_JDlist_apply(int N, double *t,
-			       int lc, ProgramData *p,
+			       int lc, ProgramData *p, _RestrictTimes *c,
 			       double *JDlist, int Nlist, char exclude);
 void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx, 
-				  int lc, ProgramData *p,
+				   int lc, ProgramData *p, _RestrictTimes *c,
 				  char **imagelist, int *imagelist_indx, 
 				  int Nlist, char exclude);
 void RestrictTimes_ParseExpr(int *iret, int argc, char **argv, ProgramData *p, _RestrictTimes *RestrictTimes, char min_or_max);
@@ -337,3 +339,15 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 			       _HarmonicFilter *c, int cnum);
 void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv);
 void InitOutTextStruct(OutText *text);
+#ifdef _HAVE_PYTHON
+//void LoadVartoolsRunPythonLibrary(ProgramData *p);
+int ParsePythonCommand(int *inum, int argc, char **argv, ProgramData *p, 
+		       _PythonCommand *c, Command *allcommands, int cnum);
+_PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0);
+void RunPythonCommand(ProgramData *p, int lcindex, int threadindex, int pythreadindex, _PythonCommand *c);
+void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs);
+void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p);
+void StopRunningPythonCommand(ProgramData *p, int threadindex, _PythonCommand *c);
+void KillAllPythonProcesses(ProgramData *p, Command *allcommands);
+#endif
+void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, int rthreadid);

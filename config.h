@@ -142,6 +142,9 @@
 /* Define if you have lpthread */
 #define HAVE_PTHREAD 1
 
+/* Define if we are compiling with python */
+#define HAVE_PYTHON 1
+
 /* Define to 1 if you have the `readdir' function. */
 #define HAVE_READDIR 1
 
@@ -220,6 +223,9 @@
 /* Define if dlsym() requires a leading underscore in symbol names. */
 /* #undef NEED_USCORE */
 
+/* Set to the header file to include for numpy */
+#define NUMPY_HEADER_FILE </home/jhartman/anaconda2/envs/astro/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
+
 /* Name of package */
 #define PACKAGE "vartools"
 
@@ -240,6 +246,9 @@
 
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "1.34"
+
+/* Set to the PYTHONHOME */
+#define PYTHONHOMEPATH "/home/jhartman/anaconda2/envs/astro"
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1

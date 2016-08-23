@@ -1186,7 +1186,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -restricttimes <"JDrange" minJD maxJD | 
+      /* -restricttimes ["exclude"] <"JDrange" minJD maxJD | 
                          "JDrangebylc"
                             <"fix" minJD | "list" ["column" col] | 
                              "fixcolumn" <colname | colnum> |
@@ -1195,7 +1195,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
                              "fixcolumn" <colname | colnum> |
                              "expr" expression> |
                          "JDlist" JDfilename |
-                         "imagelist" imagefilename >
+                         "imagelist" imagefilename |
+                         "expr" eval_expression>
       */
       else if(!strcmp(argv[i],"-restricttimes"))
 	{
@@ -1205,6 +1206,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if((c[cn].RestrictTimes = (_RestrictTimes *) malloc(sizeof(_RestrictTimes))) == NULL)
 	    error(ERR_MEMALLOC);
 	  c[cn].RestrictTimes->exclude = 0;
+	  c[cn].RestrictTimes->saveexcludedpoints = 0;
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -1351,11 +1353,52 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    RestrictTimes_readimagelist(argv[i],&(c[cn].RestrictTimes->image_restrictlist),&(c[cn].RestrictTimes->image_restrictlist_indx),&(c[cn].RestrictTimes->N_restrictlist));
 	    p->requirestringid = 1;
 	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].RestrictTimes->restricttype = VARTOOLS_RESTRICTTIMES_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    if((c[cn].RestrictTimes->restrictexprstring = (char *) malloc((strlen(argv[i]+1))*sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	    sprintf(c[cn].RestrictTimes->restrictexprstring,"%s",argv[i]);
+	  }
 	  else
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
 
+      /* -restoretimes prior_restricttimes_command */
+      else if(!strcmp(argv[i],"-restoretimes")) {
+	iterm = i;
+	increaseNcommands(p,&c);
+	c[cn].cnum = CNUM_RESTORETIMES;
+	  if((c[cn].RestoreTimes = (_RestoreTimes *) malloc(sizeof(_RestoreTimes))) == NULL)
+	    error(ERR_MEMALLOC);
+	  i++;
+	  if(i < argc)
+	    {
+	      c[cn].RestoreTimes->restrictnum = atoi(argv[i]);
+	      /* Get the -savelc command corresponding to this savenumber */
+	      m = 0;
+	      /* Get the index for the last -restricttimes command */
+	      for(l = 0; l < cn; l++)
+		{
+		  if(c[l].cnum == CNUM_RESTRICTTIMES)
+		    m++;
+		  if(m == c[cn].RestoreTimes->restrictnum) {
+		    c[cn].RestoreTimes->RestrictTimes = c[l].RestrictTimes;
+		    c[l].RestrictTimes->saveexcludedpoints = 1;
+		    break;
+		  }
+		}
+	      if(l >= cn)
+		error2(ERR_MISSINGRESTRICTTIMES,argv[i]);
+	    }
+	  else
+	    listcommands(argv[iterm],p);	      
+	  cn++;
+      }
+      
       /* -rms : Calculate un-binned rms */
       else if(!strncmp(argv[i],"-rms",4) && strlen(argv[i]) == 4)
 	{
@@ -1485,6 +1528,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else if(!strcmp(argv[i],"squareexp") ||
 		  !strcmp(argv[i],"exp")) {
+	    c[cn].require_distinct = 1;
+	    c[cn].require_sort = 1;
 	    if(!strcmp(argv[i],"squareexp")) {
 	      c[cn].AddNoise->noise_type = VARTOOLS_ADDNOISE_COVAR_SQUAREDEXPONENTIAL;
 	    }
@@ -1713,6 +1758,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  }
 	  else if(!strcmp(argv[i],"matern")) {
+	    c[cn].require_distinct = 1;
+	    c[cn].require_sort = 1;
 	    c[cn].AddNoise->noise_type = VARTOOLS_ADDNOISE_COVAR_MATERN;
 	    i++;
 	    if(i < argc)
@@ -1991,6 +2038,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 #ifdef _HAVE_GSL
 	  else if(!strcmp(argv[i],"wavelet")) {
+	    c[cn].require_distinct = 1;
+	    c[cn].require_sort = 1;
 	    c[cn].AddNoise->noise_type = VARTOOLS_ADDNOISE_WAVELET;
 	    i++;
 	    if(i < argc)
@@ -8432,6 +8481,33 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  cn++;
 	}
+      
+#ifdef _HAVE_PYTHON
+#ifdef DYNAMICLIB
+      /*
+        -python < "fromfile" commandfile | commandstring >
+             [ "init" < "file" initializationfile | initializationstring > |
+                "continueprocess" prior_python_command_number ]
+             [ "vars" variablelist | 
+               [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
+             [ "outputcolumns" variablelist ] */
+      else if(!strcmp(argv[i],"-python"))
+	{
+	  //if(!p->pythonlibraryloaded)
+	  //  LoadVartoolsRunPythonLibrary(p);
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_PYTHON;
+	  c[cn].PythonCommand = CreatePythonCommandStruct(p, argv[0]);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(ParsePythonCommand(&i, argc, argv, p, c[cn].PythonCommand, c, cn))
+	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+#endif
+#endif
 
       /* -header */
       else if(!strncmp(argv[i],"-header",7) && strlen(argv[i]) == 7)

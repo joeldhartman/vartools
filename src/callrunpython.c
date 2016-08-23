@@ -106,6 +106,8 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
 
   c->processallvariables = 1;
 
+  c->RequireReadAll = 0;
+
   c->cnum = -1;
 
   return c;
@@ -115,24 +117,36 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
   /* Organize the input/output variables into the c->vars and
      c->outonlyvars vectors; also setup the c->isvaroutput, outlcvecs_invars
      and outlcvecs_outonlyvars, and lcvars_nonupdate vectors */
-  int i, ii, j, k;
+  int i, ii, j, k, jvarout;
   int testval;
 
   if(c->processallvariables) {
     c->Nvars_outonly = 0;
-    c->Nvars = p->NDefinedVariables;
-    if(p->NDefinedVariables > 0) {
+    jvarout = 0;
+    for(i=0; i < p->NDefinedVariables; i++) {
+      if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+	if(p->DefinedVariables[i]->outc->cnum < c->cnum) jvarout++;
+      }
+      else jvarout++;
+    }
+    c->Nvars = jvarout;
+    if(jvarout > 0) {
       if((c->vars = (_Variable **) malloc(c->Nvars * sizeof(_Variable *))) == NULL ||
 	 (c->isvaroutput = (int *) malloc(c->Nvars * sizeof(int))) == NULL)
 	error(ERR_MEMALLOC);
+      jvarout = 0;
       for(i=0; i < p->NDefinedVariables; i++) {
-	c->vars[i] = p->DefinedVariables[i];
+	if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+	  if(p->DefinedVariables[i]->outc->cnum >= c->cnum) continue;
+	}
+	c->vars[jvarout] = p->DefinedVariables[i];
 	if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_CONSTANT ||
 	   p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
-	  c->isvaroutput[i] = 0;
+	  c->isvaroutput[jvarout] = 0;
 	} else {
-	  c->isvaroutput[i] = 1;
+	  c->isvaroutput[jvarout] = 1;
 	}
+	jvarout++;
       }
     }
   } else if(c->Ninoutvarnames > 0) {
@@ -145,6 +159,12 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
       for(j=0; j < p->NDefinedVariables; j++) {
 	if(!strcmp(c->inoutvarnames[i],p->DefinedVariables[j]->varname)) {
 	  c->vars[i] = p->DefinedVariables[j];
+	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+	    if(c->vars[i]->outc->cnum >= c->cnum) {
+	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -python command before that column is created.\n\n",p->DefinedVariables[j]->varname);
+	      exit(1);
+	    }
+	  }
 	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_CONSTANT ||
 	     c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
 	    c->isvaroutput[i] = 0;
@@ -189,6 +209,12 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
       for(j=0; j < p->NDefinedVariables; j++) {
 	if(!strcmp(c->invarnames[i],p->DefinedVariables[j]->varname)) {
 	  c->vars[i] = p->DefinedVariables[j];
+	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+	    if(c->vars[i]->outc->cnum >= c->cnum) {
+	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -python command before that column is created.\n\n",p->DefinedVariables[j]->varname);
+	      exit(1);
+	    }
+	  }
 	  break;
 	}
       }
@@ -240,6 +266,14 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	for(j=0; j < p->NDefinedVariables; j++) {
 	  if(!strcmp(c->outvarnames[i],p->DefinedVariables[j]->varname)) {
 	    c->outonlyvars[ii] = p->DefinedVariables[j];
+	    if(c->outonlyvars[ii]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
+	      fprintf(stderr,"Error: the column variable %s cannot be included in the outvars list in a -python command.\n\n",c->outonlyvars[ii]->varname);
+	      exit(1);
+	    }
+	    if(c->outonlyvars[ii]->vectortype == VARTOOLS_VECTORTYPE_CONSTANT) {
+	      fprintf(stderr,"Error: the constant variable %s cannot be included in the outvars list in a -python command.\n\n",c->outonlyvars[ii]->varname);
+	      exit(1);
+	    }
 	    break;
 	  }
 	}
