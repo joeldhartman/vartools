@@ -77,7 +77,8 @@ double getfrac_onenight(int n,double *t,double *u, double *v,double *err,double 
   timezone = timezone/24.0 + 0.5;
   night0 = (long) (t[0] + timezone);
   night1 = (long) (t[n-1] + timezone);
-  nnights = (int) ((night1 + night0) + 1);
+  nnights = (int) ((night1 - night0) + 1);
+  if(nnights < 2) nnights = 2;
 
   chisqrnights = (double *) malloc(nnights * sizeof(double));
   chisqrtot = 0.;
@@ -92,6 +93,8 @@ double getfrac_onenight(int n,double *t,double *u, double *v,double *err,double 
 	{
 	  night = (long) (t[i] + timezone);
 	  k = (int) (night - night0);
+	  if(k < 0) k = 0;
+	  if(k >= nnights) k = nnights - 1;
 	  val = v[i]*v[i]/(err[i]*err[i]);
 	  chisqrnights[k] += val;
 	  chisqrtot += val;

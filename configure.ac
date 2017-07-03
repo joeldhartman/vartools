@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.34], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.35], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -157,15 +157,49 @@ AC_ARG_WITH([pythonhome],
   [],
   [with_pythonhome=check])
 
+AC_ARG_WITH([pythonconfig], 
+  [AS_HELP_STRING([--with-pythonconfig=@<:@PATH@:>@],
+    [Use python-config to determine the compiler and linker flags @<:@default=no@:>@])],
+  [],
+  [with_pythonconfig=check])
+
 AX_PYTHON_DEFAULT( )
-AX_PYTHON_ENABLE( )
+AX_PYTHON_ENABLE( "/usr/bin" )
 AX_PYTHON_WITH( )
 AX_PYTHON_PATH( )
 AX_PYTHON_VERSION_ENSURE( [2.6] )
-AX_PYTHON_CSPEC( )
-AX_PYTHON_LSPEC( )
+
 
 if test x"$ax_python_use" = x"true"; then
+
+   if test x"$with_pythonconfig" = xcheck; then
+      AC_MSG_CHECKING([for ${PYTHON}-config])
+      if test -x "${PYTHON}-config" ; then
+          AC_MSG_RESULT(yes)
+          PYTHONCONFIG=${PYTHON}-config
+          AC_SUBST([PYTHONCONFIG], [${PYTHONCONFIG}])
+          ax_pythonconfig_cflags=`${PYTHONCONFIG} --cflags`
+          AC_SUBST([PYTHON_CSPEC], [${ax_pythonconfig_cflags}])
+          AC_MSG_NOTICE([PYTHON_CSPEC=${ax_pythonconfig_cflags}])
+          ax_pythonconfig_lflags=`${PYTHONCONFIG} --ldflags`
+          AC_SUBST([PYTHON_LSPEC], [${ax_pythonconfig_lflags}])
+          AC_MSG_NOTICE([PYTHON_LSPEC=${ax_pythonconfig_lflags}])
+      else      
+          AC_MSG_RESULT(no)
+          AX_PYTHON_CSPEC( )
+          AX_PYTHON_LSPEC( )
+      fi
+   elif test x"$with_pythonconfig" != xno; then
+      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags`
+      AC_SUBST([PYTHON_CSPEC], [${ax_pythonconfig_cflags}])
+      AC_MSG_NOTICE([PYTHON_CSPEC=${ax_pythonconfig_cflags}])
+      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags`
+      AC_SUBST([PYTHON_LSPEC], [${ax_pythonconfig_lflags}])
+      AC_MSG_NOTICE([PYTHON_LSPEC=${ax_pythonconfig_lflags}])
+   else
+      AX_PYTHON_CSPEC( )
+      AX_PYTHON_LSPEC( )
+   fi
 
    AC_MSG_CHECKING([for Numpy])
 
@@ -178,6 +212,11 @@ if test x"$ax_python_use" = x"true"; then
    AC_SUBST(NUMPY_HEADER)
    AM_CONDITIONAL(PYTHON_USE, test x$NUMPY_HEADER = xyes)
    if test x"$NUMPY_HEADER" = x"yes"; then
+       AC_CHECK_PYTHON_MODULE(numpy, __version__)
+       AS_IF([test x"$PYTHON_numpy" = x1],
+           [AC_DEFINE_UNQUOTED([PYTHON_NUMPY_VERSION], [${PYTHON_numpy_VERSION}], [NUMPY VERSION])
+            AS_VERSION_COMPARE([$PYTHON_numpy_VERSION], [1.6.9], [], 
+               [], [AC_DEFINE([HAVE_NUMPY_ASTYPE_COPY], [1], [Define if the copy keyword is available for the astype method in numpy])])], [])
        AC_DEFINE([HAVE_PYTHON], [1], [Define if we are compiling with python])
        AC_DEFINE_UNQUOTED([NUMPY_HEADER_FILE], [<${NUMPY_INCLUDE_DIR}/numpy/arrayobject.h>], [Set to the header file to include for numpy])
        AS_IF([test "x$with_pythonhome" = xcheck],

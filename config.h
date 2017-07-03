@@ -130,6 +130,9 @@
 /* Define to 1 if you have the `memset' function. */
 #define HAVE_MEMSET 1
 
+/* Define if the copy keyword is available for the astype method in numpy */
+#define HAVE_NUMPY_ASTYPE_COPY 1
+
 /* Define to 1 if you have the `opendir' function. */
 #define HAVE_OPENDIR 1
 
@@ -224,7 +227,7 @@
 /* #undef NEED_USCORE */
 
 /* Set to the header file to include for numpy */
-#define NUMPY_HEADER_FILE </home/jhartman/anaconda2/envs/astro/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
+#define NUMPY_HEADER_FILE </home/jhartman/anaconda2/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
 
 /* Name of package */
 #define PACKAGE "vartools"
@@ -236,7 +239,7 @@
 #define PACKAGE_NAME "vartools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "vartools 1.34"
+#define PACKAGE_STRING "vartools 1.35"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "vartools"
@@ -245,16 +248,19 @@
 #define PACKAGE_URL "http://www.astro.princeton.edu/~jhartman/vartools.html"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.34"
+#define PACKAGE_VERSION "1.35"
 
 /* Set to the PYTHONHOME */
-#define PYTHONHOMEPATH "/home/jhartman/anaconda2/envs/astro"
+#define PYTHONHOMEPATH "/home/jhartman/anaconda2"
+
+/* NUMPY VERSION */
+#define PYTHON_NUMPY_VERSION 1.11.1
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.34"
+#define VERSION "1.35"
 
 /* Define so that glibc/gnulib argp.h does not typedef error_t. */
 /* #undef __error_t_defined */

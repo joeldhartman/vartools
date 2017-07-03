@@ -88,7 +88,7 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/argz.m4 \
 	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltdl.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/python_module.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -286,9 +286,9 @@ AWK = gawk
 BUILDDIR = /home/jhartman/SVN/HATpipe/source/vartools
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -O0 -g
+CFLAGS = -g -O2
 CPP = gcc -E
-CPPFLAGS = -I/home/jhartman/SVN/HATpipe/source/fpack_modified -DHATP_SVN=4071 -O0 -g
+CPPFLAGS = -I/home/jhartman/SVN/HATpipe/source/fpack_modified -DHATP_SVN=4071 
 CYGPATH_W = echo
 DATAROOTDIR = /home/jhartman/SVN/HATpipe/data
 DEFS = -DHAVE_CONFIG_H
@@ -346,7 +346,7 @@ MKDIR_P = /bin/mkdir -p
 NM = /usr/bin/nm -B
 NMEDIT = 
 NUMPY_HEADER = yes
-NUMPY_INCLUDE_DIR = /home/jhartman/anaconda2/envs/astro/lib/python2.7/site-packages/numpy/core/include
+NUMPY_INCLUDE_DIR = /home/jhartman/anaconda2/lib/python2.7/site-packages/numpy/core/include
 OBJDUMP = objdump
 OBJEXT = o
 OTOOL = 
@@ -354,18 +354,21 @@ OTOOL64 =
 PACKAGE = vartools
 PACKAGE_BUGREPORT = jhartman@astro.princeton.edu
 PACKAGE_NAME = vartools
-PACKAGE_STRING = vartools 1.34
+PACKAGE_STRING = vartools 1.35
 PACKAGE_TARNAME = vartools
 PACKAGE_URL = http://www.astro.princeton.edu/~jhartman/vartools.html
-PACKAGE_VERSION = 1.34
+PACKAGE_VERSION = 1.35
 PATH_SEPARATOR = :
-PYTHON = /home/jhartman/anaconda2/envs/astro/bin/python
-PYTHONBINPATH = /home/jhartman/anaconda2/envs/astro/bin
-PYTHONHOMEPATH = /home/jhartman/anaconda2/envs/astro
-PYTHON_CSPEC = -fPIC -I/home/jhartman/anaconda2/envs/astro/include/python2.7
-PYTHON_EXECPREFIX = /home/jhartman/anaconda2/envs/astro
-PYTHON_LSPEC = -L/home/jhartman/anaconda2/envs/astro/lib -Wl,-rpath=/home/jhartman/anaconda2/envs/astro/lib,--no-as-needed -L/home/jhartman/anaconda2/envs/astro/lib/python2.7/config -lm -lpthread -ldl  -lutil -lpython2.7 -Xlinker -export-dynamic
-PYTHON_PREFIX = /home/jhartman/anaconda2/envs/astro
+PYTHON = /home/jhartman/anaconda2/bin/python
+PYTHONBINPATH = /home/jhartman/anaconda2/bin
+PYTHONCONFIG = /home/jhartman/anaconda2/bin/python-config
+PYTHONHOMEPATH = /home/jhartman/anaconda2
+PYTHON_CSPEC = -I/home/jhartman/anaconda2/include/python2.7 -I/home/jhartman/anaconda2/include/python2.7 -fno-strict-aliasing -g -O2 -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes
+PYTHON_EXECPREFIX = /home/jhartman/anaconda2
+PYTHON_LSPEC = -lpython2.7 -lpthread -ldl -lutil -lm -Xlinker -export-dynamic
+PYTHON_PREFIX = /home/jhartman/anaconda2
+PYTHON_numpy = 1
+PYTHON_numpy_VERSION = 1.11.1
 RANLIB = ranlib
 SED = /bin/sed
 SET_MAKE = 
@@ -374,7 +377,7 @@ SRCDIR = /home/jhartman/SVN/HATpipe/source/vartools
 STRIP = strip
 USERFUNCSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERFUNCS
 USERLIBSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS
-VERSION = 1.34
+VERSION = 1.11.1
 abs_builddir = /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src
 abs_srcdir = /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src
 abs_top_builddir = /home/jhartman/SVN/HATpipe/source/vartools

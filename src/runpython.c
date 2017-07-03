@@ -141,7 +141,16 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
   int i, k;
   char tmpstr[MAXLEN];
   char tmpstrtype[MAXLEN];
+  char astypecpy[] = ", copy=False)";
+  char astypencpy[] = ")";
+  char *astypever;
   _PythonCommand *c;
+
+#ifdef HAVE_NUMPY_ASTYPE_COPY
+  astypever = astypecpy;
+#else
+  astypever = astypencpy;
+#endif
 
   if(!cid) c = cparent;
   else {
@@ -226,12 +235,12 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	case VARTOOLS_TYPE_CONVERTJD:
 	case VARTOOLS_TYPE_DOUBLE:
 	case VARTOOLS_TYPE_FLOAT:
-	  sprintf(tmpstrtype,".astype(float, copy=False)");
+	  sprintf(tmpstrtype,".astype(float%s",astypever);
 	  break;
 	case VARTOOLS_TYPE_INT:
 	case VARTOOLS_TYPE_LONG:
 	case VARTOOLS_TYPE_SHORT:
-	  sprintf(tmpstrtype,".astype(int, copy=False)");
+	  sprintf(tmpstrtype,".astype(int%s",astypever);
 	  break;
 	default:
 	  tmpstrtype[0] = '\0';
@@ -292,16 +301,16 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	case VARTOOLS_TYPE_CONVERTJD:
 	case VARTOOLS_TYPE_DOUBLE:
 	case VARTOOLS_TYPE_FLOAT:
-	  sprintf(tmpstrtype,".astype(float, copy=False)");
+	  sprintf(tmpstrtype,".astype(float%s",astypever);
 	  break;
 	case VARTOOLS_TYPE_INT:
 	case VARTOOLS_TYPE_LONG:
 	case VARTOOLS_TYPE_SHORT:
-	  sprintf(tmpstrtype,".astype(int, copy=False)");
+	  sprintf(tmpstrtype,".astype(int%s",astypever);
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	case VARTOOLS_TYPE_CHAR:
-	  sprintf(tmpstrtype,".astype(string, copy=False)");
+	  sprintf(tmpstrtype,".astype(string%s",astypever);
 	  break;
 	default:
 	  tmpstrtype[0] = '\0';

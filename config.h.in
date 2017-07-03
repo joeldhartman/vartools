@@ -129,6 +129,9 @@
 /* Define to 1 if you have the `memset' function. */
 #undef HAVE_MEMSET
 
+/* Define if the copy keyword is available for the astype method in numpy */
+#undef HAVE_NUMPY_ASTYPE_COPY
+
 /* Define to 1 if you have the `opendir' function. */
 #undef HAVE_OPENDIR
 
@@ -248,6 +251,9 @@
 
 /* Set to the PYTHONHOME */
 #undef PYTHONHOMEPATH
+
+/* NUMPY VERSION */
+#undef PYTHON_NUMPY_VERSION
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS

@@ -767,13 +767,18 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	    }
 	  if(ascii)
 	    {
-	      fprintf(outfile,"#Period theta_AOV_SDE\n");
+	      fprintf(outfile,"#Period");
+	      if(uselog) {
+		fprintf(outfile," AOV_LOGSNR\n");
+	      }
+	      else
+		fprintf(outfile," AOV\n");
 	      for(i=0;i<Nperiod;i++)
 		{
 		  if(periodogram[i] < ERROR_SCORE && 0.0*periodogram[i] == 0.0)
 		    {
 		      if(uselog)
-			fprintf(outfile,"%f %f\n",periods[i], exp((aveper - periodogram[i]) / stdper));
+			fprintf(outfile,"%f %f\n",periods[i], ((aveper - periodogram[i]) / stdper));
 		      else
 			fprintf(outfile,"%f %f\n",periods[i], -periodogram[i]);
 		    }
@@ -1175,7 +1180,15 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	    }
 	  if(ascii)
 	    {
-	      fprintf(outfile,"#Period theta_AOV_SDE\n");
+	      fprintf(outfile,"#Period");
+	      for(j=0;j<Npeaks;j++) {
+		if(uselog) {
+		  fprintf(outfile," AOV_LOGSNR_WhitenCycle_%d", j);
+		}
+		else
+		  fprintf(outfile," AOV_WhitenCycle_%d", j);
+	      }
+	      fprintf(outfile,"\n");
 	      for(i=0;i<Nperiod;i++)
 		{
 		  if(periodogram_whiten[0][i] < ERROR_SCORE && 0.0*periodogram_whiten[0][i] == 0.0)
@@ -1184,7 +1197,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 		      for(j=0;j<Npeaks;j++)
 			{
 			  if(uselog)
-			    fprintf(outfile," %f",exp((aveper_whiten[j] - periodogram_whiten[j][i]) / stdper_whiten[j]));
+			    fprintf(outfile," %f",((aveper_whiten[j] - periodogram_whiten[j][i]) / stdper_whiten[j]));
 			  else
 			    fprintf(outfile," %f",-periodogram_whiten[j][i]);
 			}

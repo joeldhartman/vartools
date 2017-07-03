@@ -133,6 +133,54 @@ c========================================================================
 c
 */
 
+void getclippedavestddev_blsfixdurtc(int n, double *pow, double *ave_out, double *stddev_out)
+{
+  int i, n2, n3;
+  double ave1, ave2, ave3, ave4;
+  ave1 = 0.; ave2 = 0.;
+  n3 = 0;
+  for(i=0;i<n;i++)
+    {
+      if(pow[i] > 0.) {
+	ave1 += pow[i];
+	ave2 += pow[i]*pow[i];
+	n3++;
+      }
+    }
+  if(n3 == 0) {
+    *ave_out = 0.0;
+    *stddev_out = 1.0;
+    return;
+  }
+  ave1 /= n3;
+  ave2 = sqrt((ave2 / n3) - (ave1*ave1));
+  ave3 = 0.;
+  ave4 = 0.;
+  n2 = 0;
+  for(i=0;i<n;i++)
+    {
+      if(pow[i] > 0.) {
+	if((pow[i] - ave1) < CLIP_FACTOR*ave2)
+	  {
+	    ave3 += pow[i];
+	    ave4 += pow[i]*pow[i];
+	    n2++;
+	  }
+      }
+    }
+  if(n2 == 0) {
+    *ave_out = ave1;
+    *stddev_out = ave2;
+    return;
+  }
+  ave3 /= n2;
+  ave4 = sqrt((ave4 / n2) - (ave3*ave3));
+  *ave_out = ave3;
+  *stddev_out = ave4;
+  return;
+}
+
+
 int eeblsfixdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep)
 {
 
@@ -303,7 +351,7 @@ the periodogram, and then search it for peaks    *
 	  }
 	rn1 = (double) kk;
 	pow = s;
-	
+	if(pow < 0) pow=-pow;
       }
       if(s > 0.)
 	{
@@ -340,7 +388,7 @@ the periodogram, and then search it for peaks    *
     }
 
 
-  getclippedavestddev(nf,p,&global_best_sr_ave,&global_best_sr_stddev);
+  getclippedavestddev_blsfixdurtc(nf,p,&global_best_sr_ave,&global_best_sr_stddev);
   nclippedfreq = nf;
 
   /* Now let's find the peaks in the periodogram, first convert the periodogram from SR to SN ratio */
@@ -559,7 +607,7 @@ the periodogram, and then search it for peaks    *
     }
 
   /* Now find the maximum inverse transit */
-  getclippedavestddev(nf,p_minus,&global_best_sr_ave_inv,&global_best_sr_stddev_inv);
+  getclippedavestddev_blsfixdurtc(nf,p_minus,&global_best_sr_ave_inv,&global_best_sr_stddev_inv);
   nclippedfreq = nf;
 
   if(nclippedfreq > 0.)

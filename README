@@ -101,6 +101,18 @@ system.
       Alternatively the path to these files can be specified on the
       command line when calling VARTOOLS.
 
+   E. Python and Numpy
+      Needed for the -python command to allow calling python routines
+      on light curves through vartools. Python version 2.6 or greater is
+      required. The minimum required version of numpy has not been determined,
+      but this has been built and used successfully with versions from 1.6.2 to
+      1.11.1.
+
+      https://www.python.org/
+      http://www.numpy.org/
+      
+
+
 7. Download and unpack the VARTOOLS source:
 -------------------------------------------
 

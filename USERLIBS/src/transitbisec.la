@@ -39,4 +39,4 @@ dlpreopen=''
 
 # Directory that this library needs to be installed in:
 libdir='/home/jhartman/SVN/HATpipe/data/vartools/USERLIBS'
-relink_command="(cd /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src; /bin/bash /home/jhartman/SVN/HATpipe/source/vartools/libtool  --tag CC --mode=relink gcc -O0 -g -module -L/home/jhartman/SVN/HATpipe/source/fpack_modified -o transitbisec.la -rpath /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS transitbisec.lo /home/jhartman/SVN/HATpipe/source/vartools/src/libvartools.la -lm -ldl @inst_prefix_dir@)"
+relink_command="(cd /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src; /bin/bash /home/jhartman/SVN/HATpipe/source/vartools/libtool  --tag CC --mode=relink gcc -g -O2 -module -L/home/jhartman/SVN/HATpipe/source/fpack_modified -o transitbisec.la -rpath /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS transitbisec.lo /home/jhartman/SVN/HATpipe/source/vartools/src/libvartools.la -lm -ldl @inst_prefix_dir@)"
