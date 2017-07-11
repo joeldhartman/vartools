@@ -511,6 +511,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t[\"phasevar\" var] [\"startphase\" startphase]\n");
       commandfound = 1;
     }
+#ifdef _HAVE_PYTHON
   if(c == NULL || (!strcmp(c,"-python")))
     {
       printtostring(s,
@@ -527,6 +528,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t[\"outputcolumns\" variablelist] [\"process_all_lcs\"]\n");
       commandfound = 1;
     }
+#endif
   if(c == NULL || (!strcmp(c,"-resample")))
     {
       printtostring(s,

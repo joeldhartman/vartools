@@ -47,6 +47,7 @@
 //void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr);
 
 _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
+#ifdef _HAVE_PYTHON
   _PythonCommand *c;
   if((c = (_PythonCommand *) malloc(sizeof(_PythonCommand))) == NULL)
     error(ERR_MEMALLOC);
@@ -111,12 +112,16 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
   c->cnum = -1;
 
   return c;
+#else
+  return NULL;
+#endif
 }
 
 void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
   /* Organize the input/output variables into the c->vars and
      c->outonlyvars vectors; also setup the c->isvaroutput, outlcvecs_invars
      and outlcvecs_outonlyvars, and lcvars_nonupdate vectors */
+#ifdef _HAVE_PYTHON
   int i, ii, j, k, jvarout;
   int testval;
 
@@ -382,6 +387,9 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
       }
     }
   }
+#else
+  return;
+#endif
 }
 
 /*

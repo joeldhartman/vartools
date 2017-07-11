@@ -840,6 +840,7 @@ void example(char *c, ProgramData *p)
 		    "Example illustrating the use of the -Phase command. We apply -BLS to identify a transit signal in the light curve EXAMPLES/3.transit. We then phase the light curve taking the period from bls, and the time of zero phase from bls. We set the phase of mid-transit to 0.0, and store the phases to the variable ph, rather than overwriting the times. We use the \"startphase -0.5\" term to have the phases run from -0.5 to 0.5, rather than from 0 to 1. We output the result to EXAMPLES/OUTDIR1/3.phase.txt using the \"columnformat\" keyword to include the phases in the fourth column of the output. We then use the \"-changevariable\" command to switch the time variable to \"ph\", and then median-bin the phased light curve using 200 phase bins, and output the result to EXAMPLES/OUTDIR1/3.phasebin.txt.\n");
       commandfound=1;
     }
+#ifdef _HAVE_PYTHON
   if(!strcmp(c,"-python"))
     {
       printtostring(&s,
@@ -929,6 +930,7 @@ void example(char *c, ProgramData *p)
 		    "\nSame as in example 2, except here we plot all of the light curves (no \"-if\" command to VARTOOLS), and we use the \"process_all_lcs\" keyword to send all of the light curves to python at once. In this case VARTOOLS supplies these as lists of numpy arrays, so we use the for loop to cycle through all of the light curves calling plotlc on each light curve in turn.\n");
       commandfound = 1;
     }
+#endif
   if(!strcmp(c,"-resample"))
     {
       printtostring(&s,

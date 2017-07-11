@@ -1160,9 +1160,11 @@ void InitCommands(ProgramData *p, Command *c)
 	      error(ERR_MEMALLOC);
 	  }
 	  break;
+#ifdef _HAVE_PYTHON
 	case CNUM_PYTHON:
 	  InitPythonCommand(p, c[i].PythonCommand, Nlcs);
 	  break;
+#endif
 	default:
 	  break;
 	}
