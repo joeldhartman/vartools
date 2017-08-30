@@ -487,6 +487,18 @@ int isDifferentPeriods (double period1, double period2, double T)
   return (1) ;
 }
 
+/* Determine whether two different periods are the same, dont check multiples */
+int isDifferentPeriodsDontCheckHarmonics (double period1, double period2, double T)
+{
+
+  /*if (T * (period2 - period1) < ((period2 * period2) + (period1 * period1)))
+    return (0) ;*/
+  if(T * fabs(period2 - period1) < period2*period1)
+    return(0);
+  else
+    return (1);
+}
+
 /* Given a light curve, this function will compute an AOV periodogram and find the top Npeaks peaks */
 void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP)
 {

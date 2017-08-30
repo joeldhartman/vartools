@@ -428,7 +428,7 @@ c========================================================================
 c
 */
 
-int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb)
+int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics)
 {
   double *y;
   double *ibi;
@@ -845,7 +845,7 @@ the periodogram, and then search it for peaks    *
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -879,7 +879,7 @@ the periodogram, and then search it for peaks    *
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
 		    {
 		      if(p[i] > snval[j])
 			{
@@ -1336,7 +1336,7 @@ the periodogram, and then search it for peaks    *
 q = 0.076 * R**(2/3) / P**(2/3)
 */
 
-int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb)
+int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics)
 {
   double *y;
   double *ibi;
@@ -1751,7 +1751,7 @@ the periodogram, and then search it for peaks    *
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -1785,7 +1785,7 @@ the periodogram, and then search it for peaks    *
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
 		    {
 		      if(p[i] > snval[j])
 			{

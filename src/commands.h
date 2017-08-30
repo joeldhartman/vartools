@@ -671,6 +671,7 @@ typedef struct {
   int freqsteptype;
   int adjust_qmin_mindt;
   int reduce_nb;
+  int reportharmonics;
 } _Bls;
 
 typedef struct {

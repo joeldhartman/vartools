@@ -5450,7 +5450,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]]*/
+      /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"]*/
       else if(!strncmp(argv[i],"-BLS",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -5690,6 +5690,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		i--;
 	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+	  c[cn].Bls->reportharmonics = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"reportharmonics")) {
+	      c[cn].Bls->reportharmonics = 1;
+	      }
 	    else
 	      i--;
 	  }
