@@ -209,6 +209,9 @@ void error(int errflag)
     case ERR_FUNCTIONCALL_LENINVALIDOPERAND:
       fprintf(stderr,"Error: the argument to the len() function must be a single variable or number, it does not accept expressions.\n");
       exit(ERR_FUNCTIONCALL_LENINVALIDOPERAND);
+    case ERR_NEEDCSPICE:
+      fprintf(stderr,"Error: To perform BJD and/or UTC/TDB time conversion you need to recompile VARTOOLS against the NASA CSPICE library.\n");
+      exit(ERR_NEEDCSPICE);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);

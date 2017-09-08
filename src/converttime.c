@@ -763,10 +763,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_JD:
 
@@ -802,10 +806,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_HJD:
 
@@ -850,10 +858,15 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
+
 #ifdef _HAVE_CSPICE
 
     case TIMETYPE_BJD:
@@ -956,6 +969,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       else
 	error(ERR_CODEERROR);
       break;
+#else
+    case TIMETYPE_BJD:
+      error(ERR_NEEDCSPICE);
+      break;
 #endif
     default:
       error(ERR_CODEERROR);
@@ -1001,10 +1018,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_JD:
 
@@ -1034,10 +1055,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_HJD:
 
@@ -1079,10 +1104,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
 #ifdef _HAVE_CSPICE
 
@@ -1180,6 +1209,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       else
 	error(ERR_CODEERROR);
       break;
+#else
+    case TIMETYPE_BJD:
+      error(ERR_NEEDCSPICE);
+      break;
 #endif
     default:
       error(ERR_CODEERROR);
@@ -1236,10 +1269,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_JD:
 
@@ -1280,10 +1317,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	    - c->outputsubtractval;
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
     case TIMETYPE_HJD:
 
@@ -1356,10 +1397,14 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	}
       }
-#endif
       else
 	error(ERR_CODEERROR);
       break;
+#else
+      else
+	error(ERR_NEEDCSPICE);
+      break;
+#endif
 
 #ifdef _HAVE_CSPICE
 
@@ -1466,6 +1511,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       }
       else
 	error(ERR_CODEERROR);
+      break;
+#else
+    case TIMETYPE_BJD:
+      error(ERR_NEEDCSPICE);
       break;
 #endif
     default:
@@ -1875,6 +1924,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
     default:
       error(ERR_CODEERROR);
     }
+    break;
+#else
+  case TIMETYPE_BJD:
+    error(ERR_NEEDCSPICE);
     break;
 #endif
   default:
