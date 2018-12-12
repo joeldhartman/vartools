@@ -507,7 +507,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  d3ptr = NULL;
 	}
       if(p->NJD[lc2] > 1) {
-	Lombscargle (p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->Ls->minp, c->Ls->maxp, c->Ls->subsample, c->Ls->Npeaks, c->Ls->peakperiods[lc2], c->Ls->peakvalues[lc2], c->Ls->peakFAP[lc2], c->Ls->SNRvalues[lc2],c->Ls->operiodogram, outname,p->ascii,c->Ls->whiten,c->Ls->clip,c->Ls->clipiter,c->Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,c->Ls->use_orig_ls);
+	Lombscargle (p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->Ls->minp, c->Ls->maxp, c->Ls->subsample, c->Ls->Npeaks, c->Ls->peakperiods[lc2], c->Ls->peakvalues[lc2], c->Ls->peakFAP[lc2], c->Ls->SNRvalues[lc2],c->Ls->operiodogram, outname,p->ascii,c->Ls->whiten,c->Ls->clip,c->Ls->clipiter,c->Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,c->Ls->use_orig_ls,c->Ls->dobootstrapfap,c->Ls->Nbootstrap);
       }
       break;
 
@@ -2315,7 +2315,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      d3ptr = NULL;
 	    }
 	  if(p->NJD[lc] > 1) {
-	    Lombscargle (p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->Ls->minp, c->Ls->maxp, c->Ls->subsample, c->Ls->Npeaks, c->Ls->peakperiods[lc], c->Ls->peakvalues[lc], c->Ls->peakFAP[lc], c->Ls->SNRvalues[lc],c->Ls->operiodogram, outname,p->ascii,c->Ls->whiten,c->Ls->clip,c->Ls->clipiter,c->Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,c->Ls->use_orig_ls);
+	    Lombscargle (p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->Ls->minp, c->Ls->maxp, c->Ls->subsample, c->Ls->Npeaks, c->Ls->peakperiods[lc], c->Ls->peakvalues[lc], c->Ls->peakFAP[lc], c->Ls->SNRvalues[lc],c->Ls->operiodogram, outname,p->ascii,c->Ls->whiten,c->Ls->clip,c->Ls->clipiter,c->Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,c->Ls->use_orig_ls,c->Ls->dobootstrapfap,c->Ls->Nbootstrap);
 	  }
 	}
       break;

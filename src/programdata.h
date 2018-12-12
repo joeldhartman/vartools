@@ -83,6 +83,10 @@
 
 #define VARTOOLS_DEFAULT_NOUTPUT_BUFFERS 32
 
+#define VARTOOLS_LC_DELIMTYPE_WHITESPACE 0
+#define VARTOOLS_LC_DELIMTYPE_CHAR 1
+#define VARTOOLS_LC_DELIMTYPE_STRING 2
+
 //double sizeHISTvector;
 double JDTOL;
 
@@ -295,6 +299,10 @@ typedef struct {
   char skipempty;
 
   int pythonlibraryloaded;
+
+  int lcdelimtype;
+  char delimchar;
+  char *delimstring;
 
 } ProgramData;
 

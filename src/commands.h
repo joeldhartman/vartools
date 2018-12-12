@@ -430,6 +430,8 @@ typedef struct {
   double fixperiodSNR_fixedperiod;
   OutColumn *fixperiodSNR_linkedcolumn;
   int use_orig_ls;
+  int dobootstrapfap;
+  int Nbootstrap;
 } _Ls;
 
 typedef struct {

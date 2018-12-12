@@ -694,12 +694,12 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
-      in1ph = (inputT0 - t1)/bper[0] - floor((inputT0 - t1)/bper[0]);
+      //in1ph = (inputT0 - t1)/bper[0] - floor((inputT0 - t1)/bper[0]);
 
       fprintf(outfile2,"#Time  Mag_obs   Mag_model   Error   Phase\n");
       for(i=0;i<n;i++)
 	{
-	  ph = (u[i] - in1ph*bper[0])*f0;
+	  ph = (t[i] - inputT0)*f0;
 	  ph -= floor(ph);
 	  if(ph >= qtran[0]) {
 	    ph2 = ph - 0.5*qtran[0];
@@ -775,7 +775,7 @@ the periodogram, and then search it for peaks    *
       phb2 = qtran[0] - phb1;
       while(jdtmp <= t[n-1])
 	{
-	  ph = (jdtmp - t[0] - in1ph*bper[0])*f0;
+	  ph = (jdtmp - inputT0)*f0;
 	  ph -= floor(ph);
 	  if(ph >= qtran[0]) {
 	    ph2 = ph - 0.5*qtran[0];
@@ -814,7 +814,7 @@ the periodogram, and then search it for peaks    *
       phb2 = qtran[0] - phb1;
       for(i=0;i<n;i++)
 	{
-	  ph = (u[i] - in1ph*bper[0])*f0;
+	  ph = (t[i] - inputT0)*f0;
 	  ph -= floor(ph);
 	  if(ph < qtran[0]) {
 	    if(ph >= phb1 && ph <= phb2) {

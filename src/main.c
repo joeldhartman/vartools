@@ -214,6 +214,8 @@ int main(int argc, char **argv)
 
   p.use_lc_open_exec_command = 0;
 
+  p.lcdelimtype = VARTOOLS_LC_DELIMTYPE_WHITESPACE;
+
 #ifdef _USEBINARY_LC
   p.binarylcinput = 0;
 #endif

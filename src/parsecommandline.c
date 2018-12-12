@@ -106,6 +106,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   p->stringid = NULL;
   p->stringid_idx = NULL;
 
+  p->Nskipchar = 0;
+  p->skipchars = NULL;
+
   cn = 0;
   for(i=1;i<argc;i++)
     {
@@ -3367,7 +3370,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -LS minp maxp subsample Npeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" ["column" col] | \"fixcolumn\" <colname | colnum>>] */
+      /* -LS minp maxp subsample Npeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" ["column" col] | \"fixcolumn\" <colname | colnum>>] [\"bootstrap\" Nbootstrap]*/
       else if(!strncmp(argv[i],"-LS",3) && strlen(argv[i]) == 3)
 	{
 	  iterm = i;
@@ -3575,6 +3578,29 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  c[cn].Ls->dobootstrapfap = 0;
+	  c[cn].Ls->Nbootstrap = 0;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"bootstrap"))
+		{
+		  c[cn].Ls->dobootstrapfap = 1;
+		  i++;
+		  if(i < argc)
+		    c[cn].Ls->Nbootstrap = atoi(argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else
+		{
+		  i--;
+		}
+	    }
+	  else
+	    {
+	      i--;
+	    }
 	  cn++;
 	}
 
@@ -8563,7 +8589,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	}
 
       /* -inputlcformat var1:col1[:type1[:fmt1][,var2:col2[:vtype2[:fmt2]],...]]
-	 ["skipnum" Nskip] ["skipchar" skipchar1[,skipchar2,...]>]] */
+	 ["skipnum" Nskip] ["skipchar" <skipchar1[,skipchar2,...]>]
+         ["delimiter" delimiter] */
       else if(!strcmp(argv[i],"-inputlcformat"))
 	{
 	  if(p->readformatused == 1 || p->inputlcformatused == 1) {
@@ -8606,6 +8633,26 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    p->skipchars[0] = '#';
 	    i--;
 	  }
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"delimiter")) {
+	      i++;
+	      if(i >= argc)
+		help(argv[iterm],p);
+	      if(strlen(argv[i]) == 1) {
+		p->lcdelimtype = VARTOOLS_LC_DELIMTYPE_CHAR;
+		p->delimchar = argv[i][0];
+	      } else {
+		p->lcdelimtype = VARTOOLS_LC_DELIMTYPE_STRING;
+		p->delimstring = malloc(strlen(argv[i])+1);
+		sprintf(p->delimstring,"%s",argv[i]);
+	      }
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
 	}
       
       /* -inlistvars var1:col1[:vtype1[:fmt1][,var2:col2[:vtyp2[:fmt2]],....]] */
@@ -8935,6 +8982,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 
   if(Ncommands < 1)
     error(ERR_USAGE);
+
+  /* Set the default skipchar if the inputlcformat option was not given */
+  if(p->Nskipchar == 0 && p->skipchars == NULL) {
+    p->Nskipchar = 1;
+    p->skipchars = malloc(1);
+    p->skipchars[0] = '#';
+  }
 
   /* Quit if we're matching on string id but the string id column isn't specified */
   if((p->matchstringid || p->requirestringid) && !p->readimagestring)

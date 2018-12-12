@@ -207,7 +207,9 @@ if test x"$ax_python_use" = x"true"; then
 
    CPPFLAGS="$PYTHON_CSPEC $CPPFLAGS"
    NUMPY_INCLUDE_DIR=`echo "import numpy; print numpy.get_include()" | $PYTHON - 2>/dev/null`
+   NUMPY_INCLUDE_DIR_FULL="${NUMPY_INCLUDE_DIR}/numpy"
    AC_SUBST(NUMPY_INCLUDE_DIR)
+   AC_SUBST(NUMPY_INCLUDE_DIR_FULL)
    AC_CHECK_HEADER([${NUMPY_INCLUDE_DIR}/numpy/arrayobject.h], [NUMPY_HEADER=yes], [AC_MSG_WARN([Numpy extension header not found])], [#include "Python.h"])
    AC_SUBST(NUMPY_HEADER)
    AM_CONDITIONAL(PYTHON_USE, test x$NUMPY_HEADER = xyes)

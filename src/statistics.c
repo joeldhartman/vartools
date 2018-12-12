@@ -894,10 +894,10 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 	s->statsout[threadindex][k] = getweightedmean(p->NJD[threadindex], tmpdata, p->sig[threadindex]);
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN:
-	s->statsout[threadindex][k] = median_nocopy(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = median(p->NJD[threadindex], tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN_WEIGHT:
-	s->statsout[threadindex][k] = median_weight_nocopy(p->NJD[threadindex], tmpdata, p->sig[threadindex]);
+	s->statsout[threadindex][k] = median_weight(p->NJD[threadindex], tmpdata, p->sig[threadindex]);
 	break;
       case VARTOOLS_STATSTYPE_STDDEV:
 	s->statsout[threadindex][k] = stddev(p->NJD[threadindex], tmpdata);
@@ -918,13 +918,13 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 	s->statsout[threadindex][k] = skewness(p->NJD[threadindex], tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_PERCENTILE:
-	s->statsout[threadindex][k] = percentile_nocopy(p->NJD[threadindex], 
+	s->statsout[threadindex][k] = percentile(p->NJD[threadindex], 
 							tmpdata,
 							s->pctval[Npct]);
 	Npct++;
 	break;
       case VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT:
-	s->statsout[threadindex][k] = percentile_weight_nocopy(p->NJD[threadindex], 
+	s->statsout[threadindex][k] = percentile_weight(p->NJD[threadindex], 
 							tmpdata,
 							       p->sig[threadindex],
 							s->pctval[Npct]);

@@ -1139,7 +1139,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
       Ngood = 0;
       for(i=0;i<Nperiod;i++)
 	{
-	  if(periodogram[i] > ERROR_SCORE && periodogram[i]*0.0 == 0.0)
+	  if(periodogram[i] > ERROR_SCORE && !isnan(periodogram[i]) && periodogram[i]*0.0 == 0.0)
 	    {
 	      Sum += (long double) periodogram[i];
 	      Sumsqr += (long double) (periodogram[i] * periodogram[i]);
@@ -1147,10 +1147,15 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	    }
 	}
       
-      Sum /= Ngood;
-      Sumsqr /= Ngood;
-      aveper = (double) Sum;
-      stdper = sqrt((double)(Sumsqr - (Sum*Sum)));
+      if(Ngood > 0) {
+	Sum /= Ngood;
+	Sumsqr /= Ngood;
+	aveper = (double) Sum;
+	stdper = sqrt((double)(Sumsqr - (Sum*Sum)));
+      } else {
+	aveper = 0.;
+	stdper = 0.;
+      }
       nclippedthis = 0;
       do {
 	nclippedlast = nclippedthis;
@@ -1160,7 +1165,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	Ngood = 0;
 	for(i=0;i<Nperiod;i++)
 	  {
-	    if(periodogram[i] > ERROR_SCORE && periodogram[i]*0.0 == 0.0)
+	    if(periodogram[i] > ERROR_SCORE && !isnan(periodogram[i]) && periodogram[i]*0.0 == 0.0)
 	      {
 		if(periodogram[i] < aveper + clip*stdper)
 		  {
@@ -1172,10 +1177,16 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 		  nclippedthis++;
 	      }
 	  }
-	Sum /= Ngood;
-	Sumsqr /= Ngood;
-	aveper = (double) Sum;
-	stdper = sqrt((double)(Sumsqr - (Sum*Sum)));
+	if(Ngood > 0) {
+	  Sum /= Ngood;
+	  Sumsqr /= Ngood;
+	  aveper = (double) Sum;
+	  stdper = sqrt((double)(Sumsqr - (Sum*Sum)));
+	} else {
+	  aveper = 0.;
+	  stdper = 0.;
+	  break;
+	}
       } while(clipiter && nclippedthis > nclippedlast);
       
       *aveaov = aveper;
@@ -1189,32 +1200,45 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	    {
 	      a_ = (double) Nharm;
 	      b_ = 0.5*(((double) N - 2. *((double) Nharm) - 1.));
-	      *fixperiodSNR_FAP = -log1minusbetai(a_, b_, ((2. * a_ * (*fixperiodSNR_value))/(2. * (b_ + a_*(*fixperiodSNR_value)))));
+	      if(!isnan((*fixperiodSNR_value)) && (*fixperiodSNR_value > ERROR_SCORE)) {
+		*fixperiodSNR_FAP = -log1minusbetai(a_, b_, ((2. * a_ * (*fixperiodSNR_value))/(2. * (b_ + a_*(*fixperiodSNR_value)))));
+	      } else {
+		*fixperiodSNR_FAP = 0.;
+	      }
 	    }
 	}
       
       /* Replace the periodogram with only points that are local maxima */
-      lastpoint = periodogram[0] - 1.;
-      for(i=0,k=0;k<Nperiod-1;k++)
-	{
-	  if(periodogram[k] > lastpoint && periodogram[k] > periodogram[k + 1])
+      i = 0;
+      while(i < Nperiod && !(periodogram[i] > ERROR_SCORE && !isnan(periodogram[i]) && periodogram[i]*0.0 == 0.0))
+	i++;
+      if(i < Nperiod) {
+	lastpoint = periodogram[i] - 1.;
+	for(k=i;k<Nperiod-1;k++)
+	  {
+	    if(periodogram[k] > ERROR_SCORE && !isnan(periodogram[k]) && periodogram[k]*0.0 == 0.0 && periodogram[k+1] > ERROR_SCORE && !isnan(periodogram[k+1]) && periodogram[k+1]*0.0 == 0.0) {
+	      if(periodogram[k] > lastpoint && periodogram[k] > periodogram[k + 1])
+		{
+		  lastpoint = periodogram[k];
+		  periodogram[i] = periodogram[k];
+		  periods[i] = periods[k];
+		  i++;
+		}
+	      else
+		{
+		  lastpoint = periodogram[k];
+		}
+	    }
+	  }
+	if(periodogram[k] > ERROR_SCORE && !isnan(periodogram[k]) && periodogram[k]*0.0 == 0.0) {
+	  if(periodogram[k] > lastpoint)
 	    {
-	      lastpoint = periodogram[k];
 	      periodogram[i] = periodogram[k];
 	      periods[i] = periods[k];
 	      i++;
 	    }
-	  else
-	    {
-	      lastpoint = periodogram[k];
-	    }
 	}
-      if(periodogram[k] > lastpoint)
-	{
-	  periodogram[i] = periodogram[k];
-	  periods[i] = periods[k];
-	  i++;
-	}
+      }
       Nperiod = i;
       
       /* Search through the periodogram to identify the best Npeaks periods */
@@ -1295,7 +1319,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
       
       for(j=0;j<Npeaks;j++)
 	{
-	  if(perpeaks[j] > ERROR_SCORE)
+	  if(!isnan(perpeaks[j]) && perpeaks[j] > ERROR_SCORE)
 	    {
 	      freq = dmin((1./perpeaks[j]) + freqstep,(1./minP));
 	      minfreq = dmax((1./perpeaks[j]) - freqstep,(1./maxP));
@@ -1360,8 +1384,11 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
       /* Set ERROR period peaks to 1. so that other routines that take the period from aov don't have trouble with the negative period. */
       for(k=0;k<Npeaks;k++)
 	{
-	  if(perpeaks[k] < ERROR_SCORE)
+	  if(perpeaks[k] < ERROR_SCORE || isnan(perpeaks[k])) {
 	    perpeaks[k] = 1.;
+	    aovSNR[k] = ERROR_SCORE-1;
+	    aovFAP[k] = ERROR_SCORE-1;
+	  }
 	}
     }
   else
@@ -1389,10 +1416,10 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	{
 	  /* Find the peak period */
 	  perpeaks[peakiter] = 1.0;
-	  aovpeaks[peakiter] = ERROR_SCORE;
+	  aovpeaks[peakiter] = ERROR_SCORE-1;
 	  for(i=0; i < Nperiod; i++)
 	    {
-	      if(periodogram_whiten[peakiter][i] > ERROR_SCORE && periodogram_whiten[peakiter][i]*0.0 == 0.0)
+	      if(periodogram_whiten[peakiter][i] > ERROR_SCORE && periodogram_whiten[peakiter][i]*0.0 == 0.0 && !isnan(periodogram_whiten[peakiter][i]))
 		{
 		  if(periodogram_whiten[peakiter][i] > aovpeaks[peakiter])
 		    {
@@ -1419,7 +1446,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	  smallfreqstep = fine_tune/T;
 	  j = peakiter;	  
 
-	  if(perpeaks[j] > ERROR_SCORE)
+	  if(!isnan(aovpeaks[j]) && aovpeaks[j] > ERROR_SCORE && !isnan(perpeaks[j]))
 	    {
 	      freq = dmin((1./perpeaks[j]) + freqstep,(1./minP));
 	      minfreq = dmax((1./perpeaks[j]) - freqstep,(1./maxP));
@@ -1464,7 +1491,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 		}
 	    }
 
-	  if(aovpeaks[peakiter] > ERROR_SCORE)
+	  if(!isnan(aovpeaks[peakiter]) && aovpeaks[peakiter] > ERROR_SCORE)
 	    {
 	      /* Whiten the light curve at this period */
 	      if(Nharm > 0)
@@ -1489,7 +1516,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 	      Ngood = 0;
 	      for(i=0;i<Nperiod;i++)
 		{
-		  if(periodogram_whiten[peakiter+1][i] > ERROR_SCORE && periodogram_whiten[peakiter+1][i]*0.0 == 0.0)
+		  if(periodogram_whiten[peakiter+1][i] > ERROR_SCORE && !isnan(periodogram_whiten[peakiter+1][i]) && periodogram_whiten[peakiter+1][i]*0.0 == 0.0)
 		    {
 		      Sum += (long double) periodogram_whiten[peakiter+1][i];
 		      Sumsqr += (long double) (periodogram_whiten[peakiter+1][i] * periodogram_whiten[peakiter+1][i]);
@@ -1512,7 +1539,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 		Ngood = 0;
 		for(i=0;i<Nperiod;i++)
 		  {
-		    if(periodogram_whiten[peakiter+1][i] > ERROR_SCORE && periodogram_whiten[peakiter+1][i]*0.0 == 0.0)
+		    if(periodogram_whiten[peakiter+1][i] > ERROR_SCORE && !isnan(periodogram_whiten[peakiter+1][i]) && periodogram_whiten[peakiter+1][i]*0.0 == 0.0)
 		      {
 			if(periodogram_whiten[peakiter+1][i] < aveper_whiten[peakiter] + clip*stdper_whiten[peakiter])
 			  {
@@ -1524,40 +1551,55 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
 			  nclippedthis++;
 		      }
 		  }
-		Sum /= Ngood;
-		Sumsqr /= Ngood;
-		aveper_whiten[peakiter] = (double) Sum;
-		stdper_whiten[peakiter] = sqrt((double)(Sumsqr - (Sum*Sum)));
+		if(Ngood > 0) {
+		  Sum /= Ngood;
+		  Sumsqr /= Ngood;
+		  aveper_whiten[peakiter] = (double) Sum;
+		  stdper_whiten[peakiter] = sqrt((double)(Sumsqr - (Sum*Sum)));
+		} else {
+		  aveper_whiten[peakiter] = ERROR_SCORE - 1;
+		  stdper_whiten[peakiter] = ERROR_SCORE - 1;
+		  break;
+		}
 	      } while(clipiter && nclippedthis > nclippedlast);
 	      
-	      if(fixperiodSNR && !peakiter)
-		{
-		  AOV_getfixedperiodSNR(periods,periodogram_whiten[peakiter],Nperiod,aveper_whiten[peakiter],stdper_whiten[peakiter],fixperiodSNR_period,fixperiodSNR_value,fixperiodSNR_SNR);
-		  if(Nharm > 0)
-		    {
-		      a_ = (double) Nharm;
-		      b_ = 0.5*(((double) N - 2. *((double) Nharm) - 1.));
-		      *fixperiodSNR_FAP = -log1minusbetai(a_, b_, ((2. * a_ * (*fixperiodSNR_value))/(2. * (b_ + a_*(*fixperiodSNR_value)))));
-		    }
-		}
-	      aveaov_whiten[peakiter] = aveper_whiten[peakiter];
-	      stddevaov_whiten[peakiter] = stdper_whiten[peakiter];
-	      aovSNR[peakiter] = (aovpeaks[peakiter] - aveper_whiten[peakiter])/stdper_whiten[peakiter];
-	      if(Nharm > 0)
-		{
-		  a_ = (double) Nharm;
-		  b_ = 0.5*(((double) N - 2. *((double) Nharm) - 1.));
-		  aovFAP[peakiter] = -log1minusbetai(a_, b_, ((2. * a_ * aovpeaks[peakiter])/(2. * (b_ + a_*aovpeaks[peakiter])))) + negln_m_eff;
-		}
+	      if(Ngood > 0) {
+		if(fixperiodSNR && !peakiter)
+		  {
+		    AOV_getfixedperiodSNR(periods,periodogram_whiten[peakiter],Nperiod,aveper_whiten[peakiter],stdper_whiten[peakiter],fixperiodSNR_period,fixperiodSNR_value,fixperiodSNR_SNR);
+		    if(Nharm > 0)
+		      {
+			a_ = (double) Nharm;
+			b_ = 0.5*(((double) N - 2. *((double) Nharm) - 1.));
+			*fixperiodSNR_FAP = -log1minusbetai(a_, b_, ((2. * a_ * (*fixperiodSNR_value))/(2. * (b_ + a_*(*fixperiodSNR_value)))));
+		      }
+		  }
+		aveaov_whiten[peakiter] = aveper_whiten[peakiter];
+		stddevaov_whiten[peakiter] = stdper_whiten[peakiter];
+		aovSNR[peakiter] = (aovpeaks[peakiter] - aveper_whiten[peakiter])/stdper_whiten[peakiter];
+		if(Nharm > 0)
+		  {
+		    a_ = (double) Nharm;
+		    b_ = 0.5*(((double) N - 2. *((double) Nharm) - 1.));
+		    aovFAP[peakiter] = -log1minusbetai(a_, b_, ((2. * a_ * aovpeaks[peakiter])/(2. * (b_ + a_*aovpeaks[peakiter])))) + negln_m_eff;
+		  }
+	      } else {
+		aovpeaks[peakiter] = ERROR_SCORE - 1;
+		perpeaks[peakiter] = 1.;
+		aovFAP[peakiter] = ERROR_SCORE - 1;
+		aovSNR[peakiter] = ERROR_SCORE - 1;
+		aveaov_whiten[peakiter] = 0.;
+		stddevaov_whiten[peakiter] = 0.;
+	      }
 	    }
 	  else
 	    {
 	      for(;peakiter < Npeaks; peakiter++)
 		{
-		  aovpeaks[peakiter] = ERROR_SCORE;
+		  aovpeaks[peakiter] = ERROR_SCORE-1;
 		  perpeaks[peakiter] = 1.;
-		  aovSNR[peakiter] = ERROR_SCORE;
-		  aovFAP[peakiter] = ERROR_SCORE;
+		  aovSNR[peakiter] = ERROR_SCORE-1;
+		  aovFAP[peakiter] = ERROR_SCORE-1;
 		  aveaov_whiten[peakiter] = 0.;
 		  stddevaov_whiten[peakiter] = 0.;
 		}
@@ -1615,7 +1657,7 @@ void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpe
       /* Set ERROR period peaks to 1. so that other routines that take the period from aov don't have trouble with the negative period. */
       for(k=0;k<Npeaks;k++)
 	{
-	  if(perpeaks[k] < ERROR_SCORE)
+	  if(perpeaks[k] < ERROR_SCORE || isnan(perpeaks[k]))
 	    perpeaks[k] = 1.;
 	}
       

@@ -38,6 +38,8 @@ void example(char *, ProgramData *);
 void help(char *, ProgramData *p);
 void usage(char *);
 int parseone(char *, void *, int);
+int parseonedelimstring(char *, void *, int, char *);
+int parseonedelimchar(char *, void *, int, char);
 int skipone(char *);
 void increaseNcommands(ProgramData *p, Command **c);
 void dotab(FILE *,int);
@@ -92,7 +94,7 @@ int spread(double, double *, int, double, int);
 void realft(double *, int, int);
 void four1(double *, int, int);
 void avevar(double *, int, double *, double *);
-void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls);
+void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap);
 void mysort4(int, double *, double *, double *, double *);
 void mysort4_rev(int, double *, double *, double *, double *);
 void mysort4ptrint(int, int*, void***, int *, int *);
@@ -352,3 +354,4 @@ void StopRunningPythonCommand(ProgramData *p, int threadindex, _PythonCommand *c
 void KillAllPythonProcesses(ProgramData *p, Command *allcommands);
 #endif
 void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, int rthreadid);
+long randlong(long);

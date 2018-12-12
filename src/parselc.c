@@ -32,10 +32,11 @@ void ParseSkipCharString(char *argv, int *Nskip, char **skipchars)
   }
   *Nskip = 0;
   lastindex = -1;
+  i = 0;
   while(argv[i] != '\0') {
     if(argv[i] != ' ' && argv[i] != '\t' && argv[i] != '\n') {
       if(argv[i] != ',') {
-	if(i == 0 ? 1 : argv[i] == ',') {
+	if(i == 0 ? 1 : (argv[i-1] == ',' || argv[i-1] == ' ' || argv[i-1] == '\t' || argv[i-1] == '\n')) {
 	  if((*Nskip) == 0) {
 	    *Nskip = 1;
 	    if(((*skipchars) = (char *) malloc(1)) == NULL)
@@ -49,6 +50,7 @@ void ParseSkipCharString(char *argv, int *Nskip, char **skipchars)
 	}
       }
     }
+    i++;
   }
 }
 
@@ -303,9 +305,9 @@ int ParseInputLCFormatString(char *argv, ProgramData *p)
   return 0;
 }
 
-int ParseLineToColumns_testskip(char *line, char **cols, int maxcols)
+int ParseLineToColumns_testskip(char *line, char **cols, int maxcols, int Nskipchar, char *skipchars)
 {
-  int j, i;
+  int j, i, k;
   j = 0;
   i = 0;
   /* Find the first non-white space character on the line and check if it is
@@ -314,11 +316,60 @@ int ParseLineToColumns_testskip(char *line, char **cols, int maxcols)
     j++;
   /* Return 1 if the line is blank, or if the first character is
    a comment */
-  if(line[j] == '#' || ((line[j] == '\n' || line[j] == '\0') && maxcols > 0))
+  for(k=0; k < Nskipchar; k++) {
+    if(line[j] == skipchars[k]) return 1;
+  }
+  if((line[j] == '\n' || line[j] == '\0') && maxcols > 0)
     return 1;
 
   while(i < maxcols && line[j] != '\0' && line[j] != '\n') {
     j += parseone(&line[j],(void *) ((cols[i])), VARTOOLS_TYPE_STRING);
+    i++;
+  }
+  if(i < maxcols) {
+    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+  }
+  return 0;
+}
+
+int ParseLineToColumnsDelimString_testskip(char *line, char **cols, int maxcols, int Nskipchar, char *skipchars, char *delim)
+{
+  int j, i, k;
+  j = 0;
+  i = 0;
+  /* Return 1 if the line is blank, or if the first character is
+   a comment */
+  for(k=0; k < Nskipchar; k++) {
+    if(line[j] == skipchars[k]) return 1;
+  }
+  if((line[j] == '\n' || line[j] == '\0') && maxcols > 0)
+    return 1;
+
+  while(i < maxcols && line[j] != '\0' && line[j] != '\n') {
+    j += parseonedelimstring(&line[j],(void *) ((cols[i])), VARTOOLS_TYPE_STRING, delim);
+    i++;
+  }
+  if(i < maxcols) {
+    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+  }
+  return 0;
+}
+
+int ParseLineToColumnsDelimChar_testskip(char *line, char **cols, int maxcols, int Nskipchar, char *skipchars, char delim)
+{
+  int j, i, k;
+  j = 0;
+  i = 0;
+  /* Return 1 if the line is blank, or if the first character is
+   a comment */
+  for(k=0; k < Nskipchar; k++) {
+    if(line[j] == skipchars[k]) return 1;
+  }
+  if((line[j] == '\n' || line[j] == '\0') && maxcols > 0)
+    return 1;
+
+  while(i < maxcols && line[j] != '\0' && line[j] != '\n') {
+    j += parseonedelimchar(&line[j],(void *) ((cols[i])), VARTOOLS_TYPE_STRING, delim);
     i++;
   }
   if(i < maxcols) {
@@ -2966,7 +3017,13 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   while(gnu_getline(&line,&line_size,infile) >= 0)
     {
       l++;
-      testskip = ParseLineToColumns_testskip(line, incols, colmax);
+      if(p->lcdelimtype == VARTOOLS_LC_DELIMTYPE_WHITESPACE) {
+	testskip = ParseLineToColumns_testskip(line, incols, colmax, p->Nskipchar, p->skipchars);
+      } else if(p->lcdelimtype == VARTOOLS_LC_DELIMTYPE_CHAR) {
+	testskip = ParseLineToColumnsDelimChar_testskip(line, incols, colmax, p->Nskipchar, p->skipchars, p->delimchar);
+      } else if(p->lcdelimtype == VARTOOLS_LC_DELIMTYPE_STRING) {
+	testskip = ParseLineToColumnsDelimString_testskip(line, incols, colmax, p->Nskipchar, p->skipchars, p->delimstring);
+      }
       if(testskip)
 	continue;
       MemAllocDataFromLightCurve(p, threadid, (N+1));

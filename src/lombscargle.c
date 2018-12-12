@@ -447,15 +447,19 @@ void avevar(double *data, int n, double *ave, double *var)
 }
 
 /* Routine that will run LS on a given light curve */
-void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls)
+void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap)
 {
-  int nf, nfreqt, nfreq, ndim, outval, nout, i, j, k, foundflag, peakiter, test, nclippedlast, nclippedthis, ngood;
+  int nf, nfreqt, nfreq, ndim, outval, nout, i, j, k, foundflag, peakiter, test, nclippedlast, nclippedthis, ngood, bootstrapind;
   double T, freq, freqstep, minfreq, *wk1, *wk2, maxfreq, trueminfreq, expy, effm, ofac, hifac, testperiod, lastpoint, tmpprob;
   double **wk2_whiten, *t_cpy, *mag_cpy, *sig_cpy, fundA, fundB, meanval, amp, zval;
   double *pbest_whiten;
+  double *t_cpy2 = NULL, *mag_cpy2 = NULL, *sig_cpy2 = NULL;
+  double *bootstrapdist = NULL, *bootstrapprobs = NULL, *fitcoeffs = NULL;
+  long klong;
 
   long double Sum, Sumsqr;
   double ave, rms, val, pbest;
+  int nfit;
 
   FILE *outf;
 
@@ -486,6 +490,59 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 	  fprintf(stderr,"Memory Allocation Error\n");
 	  exit(3);
 	}
+
+      if(dobootstrapfap) {
+	if((bootstrapdist = (double *) malloc(Nbootstrap * sizeof(double))) == NULL ||
+	   (bootstrapprobs = (double *) malloc(Nbootstrap * sizeof(double))) == NULL ||
+	   (fitcoeffs = (double *) malloc(2 * sizeof(double))) == NULL ||
+	   (t_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
+	   (mag_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
+	   (sig_cpy2 = (double *) malloc(N * sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+	
+	memcpy(t_cpy2,t,N*sizeof(double));
+	for(i=0; i < Nbootstrap; i++) {
+	  for(j=0; j < N; j++) {
+	    klong = randlong(N-1);
+	    mag_cpy2[j] = mag[klong];
+	    sig_cpy2[j] = sig[klong];
+	  }
+	  if(use_orig_ls) {
+	    outval = fasper(t_cpy2, mag_cpy2, N, ofac, hifac, wk1, wk2, ndim, &nout);
+	  } else {
+	    outval = gfasper(t_cpy2, mag_cpy2, sig_cpy2, N, ofac, hifac, wk1, wk2, ndim, &nout, &ngood);
+	  }
+	  bootstrapdist[i] = -1.;
+	  for(k=0;k<nout;k++)
+	    {
+	      if(wk1[k] >= minfreq)
+		{
+		  if(wk2[k] > bootstrapdist[i]) bootstrapdist[i] = wk2[k];
+		}
+	    }
+	}
+	mysort1(Nbootstrap, bootstrapdist);
+	for(k=0; k < Nbootstrap; k++) {
+	  bootstrapprobs[k] = log10(((Nbootstrap - k)/((double) Nbootstrap)));
+	}
+	if(use_orig_ls) {
+	  nfit = floor(0.1*Nbootstrap);
+	  if(nfit < 1) nfit = 1;
+	  fitpoly(nfit, &(bootstrapdist[Nbootstrap-nfit]), &(bootstrapprobs[Nbootstrap-nfit]), NULL, 1, 0, fitcoeffs, NULL);
+	}
+	else {
+	  for(k = 0; k < Nbootstrap; k++) {
+	    bootstrapdist[k] = log10(1.0 - bootstrapdist[k]);
+	  }
+	  nfit = floor(0.1*Nbootstrap);
+	  if(nfit < 1) nfit = 1;
+	  fitpoly(nfit, &(bootstrapdist[Nbootstrap-nfit]), &(bootstrapprobs[Nbootstrap-nfit]), NULL, 1, 0, fitcoeffs, NULL);
+	  for(k = 0; k < Nbootstrap; k++) {
+	    bootstrapdist[k] = 1.0 - pow(10.0,bootstrapdist[k]);
+	  }
+	}
+      }
+
 
       if(use_orig_ls) {
 	outval = fasper(t, mag, N, ofac, hifac, wk1, wk2, ndim, &nout);
@@ -542,12 +599,22 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 		      {
 			if(wk1[i] >= minfreq)
 			  {
-			    expy = -wk2[i]*0.434294482;
-			    tmpprob=effm + expy;
-			    if(tmpprob > -2) {
-			      expy = exp(-wk2[i]);
-			      tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			      tmpprob = log10(tmpprob);
+			    if(!dobootstrapfap) {
+			      expy = -wk2[i]*0.434294482;
+			      tmpprob=effm + expy;
+			      if(tmpprob > -2) {
+				expy = exp(-wk2[i]);
+				tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+				tmpprob = log10(tmpprob);
+			      }
+			    } else {
+			      bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			      if(bootstrapind == Nbootstrap)
+				tmpprob = fitcoeffs[0] + fitcoeffs[1]*wk2[i];
+			      else {
+				tmpprob = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+				tmpprob = log10(tmpprob);
+			      }
 			    }
 			    fprintf(outf,"%.17g %.17g %.17g\n",wk1[i],wk2[i], tmpprob);
 			  }
@@ -558,14 +625,26 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 		      {
 			if(wk1[i] >= minfreq)
 			  {
-			    zval = (ngood - 3)*(wk2[i]/(1.0 - pbest))/2.0;
-			    expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
-			    tmpprob=effm + expy;
-			    if(tmpprob > -2) {
-			      expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0)); 
-			      tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			      tmpprob = log10(tmpprob);
+			    if(!dobootstrapfap) {
+			      zval = (ngood - 3)*(wk2[i]/(1.0 - pbest))/2.0;
+			      expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
+			      tmpprob=effm + expy;
+			      if(tmpprob > -2) {
+				expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0)); 
+				tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+				tmpprob = log10(tmpprob);
+			      }
+			    } else {
+			      bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			      if(bootstrapind == Nbootstrap)
+				tmpprob = fitcoeffs[0] + fitcoeffs[1]*log10(1.0 - wk2[i]);
+			      else {
+				tmpprob = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+				tmpprob = log10(tmpprob);
+			      }
+			      
 			    }
+
 			    fprintf(outf,"%.17g %.17g %.17g\n",wk1[i],wk2[i], tmpprob);
 			  }
 		      }
@@ -673,23 +752,44 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 		      if(use_orig_ls) {
 			expy = -wk2[i]*0.434294482;
 			peaks[j] = wk2[i];
-			probs[j]=effm + expy;
 			SNR[j] = (wk2[i] - ave)/rms;
-			if (probs[j] > -2) {
-			  expy = exp(-wk2[i]);
-			  probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			  probs[j] = log10(probs[j]);
+			if(!dobootstrapfap) {
+			  probs[j]=effm + expy;
+			  if (probs[j] > -2) {
+			    expy = exp(-wk2[i]);
+			    probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+			    probs[j] = log10(probs[j]);
+			  }
+			} else {
+			  bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			  if(bootstrapind == Nbootstrap)
+			    probs[j] = fitcoeffs[0] + fitcoeffs[1]*wk2[i];
+			  else {
+			    probs[j] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+			    probs[j] = log10(probs[j]);
+			  }
 			}
 		      } else {
 			zval = (ngood - 3)*(wk2[i]/(1.0 - pbest))/2.0;
 			expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
 			peaks[j] = wk2[i];
-			probs[j]=effm + expy;
 			SNR[j] = (wk2[i] - ave)/rms;
-			if(probs[j] > -2.) {
-			  expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
-			  probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			  probs[j] = log10(probs[j]);
+			if(!dobootstrapfap) {
+			  probs[j]=effm + expy;
+			  if(probs[j] > -2.) {
+			    expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
+			    probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+			    probs[j] = log10(probs[j]);
+			  }
+			} else {
+			  bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			  if(bootstrapind == Nbootstrap)
+			    probs[j] = fitcoeffs[0] + fitcoeffs[1]*log10(1.0 - wk2[i]);
+			  else {
+			    probs[j] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+			    probs[j] = log10(probs[j]);
+			  }
+
 			}
 		      }
 		      j++;
@@ -709,23 +809,43 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 			  if(use_orig_ls) {
 			    expy = -wk2[i]*0.434294482;
 			    peaks[j] = wk2[i];
-			    probs[j]=effm + expy;
 			    SNR[j] = (wk2[i] - ave)/rms;
-			    if (probs[j] > -2) {
-			      expy = exp(-wk2[i]);
-			      probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			      probs[j] = log10(probs[j]);
+			    if(!dobootstrapfap) {
+			      probs[j]=effm + expy;
+			      if (probs[j] > -2) {
+				expy = exp(-wk2[i]);
+				probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+				probs[j] = log10(probs[j]);
+			      }
+			    } else {
+			      bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			      if(bootstrapind == Nbootstrap)
+				probs[j] = fitcoeffs[0] + fitcoeffs[1]*wk2[i];
+			      else {
+				probs[j] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+				probs[j] = log10(probs[j]);
+			      }
 			    }
 			  } else {
 			    zval = (ngood - 3)*(wk2[i]/(1.0 - pbest))/2.0;
 			    expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
 			    peaks[j] = wk2[i];
-			    probs[j]=effm + expy;
 			    SNR[j] = (wk2[i] - ave)/rms;
-			    if(probs[j] > -2.) {
-			      expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
-			      probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			      probs[j] = log10(probs[j]);
+			    if(!dobootstrapfap) {
+			      probs[j]=effm + expy;
+			      if(probs[j] > -2.) {
+				expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
+				probs[j]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+				probs[j] = log10(probs[j]);
+			      }
+			    } else {
+			      bootstrapind = findX(bootstrapdist,wk2[i],0,Nbootstrap);
+			      if(bootstrapind == Nbootstrap)
+				probs[j] = fitcoeffs[0] + fitcoeffs[1]*log10(1.0 - wk2[i]);
+			      else {
+				probs[j] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+				probs[j] = log10(probs[j]);
+			      }
 			    }
 			  }
 			  j++;
@@ -757,6 +877,60 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 	  if((wk2_whiten[i] = (double *) malloc(ndim * sizeof(double))) == NULL)
 	    error(ERR_MEMALLOC);
 	}
+
+
+      if(dobootstrapfap) {
+	if((bootstrapdist = (double *) malloc(Nbootstrap * sizeof(double))) == NULL ||
+	   (bootstrapprobs = (double *) malloc(Nbootstrap * sizeof(double))) == NULL ||
+	   (fitcoeffs = (double *) malloc(2 * sizeof(double))) == NULL ||
+	   (t_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
+	   (mag_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
+	   (sig_cpy2 = (double *) malloc(N * sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+	
+	memcpy(t_cpy2,t,N*sizeof(double));
+	for(i=0; i < Nbootstrap; i++) {
+	  for(j=0; j < N; j++) {
+	    klong = randlong(N-1);
+	    mag_cpy2[j] = mag[klong];
+	    sig_cpy2[j] = sig[klong];
+	  }
+	  if(use_orig_ls) {
+	    outval = fasper(t_cpy2, mag_cpy2, N, ofac, hifac, wk1, wk2_whiten[0], ndim, &nout);
+	  } else {
+	    outval = gfasper(t_cpy2, mag_cpy2, sig_cpy2, N, ofac, hifac, wk1, wk2_whiten[0], ndim, &nout, &ngood);
+	  }
+	  bootstrapdist[i] = -1.;
+	  for(k=0;k<nout;k++)
+	    {
+	      if(wk1[k] >= minfreq)
+		{
+		  if(wk2_whiten[0][k] > bootstrapdist[i]) bootstrapdist[i] = wk2_whiten[0][k];
+		}
+	    }
+	}
+	mysort1(Nbootstrap, bootstrapdist);
+	for(k=0; k < Nbootstrap; k++) {
+	  bootstrapprobs[k] = log10(((Nbootstrap - k)/((double) Nbootstrap)));
+	}
+	if(use_orig_ls) {
+	  nfit = floor(0.1*Nbootstrap);
+	  if(nfit < 1) nfit = 1;
+	  fitpoly(nfit, &(bootstrapdist[Nbootstrap-nfit]), &(bootstrapprobs[Nbootstrap-nfit]), NULL, 1, 0, fitcoeffs, NULL);
+	}
+	else {
+	  for(k = 0; k < Nbootstrap; k++) {
+	    bootstrapdist[k] = log10(1.0 - bootstrapdist[k]);
+	  }
+	  nfit = floor(0.1*Nbootstrap);
+	  if(nfit < 1) nfit = 1;
+	  fitpoly(nfit, &(bootstrapdist[Nbootstrap-nfit]), &(bootstrapprobs[Nbootstrap-nfit]), NULL, 1, 0, fitcoeffs, NULL);
+	  for(k = 0; k < Nbootstrap; k++) {
+	    bootstrapdist[k] = 1.0 - pow(10.0,bootstrapdist[k]);
+	  }
+	}
+	  
+      }
 
       /* Make a copy of the light curve */
       if((t_cpy = (double *) malloc(N * sizeof(double))) == NULL ||
@@ -919,21 +1093,42 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 	  SNR[peakiter] = (val - ave)/rms;
 	  if(use_orig_ls) {
 	    expy = -val*0.434294482;
-	    probs[peakiter]=effm + expy;
-	    if (probs[peakiter] > -2) {
-	      expy = exp(-val);
-	      probs[peakiter]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-	      probs[peakiter] = log10(probs[peakiter]);
+	    if(!dobootstrapfap) {
+	      probs[peakiter]=effm + expy;
+	      if (probs[peakiter] > -2) {
+		expy = exp(-val);
+		probs[peakiter]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+		probs[peakiter] = log10(probs[peakiter]);
+	      }
+	    } else {
+	      bootstrapind = findX(bootstrapdist,val,0,Nbootstrap);
+	      if(bootstrapind == Nbootstrap)
+		probs[peakiter] = fitcoeffs[0] + fitcoeffs[1]*val;
+	      else {
+		probs[peakiter] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+		probs[peakiter] = log10(probs[peakiter]);
+	      }
 	    }
 	  } else {
 	    zval = (ngood - 3)*(val/(1.0 - pbest_whiten[peakiter]))/2.0;
 	    expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
-	    probs[peakiter]=effm + expy;
-	    if(probs[peakiter] > -2.) {
-	      expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
-	      probs[peakiter]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-	      probs[peakiter] = log10(probs[peakiter]);
+	    if(!dobootstrapfap) {
+	      probs[peakiter]=effm + expy;
+	      if(probs[peakiter] > -2.) {
+		expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0));
+		probs[peakiter]=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+		probs[peakiter] = log10(probs[peakiter]);
+	      }
+	    } else {
+	      bootstrapind = findX(bootstrapdist,val,0,Nbootstrap);
+	      if(bootstrapind == Nbootstrap)
+		probs[peakiter] = fitcoeffs[0] + fitcoeffs[1]*log10(1.0 - val);
+	      else {
+		probs[peakiter] = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+		probs[peakiter] = log10(probs[peakiter]);
+	      }
 	    }
+	    
 	  }
 	}
 
@@ -972,13 +1167,24 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 		      {
 			fprintf(outf,"%.17g",wk1[i]);
 			for(j=0;j < Npeaks; j++) {
-			  expy = -wk2_whiten[j][i]*0.434294482;
-			  tmpprob=effm + expy;
-			  if(tmpprob > -2) {
-			    expy = exp(-wk2_whiten[j][i]);
-			    tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			    tmpprob = log10(tmpprob);
+			  if(!dobootstrapfap) {
+			    expy = -wk2_whiten[j][i]*0.434294482;
+			    tmpprob=effm + expy;
+			    if(tmpprob > -2) {
+			      expy = exp(-wk2_whiten[j][i]);
+			      tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+			      tmpprob = log10(tmpprob);
+			    }
+			  } else {
+			    bootstrapind = findX(bootstrapdist,wk2_whiten[j][i],0,Nbootstrap);
+			    if(bootstrapind == Nbootstrap)
+			      tmpprob = fitcoeffs[0] + fitcoeffs[1]*wk2_whiten[j][i];
+			    else {
+			      tmpprob = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+			      tmpprob = log10(tmpprob);
+			    }
 			  }
+
 			  fprintf(outf," %.17g %.17g\n",wk2_whiten[j][i],tmpprob);
 			}
 			fprintf(outf,"\n");
@@ -992,14 +1198,25 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 		      {
 			fprintf(outf,"%.17g",wk1[i]);
 			for(j=0; j < Npeaks; j++) {
-			  zval = (ngood - 3)*(wk2_whiten[j][i]/(1.0 - pbest_whiten[j]))/2.0;
-			  expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
-			  tmpprob=effm + expy;
-			  if(tmpprob > -2) {
-			    expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0)); 
-			    tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
-			    tmpprob = log10(tmpprob);
+			  if(!dobootstrapfap) {
+			    zval = (ngood - 3)*(wk2_whiten[j][i]/(1.0 - pbest_whiten[j]))/2.0;
+			    expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
+			    tmpprob=effm + expy;
+			    if(tmpprob > -2) {
+			      expy = pow(((1.0 + (2.0*zval)/(ngood - 3))),(-(ngood-3)/2.0)); 
+			      tmpprob=1.0-pow(1.0-expy,2.0 * maxfreq * T);
+			      tmpprob = log10(tmpprob);
+			    }
+			  } else {
+			    bootstrapind = findX(bootstrapdist,wk2_whiten[j][i],0,Nbootstrap);
+			    if(bootstrapind == Nbootstrap)
+			      tmpprob = fitcoeffs[0] + fitcoeffs[1]*log10(1.0 - wk2_whiten[j][i]);
+			    else {
+			      tmpprob = (Nbootstrap - bootstrapind)/((double) Nbootstrap);
+			      tmpprob = log10(tmpprob);
+			    }
 			  }
+
 			  fprintf(outf," %.17g %.17g",wk2_whiten[j][i], tmpprob);
 			}
 			fprintf(outf,"\n");
@@ -1027,4 +1244,11 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
       free(sig_cpy);
 
     }
+
+  if(t_cpy2 != NULL) free(t_cpy2);
+  if(mag_cpy2 != NULL) free(mag_cpy2);
+  if(sig_cpy2 != NULL) free(sig_cpy2);
+  if(bootstrapdist != NULL) free(bootstrapdist);
+  if(bootstrapprobs != NULL) free(bootstrapprobs);
+  if(fitcoeffs != NULL) free(fitcoeffs);
 }

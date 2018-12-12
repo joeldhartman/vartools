@@ -204,6 +204,80 @@ int parseone(char *line, void *val, int vartype)
   return(i);
 }
 
+/* This function parses one column of a string and returns the index for the start of the next column */
+int parseonedelimstring(char *line, void *val, int vartype, char *delim)
+{
+  int i = 0, j = 0, k, test;
+  char line2[MAXLEN];
+  while(line[i] != '\n' && line[i] != '\0')
+    {
+      if(line[i] == delim[0]) {
+	test = 1;
+	k = 1;
+	while(delim[k] != '\0' ? (line[i+k] != '\n' && line[i+k] != '\0' ? line[i+k] == delim[k] : 0 ) : 0) k++;
+	if(delim[k] != '\0') { test = 0; }
+      } else {
+	test = 0;
+      }
+      if(test) {
+	i = i + k;
+	break;
+      }
+      else {
+	line2[j] = line[i];
+	i++;
+	j++;
+      }
+    }
+  line2[j] = '\0';
+  switch(vartype)
+    {
+    case VARTOOLS_TYPE_DOUBLE:
+      *((double *) val) = atof(line2);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf((char *) val, "%s", line2);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+  return(i);
+}
+
+/* This function parses one column of a string and returns the index for the start of the next column */
+int parseonedelimchar(char *line, void *val, int vartype, char delim)
+{
+  int i = 0, j = 0, k, test;
+  char line2[MAXLEN];
+  while(line[i] != '\n' && line[i] != '\0')
+    {
+      if(line[i] == delim) {
+	i++;
+	break;
+      }
+      else {
+	line2[j] = line[i];
+	i++;
+	j++;
+      }
+    }
+  line2[j] = '\0';
+  switch(vartype)
+    {
+    case VARTOOLS_TYPE_DOUBLE:
+      *((double *) val) = atof(line2);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf((char *) val, "%s", line2);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+  return(i);
+}
+
 
 void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
 		       char *suffix, char *format, int lc_name_num)
