@@ -21,9 +21,9 @@ added to this program.
 
 3. Citation:
 ------------
-If you use this program, please cite Hartman et al., 2008,
-ApJ, 675, 1254. Also, be sure to cite the relevant sources for the
-algorithms that you use.
+If you use this program, please cite Hartman and Bakos 2016, Astronomy
+and Computing, 17, 1. Also, be sure to cite the relevant sources for
+the algorithms that you use.
 
 4. Documentation on Usage:
 --------------------------
@@ -121,11 +121,11 @@ system.
       cd ${HOME}/src/
 
       wget \
-        http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.34.tar.gz
+        http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.36.tar.gz
 
-      tar -xzvf vartools-1.34.tar.gz
+      tar -xzvf vartools-1.36.tar.gz
 
-      cd vartools-1.34
+      cd vartools-1.36
 
 8. Configure VARTOOLS:
 ----------------------
