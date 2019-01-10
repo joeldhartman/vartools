@@ -48,6 +48,10 @@ gcc -o tfa tfa.c -lm
 #include "programdata.h"
 #include "functions.h"
 
+#ifdef USECFITSIO
+#include "fitsio.h"
+#endif
+
 #define MAXSTRINGLENGTH 2048
 /*#define JDTOL 0.00001*/
 #define DEFAULT_CLIPPING_VALUE 5.0
@@ -178,17 +182,200 @@ void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping)
     }
 }
 
+#ifdef USECFITSIO
+int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_headername, int *JDcol_trend_ptr, int magcol_isfromheader, char *magcol_headername, int *magcol_trend_ptr, char *trendname, int *sizevec, int *lengthvec, double **magin_tmp, double **jdin_tmp, char ***stringid_tmp, int **stringid_tmpidx)
+{
+  fitsfile *infile;
+  int status, hdunum, ncols, hdutype, anynulallcolumns;
+  long nrows;
+  int j, jold, k, i, l, N, oldsizesinglelc, anynul;
+  int JDcol_trend;
+  int magcol_trend;
+  char *nullarray, *nullarraystore;
+  char tmpchar;
+
+
+  int Nc, u;
+
+  *lengthvec = 0;
+
+#ifdef PARALLEL
+  if(p->Nproc_allow > 1) {
+    while(pthread_mutex_trylock(&(p->cfitsio_mutex)));
+  }
+#endif
+
+  hdutype = 0; status = 0; nrows = 0; ncols = 0;
+
+  if((fits_open_file(&infile,trendname,READONLY,&status)))
+    {
+      error2_noexit(ERR_CANNOTOPEN,trendname);
+      return(ERR_CANNOTOPEN);
+    }
+  if(fits_get_hdu_num(infile, &hdunum) == 1)
+    {
+      fits_movabs_hdu(infile, 2, &hdutype, &status);
+    }
+  else
+    fits_get_hdu_type(infile, &hdutype, &status);
+  
+  if(hdutype == IMAGE_HDU) {
+    error2_noexit(ERR_IMAGEHDU,trendname);
+    return(ERR_IMAGEHDU);
+  }
+
+  fits_get_num_rows(infile, &nrows, &status);
+  fits_get_num_cols(infile, &ncols, &status);
+
+  if((nullarray = (char *) calloc(nrows, sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  if((nullarraystore = (char *) calloc(nrows, sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+
+  if(jdcol_isfromheader) {
+    if(fits_get_colnum(infile, 0, jdcol_headername, JDcol_trend_ptr, &status)) {
+      error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, jdcol_headername);
+      return(ERR_MISSING_FITSLC_HEADERNAME);
+    }
+  }
+  JDcol_trend = *JDcol_trend_ptr;
+  if(magcol_isfromheader) {
+    if(fits_get_colnum(infile, 0, magcol_headername, magcol_trend_ptr, &status)) {
+      error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, magcol_headername);
+      return(ERR_MISSING_FITSLC_HEADERNAME);
+    }
+  }
+  magcol_trend = *magcol_trend_ptr;
+
+  /* Increase the memory for the data vectors if needed */
+  if(nrows >= *sizevec) {
+    if(*sizevec == 0) {
+      *sizevec = nrows;
+      if((*magin_tmp = (double *) malloc(*sizevec * sizeof(double))) == NULL)
+	error(ERR_MEMALLOC);
+      if(p->matchstringid) {
+	if((*stringid_tmp = (char **) malloc(*sizevec * sizeof(char *))) == NULL ||
+	   (*stringid_tmpidx = (int *) malloc(*sizevec * sizeof(int))) == NULL)
+	  error(ERR_MEMALLOC);
+	for(j=0;j<*sizevec;j++)
+	  {
+	    if(((*stringid_tmp)[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+      } else {
+	if((*jdin_tmp = (double *) malloc(*sizevec * sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    } else {
+      if((*magin_tmp = (double *) realloc(*magin_tmp, nrows*sizeof(double))) == NULL)
+	error(ERR_MEMALLOC);
+      if(p->matchstringid) {
+	if((*stringid_tmp = (char **) realloc(*stringid_tmp, nrows * sizeof(char *))) == NULL ||
+	   (*stringid_tmpidx = (int *) realloc(*stringid_tmpidx, nrows * sizeof(int))) == NULL)
+	  error(ERR_MEMALLOC);
+	for(j=*sizevec; j<nrows; j++)
+	  {
+	    if(((*stringid_tmp)[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+      } else {
+	if((*jdin_tmp = (double *) realloc(*jdin_tmp, nrows*sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+      *sizevec = nrows;
+    }
+  }
+
+  anynulallcolumns = 0;
+
+  /* Read in the Columns */
+  status = 0;
+  anynul = 0;
+
+  fits_read_colnull(infile, TDOUBLE, magcol_trend, 1, 1, nrows, *magin_tmp, nullarray, &anynul,&status);
+
+  if(p->matchstringid) {
+    for(k=1; k<=nrows && !status; k++) {
+      fits_read_col_str(infile, JDcol_trend, k, 1, 1, 0, &((*stringid_tmp)[k-1]), &anynul, &status);
+      if(anynul)
+	{
+	  nullarray[k-1] = 1;
+	  anynulallcolumns = 1;
+	  anynul = 0;
+	}
+    }
+  } else {
+    fits_read_colnull(infile, TDOUBLE, JDcol_trend, 1, 1, nrows, *jdin_tmp, nullarray, &anynul,&status);
+  }
+  if(anynul) {
+    anynulallcolumns = 1;
+    for(k=0; k < nrows; k++) {
+      nullarraystore[k] = nullarraystore[k] || nullarray[k];
+    }
+  }
+  if(status) {
+    fits_report_error(stderr, status);
+    error(ERR_FITSERROR);
+  }
+  
+  fits_close_file(infile, &status);
+  if(status) {
+    fits_report_error(stderr, status);
+    error(ERR_FITSERROR);
+  }
+  
+#ifdef PARALLEL
+  if(p->Nproc_allow > 1) {
+    pthread_mutex_unlock(&(p->cfitsio_mutex));
+  }
+#endif
+
+  if(anynulallcolumns) {
+    for(i=0,j=0; i < nrows; i++) {
+        if(!nullarraystore[i])
+	{
+	  if(i != j) {
+	    (*magin_tmp)[j] = (*magin_tmp)[i];
+	    if(p->matchstringid) {
+	      sprintf((*stringid_tmp)[j],"%s",(*stringid_tmp)[i]);
+	    } else {
+	      (*jdin_tmp)[j] = (*jdin_tmp)[i];
+	    }
+	  }
+	  j++;
+	}
+    }
+    nrows = j;
+  }
+
+
+  if(p->matchstringid)
+    {
+      for(i=0;i<nrows;i++)
+	(*stringid_tmpidx)[i] = i;
+    }
+  
+  *lengthvec = nrows;
+  
+  free(nullarray);
+  free(nullarraystore);
+  return 0;
+} 
+#endif
+
+
 void initialize_tfa(_TFA *tfa, ProgramData *p)
 {
   FILE *dates, *trendin, *trend_list;
   double *magin_tmp = NULL;
+  double *jdin_tmp = NULL;
   char **stringid_tmp = NULL;
   int *stringid_tmpidx = NULL;
   int lengthtmp, sizetmpvec = 0;
   double jdin, jdin_last, magin;
   char stringidin[MAXIDSTRINGLENGTH];
   void *ptr1, *ptr2;
-  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2;
+  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
   void error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
@@ -334,6 +521,94 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
     {
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
+#ifdef USECFITSIO
+      jj = strlen(tfa->trend_names[i]);
+      ii = jj - 5;
+      if(ii > 0) {
+	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+	  /* This is a fits light curve */
+	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
+	    error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
+	  }
+	  if(!p->matchstringid) {
+	    j = 0;
+	    kk = 0;
+	    jdin_last = 0.;
+	    while(kk < lengthtmp)
+	      {
+		if(!j) {
+		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    {
+		      tfa->trends[j][i] = sqrt(-1);
+		      j++;
+		    }
+		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    {
+		      tfa->trends[j][i] = magin_tmp[kk];
+		      j++;
+		    }
+		}
+		else {
+		  if(jdin_tmp[kk] > jdin_last) {
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = sqrt(-1);
+			j++;
+		      }
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = magin_tmp[kk];
+			j++;
+		      }
+		  }
+		  else {
+		    j = 0;
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = sqrt(-1);
+			j++;
+		      }
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = magin_tmp[kk];
+			j++;
+		      }
+		  }
+		}
+		jdin_last = jdin_tmp[kk];
+		kk++;
+	      }
+	    for(;j < tfa->Njd; j++)
+	      tfa->trends[j][i] = sqrt(-1);
+	  } else {
+	    j = 0;
+	    kk = 0;
+	    jdin_last = 0.;
+	    mysortstringint(lengthtmp, MAXIDSTRINGLENGTH, stringid_tmp, stringid_tmpidx);
+	    j=0;
+	    k=0;
+	    while(k < lengthtmp && j < tfa->Njd)
+	      {
+		while((j < tfa->Njd ? strncmp(stringid_tmp[stringid_tmpidx[k]],tfa->stringid[tfa->stringid_idx[j]],MAXIDSTRINGLENGTH) > 0 : 0))
+		  {
+		    tfa->trends[tfa->stringid_idx[j]][i] = sqrt(-1);
+		    j++;
+		  }
+		if( j < tfa->Njd ? !strncmp(stringid_tmp[stringid_tmpidx[k]],tfa->stringid[tfa->stringid_idx[j]],MAXIDSTRINGLENGTH) : 0)
+		  {
+		    tfa->trends[tfa->stringid_idx[j]][i] = magin_tmp[stringid_tmpidx[k]];
+		    j++;
+		  }
+		k++;
+	      }
+	    for(;j < tfa->Njd; j++)
+	      tfa->trends[tfa->stringid_idx[j]][i] = sqrt(-1);
+	  }
+	  i++;
+	  continue;
+	}
+      }
+#endif
       if((trendin = fopen(trend_name,"r")) == NULL)
 	error2(ERR_FILENOTFOUND,trend_name);
       if(!p->matchstringid)
@@ -551,6 +826,8 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
       fclose(trendin);
       i++;
     }
+  if(jdin_tmp != NULL)
+    free(jdin_tmp);
   if(magin_tmp != NULL)
     free(magin_tmp);
   if(stringid_tmpidx != NULL)
@@ -813,13 +1090,14 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 {
   FILE *dates, *trendin, *trend_list, *listfile;
   double *magin_tmp = NULL;
+  double *jdin_tmp = NULL;
   char **stringid_tmp = NULL;
   int *stringid_tmpidx = NULL;
   int lengthtmp, sizetmpvec = 0;
   char stringidin[MAXIDSTRINGLENGTH];
-  double jdin, magin;
+  double jdin, magin, jdin_last;
   void *ptr1, *ptr2;
-  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2;
+  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
   void error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
@@ -1045,6 +1323,94 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
     {
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
+#ifdef USECFITSIO
+      jj = strlen(tfa->trend_names[i]);
+      ii = jj - 5;
+      if(ii > 0) {
+	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+	  /* This is a fits light curve */
+	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
+	    error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
+	  }
+	  if(!p->matchstringid) {
+	    j = 0;
+	    kk = 0;
+	    jdin_last = 0.;
+	    while(kk < lengthtmp)
+	      {
+		if(!j) {
+		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    {
+		      tfa->trends[j][i] = sqrt(-1);
+		      j++;
+		    }
+		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    {
+		      tfa->trends[j][i] = magin_tmp[kk];
+		      j++;
+		    }
+		}
+		else {
+		  if(jdin_tmp[kk] > jdin_last) {
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = sqrt(-1);
+			j++;
+		      }
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = magin_tmp[kk];
+			j++;
+		      }
+		  }
+		  else {
+		    j = 0;
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = sqrt(-1);
+			j++;
+		      }
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		      {
+			tfa->trends[j][i] = magin_tmp[kk];
+			j++;
+		      }
+		  }
+		}
+		jdin_last = jdin_tmp[kk];
+		kk++;
+	      }
+	    for(;j < tfa->Njd; j++)
+	      tfa->trends[j][i] = sqrt(-1);
+	  } else {
+	    j = 0;
+	    kk = 0;
+	    jdin_last = 0.;
+	    mysortstringint(lengthtmp, MAXIDSTRINGLENGTH, stringid_tmp, stringid_tmpidx);
+	    j=0;
+	    k=0;
+	    while(k < lengthtmp && j < tfa->Njd)
+	      {
+		while((j < tfa->Njd ? strncmp(stringid_tmp[stringid_tmpidx[k]],tfa->stringid[tfa->stringid_idx[j]],MAXIDSTRINGLENGTH) > 0 : 0))
+		  {
+		    tfa->trends[tfa->stringid_idx[j]][i] = sqrt(-1);
+		    j++;
+		  }
+		if( j < tfa->Njd ? !strncmp(stringid_tmp[stringid_tmpidx[k]],tfa->stringid[tfa->stringid_idx[j]],MAXIDSTRINGLENGTH) : 0)
+		  {
+		    tfa->trends[tfa->stringid_idx[j]][i] = magin_tmp[stringid_tmpidx[k]];
+		    j++;
+		  }
+		k++;
+	      }
+	    for(;j < tfa->Njd; j++)
+	      tfa->trends[tfa->stringid_idx[j]][i] = sqrt(-1);
+	  }
+	  i++;
+	  continue;
+	}
+      }
+#endif
       if((trendin = fopen(trend_name,"r")) == NULL)
 	error2(ERR_FILENOTFOUND,trend_name);
       if(!p->matchstringid)
@@ -1233,6 +1599,8 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
     }
   if(magin_tmp != NULL)
     free(magin_tmp);
+  if(jdin_tmp != NULL)
+    free(jdin_tmp);
   if(stringid_tmpidx != NULL)
     free(stringid_tmpidx);
   if(stringid_tmp != NULL)

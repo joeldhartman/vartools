@@ -7636,6 +7636,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA->Nskip_trend = 0;
 	  c[cn].TFA->JDcol_trend = 1;
 	  c[cn].TFA->magcol_trend = 2;
+	  c[cn].TFA->jdcol_isfromheader = 0;
+	  c[cn].TFA->magcol_isfromheader = 0;
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -7646,14 +7648,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
-		  if(i < argc)
-		    c[cn].TFA->JDcol_trend = atoi(argv[i]);
+		  if(i < argc) {
+		    if(isstringint(argv[i])) {
+		      c[cn].TFA->JDcol_trend = atoi(argv[i]);
+		    } else {
+		      sprintf(c[cn].TFA->jdcol_headername,"%s",argv[i]);
+		      c[cn].TFA->jdcol_isfromheader = 1;
+		    }
+		  }
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
-		  if(i < argc)
-		    c[cn].TFA->magcol_trend = atoi(argv[i]);
-		  else
+		  if(i < argc) {
+		    if(isstringint(argv[i])) {
+		      c[cn].TFA->magcol_trend = atoi(argv[i]);
+		    } else {
+		      sprintf(c[cn].TFA->magcol_headername,"%s",argv[i]);
+		      c[cn].TFA->magcol_isfromheader = 1;
+		    }
+		  } else
 		    listcommands(argv[iterm],p);
 		  i++;
 		}
@@ -7747,6 +7760,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA_SR->Nskip_trend = 0;
 	  c[cn].TFA_SR->JDcol_trend = 1;
 	  c[cn].TFA_SR->magcol_trend = 2;
+	  c[cn].TFA_SR->jdcol_isfromheader = 0;
+	  c[cn].TFA_SR->magcol_isfromheader = 0;
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -7757,13 +7772,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
-		  if(i < argc)
-		    c[cn].TFA_SR->JDcol_trend = atoi(argv[i]);
+		  if(i < argc) {
+		    if(isstringint(argv[i])) {
+		      c[cn].TFA_SR->JDcol_trend = atoi(argv[i]);
+		    } else {
+		      sprintf(c[cn].TFA_SR->jdcol_headername,"%s",argv[i]);
+		      c[cn].TFA_SR->jdcol_isfromheader = 1;
+		    }
+		  }
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
-		  if(i < argc)
-		    c[cn].TFA_SR->magcol_trend = atoi(argv[i]);
+		  if(i < argc) {
+		    if(isstringint(argv[i])) {
+		      c[cn].TFA_SR->magcol_trend = atoi(argv[i]);
+		    } else {
+		      sprintf(c[cn].TFA_SR->magcol_headername,"%s",argv[i]);
+		      c[cn].TFA_SR->magcol_isfromheader = 1;
+		    }
+		  }
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;

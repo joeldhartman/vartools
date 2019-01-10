@@ -63,7 +63,7 @@ double get_maxcosi(double e, double omega, double r1, double r2)
 {
   /* This function returns the maximum value of cos(i) that yields transits r1 and r2 are in units of the semi-major axis */
   double v1, v2, v3;
-  v1 = 1. + e*cos(M_PI - omega);
+  v1 = 1. + e*sin(omega);
   v2 = 1. - e*e;
   v3 = r1 + r2;
   return v3*v1/v2;

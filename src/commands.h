@@ -858,6 +858,8 @@ typedef struct {
 
   int Ntrends, Njd, correctlc, ocoeff, omodel, Nskip_trend, JDcol_trend, magcol_trend;
   char trend_list_name[MAXLEN], dates_name[MAXLEN], **trend_names, coeff_outdir[MAXLEN], model_outdir[MAXLEN], coeff_suffix[MAXLEN], model_suffix[MAXLEN];
+  int jdcol_isfromheader, magcol_isfromheader;
+  char jdcol_headername[MAXLEN], magcol_headername[MAXLEN];
 } _TFA;
 
 typedef struct {
@@ -877,6 +879,8 @@ typedef struct {
   int decorr_Nlcterms, Ndecorr, Ntfatot;
   int *decorr_lc_order, *decorr_lc_columns;
   double ***lcdecorr_terms_in;
+  int jdcol_isfromheader, magcol_isfromheader;
+  char jdcol_headername[MAXLEN], magcol_headername[MAXLEN];
 } _TFA_SR;
 
 typedef struct {
