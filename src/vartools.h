@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int VARTOOOLS_ParseParameter(ProgramData *p,
+int VARTOOLS_ParseParameter(ProgramData *p,
 			    Command *c,
 			    int *iret,
 			    char **argv,
@@ -144,3 +144,7 @@ int VARTOOLS_RegisterUserFunction(ProgramData *, char *, int, double (*)(double 
 void VARTOOLS_occultquad(double *z0, double u1, double u2, double p, double *muo1, double *mu0, int nz);
 
 void VARTOOLS_MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
+
+int VARTOOLS_gnu_getline(char **, size_t *, FILE *);
+
+void VARTOOLS_mysortstringint(int, int, char **, int *);

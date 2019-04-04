@@ -166,6 +166,12 @@ macula_la_OBJECTS = $(am_macula_la_OBJECTS)
 macula_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=FC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
 	$(macula_la_LDFLAGS) $(LDFLAGS) -o $@
+ftuneven_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
+am_ftuneven_la_OBJECTS = ftuneven.lo
+ftuneven_la_OBJECTS = $(am_ftuneven_la_OBJECTS)
+ftuneven_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(ftuneven_la_LDFLAGS) $(LDFLAGS) -o $@
 magadd_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
 am_magadd_la_OBJECTS = magadd.lo
 magadd_la_OBJECTS = $(am_magadd_la_OBJECTS)
@@ -252,11 +258,11 @@ am__v_FCLD_1 =
 SOURCES = $(fastchi2_la_SOURCES) $(jktebop_la_SOURCES) \
 	$(nodist_EXTRA_jktebop_la_SOURCES) $(libjktebop_la_SOURCES) \
 	$(libmacula_la_SOURCES) $(macula_la_SOURCES) \
-	$(nodist_EXTRA_macula_la_SOURCES) $(magadd_la_SOURCES) \
+	$(nodist_EXTRA_macula_la_SOURCES) $(ftuneven_la_SOURCES) $(magadd_la_SOURCES) \
 	$(medlc_la_SOURCES) $(transitbisec_la_SOURCES)
 DIST_SOURCES = $(fastchi2_la_SOURCES) $(jktebop_la_SOURCES) \
 	$(libjktebop_la_SOURCES) $(libmacula_la_SOURCES) \
-	$(macula_la_SOURCES) $(magadd_la_SOURCES) $(medlc_la_SOURCES) \
+	$(macula_la_SOURCES) $(ftuneven_la_SOURCES) $(magadd_la_SOURCES) $(medlc_la_SOURCES) \
 	$(transitbisec_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -320,6 +326,7 @@ FGREP = @FGREP@
 FLIBS = @FLIBS@
 GREP = @GREP@
 INCLTDL = @INCLTDL@
+INCLUDECFITSIO = @INCLUDECFITSIO@
 INCLUDECSPICE = @INCLUDECSPICE@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
@@ -450,9 +457,12 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 userlibsdir = $(USERLIBSDIR)
-userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la \
+userlibs_LTLIBRARIES = ftuneven.la magadd.la jktebop.la transitbisec.la macula.la \
 	medlc.la $(am__append_1)
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
+ftuneven_la_SOURCES = ftuneven.c ftuneven.h 
+ftuneven_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+ftuneven_la_LDFLAGS = -module
 magadd_la_SOURCES = magadd.c magadd.h 
 magadd_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
 magadd_la_LDFLAGS = -module
@@ -562,6 +572,9 @@ libmacula.la: $(libmacula_la_OBJECTS) $(libmacula_la_DEPENDENCIES) $(EXTRA_libma
 macula.la: $(macula_la_OBJECTS) $(macula_la_DEPENDENCIES) $(EXTRA_macula_la_DEPENDENCIES) 
 	$(AM_V_FCLD)$(macula_la_LINK) -rpath $(userlibsdir) $(macula_la_OBJECTS) $(macula_la_LIBADD) $(LIBS)
 
+ftuneven.la: $(ftuneven_la_OBJECTS) $(ftuneven_la_DEPENDENCIES) $(EXTRA_ftuneven_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(ftuneven_la_LINK) -rpath $(userlibsdir) $(ftuneven_la_OBJECTS) $(ftuneven_la_LIBADD) $(LIBS)
+
 magadd.la: $(magadd_la_OBJECTS) $(magadd_la_DEPENDENCIES) $(EXTRA_magadd_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(magadd_la_LINK) -rpath $(userlibsdir) $(magadd_la_OBJECTS) $(magadd_la_LIBADD) $(LIBS)
 
@@ -581,6 +594,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jktebop.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/macula_c.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ftuneven.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/magadd.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/medlc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/transitbisec.Plo@am__quote@

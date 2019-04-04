@@ -683,3 +683,21 @@ void VARTOOLS_MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm
 {
   VARTOOLS_FUNCTION_POINTER_STRUCT.memallocdatafromlightcurve(p, threadid, Nterm);
 }
+
+void VARTOOLS_MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.memallocdatafromlightcurvemidprocess(p, threadid, Nterm);
+}
+
+int VARTOOLS_gnu_getline(char **str, size_t *sizeval, FILE *infile)
+{
+  int retval;
+  retval = VARTOOLS_FUNCTION_POINTER_STRUCT.gnu_getline(str, sizeval, infile);
+  return retval;
+}
+
+void VARTOOLS_mysortstringint(int N, int sizestr, char **data1, int *data2)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.mysortstringint(N, sizestr, data1, data2);
+}
+

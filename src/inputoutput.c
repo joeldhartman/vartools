@@ -634,12 +634,12 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 			   char *outname,
 			   int usecolumnformat, int Nvars, 
 			   _Variable **variables,
-			   char **formats, int noclobber)
+			   char **formats, int noclobber, int copyheaderfrominput, int logcommandline)
 {
-  int status = 0, tfields, idx;
+  int status = 0, status2 = 0, tfields, idx, strlenval;
   long nrows;
   char **ttype = NULL, **tform = NULL, **tunit = NULL;
-  fitsfile *outfile;
+  fitsfile *outfile, *input_header_file;
   int i, closefile=1, N, j;
   double *t, *mag, *sig;
   double *outdbl_vec = NULL;
@@ -653,6 +653,8 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   char *fmt;
   double nulldbl;
   float nullflt;
+
+  int *maxlenstringvec = NULL;
 
   nulldbl = (double) sqrt(-1.0);
   nullflt = (float) nulldbl;
@@ -680,6 +682,18 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
     }
   }
 
+  if(p->is_inputlc_fits[lcid] && copyheaderfrominput) {
+    /* Copy the header from the input light curve */
+    if((fits_open_file(&input_header_file,p->lcnames[lcid],READONLY,&status2)))
+      error2(ERR_CANNOTOPEN,p->lcnames[lcid]);
+    fits_movabs_hdu(input_header_file, 1, NULL, &status2);
+    fits_copy_header(input_header_file,outfile,&status);
+    fits_close_file(input_header_file,&status2);
+  }
+
+  if(logcommandline) {
+    fits_write_history(outfile, p->cmdline, &status);
+  }
 
   /* prepare the table for output */
   if(!usecolumnformat) {
@@ -689,7 +703,8 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   }
   if((ttype = (char **) malloc(tfields*sizeof(char *))) == NULL ||
      (tform = (char **) malloc(tfields*sizeof(char *))) == NULL ||
-     (tunit = (char **) malloc(tfields*sizeof(char *))) == NULL)
+     (tunit = (char **) malloc(tfields*sizeof(char *))) == NULL ||
+     (maxlenstringvec = (int *) malloc(tfields*sizeof(int))) == NULL)
     error(ERR_MEMALLOC);
   for(i=0; i < tfields; i++) {
     if((ttype[i] = (char *) malloc(MAXLEN*sizeof(char))) == NULL ||
@@ -710,7 +725,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   }
   else {
     for(j=0; j < Nvars; j++) {
-      sprintf(ttype[i],"%s",variables[j]->varname);
+      sprintf(ttype[j],"%s",variables[j]->varname);
       switch(variables[j]->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
       case VARTOOLS_TYPE_CONVERTJD:
@@ -762,10 +777,35 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  error(ERR_BADTYPE);
 	}
       case VARTOOLS_TYPE_CHAR:
-	sprintf(tform[j],"B");
+	sprintf(tform[j],"A");
 	break;
       case VARTOOLS_TYPE_STRING:
-	sprintf(tform[j],"A");
+	switch(variables[j]->vectortype) {
+	case VARTOOLS_VECTORTYPE_CONSTANT:
+	  maxlenstringvec[j] = strlen(((char **) variables[j]->dataptr)[0]);
+	  break;
+	case VARTOOLS_VECTORTYPE_SCALAR:
+	case VARTOOLS_VECTORTYPE_INLIST:
+	  if(variables[j]->vectortype == VARTOOLS_VECTORTYPE_SCALAR) {
+	    idx = threadid;
+	  } else {
+	    idx = lcid;
+	  }
+	  maxlenstringvec[j] = strlen((((char ***) variables[j]->dataptr)[0])[idx]);
+	  break;
+	case VARTOOLS_VECTORTYPE_LC:
+	  maxlenstringvec[j] = 0;
+	  for(i=0; i < p->NJD[threadid]; i++) {
+	    strlenval = strlen((*((char ****) variables[j]->dataptr))[threadid][i]);
+	    if(strlenval > maxlenstringvec[j]) maxlenstringvec[j] = strlenval;
+	  }
+	  break;
+	default:
+	  maxlenstringvec[j] = 1;
+	  break;
+	}
+	if(maxlenstringvec[j] <= 0) maxlenstringvec[j] = 1;
+	sprintf(tform[j],"%dA",maxlenstringvec[j]);
 	break;
       default:
 	error(ERR_BADTYPE);
@@ -831,7 +871,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outdbl_vec[i] = *((double *) variables[j]->dataptr);
+	    outdbl_vec[i] = ((double *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_colnull(outfile, TDOUBLE, j+1, 1, 1, nrows,
 			     (void *) outdbl_vec, (void *) (&nulldbl),
@@ -845,7 +885,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outfloat_vec[i] = *((float *) variables[j]->dataptr);
+	    outfloat_vec[i] = ((float *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_colnull(outfile, TFLOAT, j+1, 1, 1, nrows,
 			     (void *) outfloat_vec, (void *) (&nullflt),
@@ -859,7 +899,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outint_vec[i] = *((int *) variables[j]->dataptr);
+	    outint_vec[i] = ((int *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_col(outfile, TINT, j+1, 1, 1, nrows,
 			     (void *) outint_vec,
@@ -873,7 +913,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outlong_vec[i] = *((long *) variables[j]->dataptr);
+	    outlong_vec[i] = ((long *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_col(outfile, TLONG, j+1, 1, 1, nrows,
 			     (void *) outlong_vec,
@@ -887,7 +927,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outshort_vec[i] = *((short *) variables[j]->dataptr);
+	    outshort_vec[i] = ((short *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_col(outfile, TSHORT, j+1, 1, 1, nrows,
 			     (void *) outshort_vec,
@@ -901,7 +941,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outchar_vec[i] = *((char *) variables[j]->dataptr);
+	    outchar_vec[i] = ((char *) variables[j]->dataptr)[0];
 	  }
 	  if(fits_write_col(outfile, TBYTE, j+1, 1, 1, nrows,
 			     (void *) outchar_vec,
@@ -910,18 +950,21 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
-	  if(outstring_vec == NULL) {
-	    if((outstring_vec = (char **) malloc(N*sizeof(char *))) == NULL)
+	  if(outstring_vec != NULL) {
+	    for(i=0; i < N; i++)
+	      free(outstring_vec[i]);
+	    free(outstring_vec);
+	  }
+	  if((outstring_vec = (char **) malloc(N*sizeof(char *))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(i=0; i < N; i++) {
+	    if((outstring_vec[i] = (char *) malloc((maxlenstringvec[j]+1))) == NULL)
 	      error(ERR_MEMALLOC);
-	    for(i=0; i < N; i++) {
-	      if((outstring_vec[i] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
-	    }
 	  }
 	  for(i=0; i < N; i++) {
-	    sprintf(outstring_vec[i],"%s",*((char **) variables[j]->dataptr));
+	    sprintf(outstring_vec[i],"%s",((char **) variables[j]->dataptr)[0]);
 	  }
-	  if(fits_write_col(outfile, TSTRING, j+1, 1, 1, nrows,
+	  if(fits_write_col(outfile, TBYTE, j+1, 1, 1, nrows,
 			     (void *) outstring_vec,
 				&status)) {
 	    error(ERR_FITS_WRITECOLUMN);
@@ -946,7 +989,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outdbl_vec[i] = (*((double **) variables[j]->dataptr))[idx];
+	    outdbl_vec[i] = (((double **) variables[j]->dataptr)[0])[idx];
 	  }
 	  if(fits_write_colnull(outfile, TDOUBLE, j+1, 1, 1, nrows,
 			     (void *) outdbl_vec, (void *) (&nulldbl),
@@ -960,7 +1003,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outfloat_vec[i] = (*((float **) variables[j]->dataptr))[idx];
+	    outfloat_vec[i] = (((float **) variables[j]->dataptr)[0])[idx];
 	  }
 	  if(fits_write_colnull(outfile, TFLOAT, j+1, 1, 1, nrows,
 			     (void *) outfloat_vec, (void *) (&nullflt),
@@ -974,7 +1017,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outint_vec[i] = (*((int **) variables[j]->dataptr))[lcid];
+	    outint_vec[i] = (((int **) variables[j]->dataptr)[0])[lcid];
 	  }
 	  if(fits_write_col(outfile, TINT, j+1, 1, 1, nrows,
 			     (void *) outint_vec,
@@ -988,7 +1031,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outlong_vec[i] = (*((long **) variables[j]->dataptr))[idx];
+	    outlong_vec[i] = (((long **) variables[j]->dataptr)[0])[idx];
 	  }
 	  if(fits_write_col(outfile, TLONG, j+1, 1, 1, nrows,
 			     (void *) outlong_vec,
@@ -1002,7 +1045,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outshort_vec[i] = (*((short **) variables[j]->dataptr))[idx];
+	    outshort_vec[i] = (((short **) variables[j]->dataptr)[0])[idx];
 	  }
 	  if(fits_write_col(outfile, TSHORT, j+1, 1, 1, nrows,
 			     (void *) outshort_vec,
@@ -1016,7 +1059,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	      error(ERR_MEMALLOC);
 	  }
 	  for(i=0; i < N; i++) {
-	    outchar_vec[i] = (*((char **) variables[j]->dataptr))[idx];
+	    outchar_vec[i] = (((char **) variables[j]->dataptr)[0])[idx];
 	  }
 	  if(fits_write_col(outfile, TBYTE, j+1, 1, 1, nrows,
 			     (void *) outchar_vec,
@@ -1025,16 +1068,19 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
-	  if(outstring_vec == NULL) {
-	    if((outstring_vec = (char **) malloc(N*sizeof(char *))) == NULL)
+	  if(outstring_vec != NULL) {
+	    for(i=0; i < N; i++)
+	      free(outstring_vec[i]);
+	    free(outstring_vec);
+	  }
+	  if((outstring_vec = (char **) malloc(N*sizeof(char *))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(i=0; i < N; i++) {
+	    if((outstring_vec[i] = (char *) malloc((maxlenstringvec[j]+1))) == NULL)
 	      error(ERR_MEMALLOC);
-	    for(i=0; i < N; i++) {
-	      if((outstring_vec[i] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
-	    }
 	  }
 	  for(i=0; i < N; i++) {
-	    sprintf(outstring_vec[i],"%s",(*((char ***) variables[j]->dataptr))[idx]);
+	    sprintf(outstring_vec[i],"%s",(((char ***) variables[j]->dataptr)[0])[idx]);
 	  }
 	  if(fits_write_col(outfile, TSTRING, j+1, 1, 1, nrows,
 			     (void *) outstring_vec,
@@ -1094,8 +1140,22 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
+	  if(outstring_vec != NULL) {
+	    for(i=0; i < N; i++)
+	      free(outstring_vec[i]);
+	    free(outstring_vec);
+	  }
+	  if((outstring_vec = (char **) malloc(N*sizeof(char *))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(i=0; i < N; i++) {
+	    if((outstring_vec[i] = (char *) malloc((maxlenstringvec[j]+1))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	  for(i=0; i < N; i++) {
+	    sprintf(outstring_vec[i],"%s",(*((char ****) variables[j]->dataptr))[threadid][i]);
+	  }
 	  if(fits_write_col(outfile, TSTRING, j+1, 1, 1, nrows,
-				(void *) (*((char ****) variables[j]->dataptr))[threadid], 
+			     (void *) outstring_vec,
 				&status)) {
 	    error(ERR_FITS_WRITECOLUMN);
 	  }
@@ -1128,6 +1188,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   if(ttype != NULL) free(ttype);
   if(tform != NULL) free(tform);
   if(tunit != NULL) free(tunit);
+  if(maxlenstringvec != NULL) free(maxlenstringvec);
   if(outdbl_vec != NULL) free(outdbl_vec);
   if(outfloat_vec != NULL) free(outfloat_vec);
   if(outint_vec != NULL) free(outint_vec);
@@ -1145,7 +1206,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 		      int usecolumnformat, int Nvars, _Variable **variables,
-		      char **formats, int noclobber, char sepchar)
+		      char **formats, int noclobber, char sepchar, int logcommandline)
 {
   FILE *out;
   int i, closefile=1, N, j, idx;
@@ -1189,6 +1250,10 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 	error2(ERR_FILEEXISTS_NOCLOBBER, outname);
       }
     }
+  }
+
+  if(logcommandline) {
+    fprintf(out,"#%s\n",p->cmdline);
   }
 
   if(!usecolumnformat) {
@@ -1518,17 +1583,19 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	if(i4 > 5 ? !strcmp(&(outname[i4-5]),".fits") : 0) {
 	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
 				c->Nvar, c->variables, c->printfformats,
-				c->noclobber);
+				c->noclobber, c->copyheaderfrominput,
+				c->logcommandline);
 	} else {
 	  sprintf(outname,"%s.fits",outname);
 	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
 				c->Nvar, c->variables, c->printfformats,
-				c->noclobber);
+				c->noclobber, c->copyheaderfrominput,
+				c->logcommandline);
 	}
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar);
+	writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline);
     }
   else if(p->fileflag && !p->Ncopycommands)
     {
@@ -1537,15 +1604,15 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	/* Check if the name has .fits at the end, if not, append it */
 	i4 = strlen(c->outdir);
 	if(i4 > 5 ? !strcmp(&(c->outdir[i4-5]),".fits") : 0) {
-	  write_fits_lightcurve(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber);
+	  write_fits_lightcurve(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline);
 	} else {
 	  sprintf(outname,"%s.fits",c->outdir);
-	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber);
+	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline);
 	}
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar);
+	writelightcurves(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline);
     }
 }
 

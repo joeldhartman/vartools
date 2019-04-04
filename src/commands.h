@@ -167,8 +167,9 @@
 #define CNUM_HARMONICFILTER 52
 #define CNUM_PYTHON 53
 #define CNUM_RESTORETIMES 54
+#define CNUM_FFT 55
 
-#define TOT_CNUMS 54
+#define TOT_CNUMS 55
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -899,6 +900,8 @@ typedef struct {
   char columnformat[MAXLEN];
   int Nvar;
   int outfits;
+  int copyheaderfrominput;
+  int logcommandline;
   int noclobber;
   _Variable **variables;
   char **printfformats;
@@ -1256,6 +1259,18 @@ typedef struct {
   double **statsout;
   double *pctval;
 } _Stats;
+
+typedef struct {
+  int isforward;
+  char *inputvarname_real;
+  _Variable *inputvar_real;
+  char *inputvarname_imag;
+  _Variable *inputvar_imag;
+  char *outputvarname_real;
+  _Variable *outputvar_real;
+  char *outputvarname_imag;
+  _Variable *outputvar_imag;
+} _FFT;
 
 #define VARTOOLS_IFTYPE_IF 0
 #define VARTOOLS_IFTYPE_ELIF 1
@@ -1618,6 +1633,7 @@ typedef struct {
   _Stitch *Stitch;
   _HarmonicFilter *HarmonicFilter;
   _PythonCommand *PythonCommand;
+  _FFT *FFT;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

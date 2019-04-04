@@ -62,7 +62,7 @@ void ProcessCommandSingle(ProgramData *, Command *, int, int, int);
 void ProcessCommandAll(ProgramData *, Command *, int);
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname, 
 		      int usecolumnformat, int Nvars, _Variable **variables, 
-		      char **formats, int noclobber, char sepchar);
+		      char **formats, int noclobber, char sepchar, int logcommandline);
 void ReadGlobalDecorr(ProgramData *, Command *);
 void DetermineColumns(ProgramData *, Command *);
 void Filldecorr_matrix(ProgramData *, Command *, int);
@@ -355,3 +355,5 @@ void KillAllPythonProcesses(ProgramData *p, Command *allcommands);
 #endif
 void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, int rthreadid);
 long randlong(long);
+void RunFFTCommand(ProgramData *p, int lcindex, int threadindex, _FFT *f);
+int ParseFFTCommand(int *iret, int argc, char **argv, ProgramData *p, _FFT *f);

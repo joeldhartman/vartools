@@ -1,10 +1,14 @@
 example_files = \
  EXAMPLES/3.gz \
  EXAMPLES/1.gz \
+ EXAMPLES/trendlist_tfa_fits \
  EXAMPLES/7.gz \
  EXAMPLES/8.gz \
+ EXAMPLES/6.fits \
+ EXAMPLES/lc_list_tfa_fits \
  EXAMPLES/2 \
  EXAMPLES/1.png \
+ EXAMPLES/5.fits \
  EXAMPLES/OUTDIR1/8.wwz.fits \
  EXAMPLES/OUTDIR1/3.ls \
  EXAMPLES/OUTDIR1/2.wwz \
@@ -128,14 +132,18 @@ example_files = \
  EXAMPLES/OUTDIR1/1.bls.model \
  EXAMPLES/OUTDIR1/10.bls.phcurve \
  EXAMPLES/9 \
+ EXAMPLES/7.fits \
  EXAMPLES/3 \
  EXAMPLES/4.gz \
  EXAMPLES/9.png \
  EXAMPLES/lc_list_tfa_sr_bin \
  EXAMPLES/4 \
  EXAMPLES/2.testblend \
+ EXAMPLES/8.fits \
+ EXAMPLES/9.fits \
  EXAMPLES/2.png \
  EXAMPLES/lc_list_tfa_sr_harm \
+ EXAMPLES/10.fits \
  EXAMPLES/5.png \
  EXAMPLES/10.png \
  EXAMPLES/2.resample.example2 \
@@ -159,6 +167,7 @@ example_files = \
  EXAMPLES/lc_list_testblend \
  EXAMPLES/trendlist_tfa \
  EXAMPLES/lc_list \
+ EXAMPLES/4.fits \
  EXAMPLES/lc_list_gz \
  EXAMPLES/1 \
  EXAMPLES/5.gz \
@@ -172,5 +181,6 @@ example_files = \
  EXAMPLES/lc_list_tfa_sr_decorr \
  EXAMPLES/6 \
  EXAMPLES/7.png \
+ EXAMPLES/3.transit.fits \
  EXAMPLES/6.gz \
  EXAMPLES/3.starspot

@@ -445,6 +445,60 @@ void example(char *c, ProgramData *p)
 		    "In this example we use the -expr command to convert the magnitudes in a light curve to fluxes. We then use -stats to compute the median flux, and the second -expr command to normalize the flux by its median value. The final call to stats then calculates the median and standard deviations of the magnitudes and fluxes.\n");
       commandfound = 1;
     }
+  if(!strcmp(c,"-FFT") || !strcmp(c,"-IFFT"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/11 \\\n");
+      printtostring(&s,
+		    "\t-FFT mag NULL fftreal fftimag \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-expr \\\n");
+      printtostring(&s,
+		    "\t  'fftreal=(NR>(Npoints_1/500.0))*(NR<(Npoints_1*499.0/500.0))*fftreal' \\\n");
+      printtostring(&s,
+		    "\t-expr \\\n");
+      printtostring(&s,
+		    "\t  'fftimag=(NR>(Npoints_1/500.0))*(NR<(Npoints_1*499.0/500.0))*fftimag' \\\n");
+      printtostring(&s,
+		    "\t-IFFT fftreal fftimag mag_filter NULL \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/11.highpassfftfilter columnformat t,mag_filter \n\n");
+      printtostring(&s,
+		    "Example of using the -FFT and -IFFT commands to perform a high-pass Fourier-Filtering of a uniformly sampled time-series. The file EXAMPLES/11 is an idealized light curve containing 100,000 points at a uniform time-sampling of 0.001 days. The light curve is noise-free and contains the sum of two sinusoid signals, one with a period of 2.123456789 days and a semi-amplitude of 1.0, and the other with a period of 0.234567 days and a semi-amplitude of 0.4. This light curve is read into VARTOOLS, the -FFT command is called to calculate the Fourier transform of the 'mag' variable (assuming no imaginary component) and storing the real and imaginary components of the output transform in the fftreal and fftimag variables, respectively. The -rms command is used to determine the number of points in the time-series (stored in the variable Npoints_1 in this instance), and then the -expr commands are used to set the terms of the transform at frequencies |f|< 1.0/(500*0.001) to zero. The inverse transform is then applied to the filtered fftreal and fftimag variables, with the real output being stored in mag_filter and the imaginary output being ignored. The resulting high-pass filtered light curve is then output to the file EXAMPLES/11.highpassfftfilter.\n");
+      printtostring(&s,
+		    "\nExample 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 \\\n");
+      printtostring(&s,
+		    "\t-resample splinemonotonic gaps percentile_sep 80 bspline \\\n");
+      printtostring(&s,
+		    "\t-FFT mag NULL fftreal fftimag \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-expr 'fftreal=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftreal' \\\n");
+      printtostring(&s,
+		    "\t-expr 'fftimag=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftimag' \\\n");
+      printtostring(&s,
+		    "\t-IFFT fftreal fftimag mag_filter NULL \\\n");
+      printtostring(&s,
+		    "\t-resample linear file fix EXAMPLES/2 column 1 \\\n");
+      printtostring(&s,
+		    "\t-expr 'mag_filter=mag_filter+Mean_Mag_2' \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/2.fftfilter columnformat t,mag_filter,mag \n\n");
+      printtostring(&s,
+		    "Similar to Example 1, here we apply the transform, filter, and inverse transform to a light curve with noise and non-uniform time-sampling. The -resample commands in this case are used to sample the light curve onto a uniform time-grid, and then to resample it back onto the original time-grid after applying the inverse transform. The filtering is much less effective in this non-idealized case where the original light curve has highly non-uniform sampling characteristic of single-site ground-based data obtained over multiple nights.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-findblends",11) && strlen(c) == 11)
     {
       printtostring(&s,

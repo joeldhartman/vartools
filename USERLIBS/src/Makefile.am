@@ -1,10 +1,14 @@
 userlibsdir = $(USERLIBSDIR)
-userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la medlc.la
+userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la medlc.la ftuneven.la
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
 
 if HAVE_GSL
 userlibs_LTLIBRARIES += fastchi2.la 
 endif
+
+ftuneven_la_SOURCES = ftuneven.c ftuneven.h 
+ftuneven_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+ftuneven_la_LDFLAGS = -module
 
 magadd_la_SOURCES = magadd.c magadd.h 
 magadd_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la

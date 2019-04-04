@@ -1123,6 +1123,12 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	  default:
 	    error(ERR_CODEERROR);
 	  }
+
+	  if(is_mag_vec && interp_mode == VARTOOLS_RESAMPLE_MULTIPLE) continue;
+
+#ifdef _HAVE_GSL
+	  if(is_mag_vec && interp_mode == VARTOOLS_RESAMPLE_BSPLINE) continue;
+#endif
 	  /* Copy the data from vec_out back to the light curve array */
 	  if(Nc == 0) {
 	    switch(d->datatype) {

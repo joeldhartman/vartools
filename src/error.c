@@ -212,6 +212,9 @@ void error(int errflag)
     case ERR_NEEDCSPICE:
       fprintf(stderr,"Error: To perform BJD and/or UTC/TDB time conversion you need to recompile VARTOOLS against the NASA CSPICE library.\n");
       exit(ERR_NEEDCSPICE);
+    case ERR_BADVARIABLETYPE_FFTCOMMAND:
+      fprintf(stderr,"Error: the -FFT and -IFFT commands can only be used on light curve type vectors.\n");
+      exit(ERR_BADVARIABLETYPE_FFTCOMMAND);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);

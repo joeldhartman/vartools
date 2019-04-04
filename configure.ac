@@ -59,13 +59,41 @@ AC_CHECK_LIB([m], [sqrt])
 
 # Checks for libraries.
 AC_ARG_WITH([cfitsio], 
-  [AS_HELP_STRING([--with-cfitsio],
-    [support input and output of fits files @<:@default=check@:>@])],
-  [],
+  [AS_HELP_STRING([--with-cfitsio=PATH],
+    [prefix directory for the cfitsio library package. Equivalent to --with-cfitsio-include=PATH --with-cfitsio-lib=PATH/libcfitsio.a])],
+  [cfitsio_include_path_string=${with_cfitsio}
+   cfitsio_lib_path_string=${with_cfitsio}/libcfitsio.a],
   [with_cfitsio=check])
 
+AC_ARG_WITH([cfitsio-include], 
+  [AS_HELP_STRING([--with-cfitsio-include=PATH],
+    [PATH to the fitsio include file])],
+  [if test "x$with_cfitsio_include" != xno ; then
+      cfitsio_include_path_string=$with_cfitsio_include ;
+   fi],
+  [])
+
+AC_ARG_WITH([cfitsio-lib], 
+  [AS_HELP_STRING([--with-cfitsio-lib=PATH],
+    [Full PATH to the libcfitsio.a library file])],
+  [if test "x$with_cfitsio_lib" != xno ; then
+      cfitsio_lib_path_string=$with_cfitsio_lib ; 
+   fi],
+  [])
+
 LIBCFITSIO=
-AS_IF([test "x$with_cfitsio" != xno],
+INCLUDECFITSIO=
+AS_IF([test "x$cfitsio_include_path_string" != x && test "x$cfitsio_lib_path_string" != x],
+  [AS_IF([test -f "${cfitsio_include_path_string}/fitsio.h" && test -f "$cfitsio_lib_path_string"],
+       [AC_SUBST([LIBCFITSIO],"$cfitsio_lib_path_string")
+        AC_SUBST([INCLUDECFITSIO],"-I ${cfitsio_include_path_string}")
+        AC_DEFINE([HAVE_CFITSIO], [1],
+                  [Define if you have libcfitsio.a])
+       ],
+       AC_MSG_WARN([Did not find fitsio.h in directory "${cfitsio_include_path_string}" or did not find file "$cfitsio_lib_path_string"]))],[])
+
+
+AS_IF([test "x$cfitsio_include_path_string" = x && test "x$cfitsio_lib_path_string" = x && test "x$with_cfitsio" = xcheck],
   [AC_CHECK_LIB([cfitsio], [fits_init_cfitsio],
     [AC_SUBST([LIBCFITSIO], ["-lcfitsio"])
      AC_DEFINE([HAVE_CFITSIO], [1],
@@ -75,7 +103,7 @@ AS_IF([test "x$with_cfitsio" != xno],
        AC_MSG_FAILURE(
          [--with-cfitsio was given, but test for cfitsio failed])
      fi
-    ])])
+    ])],[])
 
 
 #AC_SEARCH_LIBS([dlopen], [dl dld], 

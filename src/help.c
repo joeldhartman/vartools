@@ -269,6 +269,13 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-expr var\"=\"expression\n");
       commandfound = 1;
     }
+#ifdef _HAVE_GSL
+  if(c == NULL || !strcmp(c,"-FFT"))
+    {
+      printtostring(s,"-FFT input_real_var input_imag_var output_real_var output_imag_var\n");
+      commandfound = 1;
+    }
+#endif
   if(c == NULL || (!strncmp(c,"-findblends",11) && strlen(c) == 11))
     {
       printtostring(s,"-findblends matchrad [\"radec\"]\n");
@@ -301,6 +308,13 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t-fi\n");
       commandfound=1;
     }
+#ifdef _HAVE_GSL
+  if(c == NULL || !strcmp(c,"-IFFT"))
+    {
+      printtostring(s,"-IFFT input_real_var input_imag_var output_real_var output_imag_var\n");
+      commandfound = 1;
+    }
+#endif
   if(c == NULL || (!strncmp(c,"-Injectharm",11) && strlen(c) == 11))
     {
       printtostring(s,"-Injectharm <\"list\" [\"column\" col] | \"fix\" per\n");
@@ -497,7 +511,8 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     {
       printtostring(s,"-o <outdir | outname> [\"nameformat\" formatstring]\n");
       printtostring(s,"\t[\"columnformat\" formatstring] [\"delimiter\" delimchar]\n");
-      printtostring(s,"\t[\"fits\"] [\"noclobber\"]\n");
+      printtostring(s,"\t[\"fits\"] [\"copyheader\"] [\"logcommandline\"]\n");
+      printtostring(s,"\t[\"noclobber\"]\n");
       commandfound = 1;
     }
   if(c == NULL || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))
@@ -809,6 +824,7 @@ void usage(char *argv)
 
 void help(char *c, ProgramData *p)
 {
+  int CheckIfUserCommandHelpIsCalled(ProgramData *p, int all, char *argv);
   int commandfound = 0;
   int i, all;
   OutText s;
@@ -1206,6 +1222,26 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Evaluate an analytic expression. The argument to this command is an equality, with the left-hand-side being the name of a variable to update, and the right-hand-side being an analytic expression. See \"vartools -functionlist\" for the allowed syntax. If the variable on the left-hand-side has not previously been defined, it will be created as a light-curve vector. Note that variables which appear on the right-hand-side can be the name of a vector which is read-in from the light curve and set using the -inputlcformat option, a scalar or vector created by another command (e.g. the fitting parameters, or the output model vector, created by the -linfit command), or any output parameter from a previously executed command (these latter variables have the names of the output columns which can be found by running vartools with the -headeronly command. Note that any leading numbers or '_' characters are removed; also any character that is not a digit, a letter, or a '_' in the header name will be replaced with a '_' in its variable name equivalent. For example if the header name is '2_STATS_mag_PCT20.00_0' its variable name would be 'STATS_mag_PCT20_00_0', where the leading '2_' is removed, and the '.' is replaced with a '_'). The left-hand-side of the equality cannot be a variable associated with an output column.\n\nUse square brackets '[]' after the variable name on the left-hand-side to update only a subset of the components of the vector. Within the square brackets you can either specify a single index value (indexed starting from 0), an expression that evaluates to a single index value, a range of indices (using a ':' to distinguish between the first index and the last index to operate on) or an expression that evaluates to a vector, in which case only components where the resulting vector has a value > 0 will be updated. Examples of each of these are as follows:\n\n1: '-expr mag[0]=5.0' would set the magnitude value for the first observation in the light curve to 5.0, and would not affect any of the other components in the light curve.\n\n2: '-expr mag[i+2]=5.0' would set the magnitude value for the observation indexed by 'i+2' (if 'i' is a scalar variable, if it is a light curve vector it would be treated as in example 8 below) to 5.0.\n\n3: '-expr mag[len(mag)-2]=5.0' would set the magnitude value for the second to last observation to 5.0. Note that len(mag) returns the length of the magnitude vector, and due to indexing from zero, len(mag)-1 is the index of the last point in the vector.\n\n4: '-expr mag[0:2]=5.0' would set the magnitude values for the first and second observations in the light curve to 5 (note that here we follow the python convention where the upper index in the range is not itself included, so mag[0:2] corresponds to mag[0] and mag[1]).\n\n5: '-expr mag[:5]=5.0' would set the magnitude values for the first five observations in the light curve to 5.\n\n6: '-expr mag[5:]=5.0' would set the magnitude values for all but the first five observations to 5.0.\n\n7: '-expr mag[(t>25.0)&&(t<30.0)]=5.0' would set the magnitude values for any points with 25 < t < 30.0 to 5.0.\n\n8: '-expr mag[t-25.0]=5.0' would set the magnitude values for any points with t > 25 to 5.0.\n\n");
       commandfound = 1;
     }
+#ifdef _HAVE_GSL
+  if(all == 1 || !strcmp(c,"-FFT"))
+    {
+      listcommands_noexit("-FFT",p,&s);
+      printtostring(&s,"Compute the Fast Fourier Transform on a vector. The names of existing light curve variables to use as the real and imaginary components of the vector to transform should be given for input_real_var and input_imag_var, respectively. If the term \"NULL\" is used for either of these variables, then a vector of zeros will be used in its place. The real and imaginary components of the output inverse transform will be stored in the light curve variables given by output_real_var and output_imag_var, respectively. If either term is \"NULL\" then that component will not be saved. This command uses the GNU Scientific libary function gsl_fft_complex_forward() to perform the transform.\n\n");
+      printtostring(&s,"Note that, following the GNU Scientific Library convention, the data in the input (time-domain) vectors z and the output (frequency-domain) vectors x = FFT(z) have the following layout, where Delta is the assumed time-step between subsequent points in the time-series:\n");
+      printtostring(&s,"index    z               x = FFT(z)\n"
+"0        z(t = 0)        x(f = 0)\n"
+"1        z(t = 1)        x(f = 1/(N Delta))\n"
+"2        z(t = 2)        x(f = 2/(N Delta))\n"
+".        ........        ..................\n"
+"N/2      z(t = N/2)      x(f = +1/(2 Delta),-1/(2 Delta))\n"
+".        ........        ..................\n"
+"N-3      z(t = N-3)      x(f = -3/(N Delta))\n"
+"N-2      z(t = N-2)      x(f = -2/(N Delta))\n"
+"N-1      z(t = N-1)      x(f = -1/(N Delta))\n");
+	printtostring(&s,"\nWhen N is even the location N/2 contains the most positive and negative frequencies +1/(2 Delta), -1/(2 Delta). If N is odd then the structure of the table still applies, but N/2 does not appear.\n\n");
+      commandfound = 1;
+    }
+#endif
   if(all == 1 || (!strncmp(c,"-findblends",11) && strlen(c) == 11))
     {
       listcommands_noexit("-findblends",p,&s);
@@ -1230,6 +1266,27 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Make execution of commands conditional upon the evaluation of an expression. If the expression evaluates as 0 the commands following \"-if <expression>\" and preceding the next \"-elif\", \"-else\" or \"-fi\" statement will not be executed, if it evaluates as a number different from 0 when cast to an integer the commands will be executed. The \"-elif <expression>\" and \"-else\" constructs may also be used to provide a set of commands to be executed in case the expressions associated with previous \"-if\" and \"-elif\" statements have not yet evaluated as true. The construct may be terminated with the \"-fi\" statement. Nested \"-if\", \"-elif\", \"-else\", \"-fi\" constructs are allowed. Any conditional constructs that are not explicitely terminated with \"-fi\" are assumed to be terminated after the last command given on the command-line. CAUTION: conditional constructs are ignored by commands which process all light curves simultaneously (e.g. -SYSREM or -findblends) as well as by the -savelc and -restorelc commands.\n\n");
       commandfound = 1;
     }
+#ifdef _HAVE_GSL
+  if(all == 1 || !strcmp(c,"-IFFT"))
+    {
+      listcommands_noexit("-IFFT",p,&s);
+      printtostring(&s,"Compute the inverse Fast Fourier Transform on a vector. The names of existing light curve variables to use as the real and imaginary components of the vector to transform should be given for input_real_var and input_imag_var, respectively. If the term \"NULL\" is used for either of these variables, then a vector of zeros will be used in its place. The real and imaginary components of the output inverse transform will be stored in the light curve variables given by output_real_var and output_imag_var, respectively. If either term is \"NULL\" then that component will not be saved. This command uses the GNU Scientific libary function gsl_fft_complex_inverse() to perform the transform.\n\n");
+      printtostring(&s,"Note that, following the GNU Scientific Library convention, the data in the input (frequency-domain) vectors x and the output (time-domain) vectors z = IFFT(x) have the following layout, where Delta is the assumed time-step between subsequent points in the time-series:\n");
+      printtostring(&s,"index    z               x = FFT(z)\n"
+"0        z(t = 0)        x(f = 0)\n"
+"1        z(t = 1)        x(f = 1/(N Delta))\n"
+"2        z(t = 2)        x(f = 2/(N Delta))\n"
+".        ........        ..................\n"
+"N/2      z(t = N/2)      x(f = +1/(2 Delta),-1/(2 Delta))\n"
+".        ........        ..................\n"
+"N-3      z(t = N-3)      x(f = -3/(N Delta))\n"
+"N-2      z(t = N-2)      x(f = -2/(N Delta))\n"
+"N-1      z(t = N-1)      x(f = -1/(N Delta))\n");
+	printtostring(&s,"\nWhen N is even the location N/2 contains the most positive and negative frequencies +1/(2 Delta), -1/(2 Delta). If N is odd then the structure of the table still applies, but N/2 does not appear.\n\n");
+      commandfound = 1;
+      commandfound = 1;
+    }
+#endif
   if(all == 1 || (!strncmp(c,"-Injectharm",11) && strlen(c) == 11))
     {
       listcommands_noexit("-Injectharm",p,&s);
@@ -1322,7 +1379,7 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-o",p,&s);
 
-      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve. You can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/file2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/file2.lc\" to \"./directory/file2.lc00002.txt\". If a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
+      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve. You can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/file2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/file2.lc\" to \"./directory/file2.lc00002.txt\". If a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. Give the keyword \"copyheader\" to copy the primary header from the input light curve (if it was a fits format light curve) to the output fits light curve. Give the keyword \"logcommandline\" to log the vartools command line to the file header. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
       commandfound = 1;
     }
   if(all == 1 || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))
@@ -1459,6 +1516,9 @@ void help(char *c, ProgramData *p)
 	fprintf(stderr,s.s);
     }
 #ifdef DYNAMICLIB
+    if(CheckIfUserCommandHelpIsCalled(p, all, c))
+      commandfound = 1;
+    /*
     for(i=0; i < p->NUserLib; i++) {
       if(all == 1 || (!strcmp(c,p->UserLib[i].commandname)))
 	{
@@ -1476,7 +1536,8 @@ void help(char *c, ProgramData *p)
 	  }
 	  commandfound = 1;
 	}
-    }
+    }*/
+      
 #endif
   if(s.s != NULL)
     free(s.s);

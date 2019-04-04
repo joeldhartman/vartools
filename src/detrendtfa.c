@@ -186,7 +186,7 @@ void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping)
 int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_headername, int *JDcol_trend_ptr, int magcol_isfromheader, char *magcol_headername, int *magcol_trend_ptr, char *trendname, int *sizevec, int *lengthvec, double **magin_tmp, double **jdin_tmp, char ***stringid_tmp, int **stringid_tmpidx)
 {
   fitsfile *infile;
-  int status, hdunum, ncols, hdutype, anynulallcolumns;
+  int status = 0, hdunum, ncols, hdutype, anynulallcolumns;
   long nrows;
   int j, jold, k, i, l, N, oldsizesinglelc, anynul;
   int JDcol_trend;
@@ -233,14 +233,16 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
     error(ERR_MEMALLOC);
 
   if(jdcol_isfromheader) {
-    if(fits_get_colnum(infile, 0, jdcol_headername, JDcol_trend_ptr, &status)) {
+    fits_get_colnum(infile, 0, jdcol_headername, JDcol_trend_ptr, &status);
+    if(status == COL_NOT_FOUND) {
       error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, jdcol_headername);
       return(ERR_MISSING_FITSLC_HEADERNAME);
     }
   }
   JDcol_trend = *JDcol_trend_ptr;
   if(magcol_isfromheader) {
-    if(fits_get_colnum(infile, 0, magcol_headername, magcol_trend_ptr, &status)) {
+    fits_get_colnum(infile, 0, magcol_headername, magcol_trend_ptr, &status);
+    if(status == COL_NOT_FOUND) {
       error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, magcol_headername);
       return(ERR_MISSING_FITSLC_HEADERNAME);
     }

@@ -234,7 +234,7 @@ void WriteFitsImage_WWZ(char *outname, double f0, double df, int Nf,
 			double **ya, double *WWZ_out, double *WWA_out,
 			double *neff_out) {
   fitsfile *fptr;
-  int status, ii, jj, k;
+  int status = 0, ii, jj, k;
   long fpixel, nelements, exposure;
   int bitpix = DOUBLE_IMG;
   int Nextension = 6;

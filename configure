@@ -722,6 +722,7 @@ LIBPTHREAD
 HAVE_GSL_FALSE
 HAVE_GSL_TRUE
 LIBGSL
+INCLUDECFITSIO
 LIBCFITSIO
 FLIBS
 ac_ct_F77
@@ -886,6 +887,8 @@ with_ltdl_include
 with_ltdl_lib
 enable_ltdl_install
 with_cfitsio
+with_cfitsio_include
+with_cfitsio_lib
 with_gsl
 with_cspice
 with_cspice_include
@@ -1568,8 +1571,12 @@ Optional Packages:
   --with-included-ltdl    use the GNU ltdl sources included here
   --with-ltdl-include=DIR use the ltdl headers installed in DIR
   --with-ltdl-lib=DIR     use the libltdl.la installed in DIR
-  --with-cfitsio          support input and output of fits files
-                          [default=check]
+  --with-cfitsio=PATH     prefix directory for the cfitsio library package.
+                          Equivalent to --with-cfitsio-include=PATH
+                          --with-cfitsio-lib=PATH/libcfitsio.a
+  --with-cfitsio-include=PATH
+                          PATH to the fitsio include file
+  --with-cfitsio-lib=PATH Full PATH to the libcfitsio.a library file
   --with-gsl              support commands using GNU Scientific Library
                           Functions [default=check]
   --with-cspice=PATH      prefix directory for the cspice library package.
@@ -21575,14 +21582,51 @@ fi
 
 # Check whether --with-cfitsio was given.
 if test "${with_cfitsio+set}" = set; then :
-  withval=$with_cfitsio;
+  withval=$with_cfitsio; cfitsio_include_path_string=${with_cfitsio}
+   cfitsio_lib_path_string=${with_cfitsio}/libcfitsio.a
 else
   with_cfitsio=check
 fi
 
 
+
+# Check whether --with-cfitsio-include was given.
+if test "${with_cfitsio_include+set}" = set; then :
+  withval=$with_cfitsio_include; if test "x$with_cfitsio_include" != xno ; then
+      cfitsio_include_path_string=$with_cfitsio_include ;
+   fi
+fi
+
+
+
+# Check whether --with-cfitsio-lib was given.
+if test "${with_cfitsio_lib+set}" = set; then :
+  withval=$with_cfitsio_lib; if test "x$with_cfitsio_lib" != xno ; then
+      cfitsio_lib_path_string=$with_cfitsio_lib ;
+   fi
+fi
+
+
 LIBCFITSIO=
-if test "x$with_cfitsio" != xno; then :
+INCLUDECFITSIO=
+if test "x$cfitsio_include_path_string" != x && test "x$cfitsio_lib_path_string" != x; then :
+  if test -f "${cfitsio_include_path_string}/fitsio.h" && test -f "$cfitsio_lib_path_string"; then :
+  LIBCFITSIO="$cfitsio_lib_path_string"
+
+        INCLUDECFITSIO="-I ${cfitsio_include_path_string}"
+
+
+$as_echo "#define HAVE_CFITSIO 1" >>confdefs.h
+
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Did not find fitsio.h in directory \"${cfitsio_include_path_string}\" or did not find file \"$cfitsio_lib_path_string\"" >&5
+$as_echo "$as_me: WARNING: Did not find fitsio.h in directory \"${cfitsio_include_path_string}\" or did not find file \"$cfitsio_lib_path_string\"" >&2;}
+fi
+fi
+
+
+if test "x$cfitsio_include_path_string" = x && test "x$cfitsio_lib_path_string" = x && test "x$with_cfitsio" = xcheck; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for fits_init_cfitsio in -lcfitsio" >&5
 $as_echo_n "checking for fits_init_cfitsio in -lcfitsio... " >&6; }
 if ${ac_cv_lib_cfitsio_fits_init_cfitsio+:} false; then :

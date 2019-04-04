@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 
   FILE *outfile;
 
-  int i, j, k;
+  int i, j, k, kk;
 
   int cnum_start, readlc_retval;
 
@@ -205,6 +205,7 @@ int main(int argc, char **argv)
   p.size_colcommandvec = -1;
   p.showversion = 0;
   p.logcmd = 0;
+  p.storecmd = 0;
   p.skipmissing = 0;
   p.skipempty = 1;
 
@@ -333,7 +334,48 @@ int main(int argc, char **argv)
     }
     fprintf(outfile,"\n");
   }
-
+  if(p.storecmd) {
+    p.sizecmdline = 0;
+    for(i=0; i < argc; i++) {
+      k = 0;
+      j = 0;
+      while(argv[i][j] != '\0') {
+	if(check_isspecialchar(argv[i][j])){
+	  k = 1;
+	  break;
+	}
+	j++;
+      }
+      if(k) {
+	p.sizecmdline += (3 + strlen(argv[i]));
+      }
+      else {
+	p.sizecmdline += (1 + strlen(argv[i]));
+      }
+    }
+    if((p.cmdline = (char *) malloc((p.sizecmdline + 1))) == NULL)
+      error(ERR_MEMALLOC);
+    kk = 0;
+    for(i=0; i < argc; i++) {
+      k = 0;
+      j = 0;
+      while(argv[i][j] != '\0') {
+	if(check_isspecialchar(argv[i][j])){
+	  k = 1;
+	  break;
+	}
+	j++;
+      }
+      if(k) {
+	sprintf(&(p.cmdline[kk])," \'%s\'", argv[i]);
+	kk += (3 + strlen(argv[i]));
+      }
+      else {
+	sprintf(&(p.cmdline[kk])," %s", argv[i]);
+	kk += (1 + strlen(argv[i]));
+      }
+    }
+  }    
 
   /* Print out the header if we're supposed to. */
   if(p.header || p.tabflag || p.headeronly)

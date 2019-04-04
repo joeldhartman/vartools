@@ -219,6 +219,16 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_MANDELAGOLTRANSIT) {
       CheckCreateCommandOutputLCVariable(c[i].MandelAgolTransit->modelvarname,&(c[i].MandelAgolTransit->modelvar),p);
     }
+#ifdef _HAVE_GSL
+    else if(c[i].cnum == CNUM_FFT) {
+      if(c[i].FFT->outputvarname_real[0] != '\0') {
+	CheckCreateCommandOutputLCVariable(c[i].FFT->outputvarname_real,&(c[i].FFT->outputvar_real),p);
+      }
+      if(c[i].FFT->outputvarname_imag[0] != '\0') {
+	CheckCreateCommandOutputLCVariable(c[i].FFT->outputvarname_imag,&(c[i].FFT->outputvar_imag),p);
+      }
+    }
+#endif
 #ifdef DYNAMICLIB
 #ifdef _HAVE_PYTHON
     else if(c[i].cnum == CNUM_PYTHON) {
@@ -257,7 +267,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     }
   }
 
-  /* Now setup any Variable pointers which are required by the -o, -changevariable, or -stats commands */
+  /* Now setup any Variable pointers which are required by the -o, -changevariable, -stats or -FFT commands */
   for(i=0; i < p->Ncommands; i++) {
     if(c[i].cnum == CNUM_OUTPUTLCS) {
       if(c[i].Outputlcs->usecolumnformat) {
@@ -315,6 +325,40 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	}
       }
     }
+#ifdef _HAVE_GSL
+    else if(c[i].cnum == CNUM_FFT) {
+      if(c[i].FFT->inputvarname_real[0] != '\0') {
+	for(j=0; j < p->NDefinedVariables; j++) {
+	  if(!strcmp(c[i].FFT->inputvarname_real,
+		     p->DefinedVariables[j]->varname)) {
+	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
+	      error(ERR_BADVARIABLETYPE_FFTCOMMAND);
+	    }
+	    c[i].FFT->inputvar_real = p->DefinedVariables[j];
+	    break;
+	  }
+	}
+	if(j == p->NDefinedVariables) {
+	  error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_real);
+	}
+      }
+      if(c[i].FFT->inputvarname_imag[0] != '\0') {
+	for(j=0; j < p->NDefinedVariables; j++) {
+	  if(!strcmp(c[i].FFT->inputvarname_imag,
+		     p->DefinedVariables[j]->varname)) {
+	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
+	      error(ERR_BADVARIABLETYPE_FFTCOMMAND);
+	    }
+	    c[i].FFT->inputvar_imag = p->DefinedVariables[j];
+	    break;
+	  }
+	}
+	if(j == p->NDefinedVariables) {
+	  error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_imag);
+	}
+      }
+    }
+#endif
     else if(c[i].cnum == CNUM_BINLC) {
       for(k = 0; k < c[i].Binlc->Nvar; k++) {
 	for(j=0; j < p->NDefinedVariables; j++) {

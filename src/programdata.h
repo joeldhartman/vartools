@@ -72,6 +72,7 @@
 #define VARTOOLS_SOURCE_NONE 5
 #define VARTOOLS_SOURCE_RECENTCOMMAND 6
 #define VARTOOLS_SOURCE_EVALEXPRESSION 7
+#define VARTOOLS_SOURCE_EVALEXPRESSION_LC 8
 
 #define MAXIDSTRINGLENGTH 256
 
@@ -201,6 +202,7 @@ typedef struct {
   int *start_cnum;
 
   char **lcnames;
+  int *is_inputlc_fits;
   char lclistname[MAXLEN];
   int sizecommandvector;
   int Ncol;
@@ -233,6 +235,9 @@ typedef struct {
 
   char showversion;
   char logcmd;
+  char storecmd;
+  char *cmdline;
+  int sizecmdline;
 
   /* Variable related to buffering the output table */
   _StringBuffer **free_buffer_stack;
@@ -415,3 +420,4 @@ typedef struct {
 #define ERR_MISSINGRESTRICTTIMES 107
 #define ERR_NEEDCSPICE 108
 #define ERR_TFATEMPLATEFITSREADERROR 109
+#define ERR_BADVARIABLETYPE_FFTCOMMAND 110

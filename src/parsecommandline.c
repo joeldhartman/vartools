@@ -103,6 +103,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   p->sig = NULL;
   p->NJD = NULL;
   p->lcnames = NULL;
+  p->is_inputlc_fits = NULL;
   p->stringid = NULL;
   p->stringid_idx = NULL;
 
@@ -126,10 +127,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    help(argv[iterm],p);
 	  p->Nlcs = 1;
 	  if((p->lcnames = (char **) malloc(p->Nlcs * sizeof(char *))) == NULL ||
-	     (p->NJD = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
+	     (p->NJD = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
+	     (p->is_inputlc_fits = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
 	  for(j=0;j<p->Nlcs;j++)
 	    {
+	      p->is_inputlc_fits[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
 		error(ERR_MEMALLOC);
 	    }
@@ -211,6 +214,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    VARTOOLS_TYPE_STRING,
 				    0, -1, 0, 0, NULL,
 				    k, "LC_Name");
+	  RegisterDataFromInputList(p, 
+				    (void *)(&p->is_inputlc_fits), 
+				    VARTOOLS_TYPE_INT,
+				    0, -1, 0, 0, "0",
+				    -1, "Is_InputLC_FITS");
 				    
 #ifdef _USEBINARY_LC
 	  i++;
@@ -3736,6 +3744,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->printfformats = NULL;
 	  c[cn].Outputlcs->varnames = NULL;
 	  c[cn].Outputlcs->outfits = 0;
+	  c[cn].Outputlcs->copyheaderfrominput = 0;
+	  c[cn].Outputlcs->logcommandline = 0;
 	  c[cn].Outputlcs->noclobber = 0;
 	  i++;
 	  if(i < argc)
@@ -3803,7 +3813,32 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"copyheader"))
+		{
+		  c[cn].Outputlcs->copyheaderfrominput = 1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
 #endif
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"logcommandline"))
+		{
+		  c[cn].Outputlcs->logcommandline = 1;
+		  p->storecmd = 1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
 	  i++;
 	  if(i < argc)
 	    {
@@ -5475,6 +5510,42 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
+
+#ifdef _HAVE_GSL
+      /* -FFT input_real_var input_imag_var output_real_var output_imag_var */
+      else if(!strcmp(argv[i],"-FFT"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_FFT;
+	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_FFT))) == NULL)
+	    error(ERR_MEMALLOC);
+	  c[cn].FFT->isforward = 1;
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(ParseFFTCommand(&i, argc, argv, p, c[cn].FFT))
+	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+
+      /* -IFFT input_real_var input_imag_var output_real_var output_imag_var */
+      else if(!strcmp(argv[i],"-IFFT"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_FFT;
+	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_Stats))) == NULL)
+	    error(ERR_MEMALLOC);
+	  c[cn].FFT->isforward = 0;
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(ParseFFTCommand(&i, argc, argv, p, c[cn].FFT))
+	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+#endif
 
       /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"]*/
       else if(!strncmp(argv[i],"-BLS",4) && strlen(argv[i]) == 4)

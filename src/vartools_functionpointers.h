@@ -68,4 +68,7 @@ typedef struct {
   void (*occultquad)(double *, double, double, double, double *, double *, int);
   void (*occultnl)(double, double, double, double, double, double *, double *, double **, int);
   void (*memallocdatafromlightcurve)(ProgramData *, int, int);
+  void (*memallocdatafromlightcurvemidprocess)(ProgramData *, int, int);
+  int (*gnu_getline)(char **, size_t *, FILE *);
+  void (*mysortstringint)(int, int, char **, int*);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

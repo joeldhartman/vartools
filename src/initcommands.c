@@ -310,6 +310,7 @@ void InitCommands(ProgramData *p, Command *c)
     pthread_mutex_init(&(p->outfile_mutex),NULL);
     pthread_mutex_init(&(p->cfitsio_mutex),NULL);
     pthread_mutex_init(&(p->is_lc_ready_mutex),NULL);
+    pthread_mutex_init(&(p->lc_getcolumnsfromheader_mutex),NULL);
     //  }
 #endif
 

@@ -554,6 +554,47 @@ int CheckIfUserCommandIsCalled(ProgramData *p, Command *c, int cn, char *argv) {
 #endif
 }
 
+
+int CheckIfUserCommandHelpIsCalled(ProgramData *p, int all, char *argv) {
+#ifdef DYNAMICLIB
+  int i;
+  int check = 0;
+  /* Cycle through all the libraries which have been loaded so far */
+  for(i=0; i < p->NUserLib; i++) {
+    if(all == 1 || (!strcmp(p->UserLib[i].commandname,argv))) {
+      /* We Have a match */
+      check = 1;
+      p->UserLib[i].ShowSyntax_function(stderr);
+      fprintf(stderr,"\n");
+      p->UserLib[i].ShowHelp_function(stderr);
+      fprintf(stderr,"\n");
+    }
+  }
+  if(!check) {
+    /* Try to load a library with a name given by the command */
+    if(strlen(argv) <= 1) return check;
+    lt_dlhandle lib = lt_dlopenext(&(argv[1]));
+    
+    if(lib != NULL) {
+      load_user_library(&(argv[1]), p, 1, lib);
+      i = p->NUserLib-1;
+      if(!strcmp(p->UserLib[i].commandname,argv)) {
+	/* We Have a match */
+	check = 1;
+	p->UserLib[i].ShowSyntax_function(stderr);
+	fprintf(stderr,"\n");
+	p->UserLib[i].ShowHelp_function(stderr);
+	fprintf(stderr,"\n");
+      }
+    }
+  }
+  return check;
+#else
+  return 0;
+#endif
+}
+
+
 /* This is an internal function called from the CreateOutputColumns function
    the user should not need to call this function */
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
@@ -1013,6 +1054,42 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
       default:
 	error(ERR_BADTYPE);
       }
+    } else if(d->source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+      for(k=0; k < p->NJD[lc_num]; k++) {
+	eval_result = EvaluateExpression(lc_list_num, lc_num, k, d->evalexpression);
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = &((*((double ***) d->dataptr))[lc_num][k]);
+	  *dblptr = (double) eval_result;
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = &((*((char ****) d->dataptr))[lc_num][k]);
+	  sprintf(*stringptr, "%f", eval_result);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = &((*((char ***) d->dataptr))[lc_num][k]);
+	  *charptr = (char) eval_result;
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = &((*((int ***) d->dataptr))[lc_num][k]);
+	  *intptr = (int) eval_result;
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = &((*((short ***) d->dataptr))[lc_num][k]);
+	  *shortptr = (short) eval_result;
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = &((*((long ***) d->dataptr))[lc_num][k]);
+	  *longptr = (long) eval_result;
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = &((*((float ***) d->dataptr))[lc_num][k]);
+	  *floatptr = (float) eval_result;
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      }
     }
   }
 
@@ -1038,6 +1115,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
   char *charptr;
   char **stringptr, **lstringptr;
   void *voidptr;
+  double eval_result;
   
   _UserDataPointer *d;
   _UserDataPointer *fix;
@@ -1273,7 +1351,78 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    }
 	  }
 	}
+      } else if(d->source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	eval_result = EvaluateExpression(lc_num, lc_num, 0, d->evalexpression);
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = &((*((double **) d->dataptr))[lc_num]);
+	  *dblptr = (double) eval_result;
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	  sprintf(*stringptr, "%f", eval_result);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = &((*((char **) d->dataptr))[lc_num]);
+	  *charptr = (char) eval_result;
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = &((*((int **) d->dataptr))[lc_num]);
+	  *intptr = (int) eval_result;
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = &((*((short **) d->dataptr))[lc_num]);
+	  *shortptr = (short) eval_result;
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = &((*((long **) d->dataptr))[lc_num]);
+	  *longptr = (long) eval_result;
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = &((*((float **) d->dataptr))[lc_num]);
+	  *floatptr = (float) eval_result;
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      } else if(d->source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	for(k=0; k < p->NJD[lc_num]; k++) {
+	  eval_result = EvaluateExpression(lc_num, lc_num, k, d->evalexpression);
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    dblptr = &((*((double ***) d->dataptr))[lc_num][k]);
+	    *dblptr = (double) eval_result;
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = &((*((char ****) d->dataptr))[lc_num][k]);
+	    sprintf(*stringptr, "%f", eval_result);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = &((*((char ***) d->dataptr))[lc_num][k]);
+	    *charptr = (char) eval_result;
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    intptr = &((*((int ***) d->dataptr))[lc_num][k]);
+	    *intptr = (int) eval_result;
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = &((*((short ***) d->dataptr))[lc_num][k]);
+	    *shortptr = (short) eval_result;
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    longptr = &((*((long ***) d->dataptr))[lc_num][k]);
+	    *longptr = (long) eval_result;
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = &((*((float ***) d->dataptr))[lc_num][k]);
+	    *floatptr = (float) eval_result;
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	}
       }
+
     }
   }
 
@@ -1493,16 +1642,22 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
               VARTOOLS_TYPE_STRING, VARTOOLS_TYPE_USERDEF.
 
    Ncolumns = Number of columns in the array. If this is 0 and the
-              source is not VARTOOLS_SOURCE_LC, then dataptr is a
+              source is not VARTOOLS_SOURCE_LC or
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, then dataptr is a
               pointer to a vector (e.g. double **), if it is > 0 then
               it is a pointer to an array (e.g. double ***). If the
-              source is VARTOOLS_SOURCE_LC, then if this is 0 it is a
-              pointer to an array (e.g. it should be type double ***), if
-              it is > 0 or < 0 it is a pointer to a 3-d array (e.g. type
-	      double ****). For VARTOOLS_SOURCE_LC, Nc=0 implies that
-              the array will be indexed as (*dataptr)[Nthread][NJD]. Nc > 0
-              means it is indexed as (*dataptr)[Nthread][Nc][NJD]. Nc < 0
-              means it is indexed as (*dataptr)[Nthread][NJD][Nc].
+              source is VARTOOLS_SOURCE_LC or
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, then if this is 0 it
+              is a pointer to an array (e.g. it should be type double
+              ***), if it is > 0 or < 0 it is a pointer to a 3-d array
+              (e.g. type double ****). For
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, only Nc = 0 is
+              permitted. For VARTOOLS_SOURCE_LC and
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, Nc=0 implies that the
+              array will be indexed as (*dataptr)[Nthread][NJD]. Nc >
+              0 means it is indexed as
+              (*dataptr)[Nthread][Nc][NJD]. Nc < 0 means it is indexed
+              as (*dataptr)[Nthread][NJD][Nc].
 
    source = VARTOOLS_SOURCE_INLIST -- data to be read in from an input list.
             VARTOOLS_SOURCE_COMPUTED -- data that will be computed by the
@@ -1522,11 +1677,16 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
                                   parameter. Ncolumns must be <= 0.
             VARTOOLS_SOURCE_EVALEXPRESSION -- data that will be determined by
                                   evaluating an expression.
+            VARTOOLS_SOURCE_EVALEXPRESSION_LC -- a light curve vector
+                                  whose data will be determined by
+                                  evaluating an expression.
 
-   output = 1 if the data should be included in the output ascii table, 
-            0 if it will not be included. Note, if the source is 
-            VARTOOLS_SOURCE_LC, then the data will not be included in the
-            ascii table, no matter what output is set equal to.
+   output = 1 if the data should be included in the output ascii
+            table, 0 if it will not be included. Note, if the source
+            is VARTOOLS_SOURCE_LC or
+            VARTOOLS_SOURCE_EVALEXPRESSION_LC, then the data will not
+            be included in the ascii table, no matter what output is
+            set equal to.
 
    outname = root name of the corresponding column in the output ascii
              table (can be NULL if output == 0). The name of the
@@ -1648,6 +1808,18 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
         Note - Ncolumns must be == 0 for this option.
 
         char *exprstring - a string with the expression to be parsed.
+
+    VARTOOLS_SOURCE_EVALEXPRESSION_LC:
+
+        Note - Ncolumns must be == 0 for this option.
+
+        char *exprstring - a string with the expression to be parsed.
+
+
+	char *varnameout - Optionally associate this
+                     data with a (possibly new) variable. This creates
+                     a variable that the user can use to access this
+                     data from subsequent commands.
 */
 {
   va_list varlist;
@@ -1709,7 +1881,8 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
      )
     error(ERR_BADTYPE);
 
-  if(source == VARTOOLS_SOURCE_EVALEXPRESSION && Ncolumns != 0)
+  if((source == VARTOOLS_SOURCE_EVALEXPRESSION && Ncolumns != 0) ||
+     (source == VARTOOLS_SOURCE_EVALEXPRESSION_LC && Ncolumns != 0))
     error(ERR_BADTYPE);
 
   switch(datatype)
@@ -1752,6 +1925,14 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
     if((co->UserDataPointers = (_UserDataPointer *) realloc(co->UserDataPointers, (co->Nptrs + 1)*sizeof(_UserDataPointer))) == NULL)
       error(ERR_MEMALLOC);
     ptr = co->UserDataPointers;
+    k = 0;
+    for(j=0; j < co->Nptrs; j++) {
+      if(ptr[j].source == VARTOOLS_SOURCE_EVALEXPRESSION ||
+	 ptr[j].source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	co->UserDataExpressions[k] = &(ptr[j].evalexpression);
+	k++;
+      }
+    }
   }
 
   ptr[co->Nptrs].datatype = datatype;
@@ -2184,6 +2365,34 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       sprintf(co->expr_strings[co->Nexpr],"%s",exprstring);
 
       co->Nexpr += 1;
+      break;
+
+    case VARTOOLS_SOURCE_EVALEXPRESSION_LC:
+
+      if(co->Nexpr == 0) {
+	if((co->expr_strings = (char **) malloc(sizeof(char *))) == NULL ||
+	   (co->UserDataExpressions = (_Expression ***) malloc(sizeof(_Expression **))) == NULL)
+	  error(ERR_MEMALLOC);
+      } else {
+	if((co->expr_strings = (char **) realloc(co->expr_strings, (co->Nexpr + 1)*sizeof(char *))) == NULL ||
+	   (co->UserDataExpressions = (_Expression ***) realloc(co->UserDataExpressions, (co->Nexpr + 1)*sizeof(_Expression **))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+      co->UserDataExpressions[co->Nexpr] = &(ptr[co->Nptrs].evalexpression);
+      exprstring = va_arg(varlist,char *);
+      if((co->expr_strings[co->Nexpr] = malloc(sizeof(exprstring)+1)) == NULL)
+	error(ERR_MEMALLOC);
+      sprintf(co->expr_strings[co->Nexpr],"%s",exprstring);
+
+      co->Nexpr += 1;
+
+      varnameout = va_arg(varlist,char *);
+      RegisterDataFromLightCurve(p, dataptr, datatype, MAXLEN, Ncolumns, -1, 
+				 0, 0, NULL, NULL, -1, NULL);
+      ptr[co->Nptrs].inlcdataptr = voidptr;
+      if(varnameout != NULL) {
+	CreateVariable(p, varnameout, (char) datatype, VARTOOLS_VECTORTYPE_LC, dataptr);
+      }
       break;
 
     default:
@@ -3368,7 +3577,7 @@ void MemAllocDataForUserCommand(Command *c, int Nlc)
   for(i=0; i < co->Nptrs; i++) {
     d = &(co->UserDataPointers[i]);
     Nc = d->Ncolumns;
-    if(d->source != VARTOOLS_SOURCE_LC) {
+    if(d->source != VARTOOLS_SOURCE_LC && d->source != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
       if(Nc <= 0) {
 	switch(d->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
@@ -3540,6 +3749,9 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->occultquad = &occultquad;
   fptr->occultnl = &occultnl;
   fptr->memallocdatafromlightcurve = &MemAllocDataFromLightCurve;
+  fptr->memallocdatafromlightcurvemidprocess = &MemAllocDataFromLightCurveMidProcess;
+  fptr->gnu_getline = &gnu_getline;
+  fptr->mysortstringint = &mysortstringint;
 #else
   return;
 #endif
