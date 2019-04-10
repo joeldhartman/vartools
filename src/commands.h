@@ -76,6 +76,10 @@
 #define _HAVE_PYTHON 1
 #endif
 
+#ifdef HAVE_R
+#define _HAVE_R 1
+#endif
+
 #define DYNAMICLIB 1
 
 /*
@@ -168,8 +172,9 @@
 #define CNUM_PYTHON 53
 #define CNUM_RESTORETIMES 54
 #define CNUM_FFT 55
+#define CNUM_R 56
 
-#define TOT_CNUMS 55
+#define TOT_CNUMS 56
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -929,6 +934,10 @@ typedef struct {
 typedef struct {
   int savenumber;
   int saveindex;
+  int ispartialrestore;
+  int Nrestorevars;
+  char **restorevarnames;
+  _Variable **restorevars;
 } _Restorelc;
 
 typedef struct {
@@ -1571,6 +1580,70 @@ typedef struct {
 } _PythonCommand;
 #endif
 
+#ifdef _HAVE_R
+typedef struct {
+  int Nvars;
+  _Variable **vars;
+  int *isvaroutput;
+  int Nvars_outonly;
+  _Variable **outonlyvars;
+  int Nlcvars_nonupdate;
+  int **outlcvecs_invars;
+  int **outlcvecs_outonlyvars;
+  _Variable **lcvars_nonupdate;
+  int *IsRRunning;
+  int **sockets;
+  char *progname;
+  char *Rinitializationtext;
+  long len_Rinitializationtextstring;
+  char *Rcommandstring;
+  long len_Rcommandstring;
+  char *inputRfilename;
+  void *Robjects;
+  int iscontinueprocess;
+  void *continueprocesscommandptr;
+
+  int Nchildren;
+  void *childcommandptrs;
+  int *childcnumvals;
+
+  int cid;
+
+  char *inoutvarliststring;
+  char **inoutvarnames;
+  int Ninoutvarnames;
+
+  char *invarliststring;
+  char *outvarliststring;
+
+  char **invarnames;
+  char **outvarnames;
+
+  int Ninvarnames;
+  int Noutvarnames;
+
+  char *outcolumnliststring;
+  char **outcolumnnames;
+  int Noutcolumnvars;
+  _Variable **outcolumnvars;
+
+  double **outcolumndata;
+
+  int processallvariables;
+
+  int cnum;
+
+  int RequireReadAll;
+
+  void *FullList;
+
+} _RCommand;
+#else
+typedef struct {
+  int cnum;
+} _RCommand;
+#endif
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -1633,6 +1706,7 @@ typedef struct {
   _Stitch *Stitch;
   _HarmonicFilter *HarmonicFilter;
   _PythonCommand *PythonCommand;
+  _RCommand *RCommand;
   _FFT *FFT;
 
   int N_setparam_expr;

@@ -1751,6 +1751,14 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  }
 	  break;
 #endif
+#ifdef _HAVE_R
+	case CNUM_R:
+	  for(i=0; i < c[l].RCommand->Noutcolumnvars; i++) {
+	    sprintf(tmpstring,"R_%s_%%d",c[l].RCommand->outcolumnnames[i]);
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	  }
+	  break;
+#endif
 	}
     }
 }

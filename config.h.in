@@ -147,6 +147,9 @@
 /* Define if we are compiling with python */
 #undef HAVE_PYTHON
 
+/* Define if you have R */
+#undef HAVE_R
+
 /* Define to 1 if you have the `readdir' function. */
 #undef HAVE_READDIR
 
@@ -256,6 +259,9 @@
 
 /* NUMPY VERSION */
 #undef PYTHON_NUMPY_VERSION
+
+/* Define the RHOME environment variable */
+#undef RHOME
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS

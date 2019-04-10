@@ -1166,6 +1166,11 @@ void InitCommands(ProgramData *p, Command *c)
 	  InitPythonCommand(p, c[i].PythonCommand, Nlcs);
 	  break;
 #endif
+#ifdef _HAVE_R
+	case CNUM_R:
+	  InitRCommand(p, c[i].RCommand, Nlcs);
+	  break;
+#endif
 	default:
 	  break;
 	}

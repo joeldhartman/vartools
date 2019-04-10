@@ -215,6 +215,9 @@ void error(int errflag)
     case ERR_BADVARIABLETYPE_FFTCOMMAND:
       fprintf(stderr,"Error: the -FFT and -IFFT commands can only be used on light curve type vectors.\n");
       exit(ERR_BADVARIABLETYPE_FFTCOMMAND);
+    case ERR_BADVARIABLETYPE_RESTORELCCOMMAND:
+      fprintf(stderr,"Error: the -restorelc command can only be used on light curve type vectors.\n");
+      exit(ERR_BADVARIABLETYPE_RESTORELCCOMMAND);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
@@ -392,6 +395,10 @@ void error2(int errflag, char *s)
     case ERR_PYTHONOUTPUTUNDEFINEDVARIABLE:
       fprintf(stderr,"Error - the variable \"%s\" included in the list of outputcolumns variables supplied to a -python command is not defined.\n",s);
       exit(ERR_PYTHONOUTPUTUNDEFINEDVARIABLE);
+      break;
+    case ERR_ROUTPUTUNDEFINEDVARIABLE:
+      fprintf(stderr,"Error - the variable \"%s\" included in the list of outputcolumns variables supplied to a -R command is not defined.\n",s);
+      exit(ERR_ROUTPUTUNDEFINEDVARIABLE);
       break;
     case ERR_TFATEMPLATEFITSREADERROR:
       fprintf(stderr,"Error - an error was encountered in attempting to read the TFA template fits file \"%s\"\n",s);

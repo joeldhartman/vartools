@@ -1322,19 +1322,19 @@ void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nter
     if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC && (
        p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_DOUBLE ||
        p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_CONVERTJD)) {
-      if(p->t[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+      if(p->t[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid] && tvar == NULL) {
 	tvar = p->DefinedVariables[i];
       }
-      if(p->mag[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+      if(p->mag[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid] && magvar == NULL) {
 	magvar = p->DefinedVariables[i];
       }
-      if(p->sig[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid]) {
+      if(p->sig[threadid] == (*((double ***) p->DefinedVariables[i]->dataptr))[threadid] && sigvar == NULL) {
 	sigvar = p->DefinedVariables[i];
       }
     } 
     else if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC &&
 	    p->DefinedVariables[i]->datatype == VARTOOLS_TYPE_STRING) {
-      if(p->stringid[threadid] == (*((char ****) p->DefinedVariables[i]->dataptr))[threadid])
+      if(p->stringid[threadid] == (*((char ****) p->DefinedVariables[i]->dataptr))[threadid] && stringidvar == NULL)
 	stringidvar = p->DefinedVariables[i];
     }
   }
@@ -1496,7 +1496,7 @@ void DetermineColumns(ProgramData *p, Command *c)
 					 (void *) &(c[i].TFA_SR->lcdecorr_terms_in[k]),
 					 VARTOOLS_TYPE_DOUBLE,
 					 0, 0, i, 0, 0, NULL, NULL,
-					 c[i].TFA_SR->lcdecorr_terms_in[k],
+					 c[i].TFA_SR->decorr_lc_columns[k],
 					 "TFA_SR_LC_Decorr_Incolumn");
 	    }
 	}
@@ -1510,7 +1510,7 @@ void get_fitslc_header_columns(fitsfile *infile,
 			       ProgramData *p)
 {
   _DataFromLightCurve *d;
-  int j, Nc, u, Ncabs, i, status;
+  int j, Nc, u, Ncabs, i, status = 0;
   /* Check if the program needs to do this at all */
   if(p->lc_getcolumnsfromheader) {
     /* Check if this has not yet been done. Note that if parallelization
@@ -1518,10 +1518,16 @@ void get_fitslc_header_columns(fitsfile *infile,
        once */
     if(p->lc_getcolumnsfromheader_notyetset) {
 #ifdef PARALLEL
-      while(pthread_mutex_trylock(&(p->lc_getcolumnsfromheader_mutex)));
-      if(!p->lc_getcolumnsfromheader_notyetset) {
-	pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
-	return;
+      if(p->Nproc_allow > 1) {
+	while(pthread_mutex_trylock(&(p->lc_getcolumnsfromheader_mutex)));
+	if(!p->lc_getcolumnsfromheader_notyetset) {
+	  pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+	  return;
+	}
+      } else {
+	if(!p->lc_getcolumnsfromheader_notyetset) {
+	  return;
+	}
       }
 #endif
       for(j=0; j < p->NDataFromLightCurve; j++) {
@@ -1533,8 +1539,9 @@ void get_fitslc_header_columns(fitsfile *infile,
 	if(Nc == 0) Ncabs += 1;
 	for(u = 0; u < Ncabs; u++) {
 	  if(d->incolumn_header_names[u] != NULL) {
-	    if(fits_get_colnum(infile, 0, d->incolumn_header_names[0],
-			       &(d->incolumns[u]), &status))
+	    fits_get_colnum(infile, 0, d->incolumn_header_names[0],
+			    &(d->incolumns[u]), &status);
+	    if(status == COL_NOT_FOUND)
 	      error2(ERR_MISSING_FITSLC_HEADERNAME,
 		     d->incolumn_header_names[u]);
 	    if(d->variable != NULL) {
@@ -1550,7 +1557,9 @@ void get_fitslc_header_columns(fitsfile *infile,
       }
       p->lc_getcolumnsfromheader_notyetset = 0;
 #ifdef PARALLEL
-      pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+      if(p->Nproc_allow > 1) {
+	pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+      }
 #endif
     }
   }
@@ -2133,7 +2142,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
     p->NJD[lc2] = nrows;
   if(p->readimagestring)
     {
-      for(i=0;i<N;i++)
+      for(i=0;i<p->NJD[lc2];i++)
 	p->stringid_idx[lc2][i] = i;
     }
 
@@ -2256,10 +2265,16 @@ void get_binarylc_header_columns(int num_columns,
        once */
     if(p->lc_getcolumnsfromheader_notyetset) {
 #ifdef PARALLEL
-      while(pthread_mutex_trylock(&(p->lc_getcolumnsfromheader_mutex)));
-      if(!p->lc_getcolumnsfromheader_notyetset) {
-	pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
-	return;
+      if(p->Nproc_allow > 1) {
+	while(pthread_mutex_trylock(&(p->lc_getcolumnsfromheader_mutex)));
+	if(!p->lc_getcolumnsfromheader_notyetset) {
+	  pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+	  return;
+	}
+      } else {
+	if(!p->lc_getcolumnsfromheader_notyetset) {
+	  return;
+	}
       }
 #endif
       for(j=0; j < p->NDataFromLightCurve; j++) {
@@ -2293,7 +2308,9 @@ void get_binarylc_header_columns(int num_columns,
       }
       p->lc_getcolumnsfromheader_notyetset = 0;
 #ifdef PARALLEL
-      pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+      if(p->Nproc_allow > 1) {
+	pthread_mutex_unlock(&(p->lc_getcolumnsfromheader_mutex));
+      }
 #endif
     }
   }
@@ -2972,6 +2989,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
     i = j - 5;
     if(i >= 0) {
       if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
+	p->is_inputlc_fits[lc] = 1;
 	return ReadFitsLightCurve(p, c, lc, threadid);
       }
     }
@@ -3354,6 +3372,7 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
       i = j - 5;
       if(i >= 0) {
 	if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
+	  p->is_inputlc_fits[lc] = 1;
 	  if(ReadFitsLightCurve(p, c, lc, lc)) {
 	    isempty++;
 	  }

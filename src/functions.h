@@ -173,7 +173,7 @@ void dodftclean(int N, double *t, double *mag, double *sig, int lc, _Dftclean *c
 void mysortstringint(int N, int sizestr, char **data1, int *data2);
 void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, double tmax, double tstep, char *outname);
 void mandelagoltransitmodel(int Npoints, double *phase, double *outlc, int type, double *ldcoeffs, double sin_i, double a, double e, double p, double omega);
-void dorestorelc(ProgramData *p, _Savelc *s, int sthreadid, int rthreadid);
+void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int rthreadid, int lcid);
 void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid);
 void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands);
 void printheader_new(ProgramData *p, FILE *outfile);
@@ -352,6 +352,18 @@ void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs);
 void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p);
 void StopRunningPythonCommand(ProgramData *p, int threadindex, _PythonCommand *c);
 void KillAllPythonProcesses(ProgramData *p, Command *allcommands);
+#endif
+#ifdef _HAVE_R
+//void LoadVartoolsRunPythonLibrary(ProgramData *p);
+int ParseRCommand(int *inum, int argc, char **argv, ProgramData *p, 
+		       _RCommand *c, Command *allcommands, int cnum);
+_RCommand *CreateRCommandStruct(ProgramData *p, char *argv0);
+void RunRCommand(ProgramData *p, int lcindex, int threadindex, int Rthreadindex, _RCommand *c);
+void InitRCommand(ProgramData *p, _RCommand *c, int Nlcs);
+void SetupRunRVariables(_RCommand *c, ProgramData *p);
+void StopRunningRCommand(ProgramData *p, int threadindex, _RCommand *c);
+void KillAllRProcesses(ProgramData *p, Command *allcommands);
+void StartAllRProcesses(ProgramData *p, Command *allcommands);
 #endif
 void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, int rthreadid);
 long randlong(long);

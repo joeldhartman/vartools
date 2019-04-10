@@ -210,7 +210,7 @@ void getlccopy(ProgramData *p, Command *c, int threadid, int lcid) {
   int j;
   
   copy_cnum = p->copy_cnum[p->copycommand_index[lcid]];
-  dorestorelc(p, c[copy_cnum].Savelc, c[copy_cnum].CopyLC->lcid_tothreadid[p->copy_origlc_index[lcid]], threadid);
+  dorestorelc(p, c[copy_cnum].Savelc, NULL, c[copy_cnum].CopyLC->lcid_tothreadid[p->copy_origlc_index[lcid]], threadid, lcid);
   dorestorelistdata(p, c[copy_cnum].CopyLC->SaveListData, c[copy_cnum].CopyLC->lcid_tothreadid[p->copy_origlc_index[lcid]], threadid, lcid);
   if(p->isifcommands) {
     dorestoreifstackcopy(p, c[copy_cnum].CopyLC, c[copy_cnum].CopyLC->lcid_tothreadid[p->copy_origlc_index[lcid]], threadid);

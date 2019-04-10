@@ -57,7 +57,7 @@ system.
       library (http://sourceforge.net/projects/pthreads4w/)
 
    C. GSL (GNU scientific library):
-      Needed for the -addnoise, -microlens, -resample commands.
+      Needed for the -addnoise, -microlens, -resample, -FFT and -IFFT commands.
       http://www.gnu.org/s/gsl/
 
    D. DYNAMIC LIBRARY SUPPORT:
@@ -111,6 +111,24 @@ system.
       https://www.python.org/
       http://www.numpy.org/
       
+   F. R (Statistical Computing Software Environment)
+      Needed for the -R command to allow calling R routines on light
+      curves through vartools. The minimum R version required has not
+      been determined. But this has been built and tested on version
+      3.4.2. You will need the R library file (libR.so on linux) and
+      header files (Rinternals.h, Rembedded.h and R_ext/Parse.h). You
+      will also need to set the R_HOME environment variable in the
+      shell you are calling vartools from in order to use the -R
+      command.
+
+      If this is not already defined, then n a *nix system you may
+      want to add the following lines to your .bashrc file (or the
+      equivalent version to your .cshrc file), where we assume R is in
+      your PATH:
+
+      export R_HOME=$(R RHOME)
+
+      https://www.r-project.org/
 
 
 7. Download and unpack the VARTOOLS source:
@@ -121,11 +139,11 @@ system.
       cd ${HOME}/src/
 
       wget \
-        http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.36.tar.gz
+        http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.38.tar.gz
 
-      tar -xzvf vartools-1.36.tar.gz
+      tar -xzvf vartools-1.38.tar.gz
 
-      cd vartools-1.36
+      cd vartools-1.38
 
 8. Configure VARTOOLS:
 ----------------------
@@ -198,6 +216,15 @@ system.
    Note that --with-cspice-lib includes the cspice.a name of the file,
    whereas --with-cspice-include is just the directory.
 
+   If you wish to enable the -R command, you will also need to tell
+   configure how tot find the R library and header files (libR.so, 
+   Rinternals.h, Rembedded.h and R_ext/Parse.h). These are typically
+   in the directories ${R_HOME}/lib/ and ${R_HOME}/include/ where R_HOME
+   can be found by issuing 'R RHOME' on the command line. You can supply the
+   value of R_HOME to ./configure using the --with-RHOME=${R_HOME} keyword, or
+   you can specify the include and library directories separately using the
+   --with-R-include=PATH and --with-R-lib=PATH options.
+
    Another issue to consider is the fortran compiler, which is used to
    compile some of the extensions. You can change the fortran compiler
    using the FC and F77 variables (the former is used for f90 code,
@@ -208,12 +235,14 @@ system.
    Below is an example run of configure which sets things to install
    the vartools binary in ${HOME}/bin, the library in ${HOME}/lib and
    the shared data (extensions, documents, example data) in
-   ${HOME}/share, and which adds options for finding the cfitsio, and
-   cspice libraries, and specifies gfortran as the fortran compiler:
+   ${HOME}/share, and which adds options for finding the cfitsio,
+   cspice, and R libraries, and specifies gfortran as the fortran
+   compiler:
 
    ./configure --prefix=${HOME}/ \
       --with-cspice-lib=${HOME}/src/cspice/lib/cspice.a \
       --with-cspice-include=${HOME}/src/cspice/include \
+      --with-RHOME=${R_HOME} \
       CPPFLAGS="-I${HOME}/src/cfitsio" \
       LDFLAGS="-L${HOME}/src/cfitsio" \
       F77=gfortran FC=gfortran

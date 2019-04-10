@@ -378,9 +378,11 @@ int main(int argc, char **argv)
   }    
 
   /* Print out the header if we're supposed to. */
-  if(p.header || p.tabflag || p.headeronly)
+  if(p.header || p.tabflag || p.headeronly) {
     //printheader(p.tabflag,c,p.Ncommands,p.numbercolumns);
     printheader_new(&p,outfile);
+    fflush(outfile);
+  }
 
   /* Print out the expected input list format */
   if(p.inputlistformat)
@@ -409,6 +411,12 @@ int main(int argc, char **argv)
 
   /* Read in the dates files for Jstet */
   ReadDatesFiles(&p, c);
+
+#ifdef _HAVE_R
+  /* Start any R processes needed, these have to be initialized in the
+     main thread otherwise R throws a stack error. */
+  StartAllRProcesses(&p, c);
+#endif
 
   /* The program will be run differently depending on whether or not we're reading in all the light curves at once */
   if(p.readallflag)
@@ -585,7 +593,10 @@ int main(int argc, char **argv)
   if(outfile != stdout)
     fclose(outfile);
 #ifdef _HAVE_PYTHON
-  KillAllPythonProcesses(&p, &c);
+  KillAllPythonProcesses(&p, c);
+#endif
+#ifdef _HAVE_R
+  KillAllRProcesses(&p, c);
 #endif
   exit(0);
 }

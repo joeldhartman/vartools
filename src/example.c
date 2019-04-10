@@ -484,19 +484,25 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-rms \\\n");
       printtostring(&s,
-		    "\t-expr 'fftreal=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftreal' \\\n");
+		    "\t-expr 'fftreal1=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftreal' \\\n");
       printtostring(&s,
-		    "\t-expr 'fftimag=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftimag' \\\n");
+		    "\t-expr 'fftimag1=(NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftimag' \\\n");
       printtostring(&s,
-		    "\t-IFFT fftreal fftimag mag_filter NULL \\\n");
+		    "\t-IFFT fftreal1 fftimag1 mag_filter NULL \\\n");
+      printtostring(&s,
+		    "\t-expr 'fftreal2=fftreal-((NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftreal)' \\\n");
+      printtostring(&s,
+		    "\t-expr 'fftimag2=fftimag-((NR>(Npoints_2/10.0))*(NR<(Npoints_2*9.0/10.0))*fftimag)' \\\n");
+      printtostring(&s,
+		    "\t-IFFT fftreal2 fftimag2 mag_filter2 NULL \\\n");
       printtostring(&s,
 		    "\t-resample linear file fix EXAMPLES/2 column 1 \\\n");
       printtostring(&s,
 		    "\t-expr 'mag_filter=mag_filter+Mean_Mag_2' \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/2.fftfilter columnformat t,mag_filter,mag \n\n");
+		    "\t-o EXAMPLES/2.fftfilter columnformat t,mag_filter,mag_filter2,mag \n\n");
       printtostring(&s,
-		    "Similar to Example 1, here we apply the transform, filter, and inverse transform to a light curve with noise and non-uniform time-sampling. The -resample commands in this case are used to sample the light curve onto a uniform time-grid, and then to resample it back onto the original time-grid after applying the inverse transform. The filtering is much less effective in this non-idealized case where the original light curve has highly non-uniform sampling characteristic of single-site ground-based data obtained over multiple nights.\n\n");
+		    "Similar to Example 1, here we apply the transform, filter, and inverse transform to a light curve with noise and non-uniform time-sampling. The -resample commands in this case are used to sample the light curve onto a uniform time-grid, and then to resample it back onto the original time-grid after applying the inverse transform. Here we store both the high-pass and low-pass filtered data. The filtering is much less effective in this non-idealized case where the original light curve has highly non-uniform sampling characteristic of single-site ground-based data obtained over multiple nights.\n\n");
       commandfound = 1;
     }
   if(!strncmp(c,"-findblends",11) && strlen(c) == 11)
@@ -982,6 +988,174 @@ void example(char *c, ProgramData *p)
 		    "\t\tprocess_all_lcs\n");
       printtostring(&s,
 		    "\nSame as in example 2, except here we plot all of the light curves (no \"-if\" command to VARTOOLS), and we use the \"process_all_lcs\" keyword to send all of the light curves to python at once. In this case VARTOOLS supplies these as lists of numpy arrays, so we use the for loop to cycle through all of the light curves calling plotlc on each light curve in turn.\n");
+      commandfound = 1;
+    }
+#endif
+#ifdef _HAVE_R
+  if(!strcmp(c,"-R"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-R 'b <- sd(mag)' invars mag outvars b outputcolumns b\n\n");
+      printtostring(&s,
+		    "Example of using R to calculate the standard deviation in the magnitudes for each light curve read from the list file EXAMPLES/lc_list. The R expression \"b <- sd(mag)\" will be evaluated for each light curve. The variable \"mag\" will be passed as an input to the R command (it will be treated within R as a numeric vector of length equal to the number of observations), and the variable \"b\" will be read out from the command. The value of this variable, which stores the standard deviation, will be included as a column in the output ASCII table. The full output from this command is:\n\n#Name R_b_0\n"
+		    "EXAMPLES/1 0.15946976931434592\n"
+		    "EXAMPLES/2 0.036640196913116818\n"
+		    "EXAMPLES/3 0.0048962905656505422\n"
+		    "EXAMPLES/4 0.0020915710522042882\n"
+		    "EXAMPLES/5 0.002880850234933455\n"
+		    "EXAMPLES/6 0.0020898736803245783\n"
+		    "EXAMPLES/7 0.003488095003079855\n"
+		    "EXAMPLES/8 0.0022502571019889705\n"
+		    "EXAMPLES/9 0.0018673694762206033\n"
+		    "EXAMPLES/10 0.0023627959129451301\n");
+      printtostring(&s,
+		    "\n");
+      printtostring(&s,
+		    "\nExample 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-R 'b <- list(); for(i in 1:length(mag)) { b[[i]] <- sd(mag[[i]]); }' \\\n");
+      printtostring(&s,
+		    "\t\tinvars mag outvars b outputcolumns b process_all_lcs\n\n");
+      printtostring(&s,
+		    "Same as example 1, in this case we use the \"process_all_lcs\" keyword to send all of the light curve data to R at once. In this case the input light curve vectors will be made available as lists of vectors in R, where the Nth element in the list for a variable (e.g., mag) corresponds to the mag vector for light curve N. The output variable \"b\" in this case needs to be a list, with the Nth element in the list corresponding to the computed value for light curve N. The full output from this command is:\n\n#Name R_b_0\n"
+		    "EXAMPLES/1 0.15946976931434592\n"
+		    "EXAMPLES/2 0.036640196913116818\n"
+		    "EXAMPLES/3 0.0048962905656505422\n"
+		    "EXAMPLES/4 0.0020915710522042882\n"
+		    "EXAMPLES/5 0.002880850234933455\n"
+		    "EXAMPLES/6 0.0020898736803245783\n"
+		    "EXAMPLES/7 0.003488095003079855\n"
+		    "EXAMPLES/8 0.0022502571019889705\n"
+		    "EXAMPLES/9 0.0018673694762206033\n"
+		    "EXAMPLES/10 0.0023627959129451301\n");
+      printtostring(&s,
+		    "\n");
+      printtostring(&s,
+		    "\nExample 3:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-savelc \\\n");
+      printtostring(&s,
+		    "\t-binlc average binsize 0.05 taverage \\\n");
+      printtostring(&s,
+		    "\t-resample linear delt fix 0.05 \\\n");
+      printtostring(&s,
+		    "\t-R \\\n");
+      printtostring(&s,
+		    "\t\t'mag_ts <- ts(mag, start=1, end=length(t), frequency=1);\n");
+      printtostring(&s,
+		    "\t\t arima_model <- auto.arima(mag_ts);\n");
+      printtostring(&s,
+		    "\t\t mag_arima <- mag - as.vector(arima_model$residuals);' \\\n");
+      printtostring(&s,
+		    "\t\tinit 'library(tseries); library(forecast);' \\\n");
+      printtostring(&s,
+		    "\t\tinvars mag,t outvars mag_arima \\\n");
+      printtostring(&s,
+		    "\t-resample linear file list listcolumn 1 tcolumn 1 \\\n");
+      printtostring(&s,
+		    "\t-restorelc 1 vars mag \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+      printtostring(&s,
+		    "\t\tcolumnformat t,mag,mag_arima\n\n");
+      printtostring(&s,
+		    "In this example we use the forecast package in R to perform an ARIMA modelling of the light curves in the list file EXAMPLES/lc_list. Note that this is not meant to illustrate a suggested way to process the light curves (among other problems, ARIMA should not be applied to non-stationary data, like some of the light curves being processed here), but is meant simply to illustrate the use of the -R command in vartools. To run this example you would first need to install the tseries and forecast packages in R, which you can do by running install.packages(\"tseries\") and install.packages(\"forecast\") from within the R interpreter. After reading in the light curve, we issue the -savelc command to save a copy of the input mag vector, which we will want to recover later in the process. ARIMA works on evenly sampled data, so we first bin the light curves in time with the -binlc command, using average binning with a binsize of 0.05 days. We then use the -resample command to resample the light curves onto a uniform time grid (needed to fill in any missing time bins). In the call to R we will input the variables mag and t and output the light curve vector mag_arima, which is created by the R command. The processing command creates a tseries object called mag_ts from the vector mag, which is needed as input to the next routine, auto.arima, which performs the arima modeling, returning the fit object to arima_model. The last command extracts the model residuals from the arima_model object into a vector which is subtracted from the mag vector, with the results stored into the vector mag_arima. This now contains the ARIMA model light curve values. We use the init term to load the tseries and forecast libraries in R before processing any light curves.  The following -resample command resamples the light curve and ARIMA model back onto the original time-base of the light curve using linear interpolation. We then use the -restorelc command to restore the mag vector only to its original form at the first -savelc command. The light curves, containing the columns t, mag and mag_arima are finally output to the directory EXAMPLES/OUTDIR1 with the suffix .arimamodel appended to the name of each light curve.\n\n");
+      printtostring(&s,
+		    "\nExample 4:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\n> cat EXAMPLES/Rexample4.R\n\n");
+      printtostring(&s,
+		    "library(tseries)\n"
+		    "library(forecast)\n"
+		    "\n"
+		    "DoArimaFitPlot <- function(mag, plotoutdir, lcbasename) {\n"
+		    "\tmag_ts <- ts(mag, start=1, end=length(mag), frequency=1)\n"
+		    "\tarima_model <- auto.arima(mag_ts)\n"
+		    "\tmag_arima <- mag - as.vector(arima_model$residuals)\n"
+		    "\tmag_forecast <- forecast(arima_model)\n"
+		    "\tpng(paste(plotoutdir, lcbasename, \".arimaforecast.png\", sep=\"\"), width = 640, height=480)\n"
+		    "\tplot(mag_forecast)\n"
+		    "\tdev.off()\n"
+		    "\tpng(paste(plotoutdir, lcbasename, \".arimaresiduals.png\", sep=\"\"), width = 640, height=480)\n"
+		    "\tcheckresiduals(arima_model)\n"
+		    "\tdev.off()\n"
+		    "\treturn(mag_arima)\n"
+		    "}\n");
+      printtostring(&s,
+		    "\n> vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \\\n");
+      printtostring(&s,
+		    "\t-savelc \\\n");
+      printtostring(&s,
+		    "\t-binlc average binsize 0.05 taverage \\\n");
+      printtostring(&s,
+		    "\t-resample linear delt fix 0.05 \\\n");
+      printtostring(&s,
+		    "\t-python 'lcbasename = Name.split(\"/\")[-1]' \\\n");
+      printtostring(&s,
+		    "\t\tinvars Name outvars lcbasename \\\n");
+      printtostring(&s,
+		    "\t-R 'mag_arima <- DoArimaFitPlot(mag, \"EXAMPLES/OUTDIR1/\", lcbasename)' \\\n");
+      printtostring(&s,
+		    "\t\tinit file EXAMPLES/Rexample4.R \\\n");
+      printtostring(&s,
+		    "\t\tinvars mag,t,lcbasename outvars mag_arima \\\n");
+      printtostring(&s,
+		    "\t-resample linear file list listcolumn 1 tcolumn 1 \\\n");
+      printtostring(&s,
+		    "\t-restorelc 1 vars mag \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+      printtostring(&s,
+		    "\t\tcolumnformat t,mag,mag_arima\n\n");
+      printtostring(&s,
+		    "\nSimilar to Example 3, in this case we source the initialization code from the file EXAMPLES/Rexample4.R. In this file we also define a function DoArimaFitPlot which carries out the ARIMA modeling, and also creates .png plots showing the future forecast and residuals from the model. In our call to the -R command we then apply this function to each light curve. We use the call to -python to get the basename for the light curves (i.e., the name of the file with the leading directories stripped off) which will be stored in the variable lcbasename. This could be done within the call to -R as well, but here we illustrate the ability to mix calls to these different languages so that we can take advantage of the easy string handling in python and the analysis capabilities of R. The rest of the command proceeds as in Example 3. In this case the output includes the additional plots EXAMPLES/OUTDIR1/*.arimaforecast.png and EXAMPLES/OUTDIR1/*.arimaresiduals.png. If run as above, the output to the terminal is as follows:\n\n");
+      printtostring(&s,
+		    "> #Name\n"
+		    "> \n"
+		    ">     ‘tseries’ version: 0.10-46\n"
+		    "> \n"
+		    ">     ‘tseries’ is a package for time series analysis and computational\n"
+		    ">     finance.\n"
+		    "> \n"
+		    ">     See ‘library(help=\"tseries\")’ for details.\n"
+		    "> \n"
+		    "> \n"
+		    "> 	Ljung-Box test\n"
+		    "> \n"
+		    "> data:  Residuals from ARIMA(3,2,1)\n"
+		    "> Q* = 26.543, df = 6, p-value = 0.0001763\n"
+		    "> \n"
+		    "> Model df: 4.   Total lags used: 10\n"
+		    "> \n"
+		    "> EXAMPLES/1\n"
+		    "> \n"
+		    "> 	Ljung-Box test\n"
+		    "> \n"
+		    "> data:  Residuals from ARIMA(3,0,0) with non-zero mean\n"
+		    "> Q* = 4.334, df = 6, p-value = 0.6316\n"
+		    "> \n"
+		    "> Model df: 4.   Total lags used: 10\n"
+		    "> \n"
+		    "> ...\n");
+      printtostring(&s,
+		    "\nThis includes a lot of additional output from R that is mixed together with the VARTOOLS table output. The R output is all redirected to stderr by VARTOOLS, and can be ignored by appending '2> /dev/null' to the end of the vartools command. The VARTOOLS table output is sent to stdout, unless the -redirectstats option was used.\n");
+
       commandfound = 1;
     }
 #endif

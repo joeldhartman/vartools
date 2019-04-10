@@ -148,6 +148,9 @@
 /* Define if we are compiling with python */
 #define HAVE_PYTHON 1
 
+/* Define if you have R */
+#define HAVE_R 1
+
 /* Define to 1 if you have the `readdir' function. */
 #define HAVE_READDIR 1
 
@@ -201,7 +204,7 @@
 /* #undef LTDL_DLOPEN_DEPLIBS */
 
 /* Define to the system default library search path. */
-#define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/libfakeroot:/usr/lib/i386-linux-gnu/mesa:/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:/lib/i686-linux-gnu:/usr/lib/i686-linux-gnu:/usr/local/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/mesa-egl:/usr/lib/x86_64-linux-gnu/mesa:/usr/lib/x86_64-linux-gnu/mir/clientplatform/mesa"
+#define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/libfakeroot:/usr/local/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/mesa-egl:/usr/lib/x86_64-linux-gnu/mesa"
 
 /* The archive extension */
 #define LT_LIBEXT "a"
@@ -216,18 +219,20 @@
    module search path. */
 #define LT_MODULE_PATH_VAR "LD_LIBRARY_PATH"
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
 
 /* Define to the shared library suffix, say, ".dylib". */
 /* #undef LT_SHARED_EXT */
 
+/* Define to the shared archive member specification, say "(shr.o)". */
+/* #undef LT_SHARED_LIB_MEMBER */
+
 /* Define if dlsym() requires a leading underscore in symbol names. */
 /* #undef NEED_USCORE */
 
 /* Set to the header file to include for numpy */
-#define NUMPY_HEADER_FILE </home/jhartman/anaconda2/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
+#define NUMPY_HEADER_FILE </home/jhartman/venv/local/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
 
 /* Name of package */
 #define PACKAGE "vartools"
@@ -239,7 +244,7 @@
 #define PACKAGE_NAME "vartools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "vartools 1.35"
+#define PACKAGE_STRING "vartools 1.38"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "vartools"
@@ -248,24 +253,27 @@
 #define PACKAGE_URL "http://www.astro.princeton.edu/~jhartman/vartools.html"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.35"
+#define PACKAGE_VERSION "1.38"
 
 /* Set to the PYTHONHOME */
-#define PYTHONHOMEPATH "/home/jhartman/anaconda2"
+#define PYTHONHOMEPATH "/home/jhartman/venv"
 
 /* NUMPY VERSION */
-#define PYTHON_NUMPY_VERSION 1.11.1
+#define PYTHON_NUMPY_VERSION 1.14.3
+
+/* Define the RHOME environment variable */
+/* #undef RHOME */
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.35"
+#define VERSION "1.38"
 
 /* Define so that glibc/gnulib argp.h does not typedef error_t. */
 /* #undef __error_t_defined */
 
-/* Define to a type to use for `error_t' if it is not otherwise available. */
+/* Define to a type to use for 'error_t' if it is not otherwise available. */
 /* #undef error_t */
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler

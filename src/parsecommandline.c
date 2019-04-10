@@ -76,7 +76,7 @@ void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr)
 
 void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 {
-  int i, iterm, j, k, cn, l, m, Nlcs, Ncommands;
+  int i, iterm, j, k, cn, l, ll, m, Nlcs, Ncommands;
 
   FILE *inlist;
 
@@ -1061,7 +1061,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  sprintf(c[cn].Changevariable->newvarname,"%s",argv[i]);
 	  cn++;
 	}
-      /* -restorelc savenumber */
+      /* -restorelc savenumber ["vars" var1,var2,...] */
       else if(!strncmp(argv[i],"-restorelc",10) && strlen(argv[i]) == 10)
 	{
 	  iterm = i;
@@ -1091,7 +1091,52 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		error2(ERR_MISSINGSAVELC,argv[i]);
 	    }
 	  else
-	    listcommands(argv[iterm],p);	      
+	    listcommands(argv[iterm],p);
+
+	  c[cn].Restorelc->ispartialrestore = 0;
+	  c[cn].Restorelc->Nrestorevars = 0;
+	  c[cn].Restorelc->restorevars = NULL;	  
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"vars")) {
+		c[cn].Restorelc->ispartialrestore = 1;
+		i++;
+		if(i < argc) {
+		  c[cn].Restorelc->Nrestorevars = 1;
+		  l = 0;
+		  while(argv[i][l] != '\0') {
+		    if(argv[i][l] == ',')
+		      c[cn].Restorelc->Nrestorevars++;
+		    l++;
+		  }
+		  if((c[cn].Restorelc->restorevarnames = (char **) malloc(c[cn].Restorelc->Nrestorevars * sizeof(char *))) == NULL)
+		    error(ERR_MEMALLOC);
+		  l = 0; m = 0;
+		  for(k = 0; k < c[cn].Restorelc->Nrestorevars; k++) {
+		    while(argv[i][l] != '\0' && argv[i][l] != ',') {
+		      l++;
+		    }
+		    if((c[cn].Restorelc->restorevarnames[k] = (char *) malloc((l - m + 1)*sizeof(char))) == NULL)
+		      error(ERR_MEMALLOC);
+		    for(ll=m; ll < l; ll++) {
+		      c[cn].Restorelc->restorevarnames[k][ll-m] = argv[i][ll];
+		    }
+		    c[cn].Restorelc->restorevarnames[k][ll-m] = '\0';
+		    m = l+1;
+		    l = l+1;
+		  }
+		  if((c[cn].Restorelc->restorevars = (_Variable **) malloc(c[cn].Restorelc->Nrestorevars*sizeof(_Variable *))) == NULL)
+		    error(ERR_MEMALLOC);
+		} else
+		  listcommands(argv[iterm],p);
+	      } else {
+		i--;
+	      }
+	    } else {
+	    i--;
+	  }
+	    
 	  cn++;
 	}
 
@@ -8638,6 +8683,33 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
 	  if(ParsePythonCommand(&i, argc, argv, p, c[cn].PythonCommand, c, cn))
+	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+#endif
+#endif
+
+#ifdef _HAVE_R
+#ifdef DYNAMICLIB
+      /*
+        -python < "fromfile" commandfile | commandstring >
+             [ "init" < "file" initializationfile | initializationstring > |
+                "continueprocess" prior_python_command_number ]
+             [ "vars" variablelist | 
+               [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
+             [ "outputcolumns" variablelist ] */
+      else if(!strcmp(argv[i],"-R"))
+	{
+	  //if(!p->pythonlibraryloaded)
+	  //  LoadVartoolsRunPythonLibrary(p);
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_R;
+	  c[cn].RCommand = CreateRCommandStruct(p, argv[0]);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(ParseRCommand(&i, argc, argv, p, c[cn].RCommand, c, cn))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}

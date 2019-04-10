@@ -46,10 +46,10 @@
 
 //void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr);
 
-_PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
-#ifdef _HAVE_PYTHON
-  _PythonCommand *c;
-  if((c = (_PythonCommand *) malloc(sizeof(_PythonCommand))) == NULL)
+_RCommand *CreateRCommandStruct(ProgramData *p, char *argv0) {
+#ifdef _HAVE_R
+  _RCommand *c;
+  if((c = (_RCommand *) malloc(sizeof(_RCommand))) == NULL)
     error(ERR_MEMALLOC);
 
   c->Nvars = 0;
@@ -62,8 +62,8 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
   c->outlcvecs_outonlyvars = NULL;
   c->lcvars_nonupdate = NULL;
 
-  c->IsPythonRunning = NULL;
-  RegisterScalarData(p, (void *) &(c->IsPythonRunning), VARTOOLS_TYPE_INT, 0);
+  c->IsRRunning = NULL;
+  RegisterScalarData(p, (void *) &(c->IsRRunning), VARTOOLS_TYPE_INT, 0);
 
   c->sockets = NULL;
   RegisterScalarData(p, (void *) &(c->sockets), VARTOOLS_TYPE_INT, 2);
@@ -72,12 +72,12 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
     error(ERR_MEMALLOC);
   sprintf(c->progname, argv0);
 
-  c->pythoninitializationtext = NULL;
-  c->len_pythoninitializationtextstring = 0;
-  c->pythoncommandstring = NULL;
-  c->len_pythoncommandstring = 0;
-  c->inputpythonfilename = NULL;
-  c->pythonobjects = NULL;
+  c->Rinitializationtext = NULL;
+  c->len_Rinitializationtextstring = 0;
+  c->Rcommandstring = NULL;
+  c->len_Rcommandstring = 0;
+  c->inputRfilename = NULL;
+  c->Robjects = NULL;
   c->iscontinueprocess = 0;
   c->continueprocesscommandptr = NULL;
 
@@ -117,11 +117,11 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
 #endif
 }
 
-void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
+void SetupRunRVariables(_RCommand *c, ProgramData *p) {
   /* Organize the input/output variables into the c->vars and
      c->outonlyvars vectors; also setup the c->isvaroutput, outlcvecs_invars
      and outlcvecs_outonlyvars, and lcvars_nonupdate vectors */
-#ifdef _HAVE_PYTHON
+#ifdef _HAVE_R
   int i, ii, j, k, jvarout;
   int testval;
 
@@ -166,7 +166,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	  c->vars[i] = p->DefinedVariables[j];
 	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
 	    if(c->vars[i]->outc->cnum >= c->cnum) {
-	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -python command before that column is created.\n\n",p->DefinedVariables[j]->varname);
+	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -R command before that column is created.\n\n",p->DefinedVariables[j]->varname);
 	      exit(1);
 	    }
 	  }
@@ -216,7 +216,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	  c->vars[i] = p->DefinedVariables[j];
 	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
 	    if(c->vars[i]->outc->cnum >= c->cnum) {
-	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -python command before that column is created.\n\n",p->DefinedVariables[j]->varname);
+	      fprintf(stderr,"Error: attempting to pass the output column variable %s to a -R command before that column is created.\n\n",p->DefinedVariables[j]->varname);
 	      exit(1);
 	    }
 	  }
@@ -231,7 +231,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	    break;
 	  }
 	}
-	/* Otherwise we will assume that its a light curve vector */
+	/* Otherwise we will assume that it's a light curve vector */
 	if(k >= c->Noutcolumnvars) {
 	  c->vars[i] = CreateVariable(p, c->invarnames[i], VARTOOLS_TYPE_DOUBLE, VARTOOLS_VECTORTYPE_LC, NULL);
 	  RegisterDataFromLightCurve(p,
@@ -272,11 +272,11 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	  if(!strcmp(c->outvarnames[i],p->DefinedVariables[j]->varname)) {
 	    c->outonlyvars[ii] = p->DefinedVariables[j];
 	    if(c->outonlyvars[ii]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
-	      fprintf(stderr,"Error: the column variable %s cannot be included in the outvars list in a -python command.\n\n",c->outonlyvars[ii]->varname);
+	      fprintf(stderr,"Error: the column variable %s cannot be included in the outvars list in a -R command.\n\n",c->outonlyvars[ii]->varname);
 	      exit(1);
 	    }
 	    if(c->outonlyvars[ii]->vectortype == VARTOOLS_VECTORTYPE_CONSTANT) {
-	      fprintf(stderr,"Error: the constant variable %s cannot be included in the outvars list in a -python command.\n\n",c->outonlyvars[ii]->varname);
+	      fprintf(stderr,"Error: the constant variable %s cannot be included in the outvars list in a -R command.\n\n",c->outonlyvars[ii]->varname);
 	      exit(1);
 	    }
 	    break;
@@ -328,7 +328,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 	}
       }
       if(j >= p->NDefinedVariables) {
-	error2(ERR_PYTHONOUTPUTUNDEFINEDVARIABLE,c->outcolumnnames[i]);
+	error2(ERR_ROUTPUTUNDEFINEDVARIABLE,c->outcolumnnames[i]);
       }
     }
   }
@@ -393,7 +393,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 }
 
 /*
-void LoadVartoolsRunPythonLibrary(ProgramData *p) {
+void LoadVartoolsRunRLibrary(ProgramData *p) {
   
 #ifdef DYNAMICLIB  
   void *func;
@@ -401,7 +401,7 @@ void LoadVartoolsRunPythonLibrary(ProgramData *p) {
   lt_dlhandle lib;
   char tmpstring[MAXLEN];
   char libbasename[MAXLEN];
-  char libname[] = "vartoolsrunpython";
+  char libname[] = "vartoolsrunR";
   int i1, i2, i3, i, j;
 
   lib = lt_dlopenext(libname);
@@ -423,28 +423,28 @@ void LoadVartoolsRunPythonLibrary(ProgramData *p) {
   ((void (*)(void (*)(_VARTOOLS_FUNCTION_POINTER_STRUCT *))) 
    func)(&Set_Function_Pointers_Callback);
 
-  func = lt_dlsym(lib,"ParsePythonCommand");
+  func = lt_dlsym(lib,"ParseRCommand");
 
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,"ParsePythonCommand");
+    error2(ERR_LIBRARY_MISSING_FUNCTION,"ParseRCommand");
   }
-  p->VartoolsPythonLib.ParsePythonCommand_ptr = func;
+  p->VartoolsRLib.ParseRCommand_ptr = func;
 
-  func = lt_dlsym(lib,"RunPythonCommand");
+  func = lt_dlsym(lib,"RunRCommand");
 
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,"RunPythonCommand");
+    error2(ERR_LIBRARY_MISSING_FUNCTION,"RunRCommand");
   }
-  p->VartoolsPythonLib.RunPythonCommand_ptr = func;
+  p->VartoolsRLib.RunRCommand_ptr = func;
 
-  func = lt_dlsym(lib,"InitPythonCommand");
+  func = lt_dlsym(lib,"InitRCommand");
   
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,"InitPythonCommand");
+    error2(ERR_LIBRARY_MISSING_FUNCTION,"InitRCommand");
   }
-  p->VartoolsPythonLib.InitPythonCommand_ptr = func;
+  p->VartoolsRLib.InitRCommand_ptr = func;
 
-  p->pythonlibraryloaded = 1;
+  p->Rlibraryloaded = 1;
   return;
 #else
 
@@ -453,31 +453,31 @@ void LoadVartoolsRunPythonLibrary(ProgramData *p) {
 }*/
 
 /*
-int ParsePythonCommand(int *inum, int argc, char **argv, ProgramData *p, 
-			_PythonCommand *c, Command *allcommands, int cnum)
+int ParseRCommand(int *inum, int argc, char **argv, ProgramData *p, 
+			_RCommand *c, Command *allcommands, int cnum)
 {
-#ifdef _HAVE_PYTHON
-  return ((int (*)(int *, int, char **, ProgramData *, _PythonCommand *, Command *, int))p->VartoolsPythonLib.ParsePythonCommand_ptr)(inum, argc, argv, p, c, allcommands, cnum);
+#ifdef _HAVE_R
+  return ((int (*)(int *, int, char **, ProgramData *, _RCommand *, Command *, int))p->VartoolsRLib.ParseRCommand_ptr)(inum, argc, argv, p, c, allcommands, cnum);
 #else
   
   return 1;
 #endif
 }
 
-void RunPythonCommand(ProgramData *p, int lcindex, int threadindex, _PythonCommand *c)
+void RunRCommand(ProgramData *p, int lcindex, int threadindex, _RCommand *c)
 {
-#ifdef _HAVE_PYTHON
-  ((void (*)(ProgramData *,int, int, _PythonCommand *))p->VartoolsPythonLib.RunPythonCommand_ptr)(p, lcindex, threadindex, c);
+#ifdef _HAVE_R
+  ((void (*)(ProgramData *,int, int, _RCommand *))p->VartoolsRLib.RunRCommand_ptr)(p, lcindex, threadindex, c);
   return;
 #else
   return;
 #endif
 }
 
-void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs)
+void InitRCommand(ProgramData *p, _RCommand *c, int Nlcs)
 {
-#ifdef _HAVE_PYTHON
-  ((void (*)(ProgramData *, _PythonCommand *, int))p->VartoolsPythonLib.InitPythonCommand_ptr)(p, c, Nlcs);
+#ifdef _HAVE_R
+  ((void (*)(ProgramData *, _RCommand *, int))p->VartoolsRLib.InitRCommand_ptr)(p, c, Nlcs);
   return;
 #else
   return;

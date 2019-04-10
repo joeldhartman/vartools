@@ -235,6 +235,11 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       SetupRunPythonVariables(c[i].PythonCommand,p);
     }
 #endif
+#ifdef _HAVE_R
+    else if(c[i].cnum == CNUM_R) {
+      SetupRunRVariables(c[i].RCommand,p);
+    }
+#endif
     else if(c[i].cnum == CNUM_USERCOMMAND) {
       for(j=0; j < c[i].UserCommand->Nexpr; j++) {
 	*(c[i].UserCommand->UserDataExpressions[j]) = ParseExpression(c[i].UserCommand->expr_strings[j], p);
@@ -267,7 +272,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     }
   }
 
-  /* Now setup any Variable pointers which are required by the -o, -changevariable, -stats or -FFT commands */
+  /* Now setup any Variable pointers which are required by the -o, -changevariable, -stats, -FFT, or -restorelc commands */
   for(i=0; i < p->Ncommands; i++) {
     if(c[i].cnum == CNUM_OUTPUTLCS) {
       if(c[i].Outputlcs->usecolumnformat) {
@@ -322,6 +327,25 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	}
 	if(j == p->NDefinedVariables) {
 	  error2(ERR_UNDEFINEDVARIABLE,c[i].Stats->varnames[k]);
+	}
+      }
+    }
+    else if(c[i].cnum == CNUM_RESTORELC) {
+      if(c[i].Restorelc->ispartialrestore) {
+	for(k = 0; k < c[i].Restorelc->Nrestorevars; k++) {
+	  for(j=0; j < p->NDefinedVariables; j++) {
+	    if(!strcmp(c[i].Restorelc->restorevarnames[k],
+		       p->DefinedVariables[j]->varname)) {
+	      if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
+		error(ERR_BADVARIABLETYPE_RESTORELCCOMMAND);
+	      }
+	      c[i].Restorelc->restorevars[k] = p->DefinedVariables[j];
+	      break;
+	    }
+	  }
+	  if(j == p->NDefinedVariables) {
+	    error2(ERR_UNDEFINEDVARIABLE,c[i].Restorelc->restorevarnames[k]);
+	  }
 	}
       }
     }

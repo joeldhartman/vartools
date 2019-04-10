@@ -59,5 +59,13 @@ typedef struct {
 } _VartoolsPythonLibStruct;
 #endif
 
+#ifdef _HAVE_R
+typedef struct {
+  void *ParseRCommand_ptr;
+  void *RunRCommand_ptr;
+  void *InitRCommand_ptr;
+} _VartoolsRLibStruct;
+#endif
+
 #define _USERLIB_STRUCT_DEFINE
 #endif

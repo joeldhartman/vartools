@@ -281,6 +281,9 @@ typedef struct {
 #ifdef _HAVE_PYTHON
   _VartoolsPythonLibStruct VartoolsPythonLib;
 #endif
+#ifdef _HAVE_R
+  _VartoolsRLibStruct VartoolsRLib;
+#endif
 #endif
 
   int maxinputcolumn;
@@ -304,6 +307,7 @@ typedef struct {
   char skipempty;
 
   int pythonlibraryloaded;
+  int Rlibraryloaded;
 
   int lcdelimtype;
   char delimchar;
@@ -314,6 +318,7 @@ typedef struct {
 #define ERR_USAGE 1
 #define ERR_FILENOTFOUND 2
 #define ERR_MEMALLOC 3
+#define ERR_MEMALLOC_VARTOOLS 3
 #define ERR_WRONGITER 4
 #define ERR_WRONGORDER 5
 #define ERR_KILLHARM_NOAOV 6
@@ -421,3 +426,5 @@ typedef struct {
 #define ERR_NEEDCSPICE 108
 #define ERR_TFATEMPLATEFITSREADERROR 109
 #define ERR_BADVARIABLETYPE_FFTCOMMAND 110
+#define ERR_ROUTPUTUNDEFINEDVARIABLE 111
+#define ERR_BADVARIABLETYPE_RESTORELCCOMMAND 112

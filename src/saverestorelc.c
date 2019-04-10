@@ -543,163 +543,423 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
     }
 }
 
-void dorestorelc(ProgramData *p, _Savelc *s, int sthreadid, int rthreadid)
+void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int rthreadid, int lcid)
 {
-  int idbl, istring, iint, ishort, ilong, ifloat, ichar, i, k, u;
+  int idbl, istring, iint, ishort, ilong, ifloat, ichar, i, k, u, ll;
   _DataFromLightCurve *d;
   int Nc;
 
-  if(s->NJD[sthreadid] > p->sizesinglelc[rthreadid])
-    MemAllocDataFromLightCurve(p, rthreadid, s->NJD[sthreadid]);
-
-  for(idbl=0,istring=0,ishort=0,ilong=0,ifloat=0,ichar=0,iint=0,i=0;
-      i<p->NDataFromLightCurve;i++)
-    {
-      d = &(p->DataFromLightCurve[i]);
-      Nc = d->Ncolumns;
-      if(Nc == 0) {
-	switch(d->datatype) {
-	case VARTOOLS_TYPE_DOUBLE:
-	  memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
-	  idbl++;
-	  break;
-	case VARTOOLS_TYPE_CONVERTJD:
-	  memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
-	  idbl++;
-	  break;
-	case VARTOOLS_TYPE_STRING:
-	  for(k=0;k<s->NJD[sthreadid];k++) {
-	    memcpy(((*((char ****)d->dataptr))[rthreadid][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
-	  }
-	  istring += d->maxstringlength;
-	  break;
-	case VARTOOLS_TYPE_INT:
-	  memcpy(&((*((int ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
-	  iint++;
-	  break;
-	case VARTOOLS_TYPE_LONG:
-	  memcpy(&((*((long ***)d->dataptr))[rthreadid][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
-	  ilong++;
-	  break;
-	case VARTOOLS_TYPE_FLOAT:
-	  memcpy(&((*((float ***)d->dataptr))[rthreadid][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
-	  ifloat++;
-	  break;
-	case VARTOOLS_TYPE_SHORT:
-	  memcpy(&((*((short ***)d->dataptr))[rthreadid][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
-	  ishort++;
-	  break;
-	case VARTOOLS_TYPE_CHAR:
-	  memcpy(&((*((char ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
-	  ichar++;
-	  break;
-	default:
-	  error(ERR_BADTYPE);
-	}
-      } else if(Nc > 0) {
-	for(u=0; u < Nc; u++) {
+  if(r == NULL ? 1 : !r->ispartialrestore) {
+    if(s->NJD[sthreadid] > p->sizesinglelc[rthreadid])
+      MemAllocDataFromLightCurveMidProcess(p, rthreadid, s->NJD[sthreadid]);
+    
+    for(idbl=0,istring=0,ishort=0,ilong=0,ifloat=0,ichar=0,iint=0,i=0;
+	i<p->NDataFromLightCurve;i++)
+      {
+	d = &(p->DataFromLightCurve[i]);
+	Nc = d->Ncolumns;
+	if(Nc == 0) {
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
-	    memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	    memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
 	    idbl++;
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
-	    memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	    memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
 	    idbl++;
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(((*((char *****)d->dataptr))[rthreadid][u][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+	      memcpy(((*((char ****)d->dataptr))[rthreadid][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
 	    }
 	    istring += d->maxstringlength;
 	    break;
 	  case VARTOOLS_TYPE_INT:
-	    memcpy(&((*((int ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
+	    memcpy(&((*((int ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
 	    iint++;
 	    break;
 	  case VARTOOLS_TYPE_LONG:
-	    memcpy(&((*((long ****)d->dataptr))[rthreadid][u][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
+	    memcpy(&((*((long ***)d->dataptr))[rthreadid][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
 	    ilong++;
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
-	    memcpy(&((*((float ****)d->dataptr))[rthreadid][u][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
+	    memcpy(&((*((float ***)d->dataptr))[rthreadid][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
 	    ifloat++;
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
-	    memcpy(&((*((short ****)d->dataptr))[rthreadid][u][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
+	    memcpy(&((*((short ***)d->dataptr))[rthreadid][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
 	    ishort++;
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
-	    memcpy(&((*((char ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
+	    memcpy(&((*((char ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
 	    ichar++;
 	    break;
 	  default:
 	    error(ERR_BADTYPE);
 	  }
-	}
-      } else {
-	for(u=0; u < (-Nc); u++) {
-	  switch(d->datatype) {
-	  case VARTOOLS_TYPE_DOUBLE:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+	} else if(Nc > 0) {
+	  for(u=0; u < Nc; u++) {
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_CONVERTJD:
+	      memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(((*((char *****)d->dataptr))[rthreadid][u][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+	      }
+	      istring += d->maxstringlength;
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      memcpy(&((*((int ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
+	      iint++;
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      memcpy(&((*((long ****)d->dataptr))[rthreadid][u][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
+	      ilong++;
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      memcpy(&((*((float ****)d->dataptr))[rthreadid][u][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
+	      ifloat++;
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      memcpy(&((*((short ****)d->dataptr))[rthreadid][u][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
+	      ishort++;
+	      break;
+	    case VARTOOLS_TYPE_CHAR:
+	      memcpy(&((*((char ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
+	      ichar++;
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
 	    }
-	    idbl++;
-	    break;
-	  case VARTOOLS_TYPE_CONVERTJD:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+	  }
+	} else {
+	  for(u=0; u < (-Nc); u++) {
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_CONVERTJD:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(((*((char *****)d->dataptr))[rthreadid][k][u]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+	      }
+	      istring += d->maxstringlength;
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((int ****)d->dataptr))[rthreadid][k][u]),&(s->iterms[sthreadid][iint][k]),(sizeof(int)));
+	      }
+	      iint++;
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((long ****)d->dataptr))[rthreadid][k][u]),&(s->lterms[sthreadid][ilong][k]),(sizeof(long)));
+	      }
+	      ilong++;
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((float ****)d->dataptr))[rthreadid][k][u]),&(s->fterms[sthreadid][ifloat][k]),(sizeof(float)));
+	      }
+	      ifloat++;
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((short ****)d->dataptr))[rthreadid][k][u]),&(s->shterms[sthreadid][ishort][k]),(sizeof(short)));
+	      }
+	      ishort++;
+	      break;
+	    case VARTOOLS_TYPE_CHAR:
+	      for(k=0;k<s->NJD[sthreadid];k++) {
+		memcpy(&((*((char ****)d->dataptr))[rthreadid][k][u]),&(s->cterms[sthreadid][ichar][k]),(sizeof(char)));
+	      }
+	      ichar++;
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
 	    }
-	    idbl++;
-	    break;
-	  case VARTOOLS_TYPE_STRING:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(((*((char *****)d->dataptr))[rthreadid][k][u]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
-	    }
-	    istring += d->maxstringlength;
-	    break;
-	  case VARTOOLS_TYPE_INT:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((int ****)d->dataptr))[rthreadid][k][u]),&(s->iterms[sthreadid][iint][k]),(sizeof(int)));
-	    }
-	    iint++;
-	    break;
-	  case VARTOOLS_TYPE_LONG:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((long ****)d->dataptr))[rthreadid][k][u]),&(s->lterms[sthreadid][ilong][k]),(sizeof(long)));
-	    }
-	    ilong++;
-	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((float ****)d->dataptr))[rthreadid][k][u]),&(s->fterms[sthreadid][ifloat][k]),(sizeof(float)));
-	    }
-	    ifloat++;
-	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((short ****)d->dataptr))[rthreadid][k][u]),&(s->shterms[sthreadid][ishort][k]),(sizeof(short)));
-	    }
-	    ishort++;
-	    break;
-	  case VARTOOLS_TYPE_CHAR:
-	    for(k=0;k<s->NJD[sthreadid];k++) {
-	      memcpy(&((*((char ****)d->dataptr))[rthreadid][k][u]),&(s->cterms[sthreadid][ichar][k]),(sizeof(char)));
-	    }
-	    ichar++;
-	    break;
-	  default:
-	    error(ERR_BADTYPE);
 	  }
 	}
       }
-    }
-  if(p->readimagestring)
-    {
-      memcpy(p->stringid_idx[rthreadid],s->stringid_idx[sthreadid],(s->NJD[sthreadid]*sizeof(int)));
+    if(p->readimagestring)
+      {
+	memcpy(p->stringid_idx[rthreadid],s->stringid_idx[sthreadid],(s->NJD[sthreadid]*sizeof(int)));
+      }
+
+    p->NJD[rthreadid] = s->NJD[sthreadid];
+  } else {
+    
+    /* Handle the case where the list of variables to restore is explicitly given */
+    if(s->NJD[sthreadid] != p->NJD[rthreadid]) {
+      /* The light curve vectors are different sizes! */
+      fprintf(stderr,"Warning: the saved light curve vectors are a different size from the current vectors for light curve number %d. A partial restoration of light curve vectors is not supported when the vectors are different lengths. The light curve is being skipped.\n", lcid);
+      return;
     }
 
-  p->NJD[rthreadid] = s->NJD[sthreadid];
+    for(idbl=0,istring=0,ishort=0,ilong=0,ifloat=0,ichar=0,iint=0,i=0;
+	i<p->NDataFromLightCurve;i++)
+      {
+	d = &(p->DataFromLightCurve[i]);
+	Nc = d->Ncolumns;
+	if(Nc == 0) {
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((double ***)d->dataptr))[rthreadid] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	      }
+	    }
+	    idbl++;
+	    break;
+	  case VARTOOLS_TYPE_CONVERTJD:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((double ***)d->dataptr))[rthreadid] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((double ***)d->dataptr))[rthreadid][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+	      }
+	    }
+	    idbl++;
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((char ****)d->dataptr))[rthreadid] == (*((char ****)r->restorevars[ll]->dataptr))[rthreadid]) {
+		for(k=0;k<s->NJD[sthreadid];k++) {
+		  memcpy(((*((char ****)d->dataptr))[rthreadid][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+		}
+	      }
+	    }
+	    istring += d->maxstringlength;
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((int ***)d->dataptr))[rthreadid] == (*((int ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((int ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
+	      }
+	    }
+	    iint++;
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((long ***)d->dataptr))[rthreadid] == (*((long ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((long ***)d->dataptr))[rthreadid][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
+	      }
+	    }
+	    ilong++;
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((float ***)d->dataptr))[rthreadid] == (*((float ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((float ***)d->dataptr))[rthreadid][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
+	      }
+	    }
+	    ifloat++;
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((short ***)d->dataptr))[rthreadid] == (*((short ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((short ***)d->dataptr))[rthreadid][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
+	      }
+	    }
+	    ishort++;
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    for(ll=0; ll < r->Nrestorevars; ll++) {
+	      if((*((char ***)d->dataptr))[rthreadid] == (*((char ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		memcpy(&((*((char ***)d->dataptr))[rthreadid][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
+	      }
+	    }
+	    ichar++;
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	} else if(Nc > 0) {
+	  for(u=0; u < Nc; u++) {
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((double ****)d->dataptr))[rthreadid][u] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+		}
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_CONVERTJD:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((double ****)d->dataptr))[rthreadid][u] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((double ****)d->dataptr))[rthreadid][u][0]),s->dblterms[sthreadid][idbl],(s->NJD[sthreadid]*sizeof(double)));
+		}
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((char *****)d->dataptr))[rthreadid][u] == (*((char ****)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(((*((char *****)d->dataptr))[rthreadid][u][k]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+		  }
+		}
+	      }
+	      istring += d->maxstringlength;
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((int ****)d->dataptr))[rthreadid][u] == (*((int ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((int ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][iint],(s->NJD[sthreadid]*sizeof(int)));
+		}
+	      }
+	      iint++;
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((long ****)d->dataptr))[rthreadid][u] == (*((long ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((long ****)d->dataptr))[rthreadid][u][0]),s->lterms[sthreadid][ilong],(s->NJD[sthreadid]*sizeof(long)));
+		}
+	      }
+	      ilong++;
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((float ****)d->dataptr))[rthreadid][u] == (*((float ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((float ****)d->dataptr))[rthreadid][u][0]),s->fterms[sthreadid][ifloat],(s->NJD[sthreadid]*sizeof(float)));
+		}
+	      }
+	      ifloat++;
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((short ****)d->dataptr))[rthreadid][u] == (*((short ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((short ****)d->dataptr))[rthreadid][u][0]),s->shterms[sthreadid][ishort],(s->NJD[sthreadid]*sizeof(short)));
+		}
+	      }
+	      ishort++;
+	      break;
+	    case VARTOOLS_TYPE_CHAR:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if((*((char ****)d->dataptr))[rthreadid][u] == (*((char ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  memcpy(&((*((char ****)d->dataptr))[rthreadid][u][0]),s->iterms[sthreadid][ichar],(s->NJD[sthreadid]*sizeof(char)));
+		}
+	      }
+	      ichar++;
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
+	    }
+	  }
+	} else {
+	  for(u=0; u < (-Nc); u++) {
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((double ****)d->dataptr))[rthreadid][0][u] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+		  }
+		}
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_CONVERTJD:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((double ****)d->dataptr))[rthreadid][0][u] == (*((double ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((double ****)d->dataptr))[rthreadid][k][u]),&(s->dblterms[sthreadid][idbl][k]),(sizeof(double)));
+		  }
+		}
+	      }
+	      idbl++;
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((char *****)d->dataptr))[rthreadid][0][u] == (*((char ****)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(((*((char *****)d->dataptr))[rthreadid][k][u]),&(s->sterms[sthreadid][k][istring]),d->maxstringlength);
+		  }
+		}
+	      }
+	      istring += d->maxstringlength;
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((int ****)d->dataptr))[rthreadid][0][u] == (*((int ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((int ****)d->dataptr))[rthreadid][k][u]),&(s->iterms[sthreadid][iint][k]),(sizeof(int)));
+		  }
+		}
+	      }
+	      iint++;
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((long ****)d->dataptr))[rthreadid][0][u] == (*((long ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((long ****)d->dataptr))[rthreadid][k][u]),&(s->lterms[sthreadid][ilong][k]),(sizeof(long)));
+		  }
+		}
+	      }
+	      ilong++;
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((float ****)d->dataptr))[rthreadid][0][u] == (*((float ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((float ****)d->dataptr))[rthreadid][k][u]),&(s->fterms[sthreadid][ifloat][k]),(sizeof(float)));
+		  }
+		}
+	      }
+	      ifloat++;
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((short ****)d->dataptr))[rthreadid][0][u] == (*((short ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((short ****)d->dataptr))[rthreadid][k][u]),&(s->shterms[sthreadid][ishort][k]),(sizeof(short)));
+		  }
+		}
+	      }
+	      ishort++;
+	      break;
+	    case VARTOOLS_TYPE_CHAR:
+	      for(ll=0; ll < r->Nrestorevars; ll++) {
+		if(&(*((char ****)d->dataptr))[rthreadid][0][u] == (*((char ***)r->restorevars[ll]->dataptr))[rthreadid]) {
+		  for(k=0;k<s->NJD[sthreadid];k++) {
+		    memcpy(&((*((char ****)d->dataptr))[rthreadid][k][u]),&(s->cterms[sthreadid][ichar][k]),(sizeof(char)));
+		  }
+		}
+	      }
+	      ichar++;
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
+	    }
+	  }
+	}
+      }
+    if(p->readimagestring)
+      {
+	for(ll=0; ll < r->Nrestorevars; ll++) {
+	  if(p->stringid[rthreadid] == (*((char ****) r->restorevars[ll]->dataptr))[rthreadid]) {
+	    memcpy(p->stringid_idx[rthreadid],s->stringid_idx[sthreadid],(s->NJD[sthreadid]*sizeof(int)));
+	  }
+	}
+      }
+
+  }
+
+
 }
 
 

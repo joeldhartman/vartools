@@ -380,7 +380,7 @@ void ftuneven_ShowHelp(FILE *outfile)
 /* Output the help information for this command */
 {
   fprintf(outfile,
-"Compute the complex Fourier transform of a time series with arbitrary spacing using a method developed by Jeff Scargle. The routine will return both the real and imaginary components of the Fourier transform, together with the absolute square of the result which is equivalent to the Lomb-Scargle periodogram. NOTE INPUT AND OUTPUT FREQUENCIES ARE IN UNITS OF RADIANS PER UNIT TIME.\n"
+"Compute the complex Fourier transform of a time series with arbitrary spacing using a method developed by Jeff Scargle with support from NASA grant NNX16AL02G. The routine will return both the real and imaginary components of the Fourier transform, together with the absolute square of the result which is equivalent to the Lomb-Scargle periodogram. NOTE INPUT AND OUTPUT FREQUENCIES ARE IN UNITS OF RADIANS PER UNIT TIME.\n"
 "The user must specify how these results will be returned. The following options are available:\n"
 "\n\t\"outputvectors\" - return the results in a set of light curve vectors\n"
 "\t\tthat can be used in subsequent vartools commands. The user\n"

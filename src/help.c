@@ -547,6 +547,24 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       commandfound = 1;
     }
 #endif
+#ifdef _HAVE_R
+  if(c == NULL || (!strcmp(c,"-R")))
+    {
+      printtostring(s,
+		    "-R <\"fromfile\" commandfile | commandstring>\n");
+      printtostring(s,
+		    "\t[\"init\" <\"file\" initializationfile | initializationstring>\n");
+      printtostring(s,
+		    "\t\t| \"continueprocess\" prior_R_command_number]\n");
+      printtostring(s,
+		    "\t[\"vars\" variablelist\n");
+      printtostring(s,
+		    "\t\t| [\"invars\" inputvariablelist] [\"outvars\" outputvariablelist]]\n");
+      printtostring(s,
+		    "\t[\"outputcolumns\" variablelist] [\"process_all_lcs\"]\n");
+      commandfound = 1;
+    }
+#endif
   if(c == NULL || (!strcmp(c,"-resample")))
     {
       printtostring(s,
@@ -620,7 +638,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-restorelc",10) && strlen(c) == 10))
     {
-      printtostring(s,"-restorelc savenumber\n");
+      printtostring(s,"-restorelc savenumber [\"vars\" var1,var2,...]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-restricttimes")))
@@ -1388,12 +1406,22 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Replace the time variable of a light curve with its phase and sort the light curve by the phase. The period for phasing is either taken from the last aov command, the last ls command, the last BLS command, is set to an arbitrary previously computed statistic by giving the name or number of the output column as seen with the -header or -numbercolumns options (the \"fixcolumn\" option), is specified in the list (in this case the list must be used), or is fixed to the value P specified on the command line. The user may optionally specify a reference time for phase = 0 (T0) by giving \"T0\" followed either by \"bls\" and the phase to assign the time of mid-transit found from the last bls command, by \"fixcolumn\" and the name or number of a previously computed statistic, by \"list\" (in which case the value to use for each light curve is given in the input list), or by \"fix\" and the T0 value to use for all processed light curves. By default t0 is the initial time in the light curve. If the \"phasevar\" keyword is used, then the phases will be stored in the variable var, rather than overwriting the times. The optional \"startphase\" keyword may be used to change the range of phases (by default they run from 0 to 1, using this keyword will cause them to run from startphase to startphase+1).\n\n");
       commandfound = 1;
     }
+#ifdef _HAVE_PYTHON
   if(all == 1 || !strcmp(c,"-python"))
     {
       listcommands_noexit("-python",p,&s);
       printtostring(&s,"Run arbitrary python routines on a light curve. Either provide a string on the command line with python code to apply to the light curve, or give the \"fromfile\" keyword followed by the name of a file with python code to run. VARTOOLS will take the commands supplied by the user and embed them within a python function which receives variables from VARTOOLS, executes the code supplied by the user, and then returns the variables back to VARTOOLS. VARTOOLS will use the python C library to compile this function and then execute it on each light curve to be processed. Note that in order to access the variable data VARTOOLS will automatically \"import numpy\", so you may use routines within this module without importing it explicitly.\n\nAny code that you would like to execute through python before running the processing function on each light curve (e.g., code that defines your own functions that are then called through the commandstring) can be supplied by providing the \"init\" keyword and then either giving the code as a single string on the command line, or giving the \"file\" keyword followed by the name of a file from which the code will be imported.\n\nBy default VARTOOLS will run every -python command as a separate sub-process, meaning, for example, that any changes that you make to global variables in one -python command will not be seen by other -python commands. Similarly each command will only use its own initialization code. You can optionally combine multiple calls to -python on the VARTOOLS command-line into a single sub-process by using the \"continueprocess\" keyword. Supply the keyword and then the number of the prior -python command whose sub-process a new -python command should use. The first call to \"-python\" on the command line will have prior_python_command_nnumber=1, the second will have prior_python_command_number=2 and so on. If you use the \"continueprocess\" keyword then you will not supply any initialization code for this command. The command will instead inherit the initialization code that was executed for the prior -python command.\n\nBy default all active variables will be passed from VARTOOLS into the python function and will then be returned to VARTOOLS. The input variables are provided as numpy arrays, except in the case of variables storing string data which are supplied as lists. To specify the variables which are input and output from the command you can use the \"vars\" keyword followed by a comma-separated list of variable names, or you can use the \"invars\" and/or \"outvars\" keywords to separately specify the variables that are input and output. If you would like any variables to be output to the ASCII table (e.g., statistics that you compute from the light curves) use the \"outputcolumns\" keyword followed by a comma-separated list of variable names. Note that light curve vectors or variables storing string data cannot be included in this list.\n\nBy default VARTOOLS will only send one light curve at a time to the user function. If, however, you wish to pass all of the light curves to PYTHON at once, you can supply the \"process_all_lcs\" keyword. In that case light curve vectors will be supplied as a list of numpy arrays, while other variables, such as those storing values computed for each light curve by a command, will be provided as numpy arrays.\n\nNote that if VARTOOLS is run with the -parallel option, then a separate python sub-process will be run for each thread. This allows for parallel processing of the light curves through python without using the python global interpreter lock. Note that because we are using separate processes, the initialization code will be executed separately for each thread, meaning extra over-head for each thread used, and any changes that you make to global variables in one thread will not be visible to other threads.\n\nSee \"vartools -example -python\" for examples of how to use this command.\n\n");
       commandfound = 1;
     }
+#endif
+#ifdef _HAVE_R
+  if(all == 1 || !strcmp(c,"-R"))
+    {
+      listcommands_noexit("-R",p,&s);
+      printtostring(&s,"Run arbitrary R routines on a light curve. Either provide a string on the command line with R code to apply to the light curve, or give the \"fromfile\" keyword followed by the name of a file with R code to run. VARTOOLS will take the commands supplied by the user and embed them within an R function which receives variables from VARTOOLS, executes the code supplied by the user, and then returns the variables back to VARTOOLS. VARTOOLS will execute this function on each light curve to be processed.\n\nAny code that you would like to execute through R before running the processing function on each light curve (e.g., libraries that you wish to load, or code that defines your own functions that are then called through the commandstring) can be supplied by providing the \"init\" keyword and then either giving the code as a single string on the command line, or giving the \"file\" keyword followed by the name of a file from which the code will be imported.\n\nBy default VARTOOLS will run every -R command as a separate sub-process, meaning, for example, that any changes that you make to global variables in one -R command will not be seen by other -R commands. Similarly each command will only use its own initialization code. You can optionally combine multiple calls to -R on the VARTOOLS command-line into a single sub-process by using the \"continueprocess\" keyword. Supply the keyword and then the number of the prior -R command whose sub-process a new -R command should use. The first call to \"-R\" on the command line will have prior_R_command_nnumber=1, the second will have prior_R_command_number=2 and so on. If you use the \"continueprocess\" keyword then you will not supply any initialization code for this command. The command will instead inherit the initialization code that was executed for the prior -R command.\n\nBy default all active variables will be passed from VARTOOLS into the R function and will then be returned to VARTOOLS. The input variables are provided as vectors. To specify the variables which are input and output from the command you can use the \"vars\" keyword followed by a comma-separated list of variable names, or you can use the \"invars\" and/or \"outvars\" keywords to separately specify the variables that are input and output. If you would like any variables to be output to the ASCII table (e.g., statistics that you compute from the light curves) use the \"outputcolumns\" keyword followed by a comma-separated list of variable names. Note that light curve vectors or variables storing string data cannot be included in this list.\n\nBy default VARTOOLS will only send one light curve at a time to the user function. If, however, you wish to pass all of the light curves to R at once, you can supply the \"process_all_lcs\" keyword. In that case light curve vectors will be supplied as lists of vectors, while other variables, such as those storing values computed for each light curve by a command, will be provided as lists.\n\nNote that if VARTOOLS is run with the -parallel option, then a separate R sub-process will be run for each thread. Note that because we are using separate processes, the initialization code will be executed separately for each thread, meaning extra over-head for each thread used, and any changes that you make to global variables in one thread will not be visible to other threads.\n\nTo run this command you need to have set the R_HOME environment variable. If R is in your PATH you can find the appropriate value for it by running \"R RHOME\" from the command-line. You may also wish to add the line \"export R_HOME=$(R RHOME)\" to your .bashrc file, or the equivalent version to a file called at start-up for your shell.\n\nSee \"vartools -example -R\" for examples of how to use this command.\n\n");
+      commandfound = 1;
+    }
+#endif
   if(all == 1 || !strcmp(c,"-resample"))
     {
       listcommands_noexit("-resample",p,&s);
@@ -1413,6 +1441,7 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-restorelc",p,&s);
       printtostring(&s,"This command can be used in conjunction with the -savelc command to restore the light curve to a previous state. savenumber is 1, 2, 3, ... to restore the light curve to its state at the first, second, third ... call to -savelc. For example, suppose you want to try running TFA followed by LS on the light curve using 3 different template lists. A command string of the form: \"... -savelc -TFA trendlist1 ... -LS ... -restorelc 1 -TFA trendlist2 ... -LS ... -restorelc 1 -TFA trendlist3 ... -LS ...\" would accomplish this as each time \"-restorelc 1\" is called the light curve is restored to its form at the first -savelc command.\n\n");
+      printtostring(&s,"If you only want to restore a subset of the light curve vectors, give the \"vars\" keyword, followed by a comma-separated list of light curve vectors to restore. Note that in this case the partial restoration will only proceed if the saved vectors are the same length as the current light curve. If not, vartools will print a warning to stderr and restoration will not occur for this light curve.\n\n");
       commandfound = 1;
     }
   if(all == 1 || !strcmp(c,"-restricttimes"))

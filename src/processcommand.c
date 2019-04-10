@@ -188,7 +188,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_RESTORELC:
       /* Restore the saved light curve */
-      dorestorelc(p, c[c->Restorelc->saveindex - thisindex].Savelc, lc2, lc2);
+      dorestorelc(p, c[c->Restorelc->saveindex - thisindex].Savelc, c->Restorelc, lc2, lc2, lc);
       break;
 
     case CNUM_RESTRICTTIMES:
@@ -510,6 +510,13 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	Lombscargle (p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->Ls->minp, c->Ls->maxp, c->Ls->subsample, c->Ls->Npeaks, c->Ls->peakperiods[lc2], c->Ls->peakvalues[lc2], c->Ls->peakFAP[lc2], c->Ls->SNRvalues[lc2],c->Ls->operiodogram, outname,p->ascii,c->Ls->whiten,c->Ls->clip,c->Ls->clipiter,c->Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,c->Ls->use_orig_ls,c->Ls->dobootstrapfap,c->Ls->Nbootstrap);
       }
       break;
+
+#ifdef _HAVE_GSL
+    case CNUM_FFT:
+      /* Calculate light curve statistics */
+      RunFFTCommand(p, lc, lc2, c->FFT);
+      break;
+#endif
 
     case CNUM_GETLSAMPTHRESH:
       /* Get the amplitude scale-factor for which the signal just passes */
@@ -1618,6 +1625,12 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       break;
 #endif
 
+#ifdef _HAVE_R
+    case CNUM_R:
+      RunRCommand(p, lc, lc2, lc2, c->RCommand);
+      break;
+#endif
+
 #endif
 
     case CNUM_IF:
@@ -1907,7 +1920,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
     case CNUM_RESTORELC:
       /* Restore the saved light curve */
       for(lc=0;lc<p->Nlcs;lc++)
-	dorestorelc(p, c[c->Restorelc->saveindex - thisindex].Savelc, lc, lc);
+	dorestorelc(p, c[c->Restorelc->saveindex - thisindex].Savelc, c->Restorelc, lc, lc, lc);
       break;
 
     case CNUM_RESTRICTTIMES:
@@ -2319,6 +2332,22 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  }
 	}
       break;
+
+#ifdef _HAVE_GSL
+    case CNUM_FFT:
+      /* Calculate light curve statistics */
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunFFTCommand(p, lc, lc, c->FFT);
+	}
+      break;
+#endif
 
     case CNUM_GETLSAMPTHRESH:
       /* Get the amplitude scale-factor for which the signal just passes */
@@ -3615,6 +3644,43 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	else if(c->PythonCommand->iscontinueprocess) {
 	  if(((_PythonCommand **)((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->childcommandptrs)[(((_PythonCommand *)c->PythonCommand->continueprocesscommandptr)->Nchildren)-1] == c->PythonCommand) {
 	    StopRunningPythonCommand(p, 0, c->PythonCommand);
+	  }
+	}
+      }
+      break;
+#endif
+
+#ifdef _HAVE_R
+    case CNUM_R:
+      if(c->RCommand->RequireReadAll) {
+	RunRCommand_all_lcs(p, c->RCommand);
+	if(!c->RCommand->iscontinueprocess &&
+	   c->RCommand->Nchildren == 0) {
+	  StopRunningRCommand(p, 0, c->RCommand);
+	}
+	else if(c->RCommand->iscontinueprocess) {
+	  if(((_RCommand **)((_RCommand *)c->RCommand->continueprocesscommandptr)->childcommandptrs)[(((_RCommand *)c->RCommand->continueprocesscommandptr)->Nchildren)-1] == c->RCommand) {
+	    StopRunningRCommand(p, 0, c->RCommand);
+	  }
+	}
+      } else {
+	for(lc = 0; lc < p->Nlcs; lc++)
+	  {
+	    if(p->isifcommands) {
+	      if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+		SkipCommand(p, c, thisindex, lc, lc);
+		continue;
+	      }
+	    }
+	    RunRCommand(p, lc, lc, 0, c->RCommand);
+	  }
+	if(!c->RCommand->iscontinueprocess &&
+	   c->RCommand->Nchildren == 0) {
+	  StopRunningRCommand(p, 0, c->RCommand);
+	}
+	else if(c->RCommand->iscontinueprocess) {
+	  if(((_RCommand **)((_RCommand *)c->RCommand->continueprocesscommandptr)->childcommandptrs)[(((_RCommand *)c->RCommand->continueprocesscommandptr)->Nchildren)-1] == c->RCommand) {
+	    StopRunningRCommand(p, 0, c->RCommand);
 	  }
 	}
       }

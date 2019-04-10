@@ -34,23 +34,25 @@
 /*                                                                           */
 #include "commands.h"
 #include "programdata.h"
-#include <Python.h>
-#include NUMPY_HEADER_FILE
+#include <Rinternals.h>
+#include <Rembedded.h>
+#include <R_ext/Parse.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "runpython.h"
+#include "runR.h"
 
 
 /* Some functions we will need from the other files */
 void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variable *var, double val);
 double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Variable *var);
-void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
+void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm);
 
+#ifndef DO_ERROR_MEMALLOC
 #define DO_ERROR_MEMALLOC do {fprintf(stderr,"Memory Allocation Error\n"); exit(1);} while(1)
-
+#endif
 
 void simpleprinttostring(OutText *text, const char *stoadd)
 {
@@ -136,387 +138,262 @@ void simpleprinttostring_tabindent(OutText *text, const char *stoadd)
 
 
 
-void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cparent, OutText *text, int cid)
+void CreateVartoolsRUserFunctionString(ProgramData *p, _RCommand *cparent, OutText *text, int cid)
 {
   int i, k;
+  int isterm;
   char tmpstr[MAXLEN];
   char tmpstrtype[MAXLEN];
   char astypecpy[] = ", copy=False)";
   char astypencpy[] = ")";
   char *astypever;
-  _PythonCommand *c;
-
-#ifdef HAVE_NUMPY_ASTYPE_COPY
-  astypever = astypecpy;
-#else
-  astypever = astypencpy;
-#endif
+  _RCommand *c;
 
   if(!cid) c = cparent;
   else {
-    c = ((_PythonCommand **) cparent->childcommandptrs)[cid-1];
+    c = ((_RCommand **) cparent->childcommandptrs)[cid-1];
   }
   /* The function will be named
-     _VARTOOLS_PYTHON_USERFUNCTION_%d  where %d is the command number.
+     _VARTOOLS_R_USERFUNCTION_%d  where %d is the command number.
      It will take as input a List of variables of the name
      _VARTOOLS_VARIABLES_LIST. */
-  simpleprinttostring(text,"def _VARTOOLS_PYTHON_USERFUNCTION_");
+  simpleprinttostring(text,"VARTOOLS_R_USERFUNCTION_");
   sprintf(tmpstr,"%d",c->cnum);
   simpleprinttostring(text,tmpstr);
-  simpleprinttostring(text,"(_VARTOOLS_VARIABLES_LIST):\n");
+  simpleprinttostring(text," <- function(VARTOOLS_VARIABLES_LIST) {\n");
 
   k = -1;
 
+  /* We have to transpose the data if we are receiving all of it from VARTOOLS */
   if(c->RequireReadAll) {
-    simpleprinttostring(text,"\t_VARTOOLS_INPUT_NLCS = len(_VARTOOLS_VARIABLES_LIST)\n");
-  }
-  
-  /* Set all of the variables to the appropriate values from the List */
-  for(i = 0; i < c->Nvars; i++) {
-    simpleprinttostring(text,"\t");
-    simpleprinttostring(text,c->vars[i]->varname);
-    sprintf(tmpstr,"%d",i);
-    if(c->RequireReadAll) {
-      /* This is an inefficient/slow way of transforming the data, but was the
-	 easiest way to code up using the functions written for communicating
-	 the single light curve data between vartools and python.  TBD is to
-	 write new functions for the case of transfering all of the light curves
-	 to python to speed this up so we dont have to do this data
-         transposition. */
-      if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_LC) {
-	if(k < 0) k = i;
-	simpleprinttostring(text,"=[_VARTOOLS_TMP_ITEM[");
-	simpleprinttostring(text,tmpstr);
-	simpleprinttostring(text,"]");
-	simpleprinttostring(text," for _VARTOOLS_TMP_ITEM in _VARTOOLS_VARIABLES_LIST]\n");
-      } else {
-	if(c->vars[i]->datatype == VARTOOLS_TYPE_CHAR ||
-	   c->vars[i]->datatype == VARTOOLS_TYPE_STRING) {
-	  simpleprinttostring(text,"=[_VARTOOLS_TMP_ITEM[");
-	  simpleprinttostring(text,tmpstr);
-	  simpleprinttostring(text,"][0] for _VARTOOLS_TMP_ITEM in _VARTOOLS_VARIABLES_LIST]\n");
-	}
-	else {
-	  simpleprinttostring(text,"=numpy.core.multiarray.array([_VARTOOLS_TMP_ITEM[");
-	  simpleprinttostring(text,tmpstr);
-	  simpleprinttostring(text,"][0] for _VARTOOLS_TMP_ITEM in _VARTOOLS_VARIABLES_LIST])\n");
-	}
-      }
-    } else {
-      simpleprinttostring(text,"=_VARTOOLS_VARIABLES_LIST[");
+    simpleprinttostring(text,"\tVARTOOLS_INPUT_NLCS <- length(VARTOOLS_VARIABLES_LIST)\n");
+    for(i = 0; i < c->Nvars; i++) {
+      simpleprinttostring(text,"\t");
+      simpleprinttostring(text,c->vars[i]->varname);
+      simpleprinttostring(text," <- list()\n");
+      simpleprinttostring(text,"\tfor (VARTOOLS_ITER_VAR in 1:VARTOOLS_INPUT_NLCS) {\n");
+      simpleprinttostring(text,"\t\t");
+      simpleprinttostring(text,c->vars[i]->varname);
+      simpleprinttostring(text,"[[VARTOOLS_ITER_VAR]] <- ");
+      simpleprinttostring(text,"VARTOOLS_VARIABLES_LIST[[VARTOOLS_ITER_VAR]][[");
+      sprintf(tmpstr,"%d",i+1);
       simpleprinttostring(text,tmpstr);
-      if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_LC) {
-	if(k < 0) k = i;
-	simpleprinttostring(text,"]\n");
-      } else {
-	simpleprinttostring(text,"][0]\n");
-      }
+      simpleprinttostring(text,"]]\n");
+      simpleprinttostring(text,"\t}\n");
+    }
+  } else {
+
+    /* Set all of the variables to the appropriate values from the List */
+    for(i = 0; i < c->Nvars; i++) {
+      simpleprinttostring(text,"\t");
+      simpleprinttostring(text,c->vars[i]->varname);
+      simpleprinttostring(text," <- VARTOOLS_VARIABLES_LIST[[");
+      sprintf(tmpstr,"%d",i+1);
+      simpleprinttostring(text,tmpstr);
+      simpleprinttostring(text,"]]\n");
     }
   }
 
   /* Copy over the code supplied by the user; note that because we are in a
      function here, add a leading tab */
   simpleprinttostring(text,"\t");
-  simpleprinttostring_tabindent(text,c->pythoncommandstring);
+  simpleprinttostring_tabindent(text,c->Rcommandstring);
   
   if(text->s[text->len_s-1] != '\t')
     simpleprinttostring_tabindent(text,"\n");
   simpleprinttostring(text,"\n");
 
-  simpleprinttostring(text,"\t_VARTOOLS_VARIABLES_OUTPUTLIST = []\n");
 
-  if(!c->RequireReadAll) {
-
-    /* Update the values in the list for all variables */
-    for(i=0; i < c->Nvars; i++) {
-      if(c->vars[i]->datatype != VARTOOLS_TYPE_STRING &&
-	 c->vars[i]->datatype != VARTOOLS_TYPE_CHAR) {
-	switch(c->vars[i]->datatype) {
-	case VARTOOLS_TYPE_CONVERTJD:
-	case VARTOOLS_TYPE_DOUBLE:
-	case VARTOOLS_TYPE_FLOAT:
-	  sprintf(tmpstrtype,".astype(float%s",astypever);
-	  break;
-	case VARTOOLS_TYPE_INT:
-	case VARTOOLS_TYPE_LONG:
-	case VARTOOLS_TYPE_SHORT:
-	  sprintf(tmpstrtype,".astype(int%s",astypever);
-	  break;
-	default:
-	  tmpstrtype[0] = '\0';
-	  break;
-	}
-	simpleprinttostring(text,"\tif '");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,") == type(numpy.core.multiarray.zeros(0)):\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,tmpstrtype);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.array([");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,"])");
-	simpleprinttostring(text,tmpstrtype);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\telse:\n");
-	if(c->vars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
-	  simpleprinttostring(text,tmpstrtype);
-	  simpleprinttostring(text,")\n");
-	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
-	  simpleprinttostring(text,tmpstrtype);
-	  simpleprinttostring(text,")\n");
-	}
-      } else {
-	simpleprinttostring(text,"\tif '");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,") is list:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append([");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,"])\n");
-	simpleprinttostring(text,"\telse:\n");
-	simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append([\"0\"])\n");
-      }
-    }
-
-
-    /* Append any variables that are created by this process to the list; if
-       they are not defined, set them to zero */
+  if(c->RequireReadAll) {
+    /* Create any output variables that don't exist, these need to be lists */
     for(i=0; i < c->Nvars_outonly; i++) {
-      if(c->outonlyvars[i]->datatype != VARTOOLS_TYPE_CHAR &&
-	 c->outonlyvars[i]->datatype != VARTOOLS_TYPE_STRING) {
-	switch(c->outonlyvars[i]->datatype) {
-	case VARTOOLS_TYPE_CONVERTJD:
-	case VARTOOLS_TYPE_DOUBLE:
-	case VARTOOLS_TYPE_FLOAT:
-	  sprintf(tmpstrtype,".astype(float%s",astypever);
-	  break;
-	case VARTOOLS_TYPE_INT:
-	case VARTOOLS_TYPE_LONG:
-	case VARTOOLS_TYPE_SHORT:
-	  sprintf(tmpstrtype,".astype(int%s",astypever);
-	  break;
-	case VARTOOLS_TYPE_STRING:
-	case VARTOOLS_TYPE_CHAR:
-	  sprintf(tmpstrtype,".astype(string%s",astypever);
-	  break;
-	default:
-	  tmpstrtype[0] = '\0';
-	  break;
-	}
-	simpleprinttostring(text,"\tif '");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,") == type(numpy.core.multiarray.zeros(0)):\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,tmpstrtype);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.array([");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,"])");
-	simpleprinttostring(text,tmpstrtype);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\telse:\n");
-	if(c->outonlyvars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
-	  simpleprinttostring(text,tmpstrtype);
-	  simpleprinttostring(text,")\n");
-	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
-	  simpleprinttostring(text,tmpstrtype);
-	  simpleprinttostring(text,")\n");
-	}
-      } else {
-	simpleprinttostring(text,"\tif '");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,") is list:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,")\n");
-	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append([");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,"])\n");
-	simpleprinttostring(text,"\telse:\n");
-	simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append([\"0\"])\n");
+      simpleprinttostring(text,"\tif(!exists(\"");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text,"\")) {\n");
+      simpleprinttostring(text,"\t\t");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text," <- list()\n");
+      simpleprinttostring(text,"\t\tfor (VARTOOLS_ITER_VAR in 1:VARTOOLS_INPUT_NLCS) {\n");
+      simpleprinttostring(text,"\t\t\t");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text,"[[VARTOOLS_ITER_VAR]] <- c(");
+      switch(c->outonlyvars[i]->datatype) {
+      case VARTOOLS_TYPE_CONVERTJD:
+      case VARTOOLS_TYPE_DOUBLE:
+      case VARTOOLS_TYPE_FLOAT:
+	simpleprinttostring(text,"0.0");
+	break;
+      case VARTOOLS_TYPE_INT:
+      case VARTOOLS_TYPE_LONG:
+      case VARTOOLS_TYPE_SHORT:
+	simpleprinttostring(text,"0");
+	break;
+      case VARTOOLS_TYPE_STRING:
+      case VARTOOLS_TYPE_CHAR:
+	simpleprinttostring(text,"\"\"");
+	break;
+      default:
+	simpleprinttostring(text,"0.0");
+	break;
       }
+      simpleprinttostring(text,")\n");
+      simpleprinttostring(text,"\t\t}\n\t}\n");
     }
+
+    simpleprinttostring(text,"\tVARTOOLS_VARIABLES_OUTPUTLIST <- list()\n");
+    simpleprinttostring(text,"\tfor (VARTOOLS_ITER_VAR in 1:VARTOOLS_INPUT_NLCS) {\n");
+    simpleprinttostring(text,"\t\tVARTOOLS_VARIABLES_OUTPUTLIST_TMP <- list(");
+    isterm = 0;
+    for(i=0; i < c->Nvars; i++) {
+      if(i > 0) {
+	simpleprinttostring(text,", ");
+      }
+      simpleprinttostring(text,c->vars[i]->varname);
+      simpleprinttostring(text,"[[VARTOOLS_ITER_VAR]]");
+      isterm = 1;
+    }
+    /* Append any variables that are created by this process to the list */
+    for(i=0; i < c->Nvars_outonly; i++) {
+      if(isterm)
+	simpleprinttostring(text,", ");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text,"[[VARTOOLS_ITER_VAR]]");
+    }
+    simpleprinttostring(text,")\n");
+    simpleprinttostring(text,"\t\tVARTOOLS_VARIABLES_OUTPUTLIST[[VARTOOLS_ITER_VAR]] <- VARTOOLS_VARIABLES_OUTPUTLIST_TMP\n");
+    simpleprinttostring(text,"\t}\n");
   } else {
-    /* Again for the case of transferring all of the data to python this is
-       inefficient but was easiest to code up quickly. No error checking is
-       performed here, anticipating that this will need to be rewritten when
-       a better method for transferring the data is implemented. */
-    simpleprinttostring(text,"\tfor _VARTOOLS_TMP_ITEM in range(0,_VARTOOLS_INPUT_NLCS):\n");
-    simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST = []\n");
-    for(i=0; i < c->Nvars; i++) {
-      if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_LC) {
-	simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(");
-	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM])\n");
-      } else {
-	if(c->vars[i]->datatype != VARTOOLS_TYPE_STRING &&
-	   c->vars[i]->datatype != VARTOOLS_TYPE_CHAR) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.core.multiarray.array([");
-	  simpleprinttostring(text,c->vars[i]->varname);
-	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]]))\n");
-	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append([");
-	  simpleprinttostring(text,c->vars[i]->varname);
-	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]])\n");
-	}
-      }
-    }
+    /* Create any output variables that don't exist */
     for(i=0; i < c->Nvars_outonly; i++) {
-      if(c->outonlyvars[i]->vectortype == VARTOOLS_VECTORTYPE_LC) {
-	simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(");
-	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM])\n");
-      } else {
-	if(c->outonlyvars[i]->datatype != VARTOOLS_TYPE_STRING &&
-	   c->outonlyvars[i]->datatype != VARTOOLS_TYPE_CHAR) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.core.multiarray.array([");
-	  simpleprinttostring(text,c->outonlyvars[i]->varname);
-	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]]))\n");
-	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append([");
-	  simpleprinttostring(text,c->outonlyvars[i]->varname);
-	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]])\n");
-	}
+      simpleprinttostring(text,"\tif(!exists(\"");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text,"\")) {");
+      simpleprinttostring(text,"\t\t");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+      simpleprinttostring(text," <- c(");
+      switch(c->outonlyvars[i]->datatype) {
+      case VARTOOLS_TYPE_CONVERTJD:
+      case VARTOOLS_TYPE_DOUBLE:
+      case VARTOOLS_TYPE_FLOAT:
+	simpleprinttostring(text,"0.0");
+	break;
+      case VARTOOLS_TYPE_INT:
+      case VARTOOLS_TYPE_LONG:
+      case VARTOOLS_TYPE_SHORT:
+	simpleprinttostring(text,"0");
+	break;
+      case VARTOOLS_TYPE_STRING:
+      case VARTOOLS_TYPE_CHAR:
+	simpleprinttostring(text,"\"\"");
+	break;
+      default:
+	simpleprinttostring(text,"0.0");
+	break;
       }
+      simpleprinttostring(text,")\n");
+      simpleprinttostring(text,"\t}\n");
     }
-    simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(_VARTOOLS_VARIABLES_TMPOUTLIST)\n");
+
+    simpleprinttostring(text,"\tVARTOOLS_VARIABLES_OUTPUTLIST <- list(");
+    
+    isterm = 0;
+    for(i=0; i < c->Nvars; i++) {
+      if(i > 0) {
+	simpleprinttostring(text,", ");
+      }
+      simpleprinttostring(text,c->vars[i]->varname);
+      isterm = 1;
+    }
+    /* Append any variables that are created by this process to the list */
+    for(i=0; i < c->Nvars_outonly; i++) {
+      if(isterm)
+	simpleprinttostring(text,", ");
+      simpleprinttostring(text,c->outonlyvars[i]->varname);
+    }
+    simpleprinttostring(text,")\n");
   }
-  //simpleprinttostring(text,"\tprint _VARTOOLS_VARIABLES_OUTPUTLIST\n");
-  simpleprinttostring(text,"\treturn _VARTOOLS_VARIABLES_OUTPUTLIST\n\n");  
+  simpleprinttostring(text,"\treturn(VARTOOLS_VARIABLES_OUTPUTLIST)\n");
+  simpleprinttostring(text,"}\n");
 
   //fprintf(stderr,"%s", text->s);
 }
 
-void CleanUpPythonObjectContainerVariables(_PythonObjectContainer *py) {
+void CleanUpRObjectContainerVariables(_RObjectContainer *Rcontainer) {
   int i;
-  if(py->Variables == NULL) {
-    if(py->VariableList != NULL) {
-      if(py->VariableList->ob_refcnt > 0)
-	Py_CLEAR(py->VariableList);
-      py->VariableList = NULL;
+  if(Rcontainer->data != NULL) {
+    for(i=0; i < Rcontainer->Nvars; i++) {
+      if(Rcontainer->data[i].dataptr != NULL)
+	free(Rcontainer->data[i].dataptr);
     }
-    if(py->data != NULL) {
-      for(i=0; i < py->Nvars; i++) {
-	if(py->data[i].dataptr != NULL)
-	  free(py->data[i].dataptr);
-      }
-      free(py->data);
-    }
-    py->data = NULL;
-    py->Nvars = 0;
-    return;
+    free(Rcontainer->data);
   }
-  if(py->VariableList != NULL) {
-    if(py->VariableList->ob_refcnt > 0)
-      Py_CLEAR(py->VariableList);
-    py->VariableList = NULL;
-  }
-  for(i=0; i < py->Nvars; i++) {
-    if(py->Variables[i] != NULL) {
-      if(py->Variables[i]->ob_refcnt > 0)
-	Py_CLEAR(py->Variables[i]);
-    }
-    py->Variables[i] = NULL;
-  }
-  if(py->data != NULL) {
-    for(i=0; i < py->Nvars; i++) {
-      if(py->data[i].dataptr != NULL)
-	free(py->data[i].dataptr);
-    }
-    free(py->data);
-  }
-  py->data = NULL;
-  if(py->Variables != NULL)
-    free(py->Variables);
-  py->Variables = NULL;
-  py->Nvars = 0;
+  Rcontainer->data = NULL;
+  Rcontainer->Nvars = 0;
 }
 
-void CleanUpPythonObjectContainer(_PythonObjectContainer **py) {
+void CleanUpRObjectContainer(_RObjectContainer **Rcontainer) {
   int i;
-  if(py == NULL) return;
-  if(*py == NULL) return;
-  CleanUpPythonObjectContainerVariables(*py);
-  free((*py));
-  *py = NULL;
+  if(Rcontainer == NULL) return;
+  if(*Rcontainer == NULL) return;
+  CleanUpRObjectContainerVariables(*Rcontainer);
+  free((*Rcontainer));
+  *Rcontainer = NULL;
 }
 
-_PythonObjectContainer *CreatePythonObjectContainer(void) {
-  _PythonObjectContainer *py;
-  if((py = (_PythonObjectContainer *) malloc(sizeof(_PythonObjectContainer))) == NULL)
+_RObjectContainer *CreateRObjectContainer(void) {
+  _RObjectContainer *Rcontainer;
+  if((Rcontainer = (_RObjectContainer *) malloc(sizeof(_RObjectContainer))) == NULL)
     DO_ERROR_MEMALLOC;
-  py->CompiledUserCode = NULL;
-  py->UserModule = NULL;
-  py->UserFunctionToRun = NULL;
-  py->Variables = NULL;
-  py->VariableList = NULL;
-  py->Nvars = 0;
-  py->data = NULL;
-  py->Nfunc = 0;
-  py->FullList = NULL;
-  py->FullListOut = NULL;
-  return py;
+  Rcontainer->Nvars = 0;
+  Rcontainer->data = NULL;
+  Rcontainer->Nfunc = 0;
+  return Rcontainer;
 }
 
 
 
-int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
+int InitializeR(ProgramData *p, _RCommand *c, int threadindex)
 {
   OutText usercodetext;
-  _PythonObjectContainer *py;
+  _RObjectContainer *Rcontainer;
   char tmpstr[MAXLEN];
   int i, j, testneedreadall;
+
+  R_len_t ii;
+
+  int r_argc = 2;
+  char *r_argv[] = {"R", "--slave"};
+
+  SEXP cmdSexp;
+  SEXP cmdexp;
+  SEXP ans;
+  ParseStatus status;
 
   usercodetext.s = NULL;
   usercodetext.space = 0;
   usercodetext.len_s = 0;
   usercodetext.Nchar_cur_line = 0;
 
-#ifdef PYTHONHOMEPATH
-  Py_SetPythonHome(PYTHONHOMEPATH);
+#ifdef RHOME
+  if(!getenv("R_HOME")) {
+    char r_home_var[MAXLEN];
+    sprintf(r_home_var,"R_HOME=" RHOME);
+    putenv(r_home_var);
+  }
 #endif
 
-  Py_SetProgramName(c->progname);
-  Py_Initialize();
-  import_array1(1);
+  Rf_initEmbeddedR(r_argc, r_argv);
 
-  simpleprinttostring(&usercodetext,"import numpy\n");
-
-  if(c->len_pythoninitializationtextstring > 0) {
-    if(c->pythoninitializationtext[0] != '\0') {
-      simpleprinttostring(&usercodetext, c->pythoninitializationtext);
+  if(c->len_Rinitializationtextstring > 0) {
+    if(c->Rinitializationtext[0] != '\0') {
+      simpleprinttostring(&usercodetext, c->Rinitializationtext);
     }
   }
   simpleprinttostring(&usercodetext,"\n");
 	
-  py = CreatePythonObjectContainer();
+  Rcontainer = CreateRObjectContainer();
 
-
-  ((_PythonObjectContainer **) c->pythonobjects)[threadindex] = py;
+  ((_RObjectContainer **) c->Robjects)[threadindex] = Rcontainer;
 
   testneedreadall = 0;
   if(c->RequireReadAll) {
@@ -524,7 +401,7 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   }
   if(!testneedreadall && c->Nchildren > 0) {
     for(j=0; j < c->Nchildren; j++) {
-      if(((_PythonCommand **)(c->childcommandptrs))[j]->RequireReadAll) {
+      if(((_RCommand **)(c->childcommandptrs))[j]->RequireReadAll) {
 	testneedreadall = 1;
 	break;
       }
@@ -532,205 +409,186 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   }
   if(testneedreadall) {
     for(j=1; j < p->Nlcs; j++) {
-      ((_PythonObjectContainer **) c->pythonobjects)[j] = CreatePythonObjectContainer();
+      ((_RObjectContainer **) c->Robjects)[j] = CreateRObjectContainer();
     }
   }
 
-  if((py->UserFunctionToRun = (PyObject **) malloc((c->Nchildren + 1)*sizeof(PyObject *))) == NULL) {
-    DO_ERROR_MEMALLOC;
-  }
-  py->Nfunc = c->Nchildren + 1;
+  Rcontainer->Nfunc = c->Nchildren + 1;
 
-  /* Create the functions to run the python code supplied by the user */
+
+  /* Create the functions to run the R code supplied by the user */
   for(i=0; i < c->Nchildren + 1; i++) {
-    CreateVartoolsPythonUserFunctionString(p, c, &usercodetext, i);
+    CreateVartoolsRUserFunctionString(p, c, &usercodetext, i);
   }
 
-  /* Compile all of the code supplied by the user */
-  py->CompiledUserCode = Py_CompileString(usercodetext.s,"", Py_file_input);
+  /* Parse the R code and evaluate it */
 
-  if(py->CompiledUserCode == NULL) {
-    fprintf(stderr,"Error compiling the following python code from vartools:\n\n%s\n", usercodetext.s);
-    if(PyErr_Occurred() != NULL) {
-      fprintf(stderr,"The error message from the python compiler is as follows:\n\n");
-      PyErr_Print();
-    }
-    else {
-      fprintf(stderr,"No error message from python\n\n");
-    }
+  cmdSexp = PROTECT(allocVector(STRSXP, 1));
+  SET_STRING_ELT(cmdSexp, 0, mkChar(usercodetext.s));
+  cmdexp = PROTECT(R_ParseVector(cmdSexp, -1, &(status), R_NilValue));
+  if(status != PARSE_OK) {
+    UNPROTECT(2);
+    fprintf(stderr,"Error parsing the following R code from vartools:\n\n%s", usercodetext.s);
     exit(1);
   }
-
-  /* Import this code as a module */
-  py->UserModule = PyImport_ExecCodeModule( "_VARTOOLS_PYTHON_USERFUNCTION_MODULE",
-					    py->CompiledUserCode);
-    
-  if(py->UserModule == NULL) {
-    fprintf(stderr,"Error creating a module to run the following python code from vartools:\n\n%s\n", usercodetext.s);
-    if(PyErr_Occurred() != NULL) {
-      fprintf(stderr,"The error message from python is as follows:\n\n");
-      PyErr_Print();
-    }
-    else {
-      fprintf(stderr,"No error message from python\n\n");
-    }
-    exit(1);
+  for(i=0; i < length(cmdexp); i++) {
+    ans = eval(VECTOR_ELT(cmdexp, i), R_GlobalEnv);
   }
-  
-  /* Get pointers to the executable user function code from the module */
-  for(i=0; i < c->Nchildren + 1; i++) {
-    sprintf(tmpstr,"_VARTOOLS_PYTHON_USERFUNCTION_");
-    if(!i) {
-      sprintf(tmpstr,"%s%d",tmpstr,c->cnum);
-    } else {
-      sprintf(tmpstr,"%s%d",tmpstr,((_PythonCommand **)c->childcommandptrs)[i-1]->cnum);
-    }
-    
-    py->UserFunctionToRun[i] = PyObject_GetAttrString( py->UserModule, tmpstr);
-    if(py->UserFunctionToRun[i] == NULL) {
-      fprintf(stderr,"Error loading the following python code from vartools:\n\n%s\n", usercodetext.s);
-      if(PyErr_Occurred() != NULL) {
-	fprintf(stderr,"The error message from python is as follows:\n\n");
-	PyErr_Print();
-      }
-      else {
-	fprintf(stderr,"No error message from python\n\n");
-      }
-      exit(1);
-    }
-  }
-
+  UNPROTECT(2);
+ 
   return 0;
 
   /* Everything should be setup now to call this function through the
-     RunPythonProcessingLoop */
+     RunRProcessingLoop */
 }
 
 
-#define _EXIT_READ_VARIABLES do { if(tmpinpstr != NULL) free(tmpinpstr); if(tmpinpstr2 != NULL) free(tmpinpstr2); return 1; } while(0)
+#define _EXIT_READ_VARIABLES do { if(tmpinpstr != NULL) free(tmpinpstr); if(tmpinpstr2 != NULL) free(tmpinpstr2); UNPROTECT(Nprotected); *statusval = 1; return VariableList; } while(0)
 
-int ReadVariablesFromSocketIntoPython(ProgramData *p, _PythonCommand *c, 
-				      int threadindex, int isall, int lcnum) {
-  _PythonObjectContainer *py = NULL;
-
-  PyObject *tmpobj = NULL;
+SEXP ReadVariablesFromSocketIntoR(ProgramData *p, _RCommand *c, 
+				      int threadindex, int isall, int lcnum, int *statusval) {
+  _RObjectContainer *Rcontainer = NULL;
 
   int Nvars, i, j, lenvec, k;
   char datatype;
-  npy_intp dims[1];
   size_t databytesize;
   char *tmpinpstr = NULL;
   int sizetmpinpstr = 0;
   char *tmpinpstr2 = NULL;
   int sizetmpinpstr2 = 0;
-
-  int datatype_npy;
-
+  int Nprotected = 0;
+  SEXP VariableList;
+  SEXP InputVariable;
   size_t sizedataread;
   size_t sizedatareadtot;
 
+  *statusval = 0;
 
   if(!isall) {
-    py = ((_PythonObjectContainer **) c->pythonobjects)[threadindex];
+    Rcontainer = ((_RObjectContainer **) c->Robjects)[threadindex];
 
-    if(py->Variables != NULL)
-      CleanUpPythonObjectContainerVariables(py);
+    if(Rcontainer->data != NULL)
+      CleanUpRObjectContainerVariables(Rcontainer);
   } else {
-    py = ((_PythonObjectContainer **) c->pythonobjects)[lcnum];
+    Rcontainer = ((_RObjectContainer **) c->Robjects)[lcnum];
 
-    if(py->Variables != NULL)
-      CleanUpPythonObjectContainerVariables(py);
+    if(Rcontainer->data != NULL)
+      CleanUpRObjectContainerVariables(Rcontainer);
   }
 
   if(read(c->sockets[threadindex][1], &Nvars, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Error reading the number of variables to read in the parent in the ReadVariablesFromSocketIntoPython function.\n");
+    fprintf(stderr,"Error reading the number of variables to read in the parent in the ReadVariablesFromSocketIntoR function.\n");
     _EXIT_READ_VARIABLES;
   }
 
 
   /* The only argument is a list of input variables; First create the list */
-  py->VariableList = PyList_New(Nvars);
-  Py_INCREF(py->VariableList);
+  VariableList = PROTECT(allocVector(VECSXP, Nvars));
+  Nprotected++;
   
-  py->Nvars = Nvars;
+  Rcontainer->Nvars = Nvars;
   if(Nvars >= 0) {
-    if((py->Variables = (PyObject **) malloc(Nvars*sizeof(PyObject *))) == NULL) {
-      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+    if((Rcontainer->data = (_RArrayData *) malloc(Nvars*sizeof(_RArrayData))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
       _EXIT_READ_VARIABLES;
     }
-    if((py->data = (_PythonArrayData *) malloc(Nvars*sizeof(_PythonArrayData))) == NULL) {
-      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
-      _EXIT_READ_VARIABLES;
-    }
-    for(i=0; i < Nvars; i++) py->Variables[i] = NULL;
-    for(i=0; i < Nvars; i++) py->data[i].dataptr = NULL;
+    for(i=0; i < Nvars; i++) Rcontainer->data[i].dataptr = NULL;
     for(i=0; i < Nvars; i++) {
       if(read(c->sockets[threadindex][1], &datatype, sizeof(char)) < sizeof(char)) {
-	fprintf(stderr,"Error reading datatype for expected variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	fprintf(stderr,"Error reading datatype for expected variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	_EXIT_READ_VARIABLES;
       }
       if(datatype != VARTOOLS_TYPE_STRING && datatype != VARTOOLS_TYPE_CHAR) {
 	switch(datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	  databytesize = sizeof(double);
-	  datatype_npy = NPY_DOUBLE;
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
 	  databytesize = sizeof(double);
-	  datatype_npy = NPY_DOUBLE;
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  databytesize = sizeof(float);
-	  datatype_npy = NPY_FLOAT;
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  databytesize = sizeof(int);
-	  datatype_npy = NPY_INT;
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  databytesize = sizeof(long);
-	  datatype_npy = NPY_LONG;
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  databytesize = sizeof(short);
-	  datatype_npy = NPY_SHORT;
 	  break;
 	default:
-	  fprintf(stderr,"Error: invalid datatype received for variable index %d in the ReadVariablesFromSocketIntoPython function\n", i);
+	  fprintf(stderr,"Error: invalid datatype received for variable index %d in the ReadVariablesFromSocketIntoR function\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
 	if(read(c->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
-	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
-	py->data[i].datatype = datatype;
+	Rcontainer->data[i].datatype = datatype;
 	if(lenvec <= 0) {
 	  continue;
 	}
-	if((py->data[i].dataptr = (void *) malloc(((size_t) lenvec)*databytesize)) == NULL) {
-	  fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+	if((Rcontainer->data[i].dataptr = (void *) malloc(((size_t) lenvec)*databytesize)) == NULL) {
+	  fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 	  _EXIT_READ_VARIABLES;
 	}
+	
 	sizedatareadtot = 0;
 	while(sizedatareadtot < (((size_t) lenvec)*databytesize)) {
-	  sizedataread = read(c->sockets[threadindex][1], (void *) (((char *) (py->data[i].dataptr)) + sizedatareadtot), (((size_t) lenvec)*databytesize) - sizedatareadtot);
+	  sizedataread = read(c->sockets[threadindex][1], (void *) (((char *) (Rcontainer->data[i].dataptr)) + sizedatareadtot), (((size_t) lenvec)*databytesize) - sizedatareadtot);
 	  sizedatareadtot += sizedataread;
 	}
 	if(sizedatareadtot < (((size_t) lenvec)*databytesize)) {
-	  fprintf(stderr,"Error reading data for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	  fprintf(stderr,"Error reading data for variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
-	dims[0] = lenvec;
-	py->Variables[i] = PyArray_SimpleNewFromData(1, &(dims[0]), datatype_npy, py->data[i].dataptr);
-	Py_INCREF(py->Variables[i]);
-	if(py->Variables[i] == NULL) {
-	  fprintf(stderr,"Error creating numpy array variable for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	switch(datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  InputVariable = PROTECT(allocVector(REALSXP, lenvec));
+	  Nprotected++;
+	  memcpy(REAL(InputVariable), Rcontainer->data[i].dataptr, (((size_t) lenvec)*databytesize));
+	  break;
+	case VARTOOLS_TYPE_CONVERTJD:
+	  InputVariable = PROTECT(allocVector(REALSXP, lenvec));
+	  Nprotected++;
+	  memcpy(REAL(InputVariable), Rcontainer->data[i].dataptr, (((size_t) lenvec)*databytesize));
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  InputVariable = PROTECT(allocVector(REALSXP, lenvec));
+	  Nprotected++;
+	  for(j=0; j < lenvec; j++) {
+	    REAL(InputVariable)[j] = ((float *) Rcontainer->data[i].dataptr)[j];
+	  }
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  InputVariable = PROTECT(allocVector(INTSXP, lenvec));
+	  Nprotected++;
+	  memcpy(INTEGER(InputVariable), Rcontainer->data[i].dataptr, (((size_t) lenvec)*databytesize));
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  InputVariable = PROTECT(allocVector(INTSXP, lenvec));
+	  Nprotected++;
+	  for(j=0; j < lenvec; j++) {
+	    INTEGER(InputVariable)[j] = ((long *) Rcontainer->data[i].dataptr)[j];
+	  }
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  InputVariable = PROTECT(allocVector(INTSXP, lenvec));
+	  Nprotected++;
+	  for(j=0; j < lenvec; j++) {
+	    INTEGER(InputVariable)[j] = ((short *) Rcontainer->data[i].dataptr)[j];
+	  }
+	  break;
+	default:
+	  fprintf(stderr,"Error: invalid datatype received for variable index %d in the ReadVariablesFromSocketIntoR function\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
       }
       else if(datatype == VARTOOLS_TYPE_CHAR) {
 	if(read(c->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
-	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
 	if(lenvec <= 0) {
@@ -739,13 +597,13 @@ int ReadVariablesFromSocketIntoPython(ProgramData *p, _PythonCommand *c,
 	if(lenvec > sizetmpinpstr) {
 	  if(!sizetmpinpstr) {
 	    if((tmpinpstr = (char *) malloc(lenvec * sizeof(char))) == NULL) {
-	      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+	      fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 	      _EXIT_READ_VARIABLES;
 	    }
 	    sizetmpinpstr = lenvec;
 	  } else {
 	    if((tmpinpstr = (char *) realloc(tmpinpstr, lenvec * sizeof(char))) == NULL) {
-	      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+	      fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 	      _EXIT_READ_VARIABLES;
 	    }
 	    sizetmpinpstr = lenvec;
@@ -758,151 +616,145 @@ int ReadVariablesFromSocketIntoPython(ProgramData *p, _PythonCommand *c,
 	  sizedatareadtot += sizedataread;
 	}
 	if(sizedatareadtot < (((size_t) lenvec)*databytesize)) {
-	  fprintf(stderr,"Error reading data for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	  fprintf(stderr,"Error reading data for variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
 	if(sizetmpinpstr2 < 2) {
 	  if(!sizetmpinpstr2) {
 	    if((tmpinpstr2 = (char *) malloc(2*sizeof(char))) == NULL) {
-	      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+	      fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 	      _EXIT_READ_VARIABLES;
 	    }
 	  } else {
 	    if((tmpinpstr2 = (char *) realloc(tmpinpstr2,2*sizeof(char))) == NULL) {
-	      fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+	      fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 	      _EXIT_READ_VARIABLES;
 	    }
 	  }
 	}
-	py->Variables[i] = PyList_New(lenvec);
-	Py_INCREF(py->Variables[i]);
-	if(py->Variables[i] == NULL) {
-	  fprintf(stderr,"Error creating list variable for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
-	  _EXIT_READ_VARIABLES;
-	}
+	Rcontainer->data[i].datatype = datatype;
+	InputVariable = PROTECT(allocVector(STRSXP, lenvec));
+	Nprotected++;
 	for(j=0; j < lenvec; j++) {
 	  tmpinpstr2[0] = tmpinpstr[j];
 	  tmpinpstr2[1] = '\0';
-	  tmpobj = PyString_FromString(tmpinpstr2);
-	  if(PyList_SetItem(py->Variables[i],j,tmpobj)) {
-	    fprintf(stderr,"Error adding a string variable to the list for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
-	    _EXIT_READ_VARIABLES;
-	  }
+	  SET_STRING_ELT(InputVariable, j, mkChar(tmpinpstr2));
 	}
       } else if(datatype == VARTOOLS_TYPE_STRING) {
 	if(read(c->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
-	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
+	  fprintf(stderr,"Error reading length of vector for expected variable index %d in the ReadVariablesFromSocketIntoR function.\n", i);
 	  _EXIT_READ_VARIABLES;
 	}
 	if(lenvec <= 0) {
 	  continue;
 	}
-	py->Variables[i] = PyList_New(lenvec);
-	if(py->Variables[i] == NULL) {
-	  fprintf(stderr,"Error creating list variable for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
-	  _EXIT_READ_VARIABLES;
-	}
+	Rcontainer->data[i].datatype = datatype;
+	InputVariable = PROTECT(allocVector(STRSXP, lenvec));
+	Nprotected++;
 	for(j=0; j < lenvec; j++) {
 	  if(read(c->sockets[threadindex][1], &k, sizeof(int)) < sizeof(int)) {
-	    fprintf(stderr,"Error reading length of string for vector %d, item %d in the ReadVariablesFromSocketIntoPython function.\n", i, j);
+	    fprintf(stderr,"Error reading length of string for vector %d, item %d in the ReadVariablesFromSocketIntoR function.\n", i, j);
 	    _EXIT_READ_VARIABLES;
 	  }
 	  if(k < 0) k = 0;
 	  if(k + 1 > sizetmpinpstr) {
 	    if(!sizetmpinpstr) {
 	      if((tmpinpstr = (char *) malloc((k+1) * sizeof(char))) == NULL) {
-		fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+		fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 		_EXIT_READ_VARIABLES;
 	      }
 	      sizetmpinpstr = k+1;
 	    } else {
 	      if((tmpinpstr = (char *) realloc(tmpinpstr, (k+1) * sizeof(char))) == NULL) {
-		fprintf(stderr,"Memory Allocation Error in VARTOOLS Python sub-process.\n");
+		fprintf(stderr,"Memory Allocation Error in VARTOOLS R sub-process.\n");
 		_EXIT_READ_VARIABLES;
 	      }
 	      sizetmpinpstr = k+1;
 	    }
 	  }
 	  if(k > 0) {
+
 	    sizedatareadtot = 0;
 	    while(sizedatareadtot < (((size_t) k)*sizeof(char))) {
 	      sizedataread = read(c->sockets[threadindex][1], (void *) (((char *) (tmpinpstr)) + sizedatareadtot), (((size_t) k)*sizeof(char)) - sizedatareadtot);
 	      sizedatareadtot += sizedataread;
 	    }
 	    if(sizedatareadtot < (((size_t)k)*sizeof(char))) {
-	      fprintf(stderr,"Error reading length of string for vector %d, item %d in the ReadVariablesFromSocketIntoPython function.\n", i, j);
+	      fprintf(stderr,"Error reading length of string for vector %d, item %d in the ReadVariablesFromSocketIntoR function.\n", i, j);
 	      _EXIT_READ_VARIABLES;
 	    }
 	  }
 	  tmpinpstr[k] = '\0';
-	  tmpobj = PyString_FromString(tmpinpstr);
-	  if(PyList_SetItem(py->Variables[i],j,tmpobj)) {
-	    fprintf(stderr,"Error adding a string variable to the list for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
-	    _EXIT_READ_VARIABLES;
-	  }
+	  SET_STRING_ELT(InputVariable, j, mkChar(tmpinpstr));
 	}
       }
       /* Transfer the variable to the list */
-      if(PyList_SetItem(py->VariableList, i, py->Variables[i])) {
-	fprintf(stderr,"Error running python command.\n");
-	if(PyErr_Occurred() != NULL) {
-	  fprintf(stderr,"The error message from python is as follows:\n\n");
-	  PyErr_Print();
-	} else {
-	  fprintf(stderr,"No error reported by python");
-	}
-	_EXIT_READ_VARIABLES;
-      }
+      SET_VECTOR_ELT(VariableList, i, InputVariable);
+      UNPROTECT(1);
+      Nprotected--;
     }
   }
   if(tmpinpstr != NULL)
     free(tmpinpstr);
   if(tmpinpstr2 != NULL)
     free(tmpinpstr2);
-  return 0;
+  if(Nprotected > 0)
+    UNPROTECT(Nprotected);
+  return VariableList;
 }
 
 #undef _EXIT_READ_VARIABLES
 
-int ReadVariablesFromSocketIntoPython_all_lcs(ProgramData *p, 
-					      _PythonCommand *c, 
-					      int threadindex) {
+SEXP ReadVariablesFromSocketIntoR_all_lcs(ProgramData *p, 
+					      _RCommand *c, 
+					      int threadindex,
+					  int *statusval) {
   int Nlcs, i;
 
-  PyObject *FullList;
+  _RObjectContainer *Rcontainer = NULL;
+  int Nprotected = 0;
 
-  _PythonObjectContainer *py = NULL;
+  SEXP FullList;
+  SEXP VariableList;
+  int status2;
+
+  *statusval = 0;
 
   if(read(c->sockets[threadindex][1], &Nlcs, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Error reading the number of light curves in the ReadVariablesFromSocketIntoPython_all_lcs function.\n");
-    return 1;
+    fprintf(stderr,"Error reading the number of light curves in the ReadVariablesFromSocketIntoR_all_lcs function.\n");
+    *statusval = 1;
+    return FullList;
   }
 
-  FullList = PyList_New(Nlcs);  
-  Py_INCREF(FullList);
-
+  /* The only argument is a list of input variables; First create the list */
+  FullList = PROTECT(allocVector(VECSXP, Nlcs));
+  Nprotected++;
+  
   for(i=0; i < Nlcs; i++) {
-    if(ReadVariablesFromSocketIntoPython(p, c, threadindex, 1, i)) {
-      return 1;
+    VariableList = PROTECT(ReadVariablesFromSocketIntoR(p, c, threadindex, 1, i, &status2));
+    Nprotected++;
+    if(status2) {
+      UNPROTECT(Nprotected);
+      *statusval = 1;
+      return FullList;
     }
-    py = ((_PythonObjectContainer **) c->pythonobjects)[i];
-    PyList_SetItem(FullList, i, py->VariableList);
+    SET_VECTOR_ELT(FullList,  i, VariableList);
   }
-  py = ((_PythonObjectContainer **) c->pythonobjects)[threadindex];
-  py->FullList = FullList;
-  return 0;
+  
+  UNPROTECT(Nprotected);
+  return FullList;
 
 }
 
-int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent, 
-				     int threadindex, int cid) {
-  _PythonObjectContainer *py = NULL;
+int WriteVariablesFromRToSocket(ProgramData *p, _RCommand *cparent, 
+				int threadindex, int cid, SEXP VariableListOut) {
+  _RObjectContainer *Rcontainer = NULL;
   int i, j, k, ii;
-  PyObject *tmparray = NULL;
-  PyObject *tmplist = NULL;
-  PyObject *tmpcopyarray = NULL;
-  PyArray_Descr *descr;
-  npy_intp *outdims;
+  SEXP tmparray;
+  SEXP tmplist;
+  SEXP tmpcopyarray;
+
+  int outdims;
 
   double tmpdblout;
   float tmpfloatout;
@@ -927,16 +779,15 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
   char outchar;
   int outstrlen;
 
-  npy_intp tmpindx = 0;
+  int tmpindx = 0;
 
-  PyObject *tmpobj = NULL;
-
-  _PythonCommand *c;
+  _RCommand *c;
+  int Nprotected = 0;
 
   if(!cid) c = cparent;
-  else c = ((_PythonCommand **)cparent->childcommandptrs)[cid-1];
+  else c = ((_RCommand **)cparent->childcommandptrs)[cid-1];
 
-  py = ((_PythonObjectContainer **) cparent->pythonobjects)[threadindex];
+  Rcontainer = ((_RObjectContainer **) cparent->Robjects)[threadindex];
 
   i = 0;
   j = 0;
@@ -958,22 +809,15 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
     }
     if(v->datatype != VARTOOLS_TYPE_CHAR &&
        v->datatype != VARTOOLS_TYPE_STRING) {
-      tmparray = PyList_GetItem(py->VariableListOut,ii);
-      if(tmparray == NULL) {
-	fprintf(stderr,"Error in WriteVariablesFromPythonToSocket. The output variable list from python is shorter than expected.\n");
-	if(tmpcharvec != NULL) free(tmpcharvec);
-	return 1;
-      }
-      if(PyArray_NDIM(tmparray) != 1) {
-	fprintf(stderr,"Error the variable %s has the wrong number of array dimensions upon output from python. It should either be a scalar or a one dimensional array, but instead has dimension %d.\n", v->varname, (int) PyArray_NDIM(tmparray));
-	if(tmpcharvec != NULL) free(tmpcharvec);
-	return 1;
-      }
-      outdims = PyArray_DIMS(tmparray);
+      tmparray = PROTECT(VECTOR_ELT(VariableListOut,ii));
+      Nprotected++;
+
+      outdims = length(tmparray);
       if(v->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	if(outdims[0] != 1) {
-	  fprintf(stderr,"Error the variable %s has the wrong dimension upon output from python. This variable is expected to be a scalar, but was instead found to have dimension %d\n",v->varname,(int) (outdims[0]));
+	if(outdims != 1) {
+	  fprintf(stderr,"Error the variable %s has the wrong dimension upon output from R. This variable is expected to be a scalar, but was instead found to have dimension %d\n",v->varname,(int) (outdims));
 	  if(tmpcharvec != NULL) free(tmpcharvec);
+	  UNPROTECT(Nprotected);
 	  return 1;
 	}
 	switch(v->datatype) {
@@ -982,12 +826,13 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  lenvec = 1;
 	  if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
-	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
-	  tmpdblout = PyFloat_AS_DOUBLE(tmpobj);
+	  tmpdblout = REAL(tmparray)[0];
 	  if(write(cparent->sockets[threadindex][1], &tmpdblout, sizeof(double)) < sizeof(double)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
 	  break;
@@ -995,12 +840,13 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  lenvec = 1;
 	  if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
-	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
-	  tmpfloatout = (float) PyFloat_AS_DOUBLE(tmpobj);
+	  tmpfloatout = (float) REAL(tmparray)[0];
 	  if(write(cparent->sockets[threadindex][1], &tmpfloatout, sizeof(float)) < sizeof(float)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
 	  break;
@@ -1008,12 +854,13 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  lenvec = 1;
 	  if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
-	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
-	  tmpintout = (int) PyInt_AS_LONG(tmpobj);
+	  tmpintout = INTEGER(tmparray)[0];
 	  if(write(cparent->sockets[threadindex][1], &tmpintout, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
 	  break;
@@ -1021,12 +868,13 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  lenvec = 1;
 	  if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
-	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
-	  tmplongout = (long) PyLong_AsLong(tmpobj);
+	  tmplongout = (long) INTEGER(tmparray)[0];
 	  if(write(cparent->sockets[threadindex][1], &tmplongout, sizeof(long)) < sizeof(long)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
 	  break;
@@ -1034,359 +882,263 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  lenvec = 1;
 	  if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
-	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
-	  tmpshortout = (short) PyInt_AS_LONG(tmpobj);
+	  tmpshortout = (short) INTEGER(tmparray)[0];
 	  if(write(cparent->sockets[threadindex][1], &tmpshortout, sizeof(short)) < sizeof(short)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
 	    return 1;
 	  }
 	  break;
 	}
       } else {
-	lenvec = outdims[0];
+	lenvec = outdims;
 	if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	  if(tmpcharvec != NULL) free(tmpcharvec);
+	  UNPROTECT(Nprotected);
 	  return 1;
 	}
 	if(lenvec <= 0) continue;
-	descr = PyArray_DESCR(tmparray);
 	switch(v->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	case VARTOOLS_TYPE_CONVERTJD:
-	  if(descr->type_num != NPY_DOUBLE) {
-	    tmpcopyarray = PyArray_SimpleNew(1, outdims, NPY_DOUBLE);
-	    if(PyArray_CopyInto((PyArrayObject *) tmpcopyarray, (PyArrayObject *) tmparray)) {
-	      fprintf(stderr,"Error converting vector %s to the expected double datatype in output from python.\n",v->varname);
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    dblptrout = (double *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(double)))) < (((size_t) lenvec)*(sizeof(double)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    Py_CLEAR(tmpcopyarray);
-	  } else {
-	    dblptrout = (double *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(double)))) < (((size_t) lenvec)*(sizeof(double)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
+	  dblptrout = REAL(tmparray);
+	  if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(double)))) < (((size_t) lenvec)*(sizeof(double)))) {
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
 	  }
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
-	  if(descr->type_num != NPY_FLOAT) {
-	    tmpcopyarray = PyArray_SimpleNew(1, outdims, NPY_FLOAT);
-	    if(PyArray_CopyInto((PyArrayObject *) tmpcopyarray, (PyArrayObject *) tmparray)) {
-	      fprintf(stderr,"Error converting vector %s to the expected float datatype in output from python.\n",v->varname);
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    floatptrout = (float *) PyArray_DATA(tmpcopyarray);
- 	    if(write(cparent->sockets[threadindex][1], (void *) floatptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    Py_CLEAR(tmpcopyarray);
-	  } else {
-	    floatptrout = (float *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
+	  if((floatptrout = malloc(lenvec*sizeof(float))) == NULL) {
+	    DO_ERROR_MEMALLOC;
 	  }
+	  for(k=0; k < lenvec; k++) {
+	    floatptrout[k] = (float) REAL(tmparray)[k];
+	  }
+	  if(write(cparent->sockets[threadindex][1], (void *) floatptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
+	    free(floatptrout);
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
+	  }
+	  free(floatptrout);
 	  break;
 	case VARTOOLS_TYPE_INT:
-	  if(descr->type_num != NPY_INT) {
-	    tmpcopyarray = PyArray_SimpleNew(1, outdims, NPY_INT);
-	    if(PyArray_CopyInto((PyArrayObject *) tmpcopyarray, (PyArrayObject *) tmparray)) {
-	      fprintf(stderr,"Error converting vector %s to the expected int datatype in output from python.\n",v->varname);
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    intptrout = (int *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) intptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(int)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    Py_CLEAR(tmpcopyarray);
-	  } else {
-	    intptrout = (int *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) intptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(int)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
+	  intptrout = INTEGER(tmparray);
+	  if(write(cparent->sockets[threadindex][1], (void *) intptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(int)))) {
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
 	  }
 	  break;
 	case VARTOOLS_TYPE_LONG:
-	  if(descr->type_num != NPY_LONG) {
-	    tmpcopyarray = PyArray_SimpleNew(1, outdims, NPY_LONG);
-	    if(PyArray_CopyInto((PyArrayObject *) tmpcopyarray, (PyArrayObject *) tmparray)) {
-	      fprintf(stderr,"Error converting vector %s to the expected long datatype in output from python.\n",v->varname);
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    longptrout = (long *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(long)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    Py_CLEAR(tmpcopyarray);
-	  } else {
-	    longptrout = (long *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(long)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
+	  if((longptrout = malloc(lenvec*sizeof(long))) == NULL) {
+	    DO_ERROR_MEMALLOC;
 	  }
+	  for(k=0; k < lenvec; k++) {
+	    longptrout[k] = (long) INTEGER(tmparray)[k];
+	  }
+	  if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(long)))) < (((size_t) lenvec)*(sizeof(long)))) {
+	    free(longptrout);
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
+	  }
+	  free(longptrout);
 	  break;
 	case VARTOOLS_TYPE_SHORT:
-	  if(descr->type_num != NPY_SHORT) {
-	    tmpcopyarray = PyArray_SimpleNew(1, outdims, NPY_SHORT);
-	    if(PyArray_CopyInto((PyArrayObject *) tmpcopyarray, (PyArrayObject *) tmparray)) {
-	      fprintf(stderr,"Error converting vector %s to the expected short datatype in output from python.\n",v->varname);
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    shortptrout = (short *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
-	    Py_CLEAR(tmpcopyarray);
-	  } else {
-	    shortptrout = (short *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) shortptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
-	      Py_CLEAR(tmpcopyarray);
-	      if(tmpcharvec != NULL) free(tmpcharvec);
-	      return 1;
-	    }
+	  if((shortptrout = malloc(lenvec*sizeof(short))) == NULL) {
+	    DO_ERROR_MEMALLOC;
 	  }
+	  for(k=0; k < lenvec; k++) {
+	    shortptrout[k] = (short) INTEGER(tmparray)[k];
+	  }
+	  if(write(cparent->sockets[threadindex][1], (void *) shortptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
+	    free(shortptrout);
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
+	  }
+	  free(shortptrout);
 	  break;
 	}
       }
+      UNPROTECT(1);
+      Nprotected--;
     } else {
-      tmplist = PyList_GetItem(py->VariableListOut,ii);
-      if(!PyList_Check(tmplist)) {
-	fprintf(stderr,"Error: expected a List from python storing the output value(s) for the vartools string or character variable '%s', but received a different type object.\n", v->varname);
-	if(tmpcharvec != NULL) free(tmpcharvec);
-	return 1;
-      }
-      lenvec = (int) PyList_Size(tmplist);
+      tmparray = PROTECT(VECTOR_ELT(VariableListOut,ii));
+      Nprotected++;
+      outdims = length(tmparray);
+      lenvec = outdims;
       if(v->vectortype != VARTOOLS_VECTORTYPE_LC && lenvec != 1) {
 	if(lenvec != 1) {
-	  fprintf(stderr,"Error the variable %s has the wrong dimension upon output from python. This variable is expected to be a scalar, but was instead found to have dimension %d\n",v->varname,lenvec);
+	  fprintf(stderr,"Error the variable %s has the wrong dimension upon output from R. This variable is expected to be a scalar, but was instead found to have dimension %d\n",v->varname,lenvec);
 	  if(tmpcharvec != NULL) free(tmpcharvec);
+	  UNPROTECT(Nprotected);
 	  return 1;
 	}
       }
       if(write(cparent->sockets[threadindex][1], &lenvec, sizeof(int)) < sizeof(int)) {
 	if(tmpcharvec != NULL) free(tmpcharvec);
+	UNPROTECT(Nprotected);
 	return 1;
       }
       for(k=0; k < lenvec; k++) {
-	if(!PyString_Check(PyList_GetItem(tmplist,k))) {
-	  /* Will need to convert the result to a string */
-	  fprintf(stderr,"Error: the variable %s is expected to be a string or ASCII char, but a non-string value was returned from python.\n", v->varname);
+	tmpstr = CHAR(STRING_ELT(tmparray, k));
+	if(tmpstr == NULL) {
+	  fprintf(stderr,"Error: NULL value returned from R for string or ASCII char variable %s\n", v->varname);
 	  if(tmpcharvec != NULL) free(tmpcharvec);
+	  UNPROTECT(Nprotected);
 	  return 1;
 	}
-	else {
-	  tmpstr = PyString_AsString(PyList_GetItem(tmplist,k));
-	  if(tmpstr == NULL) {
-	    fprintf(stderr,"Error: NULL value returned from python for string or ASCII char variable %s\n", v->varname);
-	    if(tmpcharvec != NULL) free(tmpcharvec);
-	    return 1;
-	  }
-	  if(v->datatype == VARTOOLS_TYPE_CHAR) {
-	    if(lenvec <= 1) {
-	      outchar = tmpstr[0];
-	      if(write(cparent->sockets[threadindex][1], &outchar, sizeof(char)) < sizeof(char)) {
-		if(tmpcharvec != NULL) free(tmpcharvec);
-		return 1;
-	      }
-	    } else {
-	      if(!k) {
-		if(lenvec > sizetmpcharvec) {
-		  if(!sizetmpcharvec) {
-		    if((tmpcharvec = (char *) malloc(lenvec * sizeof(char))) == NULL)
-		      error(ERR_MEMALLOC);
-		  } else {
-		    if((tmpcharvec = (char *) realloc(tmpcharvec, lenvec * sizeof(char))) == NULL)
-		      error(ERR_MEMALLOC);
-		  }
-		  sizetmpcharvec = lenvec;
-		}
-	      }
-	      tmpcharvec[k] = tmpstr[0];
-	      if(k == lenvec - 1) {
-		if(write(cparent->sockets[threadindex][1], tmpcharvec, (((size_t) lenvec)*sizeof(char))) < (((size_t) lenvec)*sizeof(char))) {
-		  if(tmpcharvec != NULL) free(tmpcharvec);
-		  return 1;
-		}
-	      }
-	    }
-	  } else {
-	    outstrlen = strlen(tmpstr);
-	    if(write(cparent->sockets[threadindex][1], &outstrlen, sizeof(int)) < sizeof(int)) {
+	if(v->datatype == VARTOOLS_TYPE_CHAR) {
+	  if(lenvec <= 1) {
+	    outchar = tmpstr[0];
+	    if(write(cparent->sockets[threadindex][1], &outchar, sizeof(char)) < sizeof(char)) {
 	      if(tmpcharvec != NULL) free(tmpcharvec);
+	      UNPROTECT(Nprotected);
 	      return 1;
 	    }
-	    if(outstrlen > 0) {
-	      if(write(cparent->sockets[threadindex][1], tmpstr, (((size_t) (outstrlen))*sizeof(char))) < (((size_t) (outstrlen))*sizeof(char))) {
+	  } else {
+	    if(!k) {
+	      if(lenvec > sizetmpcharvec) {
+		if(!sizetmpcharvec) {
+		  if((tmpcharvec = (char *) malloc(lenvec * sizeof(char))) == NULL)
+		    DO_ERROR_MEMALLOC;
+		} else {
+		  if((tmpcharvec = (char *) realloc(tmpcharvec, lenvec * sizeof(char))) == NULL)
+		    DO_ERROR_MEMALLOC;
+		}
+		sizetmpcharvec = lenvec;
+	      }
+	    }
+	    tmpcharvec[k] = tmpstr[0];
+	    if(k == lenvec - 1) {
+	      if(write(cparent->sockets[threadindex][1], tmpcharvec, (((size_t) lenvec)*sizeof(char))) < (((size_t) lenvec)*sizeof(char))) {
 		if(tmpcharvec != NULL) free(tmpcharvec);
+		UNPROTECT(Nprotected);
 		return 1;
 	      }
+	    }
+	  }
+	} else {
+	  outstrlen = strlen(tmpstr);
+	  if(write(cparent->sockets[threadindex][1], &outstrlen, sizeof(int)) < sizeof(int)) {
+	    if(tmpcharvec != NULL) free(tmpcharvec);
+	    UNPROTECT(Nprotected);
+	    return 1;
+	  }
+	  if(outstrlen > 0) {
+	    if(write(cparent->sockets[threadindex][1], tmpstr, (((size_t) (outstrlen))*sizeof(char))) < (((size_t) (outstrlen))*sizeof(char))) {
+	      if(tmpcharvec != NULL) free(tmpcharvec);
+	      UNPROTECT(Nprotected);
+	      return 1;
 	    }
 	  }
 	}
       }
+      UNPROTECT(1);
+      Nprotected--;
     }
     i++; ii++;
   }
   /* The data has all been transferred back to the parent process; we can
-     clean-up the Python structures associated with this particular light
+     clean-up the R structures associated with this particular light
      curve */
-  CleanUpPythonObjectContainerVariables(py);
-  
-  if(py->VariableListOut != NULL) {
-    if(py->VariableListOut->ob_refcnt > 0)
-      Py_CLEAR(py->VariableListOut);
-    py->VariableListOut = NULL;
-  }
+  CleanUpRObjectContainerVariables(Rcontainer);
   
 
+  if(Nprotected > 0) UNPROTECT(Nprotected);
   if(tmpcharvec != NULL) free(tmpcharvec);
   return 0;
 }
 
-int WriteVariablesFromPythonToSocket_all_lcs(ProgramData *p, 
-					     _PythonCommand *cparent, 
-					     int threadindex, int cid) {
+int WriteVariablesFromRToSocket_all_lcs(ProgramData *p, 
+					     _RCommand *cparent, 
+					     int threadindex, int cid, SEXP FullList) {
   int Nlcs, i;
-  PyObject* FullList;
-  _PythonObjectContainer *py = NULL;
+  _RObjectContainer *Rcontainer = NULL;
 
-  _PythonCommand *c;
+  _RCommand *c;
+  int Nprotected = 0;
+  SEXP VariableListOut;
 
   if(!cid) c = cparent;
-  else c = ((_PythonCommand **)cparent->childcommandptrs)[cid-1];
-  py = ((_PythonObjectContainer **) cparent->pythonobjects)[threadindex];
+  else c = ((_RCommand **)cparent->childcommandptrs)[cid-1];
+  Rcontainer = ((_RObjectContainer **) cparent->Robjects)[threadindex];
 
-  FullList =  py->FullListOut;
-  Nlcs = (int) PyList_Size(FullList);
+  Nlcs = length(FullList);
 
   if(write(cparent->sockets[threadindex][1], &Nlcs, sizeof(int)) < sizeof(int))
     return 1;
 
   for(i=0; i < Nlcs; i++) {
-    py->VariableListOut = PyList_GetItem(FullList,i);
-    Py_INCREF(py->VariableListOut);
-    if(WriteVariablesFromPythonToSocket(p, cparent, threadindex, cid))
+    VariableListOut = PROTECT(VECTOR_ELT(FullList,i));
+    if(WriteVariablesFromRToSocket(p, cparent, threadindex, cid, VariableListOut)) {
+      UNPROTECT(1);
       return 1;
+    }
+    UNPROTECT(1);
   }
   
-  Py_CLEAR(FullList);
   return 0;
 }
 
-int RunPythonUserFunctionOnLightCurve(ProgramData *p, _PythonCommand *c, 
-				      int threadindex, int cid, int isall) {
-  PyObject *ArgTuple;
-  int i;
-  _PythonObjectContainer *py;
+SEXP RunRUserFunctionOnLightCurve(ProgramData *p, _RCommand *c, 
+				  int threadindex, int cid, int isall, int *statusval, SEXP ArgumentList) {
+  int i, cnumval;
+  _RObjectContainer *Rcontainer;
+  int Nprotected = 0;
+  SEXP function_call;
+  SEXP OutputList;
+  
+  char functionnametext[256];
 
-  py = ((_PythonObjectContainer **) c->pythonobjects)[threadindex];
+  *statusval = 0;
 
-  /* Create the argument tuple which will be passed to the user function */
-  if(!isall)
-    ArgTuple = PyTuple_Pack(1, py->VariableList);
+  if(!cid) 
+    cnumval = c->cnum;
   else
-    ArgTuple = PyTuple_Pack(1, py->FullList);
-  //Py_DECREF(py->VariableList);
+    cnumval = ((_RCommand **)c->childcommandptrs)[cid-1]->cnum;
 
-  /* Set the list as the single item in the argument tuple */
-  /*if(PyTuple_SetItem(ArgTuple, 0, py->VariableList)) {
-      fprintf(stderr,"Error running python command.\n");
-      if(PyErr_Occurred() != NULL) {
-	fprintf(stderr,"The error message from python is as follows:\n\n");
-	PyErr_Print();
-      } else {
-	fprintf(stderr,"No error reported by python");
-      }
-      Py_CLEAR(ArgTuple);
-      return 1;
-      }*/
+  sprintf(functionnametext,"VARTOOLS_R_USERFUNCTION_%d",cnumval);
 
-  /* Call the User Function */
-  if(!isall) {
-    py->VariableListOut = PyObject_CallObject(py->UserFunctionToRun[cid], ArgTuple);
-    if(py->VariableListOut == NULL) {
-      fprintf(stderr,"Error running python command.\n");
-      if(PyErr_Occurred() != NULL) {
-	fprintf(stderr,"The error message from python is as follows:\n\n");
-	PyErr_Print();
-      } else {
-	fprintf(stderr,"No error reported by python");
-      }
-      Py_CLEAR(ArgTuple);
-      return 1;
-    }
-    Py_INCREF(py->VariableListOut);
-  }
-  else {
-    py->FullListOut = PyObject_CallObject(py->UserFunctionToRun[cid], ArgTuple);
-    if(py->FullListOut == NULL) {
-      fprintf(stderr,"Error running python command.\n");
-      if(PyErr_Occurred() != NULL) {
-	fprintf(stderr,"The error message from python is as follows:\n\n");
-	PyErr_Print();
-      } else {
-	fprintf(stderr,"No error reported by python");
-      }
-      Py_CLEAR(ArgTuple);
-      return 1;
-    }
-    Py_INCREF(py->FullListOut);
+  function_call = PROTECT(lang2(install(functionnametext), ArgumentList));
+
+
+  OutputList = PROTECT(R_tryEval(function_call, R_GlobalEnv, statusval));
+  
+  if(*statusval) {
+    fprintf(stderr,"Error running R command.\n");
   }
 
-  /* Clean up the temporary variables that were allocated */
-  Py_CLEAR(ArgTuple);
-  return 0;
+  UNPROTECT(2);
+
+  return(OutputList);
 }
 
-void TerminatePython(ProgramData *p, _PythonCommand *c, int threadindex)
+void TerminateR(ProgramData *p, _RCommand *c, int threadindex)
 {
-  c->IsPythonRunning[threadindex] = 0;
+  if(!c->IsRRunning[threadindex]) return;
+  c->IsRRunning[threadindex] = 0;
   if(!c->iscontinueprocess) {
-   /* PyThreadState_Swap((((_PythonObjectContainer **) c->pythonobjects)[threadindex])->mainstate);*/
-    CleanUpPythonObjectContainer(&(((_PythonObjectContainer **) c->pythonobjects)[threadindex]));
-    Py_Finalize();
+    CleanUpRObjectContainer(&(((_RObjectContainer **) c->Robjects)[threadindex]));
+    Rf_endEmbeddedR(0);
   } else {
-    TerminatePython(p, (_PythonCommand *) c->continueprocesscommandptr, threadindex);
+    TerminateR(p, (_RCommand *) c->continueprocesscommandptr, threadindex);
   }
 }
 
-void RunPythonProcessingLoop(ProgramData *p, _PythonCommand *c, int threadindex)
+void RunRProcessingLoop(ProgramData *p, _RCommand *c, int threadindex)
 {
-  int msg, retval, newcnum, cid;
-  _PythonCommand *ccheck;
+  int msg, retval = 0, newcnum, cid;
+  _RCommand *ccheck;
+  SEXP InputVariableList;
+  SEXP OutputVariableList;
+  int Nprotected = 0;
 
   while(1) {
     /* Read a message from the parent indicating what we will be doing */
@@ -1395,9 +1147,9 @@ void RunPythonProcessingLoop(ProgramData *p, _PythonCommand *c, int threadindex)
       return;
   
     switch(msg) {
-    case VARTOOLS_PYTHON_MESSAGE_ENDPROCESS:
+    case VARTOOLS_R_MESSAGE_ENDPROCESS:
       return;
-    case VARTOOLS_PYTHON_MESSAGE_READDATA:
+    case VARTOOLS_R_MESSAGE_READDATA:
 
       if(read(c->sockets[threadindex][1], &cid, sizeof(int)) < sizeof(int))
 	return;
@@ -1406,72 +1158,88 @@ void RunPythonProcessingLoop(ProgramData *p, _PythonCommand *c, int threadindex)
 	return;
 
       if(!cid) ccheck = c;
-      else ccheck = ((_PythonCommand **)c->childcommandptrs)[cid-1];
+      else ccheck = ((_RCommand **)c->childcommandptrs)[cid-1];
+
 
       if(ccheck->RequireReadAll) {
-	if((retval = ReadVariablesFromSocketIntoPython_all_lcs(p, c, threadindex))) {
+	InputVariableList = PROTECT(ReadVariablesFromSocketIntoR_all_lcs(p, c, threadindex, &retval));
+	if(retval) {
+	  UNPROTECT(1);
 	  if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int))
 	    return;
 	  break;
 	}
-	if((retval = RunPythonUserFunctionOnLightCurve(p, c, threadindex, cid, 1))) {
+	OutputVariableList = PROTECT(RunRUserFunctionOnLightCurve(p, c, threadindex, cid, 1, &retval, InputVariableList));
+	if(retval) {
+	  UNPROTECT(2);
 	  if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int))
 	    return;
 	  break;
 	}
       } else {
-	if((retval = ReadVariablesFromSocketIntoPython(p, c, threadindex, 0, 0))) {
+	InputVariableList = PROTECT(ReadVariablesFromSocketIntoR(p, c, threadindex, 0, 0, &retval));
+	if(retval) {
+	  UNPROTECT(1);
 	  if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int))
 	    return;
 	  break;
 	}
-	if((retval = RunPythonUserFunctionOnLightCurve(p, c, threadindex, cid, 0))) {
+	OutputVariableList = PROTECT(RunRUserFunctionOnLightCurve(p, c, threadindex, cid, 0, &retval, InputVariableList));
+	if(retval) {
+	  UNPROTECT(2);
 	  if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int))
 	    return;
 	  break;
 	}
       }
-      if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int))
+      if(write(c->sockets[threadindex][1], &retval, sizeof(int)) < sizeof(int)) {
+	UNPROTECT(2);
 	return;
-      if(ccheck->RequireReadAll) {
-	if(WriteVariablesFromPythonToSocket_all_lcs(p, c, threadindex, cid))
-	  return;
-      } else {
-	if(WriteVariablesFromPythonToSocket(p, c, threadindex, cid))
-	  return;
       }
+      if(ccheck->RequireReadAll) {
+	if(WriteVariablesFromRToSocket_all_lcs(p, c, threadindex, cid, OutputVariableList)) {
+	  UNPROTECT(2);
+	  return;
+	}
+      } else {
+	if(WriteVariablesFromRToSocket(p, c, threadindex, cid, OutputVariableList)) {
+	  UNPROTECT(2);
+	  return;
+	}
+      }
+      UNPROTECT(2);
       break;
     default:
-      fprintf(stderr,"Error: Invalid message received by python sub-process from main vartools process. Shutting down the python sub-process now.\n");
+      fprintf(stderr,"Error: Invalid message received by R sub-process from main vartools process. Shutting down the R sub-process now.\n");
       return;
     }
   }
 }
 
 
-void StartPythonProcess(ProgramData *p, _PythonCommand *c, int threadindex)
+void StartRProcess(ProgramData *p, _RCommand *c, int threadindex)
 {
   pid_t pid;
 
-  /* If Python is already running on this thread, just return */
-  if(c->IsPythonRunning[threadindex]) return;
+  /* If R is already running on this thread, just return */
+  if(c->IsRRunning[threadindex]) return;
   
-  c->IsPythonRunning[threadindex] = 1;
+  c->IsRRunning[threadindex] = 1;
 
   /* Create a socket pair */
   if(socketpair(AF_UNIX, SOCK_STREAM, 0, c->sockets[threadindex]) < 0) {
-    perror("Error Opening socket pair in starting python process\n");
+    perror("Error Opening socket pair in starting R process\n");
     exit(1);
   }
 
   /* Create the sub-process */
   pid = fork();
   if(pid == -1) {
-    perror("Error creating a sub-process initiating a call to the vartools python command.\n");
+    perror("Error creating a sub-process initiating a call to the vartools R command.\n");
     exit(1);
   }
   if(!pid) {
-    /* This is the child sub-process which will be used for running python */
+    /* This is the child sub-process which will be used for running R */
 
     /* Close the parent end of the socket */
     close(c->sockets[threadindex][0]);    
@@ -1479,18 +1247,17 @@ void StartPythonProcess(ProgramData *p, _PythonCommand *c, int threadindex)
     /* Redirect stdout to stderr */
     dup2(2, 1);
 
-    /* Start python, load all of the
+    /* Start R, load all of the
        initialization codes and create the function that will be used for
        processing individual light curves */
-    InitializePython(p, c, threadindex);
+    InitializeR(p, c, threadindex);
 
     /* The loop that will receive light curve data from the parent process,
-       run the python routine, and write the data back to the parent */
-
-    RunPythonProcessingLoop(p, c, threadindex);
+       run the R routine, and write the data back to the parent */
+    RunRProcessingLoop(p, c, threadindex);
 
     /* If the loop is done running we can terminate this process */
-    TerminatePython(p, c, threadindex);
+    TerminateR(p, c, threadindex);
 
     /* Close the socket, then terminate the process */
     close(c->sockets[threadindex][1]);
@@ -1504,11 +1271,12 @@ void StartPythonProcess(ProgramData *p, _PythonCommand *c, int threadindex)
 }
 
 
-int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
-				      int threadindex, int pythreadindex, _PythonCommand *c)
+int SendVariablesToChildRProcess(ProgramData *p, int lcindex,
+				      int threadindex, int Rthreadindex, _RCommand *c)
 {
   
   int i, k;
+  size_t sizedatasent;
   size_t databytesize;
   int lenvec;
   int tmpindex;
@@ -1523,15 +1291,15 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
   char *tmpstringval = NULL;
   int sizetmpstringval = 0;
 
-  if(write(c->sockets[pythreadindex][0], &c->Nvars, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Error sending the number of variables to read to the child python process.\n");
+  if(write(c->sockets[Rthreadindex][0], &c->Nvars, sizeof(int)) < sizeof(int)) {
+    fprintf(stderr,"Error sending the number of variables to read to the child R process.\n");
     if(tmpstringval != NULL) free(tmpstringval);
     return 1;
   }
 
   for(i=0; i < c->Nvars; i++) {
-    if(write(c->sockets[pythreadindex][0], &(c->vars[i]->datatype), sizeof(char)) < sizeof(char)) {
-      fprintf(stderr,"Error sending the datatype for variable %s to the child python process\n", c->vars[i]->varname);
+    if(write(c->sockets[Rthreadindex][0], &(c->vars[i]->datatype), sizeof(char)) < sizeof(char)) {
+      fprintf(stderr,"Error sending the datatype for variable %s to the child R process\n", c->vars[i]->varname);
       if(tmpstringval != NULL) free(tmpstringval);
       return 1;
     }
@@ -1559,7 +1327,7 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	databytesize = sizeof(char);
 	break;
       default:
-	fprintf(stderr,"Error: invalid datatype received for variable %s in the SendVariablesToChildPythonProcess function\n", c->vars[i]->varname);
+	fprintf(stderr,"Error: invalid datatype received for variable %s in the SendVariablesToChildRProcess function\n", c->vars[i]->varname);
 	if(tmpstringval != NULL) free(tmpstringval);
 	return 1;
       }
@@ -1568,8 +1336,8 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
       else
 	lenvec = p->NJD[threadindex];
       
-      if(write(c->sockets[pythreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
-	fprintf(stderr,"Error sending the length of vector for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+      if(write(c->sockets[Rthreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
+	fprintf(stderr,"Error sending the length of vector for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	if(tmpstringval != NULL) free(tmpstringval);
 	return 1;
       }
@@ -1676,8 +1444,9 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	break;
       }
 
-      if(write(c->sockets[pythreadindex][0], ptrtosend, (((size_t) lenvec)*databytesize)) < (((size_t) lenvec)*databytesize)) {
-	fprintf(stderr,"Error sending data for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+      sizedatasent = write(c->sockets[Rthreadindex][0], ptrtosend, (((size_t) lenvec)*databytesize));
+      if(sizedatasent < (((size_t) lenvec)*databytesize)) {
+	fprintf(stderr,"Error sending data for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	if(tmpstringval != NULL) free(tmpstringval);
 	return 1;
       }
@@ -1688,8 +1457,8 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
       else
 	lenvec = p->NJD[threadindex];
       
-      if(write(c->sockets[pythreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
-	fprintf(stderr,"Error sending the length of vector for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+      if(write(c->sockets[Rthreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
+	fprintf(stderr,"Error sending the length of vector for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	if(tmpstringval != NULL) free(tmpstringval);
 	return 1;
       }
@@ -1715,10 +1484,10 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	  if(c->vars[i]->outc->stringsize > sizetmpstringval) {
 	    if(!sizetmpstringval) {
 	      if((tmpstringval = (char *) malloc(c->vars[i]->outc->stringsize)) == NULL)
-		error(ERR_MEMALLOC);
+		DO_ERROR_MEMALLOC;
 	    } else {
 	      if((tmpstringval = (char *) realloc(tmpstringval, c->vars[i]->outc->stringsize)) == NULL)
-		error(ERR_MEMALLOC);
+		DO_ERROR_MEMALLOC;
 	    }
 	    sizetmpstringval = c->vars[i]->outc->stringsize;
 	  }
@@ -1730,14 +1499,14 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	  ptrtosend = NULL;
 	  strlentosend = 0;
 	}
-	if(write(c->sockets[pythreadindex][0], &strlentosend, sizeof(int)) < sizeof(int)) {
-	  fprintf(stderr,"Error sending the string length for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+	if(write(c->sockets[Rthreadindex][0], &strlentosend, sizeof(int)) < sizeof(int)) {
+	  fprintf(stderr,"Error sending the string length for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	  if(tmpstringval != NULL) free(tmpstringval);
 	  return 1;
 	}
 	if(strlentosend <= 0) continue;
-	if(write(c->sockets[pythreadindex][0], ptrtosend, (((size_t) strlentosend)*sizeof(char))) < (((size_t) strlentosend)*sizeof(char))) {
-	  fprintf(stderr,"Error sending the data for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+	if(write(c->sockets[Rthreadindex][0], ptrtosend, (((size_t) strlentosend)*sizeof(char))) < (((size_t) strlentosend)*sizeof(char))) {
+	  fprintf(stderr,"Error sending the data for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	  if(tmpstringval != NULL) free(tmpstringval);
 	  return 1;
 	}
@@ -1745,14 +1514,14 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	for(k=0; k < lenvec; k++) {
 	  ptrtosend = (void *) &((*((char ****) c->vars[i]->dataptr))[threadindex][k][0]);
 	  strlentosend = strlen((char *) ptrtosend);
-	  if(write(c->sockets[pythreadindex][0], &strlentosend, sizeof(int)) < sizeof(int)) {
-	    fprintf(stderr,"Error sending the string length for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+	  if(write(c->sockets[Rthreadindex][0], &strlentosend, sizeof(int)) < sizeof(int)) {
+	    fprintf(stderr,"Error sending the string length for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	    if(tmpstringval != NULL) free(tmpstringval);
 	    return 1;
 	  }
 	  if(strlentosend <= 0) continue;
-	  if(write(c->sockets[pythreadindex][0], ptrtosend, (((size_t) strlentosend)*sizeof(char))) < (((size_t) strlentosend)*sizeof(char))) {
-	    fprintf(stderr,"Error sending the data for variable %s in the SendVariablesToChildPythonProcess function.\n", c->vars[i]->varname);
+	  if(write(c->sockets[Rthreadindex][0], ptrtosend, (((size_t) strlentosend)*sizeof(char))) < (((size_t) strlentosend)*sizeof(char))) {
+	    fprintf(stderr,"Error sending the data for variable %s in the SendVariablesToChildRProcess function.\n", c->vars[i]->varname);
 	    if(tmpstringval != NULL) free(tmpstringval);
 	    return 1;
 	  }
@@ -1764,25 +1533,25 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
   return 0;
 }
 
-int SendVariablesToChildPythonProcess_all_lcs(ProgramData *p, _PythonCommand *c)
+int SendVariablesToChildRProcess_all_lcs(ProgramData *p, _RCommand *c)
 {
   int j, Nlcs;
 
   Nlcs = p->Nlcs;
   if(write(c->sockets[0][0], &Nlcs, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Error sending the number of light curves to read to the child python process.\n");
+    fprintf(stderr,"Error sending the number of light curves to read to the child R process.\n");
     return 1;
   }
   for(j=0; j < Nlcs; j++) {
-    if(SendVariablesToChildPythonProcess(p, j, j, 0, c))
+    if(SendVariablesToChildRProcess(p, j, j, 0, c))
       return 1;
   }
   return 0;
 }
 
-int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex, 
-					int threadindex, int pythreadindex, 
-					_PythonCommand *c)
+int ReadVariablesFromChildRProcess(ProgramData *p, int lcindex, 
+					int threadindex, int Rthreadindex, 
+					_RCommand *c)
 {
   int i, j, k, ii, tmpindex;
 
@@ -1843,12 +1612,12 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 
     if(v->vectortype == VARTOOLS_VECTORTYPE_CONSTANT ||
        v->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
-      fprintf(stderr,"Error: somehow a constant or outcolumn variable is set to receive data from a python command. This should not happen and indicates a bug in vartools.\n");
+      fprintf(stderr,"Error: somehow a constant or outcolumn variable is set to receive data from a R command. This should not happen and indicates a bug in vartools.\n");
       exit(1);
     }
     
-    if(read(c->sockets[pythreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
-      fprintf(stderr,"Error receiving the vector length for variable %s in the ReadVariablesFromChildPythonProcess function.\n", v->varname);
+    if(read(c->sockets[Rthreadindex][0], &lenvec, sizeof(int)) < sizeof(int)) {
+      fprintf(stderr,"Error receiving the vector length for variable %s in the ReadVariablesFromChildRProcess function.\n", v->varname);
       if(tmpinstr != NULL) free(tmpinstr);
       return 1;
     }
@@ -1857,7 +1626,7 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
       
       if(v->vectortype != VARTOOLS_VECTORTYPE_LC) {
 	if(lenvec != 1) {
-	  fprintf(stderr,"Error the vector length received for variable %s has the wrong dimension in the ReadVariablesFromChildPythonProcess function. Expected only 1 value, received a length of %d\n",v->varname,lenvec);
+	  fprintf(stderr,"Error the vector length received for variable %s has the wrong dimension in the ReadVariablesFromChildRProcess function. Expected only 1 value, received a length of %d\n",v->varname,lenvec);
 	  if(tmpinstr != NULL) free(tmpinstr);
 	  return 1;
 	}
@@ -1895,8 +1664,8 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	  ptrtoget = NULL;
 	  break;
 	}
-	if(read(c->sockets[pythreadindex][0], ptrtoget, databytesize) < databytesize) {
-	  fprintf(stderr,"Error receiving the data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	if(read(c->sockets[Rthreadindex][0], ptrtoget, databytesize) < databytesize) {
+	  fprintf(stderr,"Error receiving the data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	  if(tmpinstr != NULL) free(tmpinstr);
 	  return 1;
 	}
@@ -1944,11 +1713,11 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	if(lenvec <= 0) continue;
 	sizedatareadtot = 0;
 	while(sizedatareadtot < (((size_t) lenvec)*databytesize)) {
-	  sizedataread = read(c->sockets[pythreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)lenvec)*databytesize)-sizedatareadtot);
+	  sizedataread = read(c->sockets[Rthreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)lenvec)*databytesize)-sizedatareadtot);
 	  sizedatareadtot += sizedataread;
 	}
-	if(sizedatareadtot < (((size_t)lenvec)*databytesize)) {
-	  fprintf(stderr,"Error receiving the data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	if(sizedatareadtot < (((size_t) lenvec)*databytesize)) {
+	  fprintf(stderr,"Error receiving the data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	  if(tmpinstr != NULL) free(tmpinstr);
 	  return 1;
 	}
@@ -1956,12 +1725,12 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
     } else {
       if(v->vectortype != VARTOOLS_VECTORTYPE_LC) {
 	if(lenvec != 1) {
-	  fprintf(stderr,"Error the vector length received for variable %s has the wrong dimension in the ReadVariablesFromChildPythonProcess function. Expected only 1 value, received a length of %d\n",v->varname,lenvec);
+	  fprintf(stderr,"Error the vector length received for variable %s has the wrong dimension in the ReadVariablesFromChildRProcess function. Expected only 1 value, received a length of %d\n",v->varname,lenvec);
 	  if(tmpinstr != NULL) free(tmpinstr);
 	  return 1;
 	}
-	if(read(c->sockets[pythreadindex][0], &instrlen, sizeof(int)) < sizeof(int)) {
-	  fprintf(stderr,"Error receiving the string length for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	if(read(c->sockets[Rthreadindex][0], &instrlen, sizeof(int)) < sizeof(int)) {
+	  fprintf(stderr,"Error receiving the string length for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	  if(tmpinstr != NULL) free(tmpinstr);
 	  return 1;
 	}
@@ -1987,11 +1756,11 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	    }
 	    sizedatareadtot = 0;
 	    while(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-	      sizedataread = read(c->sockets[pythreadindex][0], (void *) (((char *) tmpinstr) + sizedatareadtot), (((size_t) instrlen)*sizeof(char))-sizedatareadtot);
+	      sizedataread = read(c->sockets[Rthreadindex][0], (void *) (((char *) tmpinstr) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
 	      sizedatareadtot += sizedataread;
 	    }
 	    if(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-	      fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	      fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	      if(tmpinstr != NULL) free(tmpinstr);
 	      return 1;
 	    }
@@ -2001,11 +1770,11 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	  } else {
 	    sizedatareadtot = 0;
 	    while(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-	      sizedataread = read(c->sockets[pythreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
+	      sizedataread = read(c->sockets[Rthreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
 	      sizedatareadtot += sizedataread;
 	    }
 	    if(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-	      fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	      fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	      if(tmpinstr != NULL) free(tmpinstr);
 	      return 1;
 	    }
@@ -2017,8 +1786,8 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
       } else {
 	for(k=0; k < lenvec; k++) {
 	  ptrtoget = (void *) &((*((char ****) v->dataptr))[threadindex][k][0]);
-	  if(read(c->sockets[pythreadindex][0], &instrlen, sizeof(int)) < sizeof(int)) {
-	    fprintf(stderr,"Error receiving the string length for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+	  if(read(c->sockets[Rthreadindex][0], &instrlen, sizeof(int)) < sizeof(int)) {
+	    fprintf(stderr,"Error receiving the string length for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 	    if(tmpinstr != NULL) free(tmpinstr);
 	    return 1;
 	  }
@@ -2036,11 +1805,11 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	      }
 	      sizedatareadtot = 0;
 	      while(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-		sizedataread = read(c->sockets[pythreadindex][0], (void *) (((char *) tmpinstr) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
+		sizedataread = read(c->sockets[Rthreadindex][0], (void *) (((char *) tmpinstr) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
 		sizedatareadtot += sizedataread;
 	      }
 	      if(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-		fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+		fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 		if(tmpinstr != NULL) free(tmpinstr);
 		return 1;
 	      }
@@ -2050,11 +1819,11 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 	    } else {
 	      sizedatareadtot = 0;
 	      while(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-		sizedataread = read(c->sockets[pythreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
+		sizedataread = read(c->sockets[Rthreadindex][0], (void *) (((char *) ptrtoget) + sizedatareadtot), (((size_t)instrlen)*sizeof(char))-sizedatareadtot);
 		sizedatareadtot += sizedataread;
 	      }
 	      if(sizedatareadtot < (((size_t) instrlen)*sizeof(char))) {
-		fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildPythonProcess function.\n",v->varname);
+		fprintf(stderr,"Error receiving data for variable %s in the ReadVariablesFromChildRProcess function.\n",v->varname);
 		if(tmpinstr != NULL) free(tmpinstr);
 		return 1;
 	      }
@@ -2243,39 +2012,39 @@ int ReadVariablesFromChildPythonProcess(ProgramData *p, int lcindex,
 }
 
 
-int ReadVariablesFromChildPythonProcess_all_lcs(ProgramData *p, 
-						_PythonCommand *c)
+int ReadVariablesFromChildRProcess_all_lcs(ProgramData *p, 
+						_RCommand *c)
 {
   int i, j, k, ii, tmpindex;
   int Nlcsout;
   int Nlcs = p->Nlcs;
 
   if(read(c->sockets[0][0], &Nlcsout, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Error receiving the number of light curves to read to the child python process.\n");
+    fprintf(stderr,"Error receiving the number of light curves to read to the child R process.\n");
     return 1;
   }
   if(Nlcsout != p->Nlcs) {
-    fprintf(stderr,"Error: the number of light curves implied by the length of the variables returned by python does not match the number of light curves sent to python.\n");
+    fprintf(stderr,"Error: the number of light curves implied by the length of the variables returned by R does not match the number of light curves sent to R.\n");
     return 1;
   }
   for(j=0; j < Nlcs; j++) {
-    if(ReadVariablesFromChildPythonProcess(p, j, j, 0, c))
+    if(ReadVariablesFromChildRProcess(p, j, j, 0, c))
       return 1;
   }
   return 0;
 }
 
 
-void StopRunningPythonCommand(ProgramData *p, int threadindex, _PythonCommand *c)
+void StopRunningRCommand(ProgramData *p, int threadindex, _RCommand *c)
 {
-  int msg = VARTOOLS_PYTHON_MESSAGE_ENDPROCESS;
+  int msg = VARTOOLS_R_MESSAGE_ENDPROCESS;
   if(!c->iscontinueprocess) {
-    if(c->IsPythonRunning[threadindex]) {
+    if(c->IsRRunning[threadindex]) {
       write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
   } else {
-    if(!((_PythonCommand *)c->continueprocesscommandptr)->IsPythonRunning[threadindex]) {
+    if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[threadindex]) {
       write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
@@ -2283,7 +2052,7 @@ void StopRunningPythonCommand(ProgramData *p, int threadindex, _PythonCommand *c
   return;
 }
 
-void GetPythonCommandOutputColumnValues(ProgramData *p, int lcindex, int threadindex, _PythonCommand *c)
+void GetRCommandOutputColumnValues(ProgramData *p, int lcindex, int threadindex, _RCommand *c)
 {
   int i;
   for(i=0; i < c->Noutcolumnvars; i++) {
@@ -2291,7 +2060,7 @@ void GetPythonCommandOutputColumnValues(ProgramData *p, int lcindex, int threadi
   }
 }
 
-void GetPythonCommandOutputColumnValues_all_lcs(ProgramData *p, _PythonCommand *c)
+void GetRCommandOutputColumnValues_all_lcs(ProgramData *p, _RCommand *c)
 {
   int i, j;
   for(j=0; j < p->Nlcs; j++) {
@@ -2302,141 +2071,141 @@ void GetPythonCommandOutputColumnValues_all_lcs(ProgramData *p, _PythonCommand *
 }
 
 
-void RunPythonCommand(ProgramData *p, int lcindex, int threadindex, int pythreadindex, _PythonCommand *c)
+void RunRCommand(ProgramData *p, int lcindex, int threadindex, int Rthreadindex, _RCommand *c)
 {
-  /* Check if the python process for this command is running for this
+  /* Check if the R process for this command is running for this
      thread; if not start it */
   int msg, retval;
 
   if(!c->iscontinueprocess) {
 
-    if(!c->IsPythonRunning[pythreadindex]) 
-      StartPythonProcess(p, c, pythreadindex);
+    if(!c->IsRRunning[Rthreadindex]) 
+      StartRProcess(p, c, Rthreadindex);
     
   } else {
-    if(!((_PythonCommand *)c->continueprocesscommandptr)->IsPythonRunning[pythreadindex]) {
-      StartPythonProcess(p, ((_PythonCommand *)c->continueprocesscommandptr), pythreadindex);
+    if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[Rthreadindex]) {
+      StartRProcess(p, ((_RCommand *)c->continueprocesscommandptr), Rthreadindex);
     }
     
-    if(!c->IsPythonRunning[pythreadindex]) {
-      c->IsPythonRunning[pythreadindex] = 1;
-      c->sockets[pythreadindex][0] = ((_PythonCommand *)c->continueprocesscommandptr)->sockets[pythreadindex][0];
+    if(!c->IsRRunning[Rthreadindex]) {
+      c->IsRRunning[Rthreadindex] = 1;
+      c->sockets[Rthreadindex][0] = ((_RCommand *)c->continueprocesscommandptr)->sockets[Rthreadindex][0];
     }
     
   }
 
-  msg = VARTOOLS_PYTHON_MESSAGE_READDATA;
-  if(write(c->sockets[pythreadindex][0], &msg, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
-    close(c->sockets[pythreadindex][0]);
+  msg = VARTOOLS_R_MESSAGE_READDATA;
+  if(write(c->sockets[Rthreadindex][0], &msg, sizeof(int)) < sizeof(int)) {
+    fprintf(stderr,"Lost communication with R subprocess\n");
+    close(c->sockets[Rthreadindex][0]);
     exit(1);
   }
 
-  if(write(c->sockets[pythreadindex][0], &c->cid, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
-    close(c->sockets[pythreadindex][0]);
+  if(write(c->sockets[Rthreadindex][0], &c->cid, sizeof(int)) < sizeof(int)) {
+    fprintf(stderr,"Lost communication with R subprocess\n");
+    close(c->sockets[Rthreadindex][0]);
     exit(1);
   }
   
-  if(SendVariablesToChildPythonProcess(p, lcindex, threadindex, pythreadindex, c)) {
+  if(SendVariablesToChildRProcess(p, lcindex, threadindex, Rthreadindex, c)) {
     /* The process failed; terminate with an error */
-    fprintf(stderr,"Failed to send variables to python subprocess\n");
-    close(c->sockets[pythreadindex][0]);
+    fprintf(stderr,"Failed to send variables to R subprocess\n");
+    close(c->sockets[Rthreadindex][0]);
     exit(1);
   }
 
-  if(read(c->sockets[pythreadindex][0], &retval, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
-    close(c->sockets[pythreadindex][0]);
+  if(read(c->sockets[Rthreadindex][0], &retval, sizeof(int)) < sizeof(int)) {
+    fprintf(stderr,"Lost communication with R subprocess\n");
+    close(c->sockets[Rthreadindex][0]);
     exit(1);
   }
   
   if(retval) {
-    fprintf(stderr,"Python function %d returned an error for light curve number %d\n", c->cnum, lcindex);
+    fprintf(stderr,"R function %d returned an error for light curve number %d\n", c->cnum, lcindex);
     exit(1);
   }
   
-  if(ReadVariablesFromChildPythonProcess(p, lcindex, threadindex, pythreadindex, c)) {
+  if(ReadVariablesFromChildRProcess(p, lcindex, threadindex, Rthreadindex, c)) {
     /* The process failed; terminate with an error */
-    fprintf(stderr,"Failed to receive output variables from the python subprocess\n");
-    close(c->sockets[pythreadindex][0]);
+    fprintf(stderr,"Failed to receive output variables from the R subprocess\n");
+    close(c->sockets[Rthreadindex][0]);
     exit(1);
   }
-  GetPythonCommandOutputColumnValues(p, lcindex, threadindex, c);
+  GetRCommandOutputColumnValues(p, lcindex, threadindex, c);
   
 }
 
 
-void RunPythonCommand_all_lcs(ProgramData *p, _PythonCommand *c)
+void RunRCommand_all_lcs(ProgramData *p, _RCommand *c)
 {
-  /* Check if the python process for this command is running for this
+  /* Check if the R process for this command is running for this
      thread; if not start it */
   int msg, retval;
 
   if(!c->iscontinueprocess) {
 
-    if(!c->IsPythonRunning[0]) 
-      StartPythonProcess(p, c, 0);
+    if(!c->IsRRunning[0]) 
+      StartRProcess(p, c, 0);
     
   } else {
-    if(!((_PythonCommand *)c->continueprocesscommandptr)->IsPythonRunning[0]) {
-      StartPythonProcess(p, ((_PythonCommand *)c->continueprocesscommandptr), 0);
+    if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[0]) {
+      StartRProcess(p, ((_RCommand *)c->continueprocesscommandptr), 0);
     }
     
-    if(!c->IsPythonRunning[0]) {
-      c->IsPythonRunning[0] = 1;
-      c->sockets[0][0] = ((_PythonCommand *)c->continueprocesscommandptr)->sockets[0][0];
+    if(!c->IsRRunning[0]) {
+      c->IsRRunning[0] = 1;
+      c->sockets[0][0] = ((_RCommand *)c->continueprocesscommandptr)->sockets[0][0];
     }
     
   }
 
-  msg = VARTOOLS_PYTHON_MESSAGE_READDATA;
+  msg = VARTOOLS_R_MESSAGE_READDATA;
   if(write(c->sockets[0][0], &msg, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
+    fprintf(stderr,"Lost communication with R subprocess\n");
     close(c->sockets[0][0]);
     exit(1);
   }
 
   if(write(c->sockets[0][0], &c->cid, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
+    fprintf(stderr,"Lost communication with R subprocess\n");
     close(c->sockets[0][0]);
     exit(1);
   }
   
-  if(SendVariablesToChildPythonProcess_all_lcs(p, c)) {
+  if(SendVariablesToChildRProcess_all_lcs(p, c)) {
     /* The process failed; terminate with an error */
-    fprintf(stderr,"Failed to send variables to python subprocess\n");
+    fprintf(stderr,"Failed to send variables to R subprocess\n");
     close(c->sockets[0][0]);
     exit(1);
   }
 
   if(read(c->sockets[0][0], &retval, sizeof(int)) < sizeof(int)) {
-    fprintf(stderr,"Lost communication with python subprocess\n");
+    fprintf(stderr,"Lost communication with R subprocess\n");
     close(c->sockets[0][0]);
     exit(1);
   }
   
   if(retval) {
-    fprintf(stderr,"Python function %d returned an error\n", c->cnum);
+    fprintf(stderr,"R function %d returned an error\n", c->cnum);
     exit(1);
   }
   
-  if(ReadVariablesFromChildPythonProcess_all_lcs(p, c)) {
+  if(ReadVariablesFromChildRProcess_all_lcs(p, c)) {
     /* The process failed; terminate with an error */
-    fprintf(stderr,"Failed to receive output variables from the python subprocess\n");
+    fprintf(stderr,"Failed to receive output variables from the R subprocess\n");
     close(c->sockets[0][0]);
     exit(1);
   }
-  GetPythonCommandOutputColumnValues_all_lcs(p, c);
+  GetRCommandOutputColumnValues_all_lcs(p, c);
   
 }
 
 
-void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs)
+void InitRCommand(ProgramData *p, _RCommand *c, int Nlcs)
 {
   int j;
   if(!p->readallflag) {
-    if((c->pythonobjects = (void *)(((_PythonObjectContainer **) malloc(Nlcs * sizeof(_PythonObjectContainer *))))) == NULL ||
+    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(Nlcs * sizeof(_RObjectContainer *))))) == NULL ||
        (c->outcolumndata = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
       DO_ERROR_MEMALLOC;
     if(c->Noutcolumnvars > 0) {
@@ -2448,15 +2217,15 @@ void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs)
 #ifdef PARALLEL
     if(p->Nproc_allow > 1) {
       for(j = 0; j < p->Nproc_allow; j++)
-	c->IsPythonRunning[j] = 0;
+	c->IsRRunning[j] = 0;
     } else {
 #endif
-      c->IsPythonRunning[0] = 0;
+      c->IsRRunning[0] = 0;
 #ifdef PARALLEL
     }
 #endif
   } else {
-    if((c->pythonobjects = (void *)(((_PythonObjectContainer **) malloc(sizeof(_PythonObjectContainer *))))) == NULL ||
+    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(sizeof(_RObjectContainer *))))) == NULL ||
        (c->outcolumndata = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
       DO_ERROR_MEMALLOC;
     if(c->Noutcolumnvars > 0) {
@@ -2465,18 +2234,18 @@ void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs)
 	  DO_ERROR_MEMALLOC;
       }
     }
-    c->IsPythonRunning[0] = 0;
+    c->IsRRunning[0] = 0;
   }
 
 }
 
 
-int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p, 
-			_PythonCommand *c, Command *allcommands, int cnum)
-/* Parse the command line for the "-python" command; the expected syntax is:
-   -python < "fromfile" commandfile | commandstring >
+int ParseRCommand(int *iret, int argc, char **argv, ProgramData *p, 
+			_RCommand *c, Command *allcommands, int cnum)
+/* Parse the command line for the "-R" command; the expected syntax is:
+   -R < "fromfile" commandfile | commandstring >
            [ "init" < "file" initializationfile | initializationstring > |
-             "continueprocess" prior_python_command_number ]
+             "continueprocess" prior_R_command_number ]
            [ "vars" variablelist | 
              [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
            [ "outputcolumns" variablelist ] [ "process_all_lcs" ]
@@ -2488,7 +2257,6 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
   size_t line_size = 0;
   char oldval;
   int s;
-  _PythonCommand *cparent;
 
   c->cid = 0;
   c->cnum = cnum;
@@ -2505,14 +2273,14 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
       *iret = i; return 1;
     }
     if (!fseek(infile, 0L, SEEK_END)) {
-      c->len_pythoncommandstring = ftell(infile) + 1;
-      if(c->len_pythoncommandstring <= 0) {
+      c->len_Rcommandstring = ftell(infile) + 1;
+      if(c->len_Rcommandstring <= 0) {
 	fprintf(stderr,"Cannot Read %s\n", argv[i]);
 	fclose(infile);
 	exit(1);
 	*iret = i; return 1;
       }
-      if((c->pythoncommandstring = (char *) malloc((c->len_pythoncommandstring)*sizeof(char))) == NULL) {
+      if((c->Rcommandstring = (char *) malloc((c->len_Rcommandstring)*sizeof(char))) == NULL) {
 	DO_ERROR_MEMALLOC;
 	*iret = i; return 1;
       }
@@ -2522,15 +2290,15 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
 	exit(1);
 	*iret = i; return 1;
       }
-      if(fread(c->pythoncommandstring, sizeof(char),
-	       (c->len_pythoncommandstring-1),
-	       infile) < (c->len_pythoncommandstring-1)) {
+      if(fread(c->Rcommandstring, sizeof(char),
+	       (c->len_Rcommandstring-1),
+	       infile) < (c->len_Rcommandstring-1)) {
 	fprintf(stderr,"Error reading %s\n", argv[i]);
 	fclose(infile);
 	exit(1);
 	*iret = i; return 1;
       }
-      c->pythoncommandstring[c->len_pythoncommandstring-1] = '\0';
+      c->Rcommandstring[c->len_Rcommandstring-1] = '\0';
     } else {
       fprintf(stderr,"Error reading %s\n", argv[i]);
       fclose(infile);
@@ -2538,12 +2306,12 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
       *iret = i; return 1;
     }
   } else {
-    c->len_pythoncommandstring = strlen(argv[i])+1;
-    if((c->pythoncommandstring = (char *) malloc((c->len_pythoncommandstring)*sizeof(char))) == NULL) {
+    c->len_Rcommandstring = strlen(argv[i])+1;
+    if((c->Rcommandstring = (char *) malloc((c->len_Rcommandstring)*sizeof(char))) == NULL) {
       DO_ERROR_MEMALLOC;
       *iret = i; return 1;
     }
-    sprintf(c->pythoncommandstring,"%s",argv[i]);
+    sprintf(c->Rcommandstring,"%s",argv[i]);
   }
   i++;
   if(i < argc) {
@@ -2559,14 +2327,14 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
 	  *iret = i; return 1;
 	}
 	if (!fseek(infile, 0L, SEEK_END)) {
-	  c->len_pythoninitializationtextstring = ftell(infile) + 1;
-	  if(c->len_pythoninitializationtextstring <= 0) {
+	  c->len_Rinitializationtextstring = ftell(infile) + 1;
+	  if(c->len_Rinitializationtextstring <= 0) {
 	    fprintf(stderr,"Error reading %s\n", argv[i]);
 	    fclose(infile);
 	    exit(1);
 	    *iret = i; return 1;
 	  }
-	  if((c->pythoninitializationtext = (char *) malloc((c->len_pythoninitializationtextstring)*sizeof(char))) == NULL) {
+	  if((c->Rinitializationtext = (char *) malloc((c->len_Rinitializationtextstring)*sizeof(char))) == NULL) {
 	    DO_ERROR_MEMALLOC;
 	    *iret = i; return 1;
 	  }
@@ -2576,15 +2344,15 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
 	    exit(1);
 	    *iret = i; return 1;
 	  }
-	  if(fread(c->pythoninitializationtext, sizeof(char),
-		   (c->len_pythoninitializationtextstring-1),
-		   infile) < (c->len_pythoninitializationtextstring-1)) {
+	  if(fread(c->Rinitializationtext, sizeof(char),
+		   (c->len_Rinitializationtextstring-1),
+		   infile) < (c->len_Rinitializationtextstring-1)) {
 	    fprintf(stderr,"Error reading %s\n", argv[i]);
 	    fclose(infile);
 	    exit(1);
 	    *iret = i; return 1;
 	  }
-	  c->pythoninitializationtext[c->len_pythoninitializationtextstring-1] = '\0';
+	  c->Rinitializationtext[c->len_Rinitializationtextstring-1] = '\0';
 	} else {
 	  fprintf(stderr,"Error reading %s\n", argv[i]);
 	  fclose(infile);
@@ -2592,12 +2360,12 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
 	  *iret = i; return 1;
 	}
       } else {
-	c->len_pythoninitializationtextstring = strlen(argv[i])+1;
-	if((c->pythoninitializationtext = (char *) malloc((c->len_pythoninitializationtextstring)*sizeof(char))) == NULL) {
+	c->len_Rinitializationtextstring = strlen(argv[i])+1;
+	if((c->Rinitializationtext = (char *) malloc((c->len_Rinitializationtextstring)*sizeof(char))) == NULL) {
 	  DO_ERROR_MEMALLOC;
 	  *iret = i; return 1;
 	}
-	sprintf(c->pythoninitializationtext,"%s",argv[i]);
+	sprintf(c->Rinitializationtext,"%s",argv[i]);
       }
     }
     else if(!strcmp(argv[i],"continueprocess")) {
@@ -2606,42 +2374,41 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(i >= argc) {*iret = i; return 1;}
       j = atoi(argv[i]);
       if(j <= 0) {
-	fprintf(stderr,"Error parsing -python command. The value of prior_python_command_number must be >= 1.\n\n");
+	fprintf(stderr,"Error parsing -R command. The value of prior_R_command_number must be >= 1.\n\n");
 	*iret = i; return 1;
       }
       ii = 0;
       /* Find the previous process */
       for(k = 0; k < cnum; k++) {
-	if(allcommands[k].cnum == CNUM_PYTHON) {
+	if(allcommands[k].cnum == CNUM_R) {
 	  ii++;
 	  if(ii == j) {
-	    if(allcommands[k].PythonCommand->iscontinueprocess) {
-	      c->continueprocesscommandptr = (void *) allcommands[k].PythonCommand->continueprocesscommandptr;
+	    if(allcommands[k].RCommand->iscontinueprocess) {
+	      c->continueprocesscommandptr = (void *) allcommands[k].RCommand->continueprocesscommandptr;
 	    } else {
-	      c->continueprocesscommandptr = (void *) allcommands[k].PythonCommand;
+	      c->continueprocesscommandptr = (void *) allcommands[k].RCommand;
 	    }
-	    cparent = (_PythonCommand *) c->continueprocesscommandptr;
-	    if(!cparent->Nchildren) {
-	      if((cparent->childcommandptrs = (void *) malloc(sizeof(_PythonCommand *))) == NULL ||
-		 (cparent->childcnumvals = (int *) malloc(sizeof(int))) == NULL) {
+	    if(!(((_RCommand *) c->continueprocesscommandptr)->Nchildren)) {
+	      if((((_RCommand *) c->continueprocesscommandptr)->childcommandptrs = (void *) malloc(sizeof(_RCommand *))) == NULL ||
+		 (((_RCommand *) c->continueprocesscommandptr)->childcnumvals = (int *) malloc(sizeof(int))) == NULL) {
 		DO_ERROR_MEMALLOC; *iret = i; return 1;
 	      }
 	    } else {
-	      if((cparent->childcommandptrs = (void *) realloc((_PythonCommand **)cparent->childcommandptrs, (cparent->Nchildren + 1)*sizeof(_PythonCommand *))) == NULL ||
-		 (cparent->childcnumvals = (int *) realloc(cparent->childcnumvals, (cparent->Nchildren + 1)*sizeof(int))) == NULL) {
+	      if((((_RCommand *) c->continueprocesscommandptr)->childcommandptrs = (void *) realloc((_RCommand **)(((_RCommand *) c->continueprocesscommandptr)->childcommandptrs), (((_RCommand *) c->continueprocesscommandptr)->Nchildren + 1)*sizeof(_RCommand *))) == NULL ||
+		 (((_RCommand *) c->continueprocesscommandptr)->childcnumvals = (int *) realloc(((_RCommand *) c->continueprocesscommandptr)->childcnumvals, (((_RCommand *) c->continueprocesscommandptr)->Nchildren + 1)*sizeof(int))) == NULL) {
 		DO_ERROR_MEMALLOC; *iret = i; return 1;
 	      }
 	    }
-	    ((_PythonCommand **) cparent->childcommandptrs)[cparent->Nchildren] = c;
-	    cparent->childcnumvals[cparent->Nchildren] = cnum;
-	    cparent->Nchildren += 1;
-	    c->cid = cparent->Nchildren;
+	    ((_RCommand **) (((_RCommand *) c->continueprocesscommandptr)->childcommandptrs))[((_RCommand *) c->continueprocesscommandptr)->Nchildren] = c;
+	    ((_RCommand *) c->continueprocesscommandptr)->childcnumvals[((_RCommand *) c->continueprocesscommandptr)->Nchildren] = cnum;
+	    ((_RCommand *) c->continueprocesscommandptr)->Nchildren += 1;
+	    c->cid = ((_RCommand *) c->continueprocesscommandptr)->Nchildren;
 	    break;
 	  }
 	}
       }
       if(ii < j) {
-	fprintf(stderr,"Error parsing -python command. Attempting to continue processing from python command number %d from command number %d, but only %d previous instances of -python have been given on the command line.\n", j, cnum, ii);
+	fprintf(stderr,"Error parsing -R command. Attempting to continue processing from R command number %d from command number %d, but only %d previous instances of -R have been given on the command line.\n", j, cnum, ii);
 	*iret = i; return 1;
       }
     } else
@@ -2824,7 +2591,7 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
 	    DO_ERROR_MEMALLOC;
 	}
 	if((s = strlen(&(c->outvarliststring[j]))) == 0) {
-	  fprintf(stderr,"Bad variable name \"\" given to the python analytic expression evaluator.\n");
+	  fprintf(stderr,"Bad variable name \"\" given to the R analytic expression evaluator.\n");
 	  exit(1);
 	}
 	if((c->outvarnames[c->Noutvarnames] = (char *) malloc((s+1))) == NULL)
@@ -2843,25 +2610,63 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
   *iret = i; return 0;
 }
 
-void KillAllPythonProcessesOneThread(ProgramData *p, Command *allcommands, int threadindex) {
+void KillAllRProcessesOneThread(ProgramData *p, Command *allcommands, int threadindex) {
   int i;
   for(i=0; i < p->Ncommands; i++) {
-    if(allcommands[i].cnum == CNUM_PYTHON) {
-      StopRunningPythonCommand(p, threadindex, allcommands[i].PythonCommand);
+    if(allcommands[i].cnum == CNUM_R) {
+      StopRunningRCommand(p, threadindex, allcommands[i].RCommand);
     }
   }
 }
 
-void KillAllPythonProcesses(ProgramData *p, Command *allcommands) {
+void KillAllRProcesses(ProgramData *p, Command *allcommands) {
   int i;
 #ifdef PARALLEL
   if(p->Nproc_allow > 1) {
     for(i = 0; i < p->Nproc_allow; i++)
-      KillAllPythonProcessesOneThread(p, allcommands, i);
+      KillAllRProcessesOneThread(p, allcommands, i);
   } else {
 #endif
-    KillAllPythonProcessesOneThread(p, allcommands, 0);
+    KillAllRProcessesOneThread(p, allcommands, 0);
 #ifdef PARALLEL
   }
 #endif
 }
+
+void StartAllRProcessesOneThread(ProgramData *p, Command *allcommands, int Rthreadindex) {
+  int i;
+  _RCommand *c;
+  for(i=0; i < p->Ncommands; i++) {
+    if(allcommands[i].cnum == CNUM_R) {
+      c = allcommands[i].RCommand;
+      if(!c->iscontinueprocess) {
+	if(!c->IsRRunning[Rthreadindex]) 
+	  StartRProcess(p, c, Rthreadindex);
+      } else {
+	if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[Rthreadindex]) {
+	  StartRProcess(p, ((_RCommand *)c->continueprocesscommandptr), Rthreadindex);
+	}
+	if(!c->IsRRunning[Rthreadindex]) {
+	  c->IsRRunning[Rthreadindex] = 1;
+	  c->sockets[Rthreadindex][0] = ((_RCommand *)c->continueprocesscommandptr)->sockets[Rthreadindex][0];
+	}
+      }
+    }
+  }
+}
+
+
+void StartAllRProcesses(ProgramData *p, Command *allcommands) {
+  int i;
+#ifdef PARALLEL
+  if(p->Nproc_allow > 1) {
+    for(i = 0; i < p->Nproc_allow; i++)
+      StartAllRProcessesOneThread(p, allcommands, i);
+  } else {
+#endif
+    StartAllRProcessesOneThread(p, allcommands, 0);
+#ifdef PARALLEL
+  }
+#endif
+}
+

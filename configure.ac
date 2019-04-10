@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.36], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.38], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -261,6 +261,64 @@ if test x"$ax_python_use" = x"true"; then
    CPPFLAGS="$CPPFLAGS_SAVE"
 fi
 
+
+AC_ARG_WITH([RHOME], 
+  [AS_HELP_STRING([--with-RHOME=PATH],
+    [prefix directory for R. The executable for R should be in PATH/bin/R, the libraries in PATH/lib and the header files in PATH/include.])],
+  [R_home_string=${with_RHOME}
+   R_lib_path_string=${with_RHOME}/lib
+   R_include_path_string=${with_RHOME}/include],
+  [with_RHOME=check])
+
+AC_ARG_WITH([R-include], 
+  [AS_HELP_STRING([--with-R-include=PATH],
+    [PATH to the R include files])],
+  [if test "x$with_R_include" != xno ; then
+      R_include_path_string=$with_R_include ;
+   fi],
+  [])
+
+AC_ARG_WITH([R-lib], 
+  [AS_HELP_STRING([--with-R-lib=PATH],
+    [PATH to the directory containing the libR.so library file])],
+  [if test "x$with_R_lib" != xno ; then
+      R_lib_path_string=$with_R_lib ; 
+   fi],
+  [])
+
+AS_IF([test "x$RHOME" = xcheck],
+  [AC_CHECK_PROG(ISRBIN,R,yes)
+   AS_IF([test "x$ISRBIN" = xyes],
+      [RHOME=`R RHOME`],
+      [RHOME=]
+   )], [])
+
+LIBR=
+INCLUDER=
+AS_IF([test "x$R_include_path_string" != x && test "x$R_lib_path_string" != x],
+  [AS_IF([test -f "${R_include_path_string}/Rinternals.h" && test -f "${R_include_path_string}/Rembedded.h" && test -f "${R_lib_path_string}/libR.so"],
+       [AC_SUBST([LIBR],"-L${R_lib_path_string} -lR")
+        AC_SUBST([INCLUDER],"-I ${R_include_path_string}")
+        AC_DEFINE([HAVE_R], [1],
+                  [Define if you have R])
+        AS_IF([test "x$RHOME" != x],
+            [AC_DEFINE([RHOME], [${RHOME}], [Define the RHOME environment variable])], [])
+       ],
+       AC_MSG_WARN([Did not find Rinternals.h in directory "${R_include_path_string}" or did not find Rembedded.h in directory "${R_include_path_string}" or did not find libR.so in directory "${R_lib_path_string}"]))],[])
+
+
+AS_IF([test "x$R_include_path_string" = x && test "x$R_lib_path_string" = x && test "x$RHOME" != x],
+  [AS_IF([test -f "${RHOME}/include/Rinternals.h" && test -f "${RHOME}/include/Rembedded.h" && test -f "${RHOME}/lib/libR.so"],
+       [AC_SUBST([LIBR],"-L${RHOME}/lib -lR")
+        AC_SUBST([INCLUDER],"-I ${RHOME}/include")
+        AC_DEFINE([HAVE_R], [1],
+                  [Define if you have R])
+        AS_IF([test "x$RHOME" != x],
+            AC_DEFINE_UNQUOTED([RHOME], ["${RHOME}"], [Define the RHOME environment variable]), [])
+       ],
+       AC_MSG_WARN([Did not find Rinternals.h in directory "${RHOME}/include" or did not find Rembedded.h in directory "${RHOME}/include" or did not find libR.so in directory "${RHOME}/lib"]))],[])
+
+AM_CONDITIONAL(R_USE, test x"$LIBR" != x)
 
 
 # Checks for header files.
