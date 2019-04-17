@@ -76,8 +76,12 @@
 #define _HAVE_PYTHON 1
 #endif
 
-#ifdef HAVE_R
+#ifdef HAVE_LIBR
+#ifdef HAVE_RINTERNALS_H
+#ifdef HAVE_REMBEDDED_H
 #define _HAVE_R 1
+#endif
+#endif
 #endif
 
 #define DYNAMICLIB 1
@@ -613,7 +617,7 @@ typedef struct {
   int correctlc;
   int omodel;
   char modeloutdir[MAXLEN];
-  char modelsuffix[14];
+  char modelsuffix[16];
   double fixedperiod;
   OutColumn *linkedcolumn;
 } _Starspot;

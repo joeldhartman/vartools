@@ -5580,7 +5580,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  iterm = i;
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_FFT;
-	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_Stats))) == NULL)
+	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_FFT))) == NULL)
 	    error(ERR_MEMALLOC);
 	  c[cn].FFT->isforward = 0;
 	  i++;

@@ -703,8 +703,6 @@ FCLIBS
 LIBOBJS
 R_USE_FALSE
 R_USE_TRUE
-INCLUDER
-LIBR
 ISRBIN
 PYTHONHOMEPATH
 PYTHONBINPATH
@@ -22711,8 +22709,8 @@ fi
 # Check whether --with-RHOME was given.
 if test "${with_RHOME+set}" = set; then :
   withval=$with_RHOME; R_home_string=${with_RHOME}
-   R_lib_path_string=${with_RHOME}/lib
-   R_include_path_string=${with_RHOME}/include
+   LDFLAGS="$LDFLAGS -L${with_RHOME}/lib"
+   CPPFLAGS="$CPPFLAGS -I${with_RHOME}/include"
 else
   with_RHOME=check
 fi
@@ -22722,7 +22720,7 @@ fi
 # Check whether --with-R-include was given.
 if test "${with_R_include+set}" = set; then :
   withval=$with_R_include; if test "x$with_R_include" != xno ; then
-      R_include_path_string=$with_R_include ;
+      CPPFLAGS="$CPPFLAGS -I${with_R_include}/include" ;
    fi
 fi
 
@@ -22731,7 +22729,7 @@ fi
 # Check whether --with-R-lib was given.
 if test "${with_R_lib+set}" = set; then :
   withval=$with_R_lib; if test "x$with_R_lib" != xno ; then
-      R_lib_path_string=$with_R_lib ;
+      LDFLAGS="$LDFLAGS -L${with_R_lib}/lib" ;
    fi
 fi
 
@@ -22782,54 +22780,113 @@ else
 fi
 fi
 
-LIBR=
-INCLUDER=
-if test "x$R_include_path_string" != x && test "x$R_lib_path_string" != x; then :
-  if test -f "${R_include_path_string}/Rinternals.h" && test -f "${R_include_path_string}/Rembedded.h" && test -f "${R_lib_path_string}/libR.so"; then :
-  LIBR="-L${R_lib_path_string} -lR"
+is_R_found=1
 
-        INCLUDER="-I ${R_include_path_string}"
-
-
-$as_echo "#define HAVE_R 1" >>confdefs.h
-
-        if test "x$RHOME" != x; then :
-
-$as_echo "#define RHOME \${RHOME}" >>confdefs.h
-
-fi
-
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Rf_initEmbeddedR in -lR" >&5
+$as_echo_n "checking for Rf_initEmbeddedR in -lR... " >&6; }
+if ${ac_cv_lib_R_Rf_initEmbeddedR+:} false; then :
+  $as_echo_n "(cached) " >&6
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Did not find Rinternals.h in directory \"${R_include_path_string}\" or did not find Rembedded.h in directory \"${R_include_path_string}\" or did not find libR.so in directory \"${R_lib_path_string}\"" >&5
-$as_echo "$as_me: WARNING: Did not find Rinternals.h in directory \"${R_include_path_string}\" or did not find Rembedded.h in directory \"${R_include_path_string}\" or did not find libR.so in directory \"${R_lib_path_string}\"" >&2;}
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lR  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char Rf_initEmbeddedR ();
+int
+main ()
+{
+return Rf_initEmbeddedR ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_R_Rf_initEmbeddedR=yes
+else
+  ac_cv_lib_R_Rf_initEmbeddedR=no
 fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
 fi
-
-
-if test "x$R_include_path_string" = x && test "x$R_lib_path_string" = x && test "x$RHOME" != x; then :
-  if test -f "${RHOME}/include/Rinternals.h" && test -f "${RHOME}/include/Rembedded.h" && test -f "${RHOME}/lib/libR.so"; then :
-  LIBR="-L${RHOME}/lib -lR"
-
-        INCLUDER="-I ${RHOME}/include"
-
-
-$as_echo "#define HAVE_R 1" >>confdefs.h
-
-        if test "x$RHOME" != x; then :
-
-cat >>confdefs.h <<_ACEOF
-#define RHOME "${RHOME}"
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_R_Rf_initEmbeddedR" >&5
+$as_echo "$ac_cv_lib_R_Rf_initEmbeddedR" >&6; }
+if test "x$ac_cv_lib_R_Rf_initEmbeddedR" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBR 1
 _ACEOF
 
-fi
+  LIBS="-lR $LIBS"
 
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Did not find Rinternals.h in directory \"${RHOME}/include\" or did not find Rembedded.h in directory \"${RHOME}/include\" or did not find libR.so in directory \"${RHOME}/lib\"" >&5
-$as_echo "$as_me: WARNING: Did not find Rinternals.h in directory \"${RHOME}/include\" or did not find Rembedded.h in directory \"${RHOME}/include\" or did not find libR.so in directory \"${RHOME}/lib\"" >&2;}
-fi
+  is_R_found=0; { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find libR" >&5
+$as_echo "$as_me: WARNING: Cannot find libR" >&2;}
 fi
 
- if test x"$LIBR" != x; then
+
+for ac_header in Rinternals.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "Rinternals.h" "ac_cv_header_Rinternals_h" "$ac_includes_default"
+if test "x$ac_cv_header_Rinternals_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_RINTERNALS_H 1
+_ACEOF
+
+else
+  is_R_found=0; { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find Rinternals.h" >&5
+$as_echo "$as_me: WARNING: Cannot find Rinternals.h" >&2;}
+fi
+
+done
+
+
+for ac_header in Rembedded.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "Rembedded.h" "ac_cv_header_Rembedded_h" "$ac_includes_default"
+if test "x$ac_cv_header_Rembedded_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_REMBEDDED_H 1
+_ACEOF
+
+else
+  is_R_found=0; { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Cannot find Rembedded.h" >&5
+$as_echo "$as_me: WARNING: Cannot find Rembedded.h" >&2;}
+fi
+
+done
+
+
+#AS_IF([test "x$R_include_path_string" != x && test "x$R_lib_path_string" != x],
+#  [AS_IF([test -f "${R_include_path_string}/Rinternals.h" && test -f "${R_include_path_string}/Rembedded.h" && test -f "${R_lib_path_string}/libR.so"],
+#       [AC_SUBST([LIBR],"-L${R_lib_path_string} -lR")
+#        AC_SUBST([INCLUDER],"-I ${R_include_path_string}")
+#        AC_DEFINE([HAVE_R], [1],
+#                  [Define if you have R])
+#        AS_IF([test "x$RHOME" != x],
+#            [AC_DEFINE([RHOME], [${RHOME}], [Define the RHOME environment variable])], [])
+#       ],
+#       AC_MSG_WARN([Did not find Rinternals.h in directory "${R_include_path_string}" or did not find Rembedded.h in directory "${R_include_path_string}" or did not find libR.so in directory "${R_lib_path_string}"]))],[])
+#
+#
+#AS_IF([test "x$R_include_path_string" = x && test "x$R_lib_path_string" = x && test "x$RHOME" != x],
+#  [AS_IF([test -f "${RHOME}/include/Rinternals.h" && test -f "${RHOME}/include/Rembedded.h" && test -f "${RHOME}/lib/libR.so"],
+#       [AC_SUBST([LIBR],"-L${RHOME}/lib -lR")
+#        AC_SUBST([INCLUDER],"-I ${RHOME}/include")
+#        AC_DEFINE([HAVE_R], [1],
+#                  [Define if you have R])
+#        AS_IF([test "x$RHOME" != x],
+#            AC_DEFINE_UNQUOTED([RHOME], ["${RHOME}"], [Define the RHOME environment variable]), [])
+#       ],
+#       AC_MSG_WARN([Did not find Rinternals.h in directory "${RHOME}/include" or did not find Rembedded.h in directory "${RHOME}/include" or did not find libR.so in directory "${RHOME}/lib"]))],[])
+
+ if test "$is_R_found" -eq 1; then
   R_USE_TRUE=
   R_USE_FALSE='#'
 else

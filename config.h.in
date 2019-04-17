@@ -110,6 +110,9 @@
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
 
+/* Define to 1 if you have the `R' library (-lR). */
+#undef HAVE_LIBR
+
 /* Define this if a modern libltdl is already installed */
 #undef HAVE_LTDL
 
@@ -147,15 +150,18 @@
 /* Define if we are compiling with python */
 #undef HAVE_PYTHON
 
-/* Define if you have R */
-#undef HAVE_R
-
 /* Define to 1 if you have the `readdir' function. */
 #undef HAVE_READDIR
 
 /* Define to 1 if your system has a GNU libc compatible `realloc' function,
    and to 0 otherwise. */
 #undef HAVE_REALLOC
+
+/* Define to 1 if you have the <Rembedded.h> header file. */
+#undef HAVE_REMBEDDED_H
+
+/* Define to 1 if you have the <Rinternals.h> header file. */
+#undef HAVE_RINTERNALS_H
 
 /* Define if you have the shl_load function. */
 #undef HAVE_SHL_LOAD
@@ -259,9 +265,6 @@
 
 /* NUMPY VERSION */
 #undef PYTHON_NUMPY_VERSION
-
-/* Define the RHOME environment variable */
-#undef RHOME
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS

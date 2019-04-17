@@ -12,8 +12,8 @@ endif
 if R_USE
 lib_LTLIBRARIES += libvartoolsrunR.la
 libvartoolsrunR_la_SOURCES = runR.c runR.h
-libvartoolsrunR_la_CFLAGS = @INCLUDER@
-libvartoolsrunR_la_LDFLAGS = @LIBR@
+#libvartoolsrunR_la_CFLAGS = @INCLUDER@
+#libvartoolsrunR_la_LDFLAGS = @LIBR@
 endif
 
 bin_PROGRAMS = vartools
