@@ -751,74 +751,74 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_BLS:
       /* Perform BLS on the light curves */
-      if(c->Bls->omodel)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname2,"%s/%s%s",c->Bls->modeloutdir,&p->lcnames[lc][i2],c->Bls->modelsuffix);
-	}
-      if(c->Bls->ophcurve)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname3,"%s/%s%s",c->Bls->ophcurveoutdir,&p->lcnames[lc][i2],c->Bls->ophcurvesuffix);
-	}
-      if(c->Bls->ojdcurve)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname4,"%s/%s%s",c->Bls->ojdcurveoutdir,&p->lcnames[lc][i2],c->Bls->ojdcurvesuffix);
-	}
-      /* First check to see that the u/v vectors are large enough */
-      if(c->Bls->sizeuv[lc2] == 0)
-	{
-	  c->Bls->sizeuv[lc2] = p->NJD[lc2];
-	  if((c->Bls->u[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->Bls->v[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
-      else if(c->Bls->sizeuv[lc2] < p->NJD[lc2])
-	{
-	  c->Bls->sizeuv[lc2] = p->NJD[lc2];
-	  free(c->Bls->u[lc2]);
-	  free(c->Bls->v[lc2]);
-	  if((c->Bls->u[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->Bls->v[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
-
-      if(c->Bls->operiodogram)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname,"%s/%s%s",c->Bls->outdir,&p->lcnames[lc][i2],c->Bls->suffix);
-	}
       if(p->NJD[lc2] > 1)
 	{
+	  if(c->Bls->omodel)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname2,"%s/%s%s",c->Bls->modeloutdir,&p->lcnames[lc][i2],c->Bls->modelsuffix);
+	    }
+	  if(c->Bls->ophcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname3,"%s/%s%s",c->Bls->ophcurveoutdir,&p->lcnames[lc][i2],c->Bls->ophcurvesuffix);
+	    }
+	  if(c->Bls->ojdcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname4,"%s/%s%s",c->Bls->ojdcurveoutdir,&p->lcnames[lc][i2],c->Bls->ojdcurvesuffix);
+	    }
+	  /* First check to see that the u/v vectors are large enough */
+	  if(c->Bls->sizeuv[lc2] == 0)
+	    {
+	      c->Bls->sizeuv[lc2] = p->NJD[lc2];
+	      if((c->Bls->u[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->Bls->v[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  else if(c->Bls->sizeuv[lc2] < p->NJD[lc2])
+	    {
+	      c->Bls->sizeuv[lc2] = p->NJD[lc2];
+	      free(c->Bls->u[lc2]);
+	      free(c->Bls->v[lc2]);
+	      if((c->Bls->u[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->Bls->v[lc2] = (double *) malloc(c->Bls->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+
+	  if(c->Bls->operiodogram)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname,"%s/%s%s",c->Bls->outdir,&p->lcnames[lc][i2],c->Bls->suffix);
+	    }
 	  c->Bls->fmin[lc2] = dmax((1./(p->t[lc2][p->NJD[lc2]-1] - p->t[lc2][0])),1./c->Bls->maxper);
 	  if(!c->Bls->freqsteptype) {
 	    c->Bls->nf2[lc2] = floor((((1./c->Bls->minper) - c->Bls->fmin[lc2])/c->Bls->df)+1.);
@@ -828,27 +828,37 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    c->Bls->nf2[lc2] = floor(((log(1./c->Bls->fmin[lc2]) - log(c->Bls->minper))/c->Bls->df)+1.);
 	  }
 	  /* Now either run bls using the fixed q range or the fixed stellar radius range */
-	  if(!c->Bls->rflag)
-	    {
-	      eebls(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Bls->u[lc2],c->Bls->v[lc2],c->Bls->nf2[lc2],c->Bls->fmin[lc2],c->Bls->df,c->Bls->nbins,c->Bls->qmin,c->Bls->qmax,
+	  if(c->Bls->nf2[lc2] > 0 && c->Bls->nbins > 0 && c->Bls->Npeak > 0) {
+	    if(!c->Bls->rflag)
+	      {
+		eebls(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Bls->u[lc2],c->Bls->v[lc2],c->Bls->nf2[lc2],c->Bls->fmin[lc2],c->Bls->df,c->Bls->nbins,c->Bls->qmin,c->Bls->qmax,
 #ifdef PARALLEL
-		    c->Bls->p[lc2]
+		      c->Bls->p[lc2]
 #else
-		    c->Bls->p
+		      c->Bls->p
 #endif
-		    ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram, outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
-	    }
-	  else
-	    {
-	      eebls_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Bls->u[lc2],c->Bls->v[lc2],c->Bls->nf2[lc2],c->Bls->fmin[lc2],c->Bls->df,c->Bls->nbins,c->Bls->rmin,c->Bls->rmax,
+		      ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram, outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+	      }
+	    else
+	      {
+		eebls_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Bls->u[lc2],c->Bls->v[lc2],c->Bls->nf2[lc2],c->Bls->fmin[lc2],c->Bls->df,c->Bls->nbins,c->Bls->rmin,c->Bls->rmax,
 #ifdef PARALLEL
-			c->Bls->p[lc2]
+			  c->Bls->p[lc2]
 #else
-			c->Bls->p
+			  c->Bls->p
 #endif
-			,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram,outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+			  ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram,outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+	      }
+	  } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc, p->lcnames[lc]);
 	    }
-	}
+	  }
+	} else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
+	    }
+      }
       break;
 
     case CNUM_FIXPERBLS:
@@ -865,208 +875,224 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    }
 	  sprintf(outname2,"%s/%s%s",c->BlsFixPer->modeloutdir,&p->lcnames[lc][i2],c->BlsFixPer->modelsuffix);
 	}
-      /* First check to see that the u/v vectors are large enough */
-      if(c->BlsFixPer->sizeuv[lc2] == 0)
-	{
-	  c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
-	  if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
-      else if(c->BlsFixPer->sizeuv[lc2] < p->NJD[lc2])
-	{
-	  c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
-	  free(c->BlsFixPer->u[lc2]);
-	  free(c->BlsFixPer->v[lc2]);
-	  if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
+      if(p->NJD[lc2] > 1) {
+	/* First check to see that the u/v vectors are large enough */
+	if(c->BlsFixPer->sizeuv[lc2] == 0)
+	  {
+	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
+	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
+	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	else if(c->BlsFixPer->sizeuv[lc2] < p->NJD[lc2])
+	  {
+	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
+	    free(c->BlsFixPer->u[lc2]);
+	    free(c->BlsFixPer->v[lc2]);
+	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
+	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
+	      error(ERR_MEMALLOC);
+	  }
+	
+	/* Find the period if we're getting it from a previous command */
+	if(c->BlsFixPer->pertype == PERTYPE_AOV)
+	  {
+	    i1 = c->BlsFixPer->lastaovindex;
+	    if(c[i1-thisindex].cnum == CNUM_AOV)
+	      c->BlsFixPer->period[lc2][0] = c[i1-thisindex].Aov->peakperiods[lc2][0];
+	    else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	      c->BlsFixPer->period[lc2][0] = c[i1-thisindex].AovHarm->peakperiods[lc2][0];
+	  }
+	else if(c->BlsFixPer->pertype == PERTYPE_LS)
+	  {
+	    i1 = c->BlsFixPer->lastlsindex;
+	    c->BlsFixPer->period[lc2][0] = c[i1-thisindex].Ls->peakperiods[lc2][0];
+	  }
+	else if(c->BlsFixPer->pertype == PERTYPE_FIX)
+	  {
+	    c->BlsFixPer->period[lc2][0] = c->BlsFixPer->perfix;
+	  }
+	else if(c->BlsFixPer->pertype == PERTYPE_FIXCOLUMN)
+	  {
+	    getoutcolumnvalue(c->BlsFixPer->linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &(c->BlsFixPer->period[lc2][0]));
+	  }
+	else if(c->BlsFixPer->pertype == PERTYPE_EXPR)
+	  {
+	    c->BlsFixPer->period[lc2][0] = EvaluateExpression(lc, lc2, 0, c->BlsFixPer->perexpr);
+	  }
 
-      /* Find the period if we're getting it from a previous command */
-      if(c->BlsFixPer->pertype == PERTYPE_AOV)
-	{
-	  i1 = c->BlsFixPer->lastaovindex;
-	  if(c[i1-thisindex].cnum == CNUM_AOV)
-	    c->BlsFixPer->period[lc2][0] = c[i1-thisindex].Aov->peakperiods[lc2][0];
-	  else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
-	    c->BlsFixPer->period[lc2][0] = c[i1-thisindex].AovHarm->peakperiods[lc2][0];
-	}
-      else if(c->BlsFixPer->pertype == PERTYPE_LS)
-	{
-	  i1 = c->BlsFixPer->lastlsindex;
-	  c->BlsFixPer->period[lc2][0] = c[i1-thisindex].Ls->peakperiods[lc2][0];
-	}
-      else if(c->BlsFixPer->pertype == PERTYPE_FIX)
-	{
-	  c->BlsFixPer->period[lc2][0] = c->BlsFixPer->perfix;
-	}
-      else if(c->BlsFixPer->pertype == PERTYPE_FIXCOLUMN)
-	{
-	  getoutcolumnvalue(c->BlsFixPer->linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &(c->BlsFixPer->period[lc2][0]));
-	}
-      else if(c->BlsFixPer->pertype == PERTYPE_EXPR)
-	{
-	  c->BlsFixPer->period[lc2][0] = EvaluateExpression(lc, lc2, 0, c->BlsFixPer->perexpr);
-	}
 
-
-      if(p->NJD[lc2] > 1)
-	{
-	  /* Now either run bls using the fixed q range or the fixed stellar radius range */
-	  if(!c->BlsFixPer->rflag)
-	    {
-	      if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
-		eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
-	      else
-		eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
-	    }
-	  else
-	    {
-	      if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
-		eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
-	      else
-		eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
-	    }
+	if(p->NJD[lc2] > 1)
+	  {
+	    /* Now either run bls using the fixed q range or the fixed stellar radius range */
+	    if(!c->BlsFixPer->rflag)
+	      {
+		if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
+		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		else
+		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+	      }
+	    else
+	      {
+		if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
+		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		else
+		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+	      }
+	  }
+      } else {
+	if(!p->quiet_mode) {
+	  fprintf(stderr,"Warning: skipping -BLSFixPer command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
 	}
+      }
       break;
 
     case CNUM_BLSFIXDURTC:
       /* Perform BLS with fixed transit duration and epoch on the light curves */
-      if(c->BlsFixDurTc->omodel)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname2,"%s/%s%s",c->BlsFixDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->modelsuffix);
-	}
-      if(c->BlsFixDurTc->ophcurve)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname3,"%s/%s%s",c->BlsFixDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ophcurvesuffix);
-	}
-      if(c->BlsFixDurTc->ojdcurve)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname4,"%s/%s%s",c->BlsFixDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ojdcurvesuffix);
-	}
-      /* First check to see that the u/v vectors are large enough */
-      if(c->BlsFixDurTc->sizeuv[lc2] == 0)
-	{
-	  c->BlsFixDurTc->sizeuv[lc2] = p->NJD[lc2];
-	  if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
-      else if(c->BlsFixDurTc->sizeuv[lc2] < p->NJD[lc2])
-	{
-	  c->BlsFixDurTc->sizeuv[lc2] = p->NJD[lc2];
-	  free(c->BlsFixDurTc->u[lc2]);
-	  free(c->BlsFixDurTc->v[lc2]);
-	  if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
-	     (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
-	}
-
-      if(c->BlsFixDurTc->operiodogram)
-	{
-	  i1 = 0;
-	  i2 = 0;
-	  while(p->lcnames[lc][i1] != '\0')
-	    {
-	      if(p->lcnames[lc][i1] == '/')
-		i2 = i1 + 1;
-	      i1++;
-	    }
-	  sprintf(outname,"%s/%s%s",c->BlsFixDurTc->outdir,&p->lcnames[lc][i2],c->BlsFixDurTc->suffix);
-	}
-      if(c->BlsFixDurTc->durtype == PERTYPE_FIX)
-	{
-	  c->BlsFixDurTc->inputdur[lc2] = c->BlsFixDurTc->fixdur;
-	  d1 = c->BlsFixDurTc->inputdur[lc2];
-	}
-      else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
-	getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc2, lc, 
-			  VARTOOLS_TYPE_DOUBLE, 
-			  &(c->BlsFixDurTc->inputdur[lc2]));
-	d1 = c->BlsFixDurTc->inputdur[lc2];
-      } else {
-	d1 = c->BlsFixDurTc->inputdur[lc];
-      }
-      if(c->BlsFixDurTc->TCtype == PERTYPE_FIX)
-	{
-	  c->BlsFixDurTc->inputTC[lc2] = c->BlsFixDurTc->fixTC;
-	  d2 = c->BlsFixDurTc->fixTC;
-	}
-      else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
-	getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc2, lc, 
-			  VARTOOLS_TYPE_DOUBLE, 
-			  &(c->BlsFixDurTc->inputTC[lc2]));
-	d2 = c->BlsFixDurTc->inputTC[lc2];
-      }
-      else {
-	d2 = c->BlsFixDurTc->inputTC[lc];
-      }
-      if(c->BlsFixDurTc->fixdepth) {
-	if(c->BlsFixDurTc->depthtype == PERTYPE_FIX) {
-	  c->BlsFixDurTc->inputdepth[lc2] = c->BlsFixDurTc->fixdepthval;
-	  d3 = c->BlsFixDurTc->fixdepthval;
-	}
-	else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
-	  getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc2, lc, 
-			    VARTOOLS_TYPE_DOUBLE, 
-			    &(c->BlsFixDurTc->inputdepth[lc2]));
-	  d3 = c->BlsFixDurTc->inputdepth[lc2];
-	}
-	else {
-	  d3 = c->BlsFixDurTc->inputdepth[lc];
-	}
-	if(c->BlsFixDurTc->qgresstype == PERTYPE_FIX) {
-	  c->BlsFixDurTc->inputqgress[lc2] = c->BlsFixDurTc->qgressval;
-	  d4 = c->BlsFixDurTc->qgressval;
-	}
-	else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
-	  getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc2, lc, 
-			    VARTOOLS_TYPE_DOUBLE, 
-			    &(c->BlsFixDurTc->inputqgress[lc2]));
-	  d4 = c->BlsFixDurTc->inputqgress[lc2];
-	}
-	else {
-	  d4 = c->BlsFixDurTc->inputqgress[lc];
-	}
-      }
       if(p->NJD[lc2] > 1)
 	{
+	  if(c->BlsFixDurTc->omodel)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname2,"%s/%s%s",c->BlsFixDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->modelsuffix);
+	    }
+	  if(c->BlsFixDurTc->ophcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname3,"%s/%s%s",c->BlsFixDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ophcurvesuffix);
+	    }
+	  if(c->BlsFixDurTc->ojdcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname4,"%s/%s%s",c->BlsFixDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ojdcurvesuffix);
+	    }
+	  /* First check to see that the u/v vectors are large enough */
+	  if(c->BlsFixDurTc->sizeuv[lc2] == 0)
+	    {
+	      c->BlsFixDurTc->sizeuv[lc2] = p->NJD[lc2];
+	      if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  else if(c->BlsFixDurTc->sizeuv[lc2] < p->NJD[lc2])
+	    {
+	      c->BlsFixDurTc->sizeuv[lc2] = p->NJD[lc2];
+	      free(c->BlsFixDurTc->u[lc2]);
+	      free(c->BlsFixDurTc->v[lc2]);
+	      if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  
+	  if(c->BlsFixDurTc->operiodogram)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname,"%s/%s%s",c->BlsFixDurTc->outdir,&p->lcnames[lc][i2],c->BlsFixDurTc->suffix);
+	    }
+	  if(c->BlsFixDurTc->durtype == PERTYPE_FIX)
+	    {
+	      c->BlsFixDurTc->inputdur[lc2] = c->BlsFixDurTc->fixdur;
+	      d1 = c->BlsFixDurTc->inputdur[lc2];
+	    }
+	  else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc2, lc, 
+			      VARTOOLS_TYPE_DOUBLE, 
+			      &(c->BlsFixDurTc->inputdur[lc2]));
+	    d1 = c->BlsFixDurTc->inputdur[lc2];
+	  } else {
+	    d1 = c->BlsFixDurTc->inputdur[lc];
+	  }
+	  if(c->BlsFixDurTc->TCtype == PERTYPE_FIX)
+	    {
+	      c->BlsFixDurTc->inputTC[lc2] = c->BlsFixDurTc->fixTC;
+	      d2 = c->BlsFixDurTc->fixTC;
+	    }
+	  else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc2, lc, 
+			      VARTOOLS_TYPE_DOUBLE, 
+			      &(c->BlsFixDurTc->inputTC[lc2]));
+	    d2 = c->BlsFixDurTc->inputTC[lc2];
+	  }
+	  else {
+	    d2 = c->BlsFixDurTc->inputTC[lc];
+	  }
+	  if(c->BlsFixDurTc->fixdepth) {
+	    if(c->BlsFixDurTc->depthtype == PERTYPE_FIX) {
+	      c->BlsFixDurTc->inputdepth[lc2] = c->BlsFixDurTc->fixdepthval;
+	      d3 = c->BlsFixDurTc->fixdepthval;
+	    }
+	    else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
+	      getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc2, lc, 
+				VARTOOLS_TYPE_DOUBLE, 
+				&(c->BlsFixDurTc->inputdepth[lc2]));
+	      d3 = c->BlsFixDurTc->inputdepth[lc2];
+	    }
+	    else {
+	      d3 = c->BlsFixDurTc->inputdepth[lc];
+	    }
+	    if(c->BlsFixDurTc->qgresstype == PERTYPE_FIX) {
+	      c->BlsFixDurTc->inputqgress[lc2] = c->BlsFixDurTc->qgressval;
+	      d4 = c->BlsFixDurTc->qgressval;
+	    }
+	    else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
+	      getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc2, lc, 
+				VARTOOLS_TYPE_DOUBLE, 
+				&(c->BlsFixDurTc->inputqgress[lc2]));
+	      d4 = c->BlsFixDurTc->inputqgress[lc2];
+	    }
+	    else {
+	      d4 = c->BlsFixDurTc->inputqgress[lc];
+	    }
+	  }
 	  c->BlsFixDurTc->fmin[lc2] = dmax((2./(p->t[lc2][p->NJD[lc2]-1] - p->t[lc2][0])),1./c->BlsFixDurTc->maxper);
 	  c->BlsFixDurTc->nf2[lc2] = floor((((1./c->BlsFixDurTc->minper) - c->BlsFixDurTc->fmin[lc2])/c->BlsFixDurTc->df)+1.);
-	  /* Now either run bls  */
-	  eeblsfixdurtc(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixDurTc->u[lc2],c->BlsFixDurTc->v[lc2],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc2],c->BlsFixDurTc->fmin[lc2],c->BlsFixDurTc->df,
+	  if(c->BlsFixDurTc->nf2[lc2] > 0 && c->BlsFixDurTc->Npeak > 0) {
+	    /* Now either run bls  */
+	    eeblsfixdurtc(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixDurTc->u[lc2],c->BlsFixDurTc->v[lc2],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc2],c->BlsFixDurTc->fmin[lc2],c->BlsFixDurTc->df,
 #ifdef PARALLEL
-		c->BlsFixDurTc->p[lc2]
+			  c->BlsFixDurTc->p[lc2]
 #else
-		c->BlsFixDurTc->p
+			  c->BlsFixDurTc->p
 #endif
-		,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc2],c->BlsFixDurTc->bt0[lc2],c->BlsFixDurTc->bpow[lc2],c->BlsFixDurTc->sde[lc2],c->BlsFixDurTc->snval[lc2],c->BlsFixDurTc->depth[lc2],c->BlsFixDurTc->qtran[lc2],c->BlsFixDurTc->chisqrplus[lc2],&c->BlsFixDurTc->chisqrminus[lc2],&c->BlsFixDurTc->bperpos[lc2],&c->BlsFixDurTc->meanmagval[lc2], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc2], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc2], c->BlsFixDurTc->Nt[lc2], c->BlsFixDurTc->Nbefore[lc2], c->BlsFixDurTc->Nafter[lc2], c->BlsFixDurTc->rednoise[lc2], c->BlsFixDurTc->whitenoise[lc2], c->BlsFixDurTc->sigtopink[lc2], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc2], c->BlsFixDurTc->OOTmag[lc2], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep);
+			  ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc2],c->BlsFixDurTc->bt0[lc2],c->BlsFixDurTc->bpow[lc2],c->BlsFixDurTc->sde[lc2],c->BlsFixDurTc->snval[lc2],c->BlsFixDurTc->depth[lc2],c->BlsFixDurTc->qtran[lc2],c->BlsFixDurTc->chisqrplus[lc2],&c->BlsFixDurTc->chisqrminus[lc2],&c->BlsFixDurTc->bperpos[lc2],&c->BlsFixDurTc->meanmagval[lc2], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc2], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc2], c->BlsFixDurTc->Nt[lc2], c->BlsFixDurTc->Nbefore[lc2], c->BlsFixDurTc->Nafter[lc2], c->BlsFixDurTc->rednoise[lc2], c->BlsFixDurTc->whitenoise[lc2], c->BlsFixDurTc->sigtopink[lc2], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc2], c->BlsFixDurTc->OOTmag[lc2], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep);
+	  } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc, p->lcnames[lc]);
+	    }
+	  }
+	} else {
+	if(!p->quiet_mode) {
+	  fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
 	}
+      }
       break;
 
     case CNUM_SOFTENEDTRANSIT:
@@ -2635,75 +2661,75 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	  }
 	  /* First check to see that the u/v vectors are large enough */
-	  if(c->Bls->omodel)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname2,"%s/%s%s",c->Bls->modeloutdir,&p->lcnames[lc][i2],c->Bls->modelsuffix);
-	    }
-	  if(c->Bls->ophcurve)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname3,"%s/%s%s",c->Bls->ophcurveoutdir,&p->lcnames[lc][i2],c->Bls->ophcurvesuffix);
-	    }
-	  if(c->Bls->ojdcurve)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname4,"%s/%s%s",c->Bls->ojdcurveoutdir,&p->lcnames[lc][i2],c->Bls->ojdcurvesuffix);
-	    }
-
-	  if(c->Bls->sizeuv[0] == 0)
-	    {
-	      c->Bls->sizeuv[0] = p->NJD[lc];
-	      if((c->Bls->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
-		 (c->Bls->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-	  else if(c->Bls->sizeuv[0] < p->NJD[lc])
-	    {
-	      c->Bls->sizeuv[0] = p->NJD[lc];
-	      free(c->Bls->u[0]);
-	      free(c->Bls->v[0]);
-	      if((c->Bls->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
-		 (c->Bls->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-
-	  if(c->Bls->operiodogram)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname,"%s/%s%s",c->Bls->outdir,&p->lcnames[lc][i2],c->Bls->suffix);
-	    }
-
 	  if(p->NJD[lc] > 1)
 	    {
+	      if(c->Bls->omodel)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname2,"%s/%s%s",c->Bls->modeloutdir,&p->lcnames[lc][i2],c->Bls->modelsuffix);
+		}
+	      if(c->Bls->ophcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname3,"%s/%s%s",c->Bls->ophcurveoutdir,&p->lcnames[lc][i2],c->Bls->ophcurvesuffix);
+		}
+	      if(c->Bls->ojdcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname4,"%s/%s%s",c->Bls->ojdcurveoutdir,&p->lcnames[lc][i2],c->Bls->ojdcurvesuffix);
+		}
+	      
+	      if(c->Bls->sizeuv[0] == 0)
+		{
+		  c->Bls->sizeuv[0] = p->NJD[lc];
+		  if((c->Bls->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->Bls->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      else if(c->Bls->sizeuv[0] < p->NJD[lc])
+		{
+		  c->Bls->sizeuv[0] = p->NJD[lc];
+		  free(c->Bls->u[0]);
+		  free(c->Bls->v[0]);
+		  if((c->Bls->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->Bls->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      
+	      if(c->Bls->operiodogram)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname,"%s/%s%s",c->Bls->outdir,&p->lcnames[lc][i2],c->Bls->suffix);
+		}
+
 	      c->Bls->fmin[lc] = dmax((2./(p->t[lc][p->NJD[lc]-1] - p->t[lc][0])),1./c->Bls->maxper);
 	      if(!c->Bls->freqsteptype) {
 		c->Bls->nf2[lc] = floor((((1./c->Bls->minper) - c->Bls->fmin[lc])/c->Bls->df)+1.);
@@ -2713,27 +2739,37 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		c->Bls->nf2[lc] = floor(((log(1./c->Bls->fmin[lc]) - log(c->Bls->minper))/c->Bls->df)+1.);
 	      }
 	      /* Now either run bls using the fixed q range or the fixed stellar radius range */
-	      if(!c->Bls->rflag)
-		{
-		  eebls(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Bls->u[0],c->Bls->v[0],c->Bls->nf2[lc],c->Bls->fmin[lc],c->Bls->df,c->Bls->nbins,c->Bls->qmin,c->Bls->qmax,
+	      if(c->Bls->nf2[lc] > 0 && c->Bls->nbins > 0 && c->Bls->Npeak > 0) {
+		if(!c->Bls->rflag)
+		  {
+		    eebls(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Bls->u[0],c->Bls->v[0],c->Bls->nf2[lc],c->Bls->fmin[lc],c->Bls->df,c->Bls->nbins,c->Bls->qmin,c->Bls->qmax,
 #ifdef PARALLEL
-			c->Bls->p[0]
+			  c->Bls->p[0]
 #else
-			c->Bls->p
+			  c->Bls->p
 #endif
-			,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
-		}
-	      else
-		{
-		  eebls_rad(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Bls->u[0],c->Bls->v[0],c->Bls->nf2[lc],c->Bls->fmin[lc],c->Bls->df,c->Bls->nbins,c->Bls->rmin,c->Bls->rmax,
+			  ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+		  }
+		else
+		  {
+		    eebls_rad(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Bls->u[0],c->Bls->v[0],c->Bls->nf2[lc],c->Bls->fmin[lc],c->Bls->df,c->Bls->nbins,c->Bls->rmin,c->Bls->rmax,
 #ifdef PARALLEL
-			    c->Bls->p[0]
+			      c->Bls->p[0]
 #else
-			    c->Bls->p
+			      c->Bls->p
 #endif
-			    ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+			      ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+		  }
+	      } else {
+		if(!p->quiet_mode) {
+		  fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc, p->lcnames[lc]);
 		}
+	      }
+	    } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
 	    }
+	  }
 	}
       break;
 
@@ -2747,66 +2783,66 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      continue;
 	    }
 	  }
-	  if(c->BlsFixPer->omodel)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname2,"%s/%s%s",c->BlsFixPer->modeloutdir,&p->lcnames[lc][i2],c->BlsFixPer->modelsuffix);
-	    }
-	  /* First check to see that the u/v vectors are large enough */
-	  if(c->BlsFixPer->sizeuv[0] == 0)
-	    {
-	      c->BlsFixPer->sizeuv[0] = p->NJD[lc];
-	      if((c->BlsFixPer->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
-	     (c->BlsFixPer->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-	  else if(c->BlsFixPer->sizeuv[0] < p->NJD[lc])
-	    {
-	      c->BlsFixPer->sizeuv[0] = p->NJD[lc];
-	      free(c->BlsFixPer->u[0]);
-	      free(c->BlsFixPer->v[0]);
-	      if((c->BlsFixPer->u[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL ||
-		 (c->BlsFixPer->v[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-
-	  /* Find the period if we're getting it from a previous command */
-	  if(c->BlsFixPer->pertype == PERTYPE_AOV)
-	    {
-	      i1 = c->BlsFixPer->lastaovindex;
-	      if(c[i1-thisindex].cnum == CNUM_AOV)
-		c->BlsFixPer->period[lc][0] = c[i1-thisindex].Aov->peakperiods[lc][0];
-	      else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
-		c->BlsFixPer->period[lc][0] = c[i1-thisindex].AovHarm->peakperiods[lc][0];
-	    }
-	  else if(c->BlsFixPer->pertype == PERTYPE_LS)
-	    {
-	      i1 = c->BlsFixPer->lastlsindex;
-	      c->BlsFixPer->period[lc][0] = c[i1-thisindex].Ls->peakperiods[lc][0];
-	    }
-	  else if(c->BlsFixPer->pertype == PERTYPE_FIX)
-	    {
-	      c->BlsFixPer->period[lc][0] = c->BlsFixPer->perfix;
-	    }
-	  else if(c->BlsFixPer->pertype == PERTYPE_FIXCOLUMN)
-	    {
-	      getoutcolumnvalue(c->BlsFixPer->linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &(c->BlsFixPer->period[lc][0]));
-	    }
-	  else if(c->BlsFixPer->pertype == PERTYPE_EXPR)
-	    {
-	      c->BlsFixPer->period[lc][0] = EvaluateExpression(lc, lc, 0, c->BlsFixPer->perexpr);
-	    }
-
-
 	  if(p->NJD[lc] > 1)
 	    {
+	      if(c->BlsFixPer->omodel)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname2,"%s/%s%s",c->BlsFixPer->modeloutdir,&p->lcnames[lc][i2],c->BlsFixPer->modelsuffix);
+		}
+	      /* First check to see that the u/v vectors are large enough */
+	      if(c->BlsFixPer->sizeuv[0] == 0)
+		{
+		  c->BlsFixPer->sizeuv[0] = p->NJD[lc];
+		  if((c->BlsFixPer->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixPer->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      else if(c->BlsFixPer->sizeuv[0] < p->NJD[lc])
+		{
+		  c->BlsFixPer->sizeuv[0] = p->NJD[lc];
+		  free(c->BlsFixPer->u[0]);
+		  free(c->BlsFixPer->v[0]);
+		  if((c->BlsFixPer->u[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixPer->v[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      
+	      /* Find the period if we're getting it from a previous command */
+	      if(c->BlsFixPer->pertype == PERTYPE_AOV)
+		{
+		  i1 = c->BlsFixPer->lastaovindex;
+		  if(c[i1-thisindex].cnum == CNUM_AOV)
+		    c->BlsFixPer->period[lc][0] = c[i1-thisindex].Aov->peakperiods[lc][0];
+		  else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+		    c->BlsFixPer->period[lc][0] = c[i1-thisindex].AovHarm->peakperiods[lc][0];
+		}
+	      else if(c->BlsFixPer->pertype == PERTYPE_LS)
+		{
+		  i1 = c->BlsFixPer->lastlsindex;
+		  c->BlsFixPer->period[lc][0] = c[i1-thisindex].Ls->peakperiods[lc][0];
+		}
+	      else if(c->BlsFixPer->pertype == PERTYPE_FIX)
+		{
+		  c->BlsFixPer->period[lc][0] = c->BlsFixPer->perfix;
+		}
+	      else if(c->BlsFixPer->pertype == PERTYPE_FIXCOLUMN)
+		{
+		  getoutcolumnvalue(c->BlsFixPer->linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &(c->BlsFixPer->period[lc][0]));
+		}
+	      else if(c->BlsFixPer->pertype == PERTYPE_EXPR)
+		{
+		  c->BlsFixPer->period[lc][0] = EvaluateExpression(lc, lc, 0, c->BlsFixPer->perexpr);
+		}
+	      
+
 	      /* Now either run bls using the fixed q range or the fixed stellar radius range */
 	      if(!c->BlsFixPer->rflag)
 		{
@@ -2816,7 +2852,11 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		{
 		  eeblsfixper_rad(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPer->u[0],c->BlsFixPer->v[0],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc],&c->BlsFixPer->bpow[lc],&c->BlsFixPer->depth[lc],&c->BlsFixPer->qtran[lc],&c->BlsFixPer->i1[lc],&c->BlsFixPer->i2[lc],&c->BlsFixPer->i1_ph[lc],&c->BlsFixPer->i2_ph[lc],&c->BlsFixPer->chisqrplus[lc],&c->BlsFixPer->chisqrminus[lc],&c->BlsFixPer->meanmagval[lc], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc], &c->BlsFixPer->Nt[lc], &c->BlsFixPer->Nbefore[lc], &c->BlsFixPer->Nafter[lc], &c->BlsFixPer->rednoise[lc], &c->BlsFixPer->whitenoise[lc], &c->BlsFixPer->sigtopink[lc], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc], &c->BlsFixPer->OOTmag[lc]);
 		}
+	    } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLSFixPer command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLSFixPer.\n", thisindex, lc, p->lcnames[lc]);
 	    }
+	  }
 	}
       break;
 
@@ -2830,140 +2870,150 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      continue;
 	    }
 	  }
-	  if(c->BlsFixDurTc->omodel)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname2,"%s/%s%s",c->BlsFixDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->modelsuffix);
-	    }
-	  if(c->BlsFixDurTc->ophcurve)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname3,"%s/%s%s",c->BlsFixDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ophcurvesuffix);
-	    }
-	  if(c->BlsFixDurTc->ojdcurve)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname4,"%s/%s%s",c->BlsFixDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ojdcurvesuffix);
-	    }
-	  /* First check to see that the u/v vectors are large enough */
-	  if(c->BlsFixDurTc->sizeuv[0] == 0)
-	    {
-	      c->BlsFixDurTc->sizeuv[0] = p->NJD[lc];
-	      if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
-		 (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-	  else if(c->BlsFixDurTc->sizeuv[0] < p->NJD[lc])
-	    {
-	      c->BlsFixDurTc->sizeuv[0] = p->NJD[lc];
-	      free(c->BlsFixDurTc->u[0]);
-	      free(c->BlsFixDurTc->v[0]);
-	      if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
-		 (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
-	    }
-	  
-	  if(c->BlsFixDurTc->operiodogram)
-	    {
-	      i1 = 0;
-	      i2 = 0;
-	      while(p->lcnames[lc][i1] != '\0')
-		{
-		  if(p->lcnames[lc][i1] == '/')
-		    i2 = i1 + 1;
-		  i1++;
-		}
-	      sprintf(outname,"%s/%s%s",c->BlsFixDurTc->outdir,&p->lcnames[lc][i2],c->BlsFixDurTc->suffix);
-	    }
-	  if(c->BlsFixDurTc->durtype == PERTYPE_FIX)
-	    {
-	      c->BlsFixDurTc->inputdur[lc] = c->BlsFixDurTc->fixdur;
-	      d1 = c->BlsFixDurTc->inputdur[lc];
-	    }
-	  else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
-	    getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc, lc, 
-			      VARTOOLS_TYPE_DOUBLE, 
-			      &(c->BlsFixDurTc->inputdur[lc]));
-	    d1 = c->BlsFixDurTc->inputdur[lc];
-	  } else {
-	    d1 = c->BlsFixDurTc->inputdur[lc];
-	  }
-	  if(c->BlsFixDurTc->TCtype == PERTYPE_FIX)
-	    {
-	      c->BlsFixDurTc->inputTC[lc] = c->BlsFixDurTc->fixTC;
-	      d2 = c->BlsFixDurTc->fixTC;
-	    }
-	  else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
-	    getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc, lc, 
-			  VARTOOLS_TYPE_DOUBLE, 
-			      &(c->BlsFixDurTc->inputTC[lc]));
-	    d2 = c->BlsFixDurTc->inputTC[lc];
-	  }
-	  else {
-	    d2 = c->BlsFixDurTc->inputTC[lc];
-	  }
-	  if(c->BlsFixDurTc->fixdepth) {
-	    if(c->BlsFixDurTc->depthtype == PERTYPE_FIX) {
-	      c->BlsFixDurTc->inputdepth[lc] = c->BlsFixDurTc->fixdepthval;
-	      d3 = c->BlsFixDurTc->fixdepthval;
-	    }
-	    else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
-	      getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc, lc, 
-				VARTOOLS_TYPE_DOUBLE, 
-				&(c->BlsFixDurTc->inputdepth[lc]));
-	      d3 = c->BlsFixDurTc->inputdepth[lc];
-	    }
-	    else {
-	      d3 = c->BlsFixDurTc->inputdepth[lc];
-	    }
-	    if(c->BlsFixDurTc->qgresstype == PERTYPE_FIX) {
-	      c->BlsFixDurTc->inputqgress[lc] = c->BlsFixDurTc->qgressval;
-	      d4 = c->BlsFixDurTc->qgressval;
-	    }
-	    else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
-	      getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc, lc, 
-				VARTOOLS_TYPE_DOUBLE, 
-				&(c->BlsFixDurTc->inputqgress[lc]));
-	      d4 = c->BlsFixDurTc->inputqgress[lc];
-	    }
-	    else {
-	      d4 = c->BlsFixDurTc->inputqgress[lc];
-	    }
-	  }
 	  if(p->NJD[lc] > 1)
 	    {
+	      if(c->BlsFixDurTc->omodel)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname2,"%s/%s%s",c->BlsFixDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->modelsuffix);
+		}
+	      if(c->BlsFixDurTc->ophcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname3,"%s/%s%s",c->BlsFixDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ophcurvesuffix);
+		}
+	      if(c->BlsFixDurTc->ojdcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname4,"%s/%s%s",c->BlsFixDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixDurTc->ojdcurvesuffix);
+		}
+	      /* First check to see that the u/v vectors are large enough */
+	      if(c->BlsFixDurTc->sizeuv[0] == 0)
+		{
+		  c->BlsFixDurTc->sizeuv[0] = p->NJD[lc];
+		  if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      else if(c->BlsFixDurTc->sizeuv[0] < p->NJD[lc])
+		{
+		  c->BlsFixDurTc->sizeuv[0] = p->NJD[lc];
+		  free(c->BlsFixDurTc->u[0]);
+		  free(c->BlsFixDurTc->v[0]);
+		  if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      
+	      if(c->BlsFixDurTc->operiodogram)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname,"%s/%s%s",c->BlsFixDurTc->outdir,&p->lcnames[lc][i2],c->BlsFixDurTc->suffix);
+		}
+	      if(c->BlsFixDurTc->durtype == PERTYPE_FIX)
+		{
+		  c->BlsFixDurTc->inputdur[lc] = c->BlsFixDurTc->fixdur;
+		  d1 = c->BlsFixDurTc->inputdur[lc];
+		}
+	      else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
+		getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc, lc, 
+				  VARTOOLS_TYPE_DOUBLE, 
+				  &(c->BlsFixDurTc->inputdur[lc]));
+		d1 = c->BlsFixDurTc->inputdur[lc];
+	      } else {
+		d1 = c->BlsFixDurTc->inputdur[lc];
+	      }
+	      if(c->BlsFixDurTc->TCtype == PERTYPE_FIX)
+		{
+		  c->BlsFixDurTc->inputTC[lc] = c->BlsFixDurTc->fixTC;
+		  d2 = c->BlsFixDurTc->fixTC;
+		}
+	      else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
+		getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc, lc, 
+				  VARTOOLS_TYPE_DOUBLE, 
+				  &(c->BlsFixDurTc->inputTC[lc]));
+		d2 = c->BlsFixDurTc->inputTC[lc];
+	      }
+	      else {
+		d2 = c->BlsFixDurTc->inputTC[lc];
+	      }
+	      if(c->BlsFixDurTc->fixdepth) {
+		if(c->BlsFixDurTc->depthtype == PERTYPE_FIX) {
+		  c->BlsFixDurTc->inputdepth[lc] = c->BlsFixDurTc->fixdepthval;
+		  d3 = c->BlsFixDurTc->fixdepthval;
+		}
+		else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
+		  getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc, lc, 
+				    VARTOOLS_TYPE_DOUBLE, 
+				    &(c->BlsFixDurTc->inputdepth[lc]));
+		  d3 = c->BlsFixDurTc->inputdepth[lc];
+		}
+		else {
+		  d3 = c->BlsFixDurTc->inputdepth[lc];
+		}
+		if(c->BlsFixDurTc->qgresstype == PERTYPE_FIX) {
+		  c->BlsFixDurTc->inputqgress[lc] = c->BlsFixDurTc->qgressval;
+		  d4 = c->BlsFixDurTc->qgressval;
+		}
+		else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
+		  getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc, lc, 
+				    VARTOOLS_TYPE_DOUBLE, 
+				    &(c->BlsFixDurTc->inputqgress[lc]));
+		  d4 = c->BlsFixDurTc->inputqgress[lc];
+		}
+		else {
+		  d4 = c->BlsFixDurTc->inputqgress[lc];
+		}
+	      }
 	      c->BlsFixDurTc->fmin[lc] = dmax((2./(p->t[lc][p->NJD[lc]-1] - p->t[lc][0])),1./c->BlsFixDurTc->maxper);
 	      c->BlsFixDurTc->nf2[lc] = floor((((1./c->BlsFixDurTc->minper) - c->BlsFixDurTc->fmin[lc])/c->BlsFixDurTc->df)+1.);
-	      /* Now either run bls  */
-	      eeblsfixdurtc(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixDurTc->u[lc],c->BlsFixDurTc->v[lc],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc],c->BlsFixDurTc->fmin[lc],c->BlsFixDurTc->df,
+	      if(c->BlsFixDurTc->nf2[lc] > 0 && c->BlsFixDurTc->Npeak > 0) {
+		/* Now either run bls  */
+		eeblsfixdurtc(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixDurTc->u[lc],c->BlsFixDurTc->v[lc],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc],c->BlsFixDurTc->fmin[lc],c->BlsFixDurTc->df,
 #ifdef PARALLEL
-			    c->BlsFixDurTc->p[lc]
+			      c->BlsFixDurTc->p[lc]
 #else
-			    c->BlsFixDurTc->p
+			      c->BlsFixDurTc->p
 #endif
-			    ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc],c->BlsFixDurTc->bt0[lc],c->BlsFixDurTc->bpow[lc],c->BlsFixDurTc->sde[lc],c->BlsFixDurTc->snval[lc],c->BlsFixDurTc->depth[lc],c->BlsFixDurTc->qtran[lc],c->BlsFixDurTc->chisqrplus[lc],&c->BlsFixDurTc->chisqrminus[lc],&c->BlsFixDurTc->bperpos[lc],&c->BlsFixDurTc->meanmagval[lc], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc], c->BlsFixDurTc->Nt[lc], c->BlsFixDurTc->Nbefore[lc], c->BlsFixDurTc->Nafter[lc], c->BlsFixDurTc->rednoise[lc], c->BlsFixDurTc->whitenoise[lc], c->BlsFixDurTc->sigtopink[lc], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc], c->BlsFixDurTc->OOTmag[lc], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep);
+			      ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc],c->BlsFixDurTc->bt0[lc],c->BlsFixDurTc->bpow[lc],c->BlsFixDurTc->sde[lc],c->BlsFixDurTc->snval[lc],c->BlsFixDurTc->depth[lc],c->BlsFixDurTc->qtran[lc],c->BlsFixDurTc->chisqrplus[lc],&c->BlsFixDurTc->chisqrminus[lc],&c->BlsFixDurTc->bperpos[lc],&c->BlsFixDurTc->meanmagval[lc], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc], c->BlsFixDurTc->Nt[lc], c->BlsFixDurTc->Nbefore[lc], c->BlsFixDurTc->Nafter[lc], c->BlsFixDurTc->rednoise[lc], c->BlsFixDurTc->whitenoise[lc], c->BlsFixDurTc->sigtopink[lc], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc], c->BlsFixDurTc->OOTmag[lc], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep);
+	      } else {
+		if(!p->quiet_mode) {
+		  fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLSFixDurTc.\n", thisindex, lc, p->lcnames[lc]);
+		}
+	      }
+	    } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLSFixDurTc.\n", thisindex, lc, p->lcnames[lc]);
 	    }
+	  }
 	}
       break;
 
