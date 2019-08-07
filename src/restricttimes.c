@@ -831,7 +831,6 @@ int RestrictTimes_JDlist_apply(int N, double *t,
     if((!exclude && test) || (exclude && !test)){
       sigclip_copyterms(i,j,p,lc);
       j++;
-      k++;
     } else if(c->saveexcludedpoints) {
       RestrictTimes_StoreTime(c, p, lc, i);
     }
@@ -872,7 +871,6 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
       /* Record the index of selected points */
       good[j] = stringID_indx[i];
       j++;
-      k++;
     } else if(c->saveexcludedpoints) {
       RestrictTimes_StoreTime(c, p, lc, i);
     }
