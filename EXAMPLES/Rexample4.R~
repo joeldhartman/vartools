@@ -1,0 +1,13 @@
+library(tseries)
+library(forecast)
+
+DoArimaFitForeCast <- function(mag, plotoutdir, lcbasename, Nforecast) {
+	mag_ts <- ts(mag, start=1, end=length(t), frequency=1)
+	arima_model <- auto.arima(mag_ts)
+	mag_arima <- mag - as.vector(arima_model$residuals)
+	mag_forecast <- forecast.Arima(arima_model, h=Nforecast, level=c(95.0))
+	png(past(plotoutdir, lcbasename, ".png", sep=""), width = 640, height=480)
+	plot.forecast(mag_forecast)
+	dev.off()
+	return(mag_arima)
+}

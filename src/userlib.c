@@ -42,6 +42,7 @@
 #include "functions.h"
 #include "vartools_functionpointers.h"
 
+#include <ctype.h>
 #include <ltdl.h>
 
 /*

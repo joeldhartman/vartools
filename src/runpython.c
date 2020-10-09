@@ -34,12 +34,14 @@
 /*                                                                           */
 #include "commands.h"
 #include "programdata.h"
+#include "functions.h"
 #include <Python.h>
 #include NUMPY_HEADER_FILE
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "runpython.h"
 
@@ -54,8 +56,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
 
 void simpleprinttostring(OutText *text, const char *stoadd)
 {
-  int l, lold, j, k, k1, k2;
-  l = strlen(stoadd);
+  int lold, j, k, k1;
   lold = text->len_s;
   if(!text->space)
     {
@@ -90,8 +91,7 @@ void simpleprinttostring(OutText *text, const char *stoadd)
 
 void simpleprinttostring_tabindent(OutText *text, const char *stoadd)
 {
-  int l, lold, j, k, k1, k2, nnewtab;
-  l = strlen(stoadd);
+  int lold, j, k, k1, nnewtab;
   lold = text->len_s;
   if(!text->space)
     {
@@ -457,7 +457,6 @@ void CleanUpPythonObjectContainerVariables(_PythonObjectContainer *py) {
 }
 
 void CleanUpPythonObjectContainer(_PythonObjectContainer **py) {
-  int i;
   if(py == NULL) return;
   if(*py == NULL) return;
   CleanUpPythonObjectContainerVariables(*py);
@@ -783,7 +782,11 @@ int ReadVariablesFromSocketIntoPython(ProgramData *p, _PythonCommand *c,
 	for(j=0; j < lenvec; j++) {
 	  tmpinpstr2[0] = tmpinpstr[j];
 	  tmpinpstr2[1] = '\0';
+#ifdef HAVE_PYTHON_UNICODE
+	  tmpobj = PyUnicode_FromString(tmpinpstr2);
+#else
 	  tmpobj = PyString_FromString(tmpinpstr2);
+#endif
 	  if(PyList_SetItem(py->Variables[i],j,tmpobj)) {
 	    fprintf(stderr,"Error adding a string variable to the list for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
 	    _EXIT_READ_VARIABLES;
@@ -835,7 +838,11 @@ int ReadVariablesFromSocketIntoPython(ProgramData *p, _PythonCommand *c,
 	    }
 	  }
 	  tmpinpstr[k] = '\0';
+#ifdef HAVE_PYTHON_UNICODE
+	  tmpobj = PyUnicode_FromString(tmpinpstr);
+#else
 	  tmpobj = PyString_FromString(tmpinpstr);
+#endif
 	  if(PyList_SetItem(py->Variables[i],j,tmpobj)) {
 	    fprintf(stderr,"Error adding a string variable to the list for variable index %d in the ReadVariablesFromSocketIntoPython function.\n", i);
 	    _EXIT_READ_VARIABLES;
@@ -1011,7 +1018,11 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    return 1;
 	  }
 	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
+#ifdef HAVE_PYTHON_UNICODE
+	  tmpintout = (int) PyLong_AS_LONG(tmpobj);
+#else
 	  tmpintout = (int) PyInt_AS_LONG(tmpobj);
+#endif
 	  if(write(cparent->sockets[threadindex][1], &tmpintout, sizeof(int)) < sizeof(int)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
 	    return 1;
@@ -1037,7 +1048,11 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    return 1;
 	  }
 	  tmpobj = PyArray_GETITEM((PyArrayObject *) tmparray,PyArray_GetPtr((PyArrayObject *) tmparray, &tmpindx));
+#ifdef HAVE_PYTHON_UNICODE
+	  tmpshortout = (short) PyLong_AS_LONG(tmpobj);
+#else
 	  tmpshortout = (short) PyInt_AS_LONG(tmpobj);
+#endif
 	  if(write(cparent->sockets[threadindex][1], &tmpshortout, sizeof(short)) < sizeof(short)) {
 	    if(tmpcharvec != NULL) free(tmpcharvec);
 	    return 1;
@@ -1201,14 +1216,22 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	return 1;
       }
       for(k=0; k < lenvec; k++) {
-	if(!PyString_Check(PyList_GetItem(tmplist,k))) {
-	  /* Will need to convert the result to a string */
+#ifdef HAVE_PYTHON_UNICODE
+	if(!PyUnicode_Check(PyList_GetItem(tmplist,k))) {
+#else
+	  if(!PyString_Check(PyList_GetItem(tmplist,k))) {
+#endif
+	    /* Will need to convert the result to a string */
 	  fprintf(stderr,"Error: the variable %s is expected to be a string or ASCII char, but a non-string value was returned from python.\n", v->varname);
 	  if(tmpcharvec != NULL) free(tmpcharvec);
 	  return 1;
 	}
 	else {
+#ifdef HAVE_PYTHON_UNICODE
+	  tmpstr = PyBytes_AS_STRING(PyUnicode_AsEncodedString(PyList_GetItem(tmplist,k), "UTF-8", "strict"));
+#else
 	  tmpstr = PyString_AsString(PyList_GetItem(tmplist,k));
+#endif
 	  if(tmpstr == NULL) {
 	    fprintf(stderr,"Error: NULL value returned from python for string or ASCII char variable %s\n", v->varname);
 	    if(tmpcharvec != NULL) free(tmpcharvec);

@@ -69,7 +69,7 @@ void VARTOOLS_mrqmin(double *x, double *y, double *sig, int ndata, double *a, in
 
 void VARTOOLS_incrementparameters_foramoeba(int *Nparameters, int *Ntovary, double ***p, int **ia, int varyparam, double initialval, double stepval);
 
-void VARTOOLS__amoeba_initializesimplexchi2(int Nparameters, int Ntovary, double **p, double **chi2vals, double (*funk)(double *, int, int, double *, double *, double *, void *), int N, double *t, double *mag, double *err, void * userparam);
+void VARTOOLS_amoeba_initializesimplexchi2(int Nparameters, int Ntovary, double **p, double **chi2vals, double (*funk)(double *, int, int, double *, double *, double *, void *), int N, double *t, double *mag, double *err, void * userparam);
 
 void VARTOOLS_amoeba_cleanup(int *Nparameters, int *Ntovary, double ***p, int **ia, double **chi2vals);
 
@@ -143,7 +143,11 @@ int VARTOOLS_RegisterUserFunction(ProgramData *, char *, int, double (*)(double 
 
 void VARTOOLS_occultquad(double *z0, double u1, double u2, double p, double *muo1, double *mu0, int nz);
 
+void VARTOOLS_occultnl(double rl, double c1, double c2, double c3, double c4, double *b0, double *mulimb0, double **mulimbf, int nb);
+
 void VARTOOLS_MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
+
+void VARTOOLS_MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm);
 
 int VARTOOLS_gnu_getline(char **, size_t *, FILE *);
 

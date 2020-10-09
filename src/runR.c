@@ -34,6 +34,7 @@
 /*                                                                           */
 #include "commands.h"
 #include "programdata.h"
+#include "functions.h"
 #include <Rinternals.h>
 #include <Rembedded.h>
 #include <R_ext/Parse.h>
@@ -41,6 +42,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #include "runR.h"
 

@@ -7735,7 +7735,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -TFA trendlist [\"readformat\" Nskip jdcol magcol] dates_file pixelsep [\"xycol\" xcol ycol] correctlc ocoeff [coeff_outdir] omodel [model_outdir] */
+      /* -TFA trendlist [\"readformat\" Nskip jdcol magcol] [\"trend_coeff_priors\" trend_coeff_prior_file [\"use_lc_errors\" | \"weight_by_template_stddev\"]] dates_file pixelsep [\"xycol\" xcol ycol] correctlc ocoeff [coeff_outdir] omodel [model_outdir] */
       else if(!strncmp(argv[i],"-TFA",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -7754,6 +7754,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA->magcol_trend = 2;
 	  c[cn].TFA->jdcol_isfromheader = 0;
 	  c[cn].TFA->magcol_isfromheader = 0;
+	  c[cn].TFA->use_trend_coeff_priors = 0;
+	  c[cn].TFA->use_lc_errors = 0;
+	  c[cn].TFA->weight_by_template_stddev = 0;
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -7787,6 +7790,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  i++;
 		}
 	    }
+
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"trend_coeff_priors"))
+		{
+		  c[cn].TFA->use_trend_coeff_priors = 1;
+		  i++;
+		  if(i < argc)
+		    sprintf(c[cn].TFA->trend_prior_list_name,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		  i++;
+		  if(i < argc) {
+		    if(!strcmp(argv[i],"use_lc_errors")) {
+		      c[cn].TFA->use_lc_errors = 1;
+		      i++;
+		    }
+		    else if(!strcmp(argv[i],"weight_by_template_stddev")) {
+		      c[cn].TFA->weight_by_template_stddev = 1;
+		      i++;
+		    }
+		  }
+		} 
+	    }
+
 	  if(i < argc)
 	    sprintf(c[cn].TFA->dates_name,"%s",argv[i]);
 	  else

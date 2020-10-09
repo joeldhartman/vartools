@@ -1,0 +1,456 @@
+------------------------------------------------------------------------
+r3306 | jhartman | 2014-12-22 17:29:27 -0500 (Mon, 22 Dec 2014) | 1 line
+
+vartools: fix bug in one of the sorting functions
+------------------------------------------------------------------------
+r3285 | jhartman | 2014-12-11 16:12:38 -0500 (Thu, 11 Dec 2014) | 1 line
+
+vartools: added weight median and percentile to -stats, added -BLSFixDurTc command
+------------------------------------------------------------------------
+r3284 | jhartman | 2014-12-11 16:12:21 -0500 (Thu, 11 Dec 2014) | 1 line
+
+vartools: added weight median and percentile to -stats, added -BLSFixDurTc command
+------------------------------------------------------------------------
+r3201 | jhartman | 2014-11-17 13:59:22 -0500 (Mon, 17 Nov 2014) | 1 line
+
+vartools: fixed bug in makefile
+------------------------------------------------------------------------
+r3175 | jhartman | 2014-10-26 14:07:50 -0400 (Sun, 26 Oct 2014) | 1 line
+
+vartools: fixed seg fault in binlc that occurs when 0 bins are made
+------------------------------------------------------------------------
+r3171 | jhartman | 2014-10-21 10:47:24 -0400 (Tue, 21 Oct 2014) | 1 line
+
+vartools: added exp covariance model to -addnoise and -nonlinfit
+------------------------------------------------------------------------
+r3125 | jhartman | 2014-09-11 10:18:28 -0400 (Thu, 11 Sep 2014) | 1 line
+
+vartools: finished writing help and example functions for the -resample command
+------------------------------------------------------------------------
+r3115 | jhartman | 2014-08-29 22:09:57 -0400 (Fri, 29 Aug 2014) | 1 line
+
+vartools: added -resample command
+------------------------------------------------------------------------
+r3113 | jhartman | 2014-08-27 16:01:00 -0400 (Wed, 27 Aug 2014) | 1 line
+
+vartools: modified -addnoise to include additional time-correlated noise models
+------------------------------------------------------------------------
+r3112 | jhartman | 2014-08-26 17:28:54 -0400 (Tue, 26 Aug 2014) | 1 line
+
+vartools: added covariance option to -nonlinfit
+------------------------------------------------------------------------
+r3100 | jhartman | 2014-08-19 10:37:21 -0400 (Tue, 19 Aug 2014) | 1 line
+
+vartools: -copylc debugging
+------------------------------------------------------------------------
+r3099 | jhartman | 2014-08-19 10:04:27 -0400 (Tue, 19 Aug 2014) | 1 line
+
+vartools: added -copylc command
+------------------------------------------------------------------------
+r3098 | jhartman | 2014-08-14 00:02:50 -0400 (Thu, 14 Aug 2014) | 1 line
+
+vartools: added -wwz command
+------------------------------------------------------------------------
+r3095 | jhartman | 2014-08-12 21:49:11 -0400 (Tue, 12 Aug 2014) | 1 line
+
+vartools: debugging and adding parameters to nonlinfit command
+------------------------------------------------------------------------
+r3055 | jhartman | 2014-08-01 12:21:19 -0400 (Fri, 01 Aug 2014) | 1 line
+
+vartools: bug fixing in mcmc, and added niter and median options to -clip as part of improving lc statistics computation
+------------------------------------------------------------------------
+r3041 | jhartman | 2014-07-23 13:21:44 -0400 (Wed, 23 Jul 2014) | 1 line
+
+vartools: fixed bug in analytic parser affecting unary minus and plus operators; added -nonlinfit to -example
+------------------------------------------------------------------------
+r3039 | jhartman | 2014-07-22 18:14:03 -0400 (Tue, 22 Jul 2014) | 1 line
+
+vartools: added -nonlinfit command to do amoeba or de-mcmc fits
+------------------------------------------------------------------------
+r3023 | jhartman | 2014-07-16 18:30:50 -0400 (Wed, 16 Jul 2014) | 1 line
+
+vartools: fixed some bugs reported by users related to compiling w/o libraries
+------------------------------------------------------------------------
+r3022 | jhartman | 2014-07-15 21:22:55 -0400 (Tue, 15 Jul 2014) | 1 line
+
+vartools: minor modifications to allow -parallel option to work in a windows port
+------------------------------------------------------------------------
+r3021 | jhartman | 2014-07-15 21:10:03 -0400 (Tue, 15 Jul 2014) | 1 line
+
+vartools, help.c: minor change
+------------------------------------------------------------------------
+r2983 | jhartman | 2014-06-23 16:26:18 -0400 (Mon, 23 Jun 2014) | 1 line
+
+vartools: fixed bug in vartools_functionpointers.h
+------------------------------------------------------------------------
+r2954 | jhartman | 2014-04-24 16:41:59 -0400 (Thu, 24 Apr 2014) | 1 line
+
+vartools: fixed bug in outcolumns.c causing segfault when running linfit on a list
+------------------------------------------------------------------------
+r2953 | jhartman | 2014-04-23 11:42:42 -0400 (Wed, 23 Apr 2014) | 1 line
+
+vartools: various minor changes
+------------------------------------------------------------------------
+r2876 | jhartman | 2014-02-13 14:17:30 -0500 (Thu, 13 Feb 2014) | 1 line
+
+vartools: reconciling diffs on various machines
+------------------------------------------------------------------------
+r2873 | jhartman | 2014-02-12 19:27:15 -0500 (Wed, 12 Feb 2014) | 1 line
+
+vartools: added expr option to most commands
+------------------------------------------------------------------------
+r2792 | jhartman | 2013-12-18 11:41:17 -0500 (Wed, 18 Dec 2013) | 1 line
+
+vartools: fixed bug in omodel for killharm command
+------------------------------------------------------------------------
+r2743 | jhartman | 2013-11-04 22:58:06 -0500 (Mon, 04 Nov 2013) | 1 line
+
+vartools: fixed bug in parsing numbers given in scientific notation in analytic expressions
+------------------------------------------------------------------------
+r2742 | jhartman | 2013-11-04 13:25:31 -0500 (Mon, 04 Nov 2013) | 1 line
+
+vartools: fixed bug in transit.c causing code to break on limiting case where limbds of transiting object and star precisely align
+------------------------------------------------------------------------
+r2733 | jhartman | 2013-10-31 17:00:05 -0400 (Thu, 31 Oct 2013) | 1 line
+
+vartools: added expr option to -restricttimes command
+------------------------------------------------------------------------
+r2647 | jhartman | 2013-09-17 11:29:41 -0400 (Tue, 17 Sep 2013) | 1 line
+
+vartools: changed fgets to gnu_getline to allow parsing files with lines of arbitrary length
+------------------------------------------------------------------------
+r2645 | jhartman | 2013-09-05 13:14:43 -0400 (Thu, 05 Sep 2013) | 1 line
+
+vartools: fixing some bugs related to TFA
+------------------------------------------------------------------------
+r2631 | jhartman | 2013-08-22 13:18:45 -0400 (Thu, 22 Aug 2013) | 1 line
+
+jktebop.c: modified to restrict fitting to physical parameter ranges
+------------------------------------------------------------------------
+r2624 | jhartman | 2013-08-15 10:26:17 -0400 (Thu, 15 Aug 2013) | 1 line
+
+vartools: more Makefile fixing
+------------------------------------------------------------------------
+r2622 | jhartman | 2013-08-15 09:46:41 -0400 (Thu, 15 Aug 2013) | 1 line
+
+vartools: fixed bug in USERLIBS/src/Makefile
+------------------------------------------------------------------------
+r2620 | jhartman | 2013-08-14 15:09:58 -0400 (Wed, 14 Aug 2013) | 1 line
+
+vartools:medlc added
+------------------------------------------------------------------------
+r2619 | jhartman | 2013-08-14 15:07:13 -0400 (Wed, 14 Aug 2013) | 1 line
+
+vartools: fixed bug in parsing multi-column fix values, bug in jktebop parsing, and changed spec keyword to list
+------------------------------------------------------------------------
+r2593 | jhartman | 2013-06-11 14:07:44 -0400 (Tue, 11 Jun 2013) | 1 line
+
+vartools/Makefile.in: fixed bug
+------------------------------------------------------------------------
+r2577 | jhartman | 2013-05-16 16:54:05 -0400 (Thu, 16 May 2013) | 1 line
+
+vartools: can use binary or fits column name in giving input format, added option to output fits binary light curves.
+------------------------------------------------------------------------
+r2575 | jhartman | 2013-05-10 13:56:07 -0400 (Fri, 10 May 2013) | 1 line
+
+vartools: added support for reading in LCs in Kalos binary format; more development required to support headers and output data in this format.
+------------------------------------------------------------------------
+r2574 | jhartman | 2013-05-10 13:02:22 -0400 (Fri, 10 May 2013) | 1 line
+
+vartools: added support for reading in LCs in Kalos binary format; more development required to support headers and output data in this format.
+------------------------------------------------------------------------
+r2565 | jhartman | 2013-04-24 16:02:00 -0400 (Wed, 24 Apr 2013) | 1 line
+
+vartools: added exclude option to -restricttimes command
+------------------------------------------------------------------------
+r2562 | jhartman | 2013-04-24 14:04:30 -0400 (Wed, 24 Apr 2013) | 1 line
+
+vartools: added option to skip missing lcs rather than aborting
+------------------------------------------------------------------------
+r2561 | jhartman | 2013-04-23 17:44:16 -0400 (Tue, 23 Apr 2013) | 1 line
+
+vartools: adding a few missing files
+------------------------------------------------------------------------
+r2560 | jhartman | 2013-04-23 17:28:19 -0400 (Tue, 23 Apr 2013) | 1 line
+
+vartools: added -restricttimes option, to be used with the custom-target aperture photometry script under development
+------------------------------------------------------------------------
+r2489 | jhartman | 2013-01-17 15:51:38 -0500 (Thu, 17 Jan 2013) | 1 line
+
+vartools: various modifications, including support for macula, user developed functions, added some examples, various debugging
+------------------------------------------------------------------------
+r2488 | jhartman | 2013-01-17 15:50:39 -0500 (Thu, 17 Jan 2013) | 1 line
+
+vartools: various modifications, including support for macula, user developed functions, added some examples, various debugging
+------------------------------------------------------------------------
+r2424 | mdevalbo | 2012-11-20 14:40:37 -0500 (Tue, 20 Nov 2012) | 4 lines
+
+source:
+	* Clean up format and fix a typo
+sysutil/scripts/svnrevision.sh:
+	* Experimental RCS keyword expansion in git
+------------------------------------------------------------------------
+r2409 | jhartman | 2012-11-14 09:22:30 -0500 (Wed, 14 Nov 2012) | 1 line
+
+vartools: various changes, including change to sigclip used in calculating autocorr for individual HS stations
+------------------------------------------------------------------------
+r2310 | jhartman | 2012-09-05 15:31:08 -0400 (Wed, 05 Sep 2012) | 1 line
+
+vartools: debugging error in parsing string ids
+------------------------------------------------------------------------
+r2309 | jhartman | 2012-09-05 13:18:22 -0400 (Wed, 05 Sep 2012) | 1 line
+
+vartools: various modifications
+------------------------------------------------------------------------
+r2308 | jhartman | 2012-09-05 13:13:30 -0400 (Wed, 05 Sep 2012) | 1 line
+
+vartools: various modifications
+------------------------------------------------------------------------
+r2297 | jhartman | 2012-08-21 14:13:45 -0400 (Tue, 21 Aug 2012) | 1 line
+
+vartools: various modifications, including fixing bugs in newly added commands, adding -if -elif -else -fi construct
+------------------------------------------------------------------------
+r2293 | jhartman | 2012-08-14 16:48:01 -0400 (Tue, 14 Aug 2012) | 1 line
+
+vartools: wide variety of modifications, including support for analytic expressions, linear fitting of lcs, further development of userlib functions, addition of several userlibs
+------------------------------------------------------------------------
+r2144 | jhartman | 2012-04-02 14:56:07 -0400 (Mon, 02 Apr 2012) | 1 line
+
+vartools: fixed loss of precision due to compounded rounding errors in time conversions
+------------------------------------------------------------------------
+r2143 | jhartman | 2012-04-02 13:41:54 -0400 (Mon, 02 Apr 2012) | 1 line
+
+vartools: fixed loss of precision due to compounded rounding errors in time conversions
+------------------------------------------------------------------------
+r2140 | jhartman | 2012-03-30 13:29:19 -0400 (Fri, 30 Mar 2012) | 1 line
+
+vartools: bringing up to date with current development
+------------------------------------------------------------------------
+r2139 | jhartman | 2012-03-30 13:28:27 -0400 (Fri, 30 Mar 2012) | 1 line
+
+vartools/USERLIBS: example user libraries for vartools
+------------------------------------------------------------------------
+r2138 | jhartman | 2012-03-30 13:27:59 -0400 (Fri, 30 Mar 2012) | 1 line
+
+vartools/USERLIBS: example user libraries for vartools
+------------------------------------------------------------------------
+r2030 | jhartman | 2012-01-26 16:08:37 -0500 (Thu, 26 Jan 2012) | 1 line
+
+vartools: fixed memory leak in getampthresh.c
+------------------------------------------------------------------------
+r1949 | jhartman | 2011-11-23 13:35:32 -0500 (Wed, 23 Nov 2011) | 1 line
+
+vartools: minor change to makefile
+------------------------------------------------------------------------
+r1948 | jhartman | 2011-11-23 13:05:52 -0500 (Wed, 23 Nov 2011) | 1 line
+
+vartools: minor bug fix to Makefile.in
+------------------------------------------------------------------------
+r1946 | jhartman | 2011-11-23 12:58:20 -0500 (Wed, 23 Nov 2011) | 1 line
+
+vartools: includes -converttime support for user run-time libraries, and some other minor changes
+------------------------------------------------------------------------
+r1919 | zcsubry | 2011-11-04 14:44:17 -0400 (Fri, 04 Nov 2011) | 1 line
+
+Several incorrect Makefiles are fixed in order to avoid error messages during cleaning
+------------------------------------------------------------------------
+r1825 | jhartman | 2011-08-05 16:08:43 -0400 (Fri, 05 Aug 2011) | 1 line
+
+vartools: adding some files in EXAMPLES/ to revision control
+------------------------------------------------------------------------
+r1824 | jhartman | 2011-08-05 16:07:06 -0400 (Fri, 05 Aug 2011) | 1 line
+
+vartools: some bug fixes and completion of the -example command
+------------------------------------------------------------------------
+r1822 | jhartman | 2011-08-02 18:07:01 -0400 (Tue, 02 Aug 2011) | 1 line
+
+vartools: minor modifications to example.c
+------------------------------------------------------------------------
+r1821 | jhartman | 2011-08-02 17:45:47 -0400 (Tue, 02 Aug 2011) | 1 line
+
+vartools: various changes
+------------------------------------------------------------------------
+r1812 | jhartman | 2011-07-27 17:31:40 -0400 (Wed, 27 Jul 2011) | 1 line
+
+vartools: numerous changes
+------------------------------------------------------------------------
+r1761 | jhartman | 2011-06-23 18:00:36 -0400 (Thu, 23 Jun 2011) | 1 line
+
+removed lcview from vartools
+------------------------------------------------------------------------
+r1656 | jhartman | 2011-04-06 18:27:55 -0400 (Wed, 06 Apr 2011) | 1 line
+
+vartools: added nobinnedrms option to BLS
+------------------------------------------------------------------------
+r1654 | jhartman | 2011-04-06 17:07:13 -0400 (Wed, 06 Apr 2011) | 1 line
+
+vartools: a few more changes to bls
+------------------------------------------------------------------------
+r1653 | jhartman | 2011-04-06 16:24:23 -0400 (Wed, 06 Apr 2011) | 1 line
+
+vartools: changes to BLS and added option -oneline
+------------------------------------------------------------------------
+r1604 | jhartman | 2011-03-01 10:23:05 -0500 (Tue, 01 Mar 2011) | 1 line
+
+vartools: fixed memory leak in BLS routine
+------------------------------------------------------------------------
+r1578 | jhartman | 2011-02-14 17:22:31 -0500 (Mon, 14 Feb 2011) | 1 line
+
+vartools: a few minor bug fixes
+------------------------------------------------------------------------
+r1571 | jhartman | 2011-02-11 12:34:17 -0500 (Fri, 11 Feb 2011) | 1 line
+
+vartools: added Tc to output of bls
+------------------------------------------------------------------------
+r1569 | jhartman | 2011-02-10 17:32:02 -0500 (Thu, 10 Feb 2011) | 1 line
+
+vartools: ignore NULL columns when reading a fits file
+------------------------------------------------------------------------
+r1568 | jhartman | 2011-02-10 15:44:33 -0500 (Thu, 10 Feb 2011) | 1 line
+
+vartools: added ability to read .fits input and added fluxtomag command, changed old fluxtomag to difffluxtomag
+------------------------------------------------------------------------
+r1491 | jhartman | 2010-12-15 11:51:29 -0500 (Wed, 15 Dec 2010) | 1 line
+
+vartools: fixed bug in recent change to dftclean
+------------------------------------------------------------------------
+r1485 | jhartman | 2010-12-13 15:00:32 -0500 (Mon, 13 Dec 2010) | 1 line
+
+vartools: added options to dftclean command
+------------------------------------------------------------------------
+r982 | jhartman | 2010-06-16 18:39:20 -0400 (Wed, 16 Jun 2010) | 1 line
+
+vartools: minor improvement to -medianfilter command
+------------------------------------------------------------------------
+r981 | jhartman | 2010-06-16 17:59:37 -0400 (Wed, 16 Jun 2010) | 1 line
+
+vartools: minor improvements to the -Phase command
+------------------------------------------------------------------------
+r598 | jhartman | 2010-01-29 11:35:14 -0500 (Fri, 29 Jan 2010) | 1 line
+
+vartools/starspot.c: fixed bug which prevented the model from being output when no fitting was done
+------------------------------------------------------------------------
+r594 | jhartman | 2010-01-28 14:10:21 -0500 (Thu, 28 Jan 2010) | 1 line
+
+vartools: added SNR output to dftclean
+------------------------------------------------------------------------
+r204 | jhartman | 2009-08-13 17:17:33 -0400 (Thu, 13 Aug 2009) | 13 lines
+
+Fixed bug in vartools calculation of LS S/N ratio.
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------
+r199 | jhartman | 2009-07-31 18:01:28 -0400 (Fri, 31 Jul 2009) | 13 lines
+
+changed the HATpipe/source/scripts/Makefile.in to change #!/bin/sh to #!/bin/bash if /bin/sh does not link to /bin/bash
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------
+r191 | jhartman | 2009-06-28 01:01:35 -0400 (Sun, 28 Jun 2009) | 10 lines
+
+added missing microlens.c file for vartools
+
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------
+r187 | jhartman | 2009-06-24 19:02:33 -0400 (Wed, 24 Jun 2009) | 7 lines
+
+Some updates to VARTOOLS
+
+
+
+
+
+
+------------------------------------------------------------------------
+r175 | jhartman | 2009-06-18 13:12:06 -0400 (Thu, 18 Jun 2009) | 3 lines
+
+bug fix in VARTOOLS
+
+
+------------------------------------------------------------------------
+r159 | jhartman | 2009-05-19 13:21:32 -0400 (Tue, 19 May 2009) | 2 lines
+
+Updated vartools to most recent version including the -findblends command
+
+------------------------------------------------------------------------
+r150 | jhartman | 2009-05-12 11:45:07 -0400 (Tue, 12 May 2009) | 5 lines
+
+Added svn version output to isochrone and vartools
+
+
+
+
+------------------------------------------------------------------------
+r100 | jhartman | 2009-04-06 10:42:08 -0400 (Mon, 06 Apr 2009) | 5 lines
+
+Minor bug fixes, added a few features to vartools
+
+
+
+
+------------------------------------------------------------------------
+r79 | jhartman | 2009-03-03 14:57:39 -0500 (Tue, 03 Mar 2009) | 3 lines
+
+Upgraded vartools to version 1.15, added all and install branches to Makefile.
+
+
+------------------------------------------------------------------------
+r49 | gbakos | 2009-01-15 22:17:24 -0500 (Thu, 15 Jan 2009) | 7 lines
+
+Modifications:
+	ficalib_scr: Created kepcam_ficalib.sh based on kepcam_calib_basic.sh.
+	flwo_kepcam_calib: Modified IRAF cl templates. Overscan bug corrected.
+	plfitutils: added lcfiterr.sh
+	rsyncutils: added flwo_kepcam_rsync_realtime.sh
+	mkphot_scr: added mkphot-0.3sh
+
+------------------------------------------------------------------------
+r45 | jhartman | 2009-01-07 17:13:01 -0500 (Wed, 07 Jan 2009) | 3 lines
+
+Added scripts to aid in planning KeplerCam observations
+
+
+------------------------------------------------------------------------
+r42 | jhartman | 2008-12-10 17:46:50 -0500 (Wed, 10 Dec 2008) | 2 lines
+
+Added a number of additional commands/options to vartools
+
+------------------------------------------------------------------------
+r2 | gbakos | 2008-10-08 17:41:44 -0400 (Wed, 08 Oct 2008) | 4 lines
+
+
+	Renamed some makefiles to Makefile
+	Deleted binary file korszamolo under korszamolo/
+
+------------------------------------------------------------------------
+r1 | gbakos | 2008-10-08 17:35:57 -0400 (Wed, 08 Oct 2008) | 1 line
+
+Initial upload
+------------------------------------------------------------------------

@@ -41,7 +41,7 @@ double medmeddev_double(int, double *);
 float medmeddev_float(int, float *);
 int medmeddev_int(int, int *);
 long medmeddev_long(int, long *);
-short memeddev_short(int, short *);
+short medmeddev_short(int, short *);
 double MAD(int, double *);
 double MAD_double(int, double *);
 float MAD_float(int, float *);

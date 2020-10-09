@@ -345,9 +345,13 @@ double astrofuncs_getinstantimpactparameter_transit(double phase, double sin_i, 
 {
   const double meanAnomaly = 2.0 * M_PI * (phase + phi_c);
   double D2, D, E;
+  double params[2];
 
-  if(e > 0)
-    E = eccentricAnomaly(meanAnomaly, e);
+  if(e > 0) {
+    params[0] = meanAnomaly;
+    params[1] = e;
+    E = astrofuncs_eccentricAnomaly(params);
+  }
   else
     E = meanAnomaly;
   D2 = SQR_(1.0 - (e * cos(E))) - SQR_((((cos(E) - e) * sin(omega)) + (sqrt(1.0 - (e*e)) * sin(E) * cos(omega))) * sin_i) ;

@@ -859,6 +859,8 @@ typedef struct {
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
+  double *trend_prior_means, *trend_prior_stds;
+  int *is_trend_prior;
   char **stringid;
   int *stringid_idx;
 
@@ -866,8 +868,14 @@ typedef struct {
 
   int *Njd_mout;
 
+  int use_trend_coeff_priors;
+  int use_lc_errors;
+  int weight_by_template_stddev;
+  double ave_trend_stddev;
+  int Ntrend_priors;
   int Ntrends, Njd, correctlc, ocoeff, omodel, Nskip_trend, JDcol_trend, magcol_trend;
   char trend_list_name[MAXLEN], dates_name[MAXLEN], **trend_names, coeff_outdir[MAXLEN], model_outdir[MAXLEN], coeff_suffix[MAXLEN], model_suffix[MAXLEN];
+  char trend_prior_list_name[MAXLEN];
   int jdcol_isfromheader, magcol_isfromheader;
   char jdcol_headername[MAXLEN], magcol_headername[MAXLEN];
 } _TFA;
@@ -882,6 +890,7 @@ typedef struct {
   int *Njd_mout, **signal_bin_ids, **signal_bin_N;
   int Ntrends, Njd, correctlc, ocoeff, omodel, Nskip_trend, JDcol_trend, magcol_trend;
   char trend_list_name[MAXLEN], dates_name[MAXLEN], **trend_names, coeff_outdir[MAXLEN], model_outdir[MAXLEN], coeff_suffix[MAXLEN], model_suffix[MAXLEN], signal_listname[MAXLEN], **signalfilenames;
+  double ave_trend_stddev;
   int dotfafirst, use_bin, nbins, use_period, maxiter, pertype, lastindex, use_harm, Nharm, Nsubharm;
   double tfathresh;
   int decorrflag;

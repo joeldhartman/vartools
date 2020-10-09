@@ -135,10 +135,10 @@ c
 
 int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag)
 {
-  double y[2000];
-  double ibi[2000];
+  double *y = NULL;
+  double *ibi = NULL;
   int minbin = 5;
-  int nbmax = 2000, nbtot;
+  int nbmax, nbtot;
 
   double powerplus, powerminus, bpowminus;
   double sumweights;
@@ -151,12 +151,21 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile2;
 
+  nbmax = 2*nb;
+
   /***********************************************************/
 
   if(nb > nbmax) {
     error(ERR_BLSNBMAX);
   }
   tot = t[n-1] - t[0];
+
+  if((y = (double *) malloc(nbmax * sizeof(double))) == NULL ||
+     (ibi = (double *) malloc(nbmax * sizeof(double))) == NULL)
+    {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
 
   /**********************************************************/
 
@@ -228,6 +237,8 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
       *chisqrminus = -1.;
       *meanmagval = -1.;
       *fraconenight = -1.;
+      if(y != NULL) free(y);
+      if(ibi != NULL) free(ibi);
       return(1);
     }
 
@@ -424,6 +435,8 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 
   free(weight);
 
+  if(y != NULL) free(y);
+  if(ibi != NULL) free(ibi);
   return(0);
 }
 
@@ -432,11 +445,11 @@ q = 0.076 * R**(2/3) / P**(2/3)
 */
 int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag)
 {
-  double y[2000];
-  double ibi[2000];
+  double *y = NULL;
+  double *ibi = NULL;
   double qmi, qma;
   int minbin = 5;
-  int nbmax = 2000, nbtot;
+  int nbmax, nbtot;
 
   double powerplus, powerminus, bpowminus;
   double sumweights;
@@ -449,6 +462,8 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile2;
 
+  nbmax = 2*nb;
+
   /***********************************************************/
 
   if(nb > nbmax) {
@@ -457,6 +472,13 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
   tot = t[n-1] - t[0];
 
   /**********************************************************/
+
+  if((y = (double *) malloc(nbmax * sizeof(double))) == NULL ||
+     (ibi = (double *) malloc(nbmax * sizeof(double))) == NULL)
+    {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
 
   rminpow = pow(rmin,0.6666667);
   rmaxpow = pow(rmax,0.6666667);
@@ -532,6 +554,8 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
       *chisqrminus = -1.;
       *meanmagval = -1.;
       *fraconenight = -1.;
+      if(y != NULL) free(y);
+      if(ibi != NULL) free(ibi);
       return(1);
     }
 
@@ -725,6 +749,8 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
 
   free(weight);
 
+  if(y != NULL) free(y);
+  if(ibi != NULL) free(ibi);
   return(0);
 }
 

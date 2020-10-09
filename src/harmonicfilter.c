@@ -124,7 +124,7 @@ void RAG_alg31(int m, int n, Complex *z, double *phase, double *w,
   free(alpha);
 }
 
-complex_vector_conjugate_reversal(int n, Complex *r, Complex *r_out) {
+void complex_vector_conjugate_reversal(int n, Complex *r, Complex *r_out) {
   int i, j;
   for(i=n-1, j=0; i >= 0; i--, j++) {
     r_out[i].r = r[j].r;

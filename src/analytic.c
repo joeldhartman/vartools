@@ -23,6 +23,8 @@
   return;
   }*/
 
+int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall *fcall);
+
 int CheckExpressionForLCVector(_Expression *expression)
 /* This function goes through an expression tree to determine if any of the
    terms are variables of vector type VARTOOLS_VECTORTYPE_LC */

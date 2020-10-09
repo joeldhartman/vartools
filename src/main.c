@@ -25,6 +25,10 @@
 #include "programdata.h"
 #include "functions.h"
 
+#ifdef DYNAMICLIB
+#include <ltdl.h>
+#endif
+
 #ifdef PARALLEL
 #include <pthread.h>
 #include <semaphore.h>

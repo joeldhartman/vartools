@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.38], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.39], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -234,7 +234,7 @@ if test x"$ax_python_use" = x"true"; then
    CPPFLAGS_SAVE="$CPPFLAGS"
 
    CPPFLAGS="$PYTHON_CSPEC $CPPFLAGS"
-   NUMPY_INCLUDE_DIR=`echo "import numpy; print numpy.get_include()" | $PYTHON - 2>/dev/null`
+   NUMPY_INCLUDE_DIR=`echo "import numpy; print(numpy.get_include())" | $PYTHON - 2>/dev/null`
    NUMPY_INCLUDE_DIR_FULL="${NUMPY_INCLUDE_DIR}/numpy"
    AC_SUBST(NUMPY_INCLUDE_DIR)
    AC_SUBST(NUMPY_INCLUDE_DIR_FULL)
@@ -247,6 +247,7 @@ if test x"$ax_python_use" = x"true"; then
            [AC_DEFINE_UNQUOTED([PYTHON_NUMPY_VERSION], [${PYTHON_numpy_VERSION}], [NUMPY VERSION])
             AS_VERSION_COMPARE([$PYTHON_numpy_VERSION], [1.6.9], [], 
                [], [AC_DEFINE([HAVE_NUMPY_ASTYPE_COPY], [1], [Define if the copy keyword is available for the astype method in numpy])])], [])
+       AX_PYTHON_VERSION_CHECK([3.3], [AC_DEFINE([HAVE_PYTHON_UNICODE], [1], [Define if the Py_UNICODE 32-bit object type is available])], [])
        AC_DEFINE([HAVE_PYTHON], [1], [Define if we are compiling with python])
        AC_DEFINE_UNQUOTED([NUMPY_HEADER_FILE], [<${NUMPY_INCLUDE_DIR}/numpy/arrayobject.h>], [Set to the header file to include for numpy])
        AS_IF([test "x$with_pythonhome" = xcheck],
