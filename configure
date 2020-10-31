@@ -704,6 +704,7 @@ LIBOBJS
 R_USE_FALSE
 R_USE_TRUE
 ISRBIN
+PYTHONSEARCHPATH
 PYTHONHOMEPATH
 PYTHONBINPATH
 PYTHON_numpy_VERSION
@@ -898,6 +899,7 @@ with_cspice_include
 with_cspice_lib
 with_pythonhome
 with_pythonconfig
+with_pythonpath
 enable_python
 with_python
 with_RHOME
@@ -1596,6 +1598,8 @@ Optional Packages:
   --with-pythonconfig=[PATH]
                           Use python-config to determine the compiler and
                           linker flags [default=no]
+  --with-pythonpath=[check,no,PATH]
+                          Hard-code the PYTHONPATH path [default=check]
   --with-python[=PYTHON]  absolute path name of Python executable
   --with-RHOME=PATH       prefix directory for R. The executable for R should
                           be in PATH/bin/R, the libraries in PATH/lib and the
@@ -6033,7 +6037,7 @@ esac
 fi
 
 : ${AR=ar}
-: ${AR_FLAGS=cru}
+: ${AR_FLAGS=cr}
 
 
 
@@ -7754,8 +7758,8 @@ int forced_loaded() { return 2;}
 _LT_EOF
       echo "$LTCC $LTCFLAGS -c -o conftest.o conftest.c" >&5
       $LTCC $LTCFLAGS -c -o conftest.o conftest.c 2>&5
-      echo "$AR cru libconftest.a conftest.o" >&5
-      $AR cru libconftest.a conftest.o 2>&5
+      echo "$AR cr libconftest.a conftest.o" >&5
+      $AR cr libconftest.a conftest.o 2>&5
       echo "$RANLIB libconftest.a" >&5
       $RANLIB libconftest.a 2>&5
       cat > conftest.c << _LT_EOF
@@ -21950,6 +21954,16 @@ fi
 
 
 
+# Check whether --with-pythonpath was given.
+if test "${with_pythonpath+set}" = set; then :
+  withval=$with_pythonpath;
+else
+  with_pythonpath=check
+fi
+
+
+
+
     ax_python_use=false
      if test x"$ax_python_use" = x"true"; then
   PYTHON_USE_TRUE=
@@ -22379,12 +22393,12 @@ $as_echo "yes" >&6; }
           PYTHONCONFIG=${PYTHON}-config
           PYTHONCONFIG=${PYTHONCONFIG}
 
-          ax_pythonconfig_cflags=`${PYTHONCONFIG} --cflags`
+          ax_pythonconfig_cflags=`${PYTHONCONFIG} --cflags --embed 2> /dev/null || ${PYTHONCONFIG} --cflags`
           PYTHON_CSPEC=${ax_pythonconfig_cflags}
 
           { $as_echo "$as_me:${as_lineno-$LINENO}: PYTHON_CSPEC=${ax_pythonconfig_cflags}" >&5
 $as_echo "$as_me: PYTHON_CSPEC=${ax_pythonconfig_cflags}" >&6;}
-          ax_pythonconfig_lflags=`${PYTHONCONFIG} --ldflags`
+          ax_pythonconfig_lflags=`${PYTHONCONFIG} --ldflags --embed 2> /dev/null || ${PYTHONCONFIG} --ldflags`
           PYTHON_LSPEC=${ax_pythonconfig_lflags}
 
           { $as_echo "$as_me:${as_lineno-$LINENO}: PYTHON_LSPEC=${ax_pythonconfig_lflags}" >&5
@@ -22481,12 +22495,12 @@ $as_echo "$as_me: PYTHON_LSPEC=${ax_python_output}" >&6;}
 
       fi
    elif test x"$with_pythonconfig" != xno; then
-      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags`
+      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags --embed`
       PYTHON_CSPEC=${ax_pythonconfig_cflags}
 
       { $as_echo "$as_me:${as_lineno-$LINENO}: PYTHON_CSPEC=${ax_pythonconfig_cflags}" >&5
 $as_echo "$as_me: PYTHON_CSPEC=${ax_pythonconfig_cflags}" >&6;}
-      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags`
+      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags --embed`
       PYTHON_LSPEC=${ax_pythonconfig_lflags}
 
       { $as_echo "$as_me:${as_lineno-$LINENO}: PYTHON_LSPEC=${ax_pythonconfig_lflags}" >&5
@@ -22758,6 +22772,23 @@ else
 
 cat >>confdefs.h <<_ACEOF
 #define PYTHONHOMEPATH "${with_pythonhome}"
+_ACEOF
+
+fi
+fi
+       if test "x$with_pythonpath" = xcheck; then :
+  PYTHONSEARCHPATH=`echo "import os; import sys; outpath=';'.join(sys.path) if os.name == 'nt' else ':'.join(sys.path); print(outpath)" | $PYTHON - 2>/dev/null`
+
+
+cat >>confdefs.h <<_ACEOF
+#define PYTHONSEARCHPATH "${PYTHONSEARCHPATH}"
+_ACEOF
+
+else
+  if test "x$with_pythonhome" != xno; then :
+
+cat >>confdefs.h <<_ACEOF
+#define PYTHONSEARCHPATH "${with_pythonpath}"
 _ACEOF
 
 fi

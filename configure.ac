@@ -191,6 +191,13 @@ AC_ARG_WITH([pythonconfig],
   [],
   [with_pythonconfig=check])
 
+AC_ARG_WITH([pythonpath], 
+  [AS_HELP_STRING([--with-pythonpath=@<:@check,no,PATH@:>@],
+    [Hard-code the PYTHONPATH path @<:@default=check@:>@])],
+  [],
+  [with_pythonpath=check])
+
+
 AX_PYTHON_DEFAULT( )
 AX_PYTHON_ENABLE( "/usr/bin" )
 AX_PYTHON_WITH( )
@@ -206,10 +213,10 @@ if test x"$ax_python_use" = x"true"; then
           AC_MSG_RESULT(yes)
           PYTHONCONFIG=${PYTHON}-config
           AC_SUBST([PYTHONCONFIG], [${PYTHONCONFIG}])
-          ax_pythonconfig_cflags=`${PYTHONCONFIG} --cflags`
+          ax_pythonconfig_cflags=`${PYTHONCONFIG} --cflags --embed 2> /dev/null || ${PYTHONCONFIG} --cflags`
           AC_SUBST([PYTHON_CSPEC], [${ax_pythonconfig_cflags}])
           AC_MSG_NOTICE([PYTHON_CSPEC=${ax_pythonconfig_cflags}])
-          ax_pythonconfig_lflags=`${PYTHONCONFIG} --ldflags`
+          ax_pythonconfig_lflags=`${PYTHONCONFIG} --ldflags --embed 2> /dev/null || ${PYTHONCONFIG} --ldflags`
           AC_SUBST([PYTHON_LSPEC], [${ax_pythonconfig_lflags}])
           AC_MSG_NOTICE([PYTHON_LSPEC=${ax_pythonconfig_lflags}])
       else      
@@ -218,10 +225,10 @@ if test x"$ax_python_use" = x"true"; then
           AX_PYTHON_LSPEC( )
       fi
    elif test x"$with_pythonconfig" != xno; then
-      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags`
+      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags --embed`
       AC_SUBST([PYTHON_CSPEC], [${ax_pythonconfig_cflags}])
       AC_MSG_NOTICE([PYTHON_CSPEC=${ax_pythonconfig_cflags}])
-      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags`
+      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags --embed`
       AC_SUBST([PYTHON_LSPEC], [${ax_pythonconfig_lflags}])
       AC_MSG_NOTICE([PYTHON_LSPEC=${ax_pythonconfig_lflags}])
    else
@@ -258,6 +265,12 @@ if test x"$ax_python_use" = x"true"; then
               AC_DEFINE_UNQUOTED([PYTHONHOMEPATH], ["${PYTHONHOMEPATH}"], [Set to the PYTHONHOME])],
              [AS_IF([test "x$with_pythonhome" != xno],
                     [AC_DEFINE_UNQUOTED([PYTHONHOMEPATH], ["${with_pythonhome}"], [Set to the PYTHONHOME])], [])])
+       AS_IF([test "x$with_pythonpath" = xcheck],
+             [PYTHONSEARCHPATH=`echo "import os; import sys; outpath=';'.join(sys.path) if os.name == 'nt' else ':'.join(sys.path); print(outpath)" | $PYTHON - 2>/dev/null`
+              AC_SUBST(PYTHONSEARCHPATH)
+              AC_DEFINE_UNQUOTED([PYTHONSEARCHPATH], ["${PYTHONSEARCHPATH}"], [Set to the PYTHONPATH])],
+             [AS_IF([test "x$with_pythonhome" != xno],
+                    [AC_DEFINE_UNQUOTED([PYTHONSEARCHPATH], ["${with_pythonpath}"], [Set to the PYTHONPATH])], [])])
    fi
    CPPFLAGS="$CPPFLAGS_SAVE"
 fi

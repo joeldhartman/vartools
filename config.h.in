@@ -266,6 +266,9 @@
 /* Set to the PYTHONHOME */
 #undef PYTHONHOMEPATH
 
+/* Set to the PYTHONPATH */
+#undef PYTHONSEARCHPATH
+
 /* NUMPY VERSION */
 #undef PYTHON_NUMPY_VERSION
 

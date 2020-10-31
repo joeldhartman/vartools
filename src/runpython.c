@@ -489,17 +489,33 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   _PythonObjectContainer *py;
   char tmpstr[MAXLEN];
   int i, j, testneedreadall;
-
+#ifdef HAVE_PYTHON_UNICODE
+  wchar_t *tmp1, *tmp2, *tmp3;
+#endif
+  
   usercodetext.s = NULL;
   usercodetext.space = 0;
   usercodetext.len_s = 0;
   usercodetext.Nchar_cur_line = 0;
 
 #ifdef PYTHONHOMEPATH
+#ifdef HAVE_PYTHON_UNICODE
+  tmp1 = Py_DecodeLocale(PYTHONHOMEPATH,NULL);
+  Py_SetPythonHome(tmp1);
+  tmp3 = Py_DecodeLocale(PYTHONSEARCHPATH,NULL);
+  Py_SetPath(tmp3);
+#else
   Py_SetPythonHome(PYTHONHOMEPATH);
+  Py_SetPath(PYTHONSEARCHPATH);
+#endif
 #endif
 
+#ifdef HAVE_PYTHON_UNICODE
+  tmp1 = Py_DecodeLocale(c->progname,NULL);
+  Py_SetProgramName(tmp1);
+#else
   Py_SetProgramName(c->progname);
+#endif
   Py_Initialize();
   import_array1(1);
 
@@ -547,7 +563,7 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
 
   /* Compile all of the code supplied by the user */
   py->CompiledUserCode = Py_CompileString(usercodetext.s,"", Py_file_input);
-
+  
   if(py->CompiledUserCode == NULL) {
     fprintf(stderr,"Error compiling the following python code from vartools:\n\n%s\n", usercodetext.s);
     if(PyErr_Occurred() != NULL) {
