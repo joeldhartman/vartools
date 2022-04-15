@@ -413,7 +413,7 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
       if(p->readimagestring)
 	{
 	  for(i=0;i<p->NJD[lc];i++)
-	    p->stringid_idx[0][i] = i;
+	    p->stringid_idx[lc][i] = i;
 	  mysortstringint(p->NJD[lc], MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
 	}
     }

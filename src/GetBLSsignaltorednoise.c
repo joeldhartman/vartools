@@ -38,6 +38,8 @@
 #include "programdata.h"
 #include "functions.h"
 
+#define BLS_NTV_FIELD_LENGTH 5
+
 double getrms(int N, double *t, double *mag, double *sig, double *aveval, double *rmsthy, int *ngood)
 {
   double avesum1, avesum2, avesum3, ave, rmsval, n;
@@ -83,13 +85,71 @@ double getrms(int N, double *t, double *mag, double *sig, double *aveval, double
   return(rmsval);
 }
 
+double getweightedrms(int N, double *t, double *mag, double *sig, double *aveval, double *rmsthy, int *ngood)
+{
+  double avesum1, avesum2, avesum3, ave, rmsval, n;
+  int i;
+  *aveval = -1.;
+  if(N > 0)
+    {
+      avesum1 = 0.;
+      avesum2 = 0.;
+      avesum3 = 0.;
+      n = 0;
+      for(i=0; i<N; i++)
+	{
+	  if(!isnan(mag[i]) && sig[i] > 0.)
+	    {
+	      avesum1 += mag[i]/sig[i]/sig[i];
+	      avesum2 += 1.0/sig[i]/sig[i];
+	      avesum3 += sig[i]*sig[i];
+	      n++;
+	    }
+	}
+      if(n > 0.)
+	{
+	  ave = (avesum1)/(avesum2);
+	  avesum1 = 0.0;
+	  for(i=0; i < N; i++)
+	    {
+	      if(!isnan(mag[i]) && sig[i] > 0.)
+		{
+		  avesum1 += ((mag[i]-ave)*(mag[i]-ave))/sig[i]/sig[i];
+		}
+	    }
+	  *aveval = ave;
+	  if(n > 1.) {
+	    rmsval = sqrt( (avesum1)/((n - 1)*avesum2/n));
+	    *rmsthy = sqrt(avesum3 / (double) n);
+	  } else {
+	    rmsval = -1.;
+	    *rmsthy = -1.;
+	  }
+	  *ngood = n;
+	}
+      else
+	{
+	  *ngood = 0;
+	  *rmsthy = -1.;
+	  rmsval = -1.;
+	}
+    }
+  else
+    {
+      *ngood = 0;
+      *rmsthy = -1.;
+      rmsval = -1.;
+    }
+  return(rmsval);
+}
+
 
 void redwhitenoise(int N, double *t, double *mag, double *sig, double timespan, double *rednoise, double *whitenoise)
 {
   double rmsbinval, rmsbinthy, binaveval, rmsval, rmsthy, aveval, expectedbinrms;
   int ngood, ngoodbin;
   
-  rmsval = getrms(N, t, mag, sig, &aveval, &rmsthy, &ngood);
+  rmsval = getweightedrms(N, t, mag, sig, &aveval, &rmsthy, &ngood);
   rmsbinval = binnedrms(N, t, mag, sig, timespan, &binaveval, &rmsbinthy, &ngoodbin);
   
   expectedbinrms = rmsval * rmsbinthy / rmsthy;
@@ -102,11 +162,11 @@ void redwhitenoise(int N, double *t, double *mag, double *sig, double timespan, 
     *rednoise = 0.;
 }
 
-void subtractbls(int N, double *t, double *mag, double *sig, double P, double q, double depth, double ph1, int *nt, int *Nt, int *nbefore, int *nafter, double qingress, double OOTmag)
+void subtractbls(int N, double *t, double *mag, double *sig, double P, double q, double depth, double ph1, int *nt, int *Nt, int *nbefore, int *nafter, double qingress, double OOTmag, int *ntv)
 {
 
   double t1, t0, ph, f0, phb1, phb2, pha1, pha2, ph2;
-  int maxNt, i, j, k;
+  int maxNt, i, j, k, len, val;
 #ifdef PARALLEL
   int *Npint = NULL;
   int sizeNpint = 0;
@@ -236,13 +296,26 @@ void subtractbls(int N, double *t, double *mag, double *sig, double P, double q,
       if(Npint[i])
 	(*Nt)++;
     }
+
+  if(ntv != NULL) {
+    mysort1int(maxNt,Npint);
+    len = maxNt;
+    (*ntv) = 0;
+    for(i=0; i < BLS_NTV_FIELD_LENGTH; i++) {
+      if(0 < (len-(i+2))) {
+	val = 10*(((float)(Npint[len-(i+2)]))/Npint[len-1]);
+	if(val > 10) val = 9;
+	(*ntv) += pow(10,BLS_NTV_FIELD_LENGTH-(i+1))*val;
+      }
+    }
+  }
 #ifdef PARALLEL
   if(Npint != NULL) free(Npint);
 #endif
 
 }
 
-void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double *sig, double P, double q, double depth, double in1_ph, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rn, double *wn, double *sigtopink, double qingress, double OOTmag)
+void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double *sig, double P, double q, double depth, double in1_ph, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rn, double *wn, double *sigtopink, double qingress, double OOTmag, int *ntv)
 {
 #ifdef PARALLEL
   int size_vec = 0;
@@ -280,7 +353,7 @@ void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double 
   memcpy(magstore,mag,(N * sizeof(double)));
   memcpy(sigstore,sig,(N * sizeof(double)));
   
-  subtractbls(N, tstore, magstore, sigstore, P, q, depth, in1_ph, nt, Nt, Nbefore, Nafter, qingress, OOTmag);
+  subtractbls(N, tstore, magstore, sigstore, P, q, depth, in1_ph, nt, Nt, Nbefore, Nafter, qingress, OOTmag, ntv);
 
   duration = q*P;
 	      

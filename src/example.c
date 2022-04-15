@@ -756,6 +756,27 @@ void example(char *c, ProgramData *p)
 		    "Use -BLS to identify a transit signal in the light curve EXAMPLES/3.transit and fit a Mandel-Agol transit model to it. For the -MandelAgolTransit command we indicate that the initial parameter values should be determined based on the results from the -BLS command. We use a quadratic limb-darkening law, with parameters 0.3471 and 0.3180. We set flags to vary the ephemeris (P and T0), Rp/R*, a/R* and the impact parameter. We do not vary either the eccentricity or argument of periastron. We vary the mean out-of-transit magnitude, and we do not vary either of the limb-darkening coefficients. We do not fit and RV curve or subtract the best-fit model from the light curve. We output the best-fit model to the directory EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/3.transit.mandelagoltransit.model.\n");
       commandfound=1;
     }
+  if(!strcmp(c,"-match"))
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/1 -inputlcformat t:1,mag:2,err:3 \\\n");
+      printtostring(&s,"\t-match file EXAMPLES/dates_tfa matchcolumn t:2 \\\n");
+      printtostring(&s,"\t\taddcolumns imagename:1:string cullmissing \\\n");
+      printtostring(&s,"\t-o EXAMPLES/1_withID.txt columnformat imagename,t,mag,err\n\n");
+      printtostring(&s,"Use the -match command to join the light curve EXAMPLES/1 with the file EXAMPLES/dates_tfa, matching on the time column in each file. Note that the tolerance for matching different times can by adjusted by using the -jdtol option to vartools. Here we use the default tolerance. The imagename string, which is stored in the first column of EXAMPLES/dates_tfa, is then added into the light curve as another light curve column, but because we used the cullmissing keyword, any rows in the input light curve EXAMPLES/1 which do not match a time in the file EXAMPLES/dates_tfa will be removed. The light curve is then output including the imagename column to the file EXAMPLES/1_withID.txt. The first few rows of this file are as follows:\n\n");
+      printtostring(&s,
+		    "M37.0.0167.fits 53725.173920000001 10.085000000000001 0.0011900000000000001\n"
+		    "M37.0.0168.fits 53725.17654 10.0847 0.0014400000000000001\n"
+		    "M37.0.0169.fits 53725.17772 10.0825 0.00123\n"
+		    "M37.0.0170.fits 53725.179409999997 10.081 0.0011900000000000001\n"
+		    "M37.0.0171.fits 53725.180789999999 10.081899999999999 0.0013500000000000001\n"
+		    "M37.0.0172.fits 53725.181960000002 10.081 0.0011900000000000001\n"
+		    "M37.0.0173.fits 53725.183140000001 10.082800000000001 0.00117\n"
+		    "M37.0.0174.fits 53725.184329999996 10.083 0.00114\n"
+		    "M37.0.0175.fits 53725.185510000003 10.0807 0.0011199999999999999\n"
+		    "M37.0.0176.fits 53725.186699999998 10.0844 0.0011999999999999999\n\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-medianfilter",13) && strlen(c) == 13)
     {
       printtostring(&s,

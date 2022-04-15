@@ -133,7 +133,7 @@ c========================================================================
 c
 */
 
-int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag)
+int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout)
 {
   double *y = NULL;
   double *ibi = NULL;
@@ -145,6 +145,7 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
   double tot, rnbtot, *weight;
   double rn, s,t1,f0,p0,ph,ph2,phb1,phb2,pow,rn1,rn3,s3,rn4,rn5;
   double kkmi, kk;
+  double srsum = 0.0;
 
   int kmi, kma,nb1,nbkma,i,j,k,jn1,jn2,jnb,nb2,nsr;
 
@@ -316,6 +317,9 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 	      rn1 = (double) kk;
 	      rn4 = (double) k;
 	      pow = s*s/(rn1*(1. - rn1));
+	      if(s > 0. && srsumout != NULL) {
+		srsum += sqrt(pow);
+	      }
 	      if(s > 0. && pow >= powerplus)
 		{
 		  powerplus = pow;
@@ -332,6 +336,10 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 	    }
 	}
     }
+  if(srsumout != NULL) {
+    srsum = srsum / (double) kma;
+    *srsumout = srsum;
+  }
   powerplus = sqrt(powerplus);
   *bpow = powerplus;
   powerminus = sqrt(powerminus);
@@ -359,7 +367,7 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
   *chisqrminus = -bpowminus*bpowminus*sumweights;
 
   *fraconenight = getfrac_onenight(n, t, u, v, e, period[0], *depth, *qtran, (t[0] + ((*in1_ph))*(*period)), timezone);
-  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, period[0], *qtran, *depth, *in1_ph, nt, Nt, Nbefore, Nafter, rednoise, whitenoise, sigtopink,*qingress,*OOTmag);
+  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, period[0], *qtran, *depth, *in1_ph, nt, Nt, Nbefore, Nafter, rednoise, whitenoise, sigtopink,*qingress,*OOTmag,NULL);
 
 
   //output the model light curve if asked to
@@ -443,7 +451,7 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 /* This version adjusts the qmin and qmax according the period using a specified rmin and rmax, it assumes that for P in days and R in solar radii that q is given by:
 q = 0.076 * R**(2/3) / P**(2/3)
 */
-int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag)
+int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout)
 {
   double *y = NULL;
   double *ibi = NULL;
@@ -461,6 +469,7 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
   double rminpow, rmaxpow, Ppow;
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile2;
+  double srsum = 0.0;
 
   nbmax = 2*nb;
 
@@ -633,6 +642,9 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
 	      rn1 = (double) kk;
 	      rn4 = (double) k;
 	      pow_ = s*s/(rn1*(1. - rn1));
+	      if(s > 0. && srsumout != NULL) {
+		srsum += sqrt(pow_);
+	      }
 	      if(s > 0. && pow_ >= powerplus)
 		{
 		  powerplus = pow_;
@@ -649,6 +661,10 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
 	    }
 	}
     }
+  if(srsumout != NULL) {
+    srsum = srsum / (double) kma;
+    *srsumout = srsum;
+  }
   powerplus = sqrt(powerplus);
   *bpow = powerplus;
   powerminus = sqrt(powerminus);
@@ -675,7 +691,7 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
   *chisqrminus = -bpowminus*bpowminus*sumweights;
 
   *fraconenight = getfrac_onenight(n, t, u, v, e, period[0], *depth, *qtran, (t[0] + ((*in1_ph))*(*period)), timezone);
-  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, period[0], *qtran, *depth, *in1_ph, nt, Nt, Nbefore, Nafter, rednoise, whitenoise, sigtopink, *qingress, *OOTmag);
+  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, period[0], *qtran, *depth, *in1_ph, nt, Nt, Nbefore, Nafter, rednoise, whitenoise, sigtopink, *qingress, *OOTmag,NULL);
 
   //output the model light curve if asked to
   if(omodel)

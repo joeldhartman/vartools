@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.39], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.40], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])

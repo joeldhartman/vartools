@@ -218,6 +218,12 @@ void error(int errflag)
     case ERR_BADVARIABLETYPE_RESTORELCCOMMAND:
       fprintf(stderr,"Error: the -restorelc command can only be used on light curve type vectors.\n");
       exit(ERR_BADVARIABLETYPE_RESTORELCCOMMAND);
+    case ERR_MATCHCOMMAND_INLISTCOLUMNNOTPOSITIVE:
+      fprintf(stderr,"Error: the column to read from the input list to find match files for the -match command must be positive.\n");
+      exit(ERR_MATCHCOMMAND_INLISTCOLUMNNOTPOSITIVE);
+    case ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE:
+      fprintf(stderr,"Error: the matchcolumn to use for matching with the -match command must be positive.\n");
+      exit(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
@@ -403,6 +409,14 @@ void error2(int errflag, char *s)
     case ERR_TFATEMPLATEFITSREADERROR:
       fprintf(stderr,"Error - an error was encountered in attempting to read the TFA template fits file \"%s\"\n",s);
       exit(ERR_TFATEMPLATEFITSREADERROR);
+      break;
+    case ERR_MISSING_MATCHFILE_HEADERNAME:
+      fprintf(stderr,"No column with the name %s is found in a match file supplied to a -match command.\n", s);
+      exit(ERR_MISSING_MATCHFILE_HEADERNAME);
+      break;
+    case ERR_MATCHCOMMAND_BADMATCHVARIABLE:
+      fprintf(stderr,"Error cannot match to the light curve on the variable %s. This variable must already have been defined, and initialized for the light curve.\n", s);
+      exit(ERR_MATCHCOMMAND_BADMATCHVARIABLE);
       break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");

@@ -177,8 +177,9 @@
 #define CNUM_RESTORETIMES 54
 #define CNUM_FFT 55
 #define CNUM_R 56
+#define CNUM_MATCHCOMMAND 57
 
-#define TOT_CNUMS 56
+#define TOT_CNUMS 57
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -678,12 +679,24 @@ typedef struct {
   char ojdcurvesuffix[15];
   double jdstep;
   int correctlc;
+  int extraparams;
   int fittrap;
   int nobinnedrms;
   int freqsteptype;
   int adjust_qmin_mindt;
   int reduce_nb;
   int reportharmonics;
+  double **srsum, **ressig, **dipsig, **snrextra, **srshift, **srsig, **dsp, **dspg;
+  double **freqlow, **freqhigh;
+  double **logprob, **peakarea, **peakmean, **peakdev, **lomblog;
+  int **ntv;
+  double **gezadsp, **ootsig, **trsig, **ootdftf, **ootdfta;
+  double **binsignaltonoise, **maxphasegap, **depth1_2tran, **depth2_2tran, **delchi2_2tran;
+  double **sr_sec, **srsum_sec, **q_sec, **epoch_sec, **H_sec, **L_sec, **depth_sec;
+  int **nt_sec, **Nt_sec;
+  double **sigtopink_sec, **deltachi2transit_sec, **binsignaltonoise_sec;
+  double **phaseoffset_sec, **harmmean, **harmA, **harmB, **fundA, **fundB, **harmamp;
+  double **harmdeltachi2;
 } _Bls;
 
 typedef struct {
@@ -1658,6 +1671,47 @@ typedef struct {
 #endif
 
 typedef struct {
+  int sizevec;
+  int Npoints;
+  int datatype;
+  int incol;
+  char *format;
+  void *dataptr;
+} _MatchData;
+
+typedef struct {
+  int cnum;
+  char *inputfilename;
+  int inlistcolumn;
+  int Ninlist;
+  char **inputfilenamelist;
+  char *opencommand;
+  int Nskip;
+  int Nskipchar;
+  char *skipchars;
+  int delimtype;
+  char delimchar;
+  char *delimstring;
+  int matchcolumn;
+  char *matchcolumnvarname;
+  char *matchcolumn_header_name;
+  int getmatchcolumnfromheader;
+  _Variable *matchvar;
+  int Naddvars;
+  _Variable **addvars;
+  char **addvar_varnames;
+  int *addvar_columns;
+  int *addvar_datatypes;
+  char **addvar_formats;
+  char **addvar_incolumn_header_names;
+  int getcolumnsfromheader;
+  int missingmethod;
+  double missingvalue;
+  _MatchData *matchdata;
+  int *matchdata_sortindx;
+} _MatchCommand;
+
+typedef struct {
   int cnum;
   int require_sort;
   int require_distinct;
@@ -1721,6 +1775,7 @@ typedef struct {
   _PythonCommand *PythonCommand;
   _RCommand *RCommand;
   _FFT *FFT;
+  _MatchCommand *MatchCommand;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

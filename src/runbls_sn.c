@@ -47,6 +47,14 @@
 #define MAXSTRINGLENGTH 512
 #define SRVALSSIZE 400000
 
+#define BLS_PEAK_EPSILON 2.0
+#define BLS_SR_POLY_ORDER 0
+#define BLS_Q_OVERSHOOT 0.2
+#define BLS_N_OTFREQS 5
+
+#define BLS_DFT_F0  0.125
+#define BLS_DFT_F1  8.0
+
 #ifdef MAX_
 #undef MAX_
 #endif
@@ -353,6 +361,849 @@ double subtract_binnedrms(int N, double *mag, double bintime, double *aveval, in
   return(rmsval);
 }
 
+/* This function cuts out the transit from a light curve */
+
+void BLSCalcCutTransit(int *N, double *t, double *mag, double *sig, double *sig2, double *weight, double P, double T0, double q)
+{
+  double ph;
+  double ph0, ph1, sumweight;
+  int i, j, k;
+  ph0 = q/2.;
+  ph1 = 1. - (q/2.);
+  sumweight = 0.;
+  for(i=0, j = 0; i < (*N); i++)
+    {
+      ph = (t[i] - T0)/P - floor((t[i] - T0)/P);
+      if(ph > ph0 && ph < ph1)
+	{
+	  if(j != i)
+	    {
+	      t[j] = t[i];
+	      mag[j] = mag[i];
+	      sig[j] = sig[i];
+	      sig2[j] = sig[i];
+	      weight[j] = weight[i];
+	      sumweight += weight[j];
+	    }
+	  j++;
+	}
+    }
+  *N = j;
+  for(i=0;i<j;i++)
+    weight[i] = weight[i]/sumweight;
+}
+
+
+void BLSCalcFitTwoTransitsHalfFreq(int n, double *t, double *mag, double *sig, double f, double q, double epoch, double Hin, double Lin, double *Hout, double *L1out, double *L2out, double *delchi2)
+{
+  /* This function takes the frequency, transit duration and epoch 
+     from a given bls run and fits a two-transit light curve with half 
+     the frequency, phase separations of 0.5 and fixed, equal, durations. 
+     It returns the depths of the primary and secondary transits as well as 
+     the statistical significance (from delta-chi2) of the improvement in 
+     fitting two transits instead of a single transit */
+  
+  int i, i1_1, i2_1, i1_2, i2_2, j, k;
+
+  double sum1_1, sum2_1, sum1_2, sum2_2, sum1_3, sum2_3, sum3_1, sum3_3, tmin, P, ph, q2, variance, sumweights;
+
+  tmin = t[0];
+  sumweights = 1.0/sig[0]/sig[0];
+
+  /* Get the minimum time, don't assume the light curve is sorted */
+  for(i=1;i<n;i++)
+    {
+      if(t[i] < tmin)
+	tmin = t[i];
+      sumweights += 1.0/sig[i]/sig[i];
+    }
+  
+  P = 1./f;
+  while (epoch > tmin)
+    epoch -= P;
+  
+  /* double the period */
+  q = q/2.;
+  f = f/2.;
+
+  q2 = 0.5 + q;
+
+  sum1_1 = sum2_1 = sum1_2 = sum2_2 = sum1_3 = sum2_3 = sum3_3 = 0.;
+
+  for(i=0;i<n;i++)
+    {
+      /* Check if this point is in either of the transits */
+      ph = (t[i] - epoch)*f;
+      ph -= floor(ph);
+      
+      if(ph < q)
+	{
+	  /* This point is in the primary transit */
+	  sum1_1 += mag[i]/sig[i]/sig[i];
+	  sum2_1 += 1.0/sig[i]/sig[i];
+	}
+      else if(ph >= 0.5 && ph < q2)
+	{
+	  /* This point is in the secondary transit */
+	  sum1_2 += mag[i]/sig[i]/sig[i];
+	  sum2_2 += 1.0/sig[i]/sig[i];
+	}
+      else
+	{
+	  /* This point is not in transit */
+	  sum1_3 += mag[i]/sig[i]/sig[i];
+	  sum2_3 += 1.0/sig[i]/sig[i];
+	  sum3_3 += mag[i]*mag[i]/sig[i]/sig[i];
+	}
+    }
+
+  (*L1out) = sum1_1 / sum2_1;
+  if(sum2_2 > 0.)
+    (*L2out) = sum1_2 / sum2_2;
+  else
+    (*L2out)= 0.;
+  (*Hout) = sum1_3 / sum2_3;
+  Hin = (*Hout);
+  Lin = (sum1_1 + sum1_2) / (sum2_1 + sum2_2);
+
+  variance = sum3_3/sum2_3 - (*Hout)*(*Hout);
+  
+  /* Get the chi2 for the previous and new models */
+  sum1_1 = sum2_1 = sum1_2 = sum2_2 = sum3_1 = 0.;
+
+  for(i=0;i<n;i++)
+    {
+      /* Check if this point is in either of the transits */
+      ph = (t[i] - epoch)*f;
+      ph -= floor(ph);
+      
+      if(ph < q)
+	{
+	  /* This point is in the primary transit */
+	  sum1_1 += (mag[i] - (*L1out))*(mag[i] - (*L1out))/sig[i]/sig[i];
+	  sum2_1 += (mag[i] - Lin)*(mag[i] - Lin)/sig[i]/sig[i];
+	}
+      else if(ph >= 0.5 && ph < q2)
+	{
+	  /* This point is in the secondary transit */
+	  sum1_1 += (mag[i] - (*L2out))*(mag[i] - (*L2out))/sig[i]/sig[i];
+	  sum2_1 += (mag[i] - Lin)*(mag[i] - Lin)/sig[i]/sig[i];
+	}
+      else
+	{
+	  /* This point is not in transit */
+	  sum1_1 += (mag[i] - (*Hout))*(mag[i] - (*Hout))/sig[i]/sig[i];
+	  sum2_1 += (mag[i] - Hin)*(mag[i] - Hin)/sig[i]/sig[i];
+	}
+    }
+  if(variance > 0.)
+    (*delchi2) = (sum1_1 - sum2_1);
+  else
+    (*delchi2) = 0.;
+}
+
+
+void BLSCalcFDFT(double fmin,
+		 double fmax, 
+		 int fn, 
+		 double* t, 
+		 double* m, 
+		 double* w,
+		 int len,
+		 double **freqout,
+		 double **amplout,
+		 double **phaseout,
+		 double **specwin)
+{
+  double f, ph, df, sumr, sumi;
+  int i, j;
+  double *sph, *cph, *sdph, *cdph, cp,sp;
+  
+  if(len <= 0 || fn <= 0)
+    return;
+
+  df=(fmax-fmin)/(fn-1);
+
+  if((sph = (double *) malloc(len*sizeof(double))) == NULL ||
+     (cph = (double *) malloc(len*sizeof(double))) == NULL ||
+     (sdph = (double *) malloc(len*sizeof(double))) == NULL ||
+     (cdph = (double *) malloc(len*sizeof(double))) == NULL) {
+    fprintf(stderr,"Memory Allocation Error\n");
+    exit(3);
+  }
+
+  for(j=0; j<len; j++){
+    sph[j] = sin(fmin*2*M_PI*t[j]);
+    cph[j] = cos(fmin*2*M_PI*t[j]);
+    sdph[j] = sin(df*2*M_PI*t[j]);
+    cdph[j] = cos(df*2*M_PI*t[j]);
+  }
+
+  if(amplout != NULL){
+    if((*amplout = (double *) malloc(fn*sizeof(double))) == NULL ||
+       (*freqout = (double *) malloc(fn*sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
+    if(phaseout != NULL) {
+      if((*phaseout = (double *) malloc(fn*sizeof(double))) == NULL) {
+	fprintf(stderr,"Memory Allocation Error\n");
+	exit(3);
+      }
+    }
+    for(i=0; i<fn; i++){
+      f=fmin+df*i;
+      (*freqout)[i] = f;
+      sumr=0.0;
+      sumi=0.0;
+      for(j=0; j<len; j++){
+	cp=cph[j];
+	sp=sph[j];
+	sumr+=w[j]*m[j]*cp;
+	sumi+=w[j]*m[j]*sp;
+	cph[j]=cp*cdph[j]-sp*sdph[j];
+	sph[j]=cp*sdph[j]+sp*cdph[j];
+      }
+      (*amplout)[i] = 2.0*sqrt(sumr*sumr+sumi*sumi);
+      if(phaseout != NULL) {
+	(*phaseout)[i] = atan2(sumi, sumr);
+      }
+    }
+  }
+
+  if(specwin != NULL){
+    if((*specwin = (double *) malloc(fn*sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
+    if(amplout == NULL) {
+      if((*freqout = (double *) malloc(fn*sizeof(double))) == NULL) {
+	fprintf(stderr,"Memory Allocation Error\n");
+	exit(3);
+      }
+    }
+    for(i=0; i<fn; i++){
+      f=fmin+df*i;
+      if(amplout == NULL) {
+	(*freqout)[i] = f;
+      }
+      f=f*2*M_PI;
+      sumr=0.0;
+      sumi=0.0;
+      for(j=0; j<len; j++){
+	sumr+=cos(f);
+	sumi+=sin(f);
+      }
+      (*specwin)[i] = sqrt(sumr*sumr+sumi*sumi);
+    }
+  }
+  free(sph);
+  free(cph);
+  free(sdph);
+  free(cdph);
+
+}
+
+
+double BLSCalcLomb(double *t, double *m, double *sig, double *freq, int len, int fn)
+{
+  double wsum, mavg, w2sum, m2sum, wscalefac, wscalefac2;
+  double P, Pmax, sig2, tau, om, num, nom, yy;
+  double s,c, sumc, sums, expp, f, cdf, zval, expy, effm, outprob; 
+  int i, n, ngood = 0;
+
+  for(i=0; i < len; i++) {
+    if(!isnan(m[i]) && !isnan(sig[i]) && sig[i] > 0)
+      ngood++;
+  }
+
+  Pmax = 0.0;
+  for(n=0; n<fn; n++){
+    P = gls_oneperiod(t, m, sig, len, (1.0/freq[n]));
+    if(P > Pmax) Pmax = P;
+  }
+  effm = log10(fn);
+  if(Pmax == 0.0) outprob = 0.0;
+  else {
+    zval = (ngood - 3)*(Pmax/(1.0 - Pmax))/2.0;
+    expy = -(ngood - 3)*log10((1.0 + (2.0*zval)/(ngood - 3)))/2.0;
+    outprob = effm + expy;
+    if(outprob > -2.0) {
+      expy = pow(((1.0 + (2.0+zval)/(ngood - 3))),(-(ngood-3)/2.0));
+      outprob = 1.0 - pow(1.0-expy,fn);
+      outprob = log10(outprob);
+    }
+  }
+  return(outprob);
+}
+
+void BLSCalcProb(double *mag,
+		 int Nt,
+		 double *SR,
+		 int Nf,
+		 double *prob)
+{
+  double meanval;
+  double esterr2, tmp, prmax;
+  int N, len, i;
+
+  meanval = 0.;
+  esterr2 = 0.;
+  for(i=0; i < Nt; i++) {
+    meanval += mag[i];
+  }
+  meanval = meanval / ((double) Nt);
+  for(i=0; i < Nt; i++) {
+    esterr2 += (mag[i] - meanval)*(mag[i] - meanval);
+  }
+  esterr2 = esterr2 / ((double) (Nt-1));
+  for(i=0; i<Nf; i++){
+    tmp=0.5*Nt*SR[i]/esterr2; /*We hold the logarithm of probability, cause it
+				is easier to handle*/
+    if((!i) || (tmp>prmax)) /*We find the maximum logprob to avoid later the overflow 
+			      caused by expressions like exp(1000)*/
+      prmax=tmp;
+    prob[i] = tmp;
+  }
+
+  tmp=0.0;
+  for(i=0; i<Nf; i++) 
+    tmp+=exp(prob[i]-prmax);/*TODO: could be not so simple 
+			     when freq distribution is uneven*/
+  tmp=log(tmp)+prmax;
+  for(i=0; i<Nf; i++) 
+    prob[i]=prob[i]-tmp;
+}
+		     
+
+double * BLSSRPolysub(double *freq,
+		      double *SR,
+		      int Nf,
+		      int order)
+{
+  double *SRshift;
+  double tmpval;
+  if(Nf <= 0) return NULL;
+
+  if((SRshift = (double *) malloc(Nf * sizeof(double))) == NULL) {
+    fprintf(stderr,"Memory Allocation Error\n");
+    exit(3);
+  }
+  memcpy(SRshift, SR, Nf*sizeof(double));
+  tmpval = fitpoly(Nf, freq, SRshift, NULL, order, 1, NULL, NULL);
+  return(SRshift);
+}
+
+
+void BLSPeakArea(double *freq,
+		 double *prob,
+		 int N,
+		 int idx,
+		 double epsilon,
+		 int *idxlow, 
+		 int *idxhigh,
+		 double *freqlow,
+		 double *freqhigh,
+		 double *peakarea,
+		 double *peakmean,
+		 double *peakdeviance)
+{
+  double sum, df, moment1, moment2, tmp;
+  int len, idx1, idx2;
+  int tmpidx;
+
+  sum=0.0;
+  moment1=0.0;
+  moment2=0.0;
+  idx1=idx;
+  while((idx1>0) && (prob[idx1]>epsilon)){
+    if((idx1+1)<N) df=fabs(freq[idx1+1]-freq[idx1]);
+    else df=0.0;
+    tmp=exp(prob[idx1]);
+    sum+=tmp*df;
+    moment1+=tmp*freq[idx1]*df;
+    moment2+=tmp*freq[idx1]*freq[idx1]*df;
+    idx1--;
+  }
+  idx2=idx+1;
+  while((idx2<N) && (prob[idx2]>epsilon)){
+    if((idx2+1)<N) df=fabs(freq[idx2+1]-freq[idx2]);
+    else df=0.0;
+    tmp=exp(prob[idx2]);
+    sum+=tmp*df;
+    moment1+=tmp*freq[idx2]*df;
+    moment2+=tmp*freq[idx2]*freq[idx2]*df;
+    idx2++;
+  }
+  *idxlow=MIN_(idx, idx1+1);
+  *idxhigh=MAX_(idx, idx2-1);
+  *freqlow=freq[*idxlow];
+  *freqhigh=freq[*idxhigh];
+  if(*freqlow > *freqhigh) {
+    tmp = *freqlow;
+    *freqlow = *freqhigh;
+    *freqhigh = tmp;
+    tmpidx = *idxlow;
+    *idxlow = *idxhigh;
+    *idxhigh = tmpidx;
+  }
+  *peakarea=sum/((*freqhigh)-(*freqlow));
+  *peakmean=moment1/sum;
+  *peakdeviance=sqrt(moment2/sum-(moment1*moment1)/(sum*sum));
+
+}
+
+
+
+void GetExtraBLSParameters1(int n, double *mag, int nf,
+			    double *srnoshiftvals, double **srshiftvals, 
+			    double *probvals,
+			    double *freqarray, _Bls *Bls, int lcnum, int Npeak,
+			    int *best_id)
+{
+  int i, indxlow, indxhigh, ll;
+  char *delidx;
+  double val1, val2, val3;
+  double srsig;
+  double meanprob = 0.0;
+  double probsig = 0.0;
+
+  /* Get the peak areas and then the sr standard deviation after cutting 
+     the peaks */
+  if((delidx = (char *) malloc(nf * sizeof(char))) == NULL) {
+    fprintf(stderr,"Memory Allocation Error\n");
+    exit(3);
+  }
+  for(i=0; i < nf; i++) delidx[i] = 0;
+  BLSCalcProb(mag, n, srnoshiftvals, nf, probvals);
+  for(i=0; i < nf; i++) meanprob += probvals[i];
+  meanprob = meanprob/((double) nf);
+  for(i=0; i < nf; i++) probsig += (probvals[i]-meanprob)*(probvals[i]-meanprob);
+  probsig = sqrt(probsig/((double) (nf-1)));
+  *srshiftvals = BLSSRPolysub(freqarray,
+			      srnoshiftvals,
+			      nf,
+			      BLS_SR_POLY_ORDER);
+  for(i=0; i < Npeak; i++) {
+    Bls->logprob[lcnum][i] = probvals[best_id[i]];
+    BLSPeakArea(freqarray,
+		probvals,
+		nf,
+		best_id[i],
+		BLS_PEAK_EPSILON*probsig + meanprob,
+		&indxlow,
+		&indxhigh,
+		&(Bls->freqlow[lcnum][i]),
+		&(Bls->freqhigh[lcnum][i]),
+		&(Bls->peakarea[lcnum][i]),
+		&(Bls->peakmean[lcnum][i]),
+		&(Bls->peakdev[lcnum][i]));
+    for(ll=MIN_(indxlow,indxhigh);ll<=MAX_(indxlow,indxhigh);ll++){
+      delidx[ll] = 1;
+    }
+  }
+  val1 = 0.0;
+  val2 = 0.0;
+  ll = 0;
+  for(i=0; i < nf; i++) {
+    if(!delidx[i]) {
+      val1 += (double) ((*srshiftvals)[i]);
+      ll++;
+    }
+  }
+  val1 = val1/((double) ll);
+  for(i=0; i < nf; i++) {
+    if(!delidx[i]) {
+      val3 = (double) ((*srshiftvals)[i] - val1);
+      val2 += val3*val3;
+    }
+  }
+  if(ll > 1) {
+    srsig = sqrt((double) (val2/((double) (ll-1))));
+  }
+  else {
+    srsig = 0.0;
+  }
+  for(i=0; i < Npeak; i++) {
+    Bls->srsig[lcnum][i] = srsig;
+    Bls->srshift[lcnum][i] = (*srshiftvals)[best_id[i]];
+    Bls->snrextra[lcnum][i] = fabs(Bls->srshift[lcnum][i])/srsig;
+  }
+  free(delidx);
+}
+
+void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P, double q, double depth, double in1_ph, double qingress, double OOTmag, _Bls *Bls, int lcnum, int peaknum)
+{
+  double mavg, w2sum, w, r, r2, s, s2, m2avg, wsum;
+  double t0, t1, f0;
+  double ph1, ph2, phb1, phb2, tmp, tmp2;
+  double *ottime = NULL, *otphase = NULL, *otmagn = NULL, *otweight = NULL;
+  double *otsig = NULL;
+  double *tmpphase = NULL;
+  double otfreqs[BLS_N_OTFREQS];
+  int N_ot = 0;
+
+  int i, j;
+ 
+  double Lvar, Hvar, ressig, dipsig, snr, dsp, lombsig;
+  double gezadsp;
+
+  double *otfreqsdft = NULL;
+  double *dftampl = NULL;
+
+  double maxamp, maxfreq;
+
+  double H_2tran, L1_2tran, L2_2tran, delchi2_2tran;
+  double maxph;
+
+  int Ncut;
+  double *tcut;
+  double *magcut;
+  double *sigcut1; 
+  double *magcutkillharm;
+  double *sigcut2;
+  double *weightcut;
+  double Tc, harmamp;
+
+  double *harmA, *harmB;
+  double fundA, fundB;
+  double harmmean;
+
+  int ngood1, ngood2;
+  int binj;
+
+  double *u, *v, bt0sec, bpowsec, depthsec, qtransec;
+  int in1sec, in2sec;
+  double in1_ph_sec, in2_ph_sec, chisqrplussec, chisqrminussec;
+  double meanmagvalsec, fraconenighsec;
+  int ntsec, Ntsec, Nbeforesec, Naftersec;
+  double rednoisesec, whitenoisesec, sigtopinksec, qingresssec, ootmagsec;
+  double srsumsec;
+  double ph;
+
+  double *binmag = NULL;
+  int *Nbin = NULL;
+  int Nbins;
+  double binval1, binval2;
+
+  if(n <= 0) return;
+
+  harmA = (double *) malloc(sizeof(double));
+  harmB = (double *) malloc(sizeof(double));
+  
+  Nbins = ceil(1. / q) + 1;
+  if(Nbins > 0) {
+    if((Nbin = (int *) malloc(Nbins * sizeof(int))) == NULL ||
+       (binmag = (double *) malloc(Nbins * sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
+    for(i = 0; i < Nbins; i++) {
+      Nbin[i] = 0;
+      binmag[i] = 0.;
+    }
+  }
+
+  if((ottime = (double *) malloc(n * sizeof(double))) == NULL ||
+     (otphase = (double *) malloc(n * sizeof(double))) == NULL ||
+     (otmagn = (double *) malloc(n * sizeof(double))) == NULL ||
+     (otweight = (double *) malloc(n * sizeof(double))) == NULL ||
+     (otsig = (double *) malloc(n * sizeof(double))) == NULL ||
+     (tmpphase = (double *) malloc(n * sizeof(double))) == NULL ||
+     (tcut = (double *) malloc(n * sizeof(double))) == NULL ||
+     (magcut = (double *) malloc(n * sizeof(double))) == NULL ||
+     (magcutkillharm = (double *) malloc(n * sizeof(double))) == NULL ||
+     (sigcut1 = (double *) malloc(n * sizeof(double))) == NULL ||
+     (sigcut2 = (double *) malloc(n * sizeof(double))) == NULL ||
+     (u = (double *) malloc(n * sizeof(double))) == NULL ||
+     (v = (double *) malloc(n * sizeof(double))) == NULL ||
+     (weightcut = (double *) malloc(n * sizeof(double))) == NULL) {
+    fprintf(stderr,"Memory Allocation Error\n");
+    exit(3);
+  }
+
+  mavg = 0.0;
+  w2sum = 0.0;
+  wsum = 0.0;
+  for(i=0; i < n; i++) {
+    w = 1.0/sig[i]/sig[i];
+    wsum += w;
+    mavg += w*mag[i];
+    w2sum += w*w;
+  }
+  mavg = mavg/wsum;
+  w2sum = w2sum/wsum/wsum;
+
+  r = 0.0;
+  r2 = 0.0;
+  s = 0.0;
+  s2 = 0.0;
+  m2avg = 0.0;
+  ph1 = in1_ph;
+  t0 = t[0];
+  t1 = t[0] + ph1*P;
+  if(ph1 > 1. + q)
+    t1 = t1 - P;
+  Tc = t1 + P*q/2.0;
+  f0 = 1./P;
+  ph2 = q;
+  phb1 = qingress*q;
+  phb2 = q - qingress*q;
+  
+  Ncut = n;
+
+  for(i=0; i < n; i++) {
+    tcut[i] = t[i];
+    magcut[i] = mag[i];
+    sigcut1[i] = sig[i];
+    sigcut2[i] = sig[i]*sig[i];
+    w = 1.0/sig[i]/sig[i]/wsum;
+    weightcut[i] = w;
+    ph = (t[i] - t1)*f0;
+    j = (int) ((t[i] - t1)*f0);
+    ph = ph - floor(ph);
+    binj = (int) (ph / q);
+    Nbin[binj]++;
+    binmag[binj] += mag[i];
+    tmpphase[i] = ph;
+    if(ph < q) {
+      if(ph >= phb1 && ph <= phb2) {
+	tmp = mag[i] - OOTmag - depth;
+      } else if(ph < phb1) {
+	tmp = mag[i] - OOTmag - ph*depth/q/qingress;
+      } else {
+	tmp = mag[i] - OOTmag - (q - ph)*depth/q/qingress;
+      }
+    } else {
+      tmp = mag[i] - OOTmag;
+    }
+    m2avg += w*tmp*tmp;
+    if(ph < q) {
+      r += w;
+      s += w*tmp;
+      r2 += w*w;
+      s2 += w*tmp*tmp;
+    } else if((ph > q*(1.0 + BLS_Q_OVERSHOOT))&&(ph<(1.0-q*BLS_Q_OVERSHOOT))) {
+      ottime[N_ot] = t[i];
+      otphase[N_ot] = ph;
+      otmagn[N_ot] = mag[i];
+      otweight[N_ot] = w;
+      otsig[N_ot] = sig[i];
+      N_ot++;
+    }
+  }
+  Lvar = (r*s2-s*s)/(r*r-r2);
+  Hvar=((m2avg-s2)*(1.0-r)-s*s)/((1.0-r)*(1.0-r) - (w2sum-r2));
+  ressig = sqrt(Lvar*r+Hvar*(1.0-r));
+  dipsig = sqrt(Lvar*r2/(r*r)+Hvar*(w2sum-r2)/((1.0-r)*(1.0-r)));
+  dsp=fabs(depth/dipsig);
+
+  for(i=0; i < BLS_N_OTFREQS; i++) {
+    otfreqs[i] = f0*(i+1);
+  }
+
+  lombsig = BLSCalcLomb(ottime, otmagn, otsig, otfreqs, N_ot, BLS_N_OTFREQS);
+
+  BLSCalcFDFT(BLS_DFT_F0, BLS_DFT_F0, n, otphase, otmagn, otweight, N_ot, 
+	      &otfreqsdft, 
+	      &dftampl, NULL, NULL);
+  
+  maxamp = dftampl[0];
+  maxfreq = otfreqsdft[0];
+  for(i=0; i < n; i++) {
+    if(dftampl[i] > maxamp) {
+      maxamp = dftampl[i];
+      maxfreq = otfreqsdft[i];
+    }
+  }
+  gezadsp = fabs(depth)/sqrt(Hvar+maxamp*maxamp);
+
+  Bls->ressig[lcnum][peaknum] = ressig;
+  Bls->dipsig[lcnum][peaknum] = dipsig;
+  Bls->dsp[lcnum][peaknum] = dsp;
+  Bls->dspg[lcnum][peaknum] = fabs(depth)/sqrt(Hvar);
+  Bls->lomblog[lcnum][peaknum] = lombsig;
+  Bls->gezadsp[lcnum][peaknum] = gezadsp;
+  Bls->ootsig[lcnum][peaknum] = sqrt(Hvar);
+  Bls->trsig[lcnum][peaknum] = sqrt(Lvar);
+  Bls->ootdftf[lcnum][peaknum] = maxfreq;
+  Bls->ootdfta[lcnum][peaknum] = maxamp;
+
+  /* Now calculate the parameters generated by the program blspostprocess */
+
+  /* Get the binned signal to noise */
+  binval1 = 0.; binval2 = 0.;
+  for(i=1, j=0; i < Nbins; i++)
+    {
+      if(Nbin[i] > 0) {
+	binmag[i] /= Nbin[i];
+	binval1 += binmag[i]*binmag[i];
+	binval2 += binmag[i];
+	j++;
+      }
+    }
+
+  if(binval1 > 0 && binval1 != binval2*binval2) {
+    Bls->binsignaltonoise[lcnum][peaknum] = depth/sqrt(binval1/j - (binval2*binval2/j/j));
+  } else {
+    Bls->binsignaltonoise[lcnum][peaknum] = -1.;
+  }
+  
+  /* Try fitting 2 transits with double the period */
+  BLSCalcFitTwoTransitsHalfFreq(n, t, mag, sig, f0, q, t1, OOTmag, 
+				OOTmag+depth, 
+				&H_2tran, &L1_2tran, &L2_2tran, &delchi2_2tran);
+
+  Bls->depth1_2tran[lcnum][peaknum] = L1_2tran - H_2tran;
+  Bls->depth2_2tran[lcnum][peaknum] = L2_2tran - H_2tran;
+  Bls->delchi2_2tran[lcnum][peaknum] = delchi2_2tran;
+
+  /* Find the length in phase of the maximum gap in the phase-folded lc */
+  mysort1(n,tmpphase);
+  maxph = 1.0 + tmpphase[0] - tmpphase[n-1];
+  for(i=1; i < n; i++) {
+    tmp = tmpphase[i] - tmpphase[i-1];
+    if(tmp > maxph)
+      maxph = tmp;
+  }
+
+  Bls->maxphasegap[lcnum][peaknum] = maxph;
+
+  /* Cut out the transit, fit a harmonic series, and run a
+     fixed-period BLS search */
+  BLSCalcCutTransit(&Ncut, tcut, magcut, sigcut1, sigcut2, weightcut, P, Tc, q);
+
+  memcpy(magcutkillharm, magcut, Ncut*sizeof(double));
+
+  dokillharms(Ncut, tcut, magcutkillharm, sigcut1, 1, &P, 0, 1, 
+	      NULL, NULL, &harmA, &harmB, &fundA, &fundB, &harmmean, 0, NULL, 
+	      &harmamp, 0.0, KILLHARM_OUTTYPE_DEFAULT, -1.0);
+
+  Bls->harmdeltachi2[lcnum][peaknum] =
+    chi2(Ncut, tcut, magcutkillharm, sigcut1, &tmp, &ngood1) -
+    chi2(Ncut, tcut, magcut, sigcut1, &tmp2, &ngood2);
+
+  Bls->harmamp[lcnum][peaknum] = harmamp;
+
+  Bls->harmA[lcnum][peaknum] = harmA[0];
+  Bls->harmB[lcnum][peaknum] = harmB[0];
+  Bls->fundA[lcnum][peaknum] = fundA;
+  Bls->fundB[lcnum][peaknum] = fundB;
+  Bls->harmmean[lcnum][peaknum] = harmmean;
+
+  /* Run fix period BLS */
+  if(!Bls->rflag) {
+    eeblsfixper(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins, Bls->qmin,
+		Bls->qmax, &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
+		&in2sec,
+		&in1_ph_sec, &in2_ph_sec, &chisqrplussec,
+		&chisqrminussec, &meanmagvalsec, Bls->timezone, &fraconenighsec,
+		0, NULL, 0, 0, &ntsec, &Ntsec, &Nbeforesec, &Naftersec,
+		&rednoisesec, &whitenoisesec, &sigtopinksec, 1,
+		&qingresssec, &ootmagsec, &srsumsec);
+  } else {
+    eeblsfixper_rad(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins, Bls->rmin,
+		Bls->rmax, &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
+		&in2sec,
+		&in1_ph_sec, &in2_ph_sec, &chisqrplussec,
+		&chisqrminussec, &meanmagvalsec, Bls->timezone, &fraconenighsec,
+		0, NULL, 0, 0, &ntsec, &Ntsec, &Nbeforesec, &Naftersec,
+		&rednoisesec, &whitenoisesec, &sigtopinksec, 1,
+		&qingresssec, &ootmagsec, &srsumsec);
+  }
+  Bls->sr_sec[lcnum][peaknum] = bpowsec;
+  Bls->srsum_sec[lcnum][peaknum] = srsumsec;
+  Bls->q_sec[lcnum][peaknum] = qtransec;
+  Bls->epoch_sec[lcnum][peaknum] = bt0sec;
+  Bls->H_sec[lcnum][peaknum] = ootmagsec;
+  Bls->L_sec[lcnum][peaknum] = ootmagsec + depthsec;
+  Bls->depth_sec[lcnum][peaknum] = depthsec;
+  Bls->nt_sec[lcnum][peaknum] = ntsec;
+  Bls->Nt_sec[lcnum][peaknum] = Ntsec;
+  Bls->sigtopink_sec[lcnum][peaknum] = sigtopinksec;
+  Bls->deltachi2transit_sec[lcnum][peaknum] = chisqrplussec;
+  Bls->phaseoffset_sec[lcnum][peaknum] = (bt0sec - Tc)/P - 
+    floor((bt0sec - Tc)/P);
+
+  /* Get the binned signal to noise for the secondary transit */
+  if(Nbin != NULL)
+    free(Nbin);
+  if(binmag != NULL)
+    free(binmag);
+
+  Nbins = ceil(1. / qtransec) + 1;
+  if(Nbins > 0) {
+    if((Nbin = (int *) malloc(Nbins * sizeof(int))) == NULL ||
+       (binmag = (double *) malloc(Nbins * sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n");
+      exit(3);
+    }
+    for(i = 0; i < Nbins; i++) {
+      Nbin[i] = 0;
+      binmag[i] = 0.;
+    }
+  }
+
+  t1 = bt0sec - qtransec*P/2.0;
+  
+  for(i=0; i < Ncut; i++) {
+    ph = (tcut[i] - t1)*f0;
+    ph = ph - floor(ph);
+    binj = (int) (ph / qtransec);
+    Nbin[binj]++;
+    binmag[binj] += magcut[i];
+  }
+  
+  
+  /* Get the binned signal to noise */
+  binval1 = 0.; binval2 = 0.;
+  for(i=1, j=0; i < Nbins; i++)
+    {
+      if(Nbin[i] > 0) {
+	binmag[i] /= Nbin[i];
+	binval1 += binmag[i]*binmag[i];
+	binval2 += binmag[i];
+	j++;
+      }
+    }
+
+  if(binval1 > 0 && binval1 != binval2*binval2) {
+    Bls->binsignaltonoise_sec[lcnum][peaknum] = depth/sqrt(binval1/j - (binval2*binval2/j/j));
+  } else {
+    Bls->binsignaltonoise_sec[lcnum][peaknum] = -1.0;
+  }
+
+
+
+  /* Stopped Working here; need to fill out all the extra BLS parameters, see lc_bls_calc_anal and lc_bls_calc_postproc functions in HATpipe/source/lc/analyse/bls.c */
+  if(otfreqsdft != NULL)
+    free(otfreqsdft);
+  if(dftampl != NULL)
+    free(dftampl);
+  free(ottime);
+  free(otphase);
+  free(otmagn);
+  free(otweight);
+  free(otsig);
+  free(tmpphase);
+  free(tcut);
+  free(magcut);
+  free(magcutkillharm);
+  free(sigcut1);
+  free(sigcut2);
+  free(u);
+  free(v);
+  free(weightcut);
+  free(harmA);
+  free(harmB);
+  if(binmag != NULL)
+    free(binmag);
+  if(Nbin != NULL)
+    free(Nbin);
+  return;
+}
+
+
 
 /* This version of BLS calculates the average magnitude, delta-chi^2 for the best positive and negative dips (as described in Burke et al. 2006), SDE, SR, the transit period, the depth the phases of transit start and end, assuming phase zero occurs at the first observation */
 
@@ -428,7 +1279,7 @@ c========================================================================
 c
 */
 
-int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics)
+int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum)
 {
   double *y;
   double *ibi;
@@ -442,18 +1293,26 @@ int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, 
   int minbin = 5;
   int nbmax, nbtot;
   int nsrvals, nsrvals_minus, test, foundsofar, dumint1;
+  int indxlow, indxhigh;
   double powerplus, powerminus, bpowminus, dumdbl1, dumdbl2, jdtmp;
   double sumweights, phb1, phb2;
   double tot, rnbtot, *weight, sr_minus;
   double rn, s,t1,f0,p0,ph,ph2,pow,rn1,rn3,s3,rn4,rn5;
   double kkmi, kk, allave, allstddev, allave_minus, allstddev_minus, *qtran_array, *depth_array, minbest;
   double *sr_ave, *binned_sr_ave, *binned_sr_sig;
-  int kmi, kma,nb1,nbkma,i,jf,j,k,jn1,jn2,jnb,nb2,nsr,nclippedfreq, *in1_array, *in2_array, *best_id, nbsave;
+  int kmi, kma,nb1,nbkma,i,ll,jf,j,k,jn1,jn2,jnb,nb2,nsr,nclippedfreq, *in1_array, *in2_array, *best_id, nbsave;
+  char *delidx;
   double *p_minus, *bper_array, *sr_ave_minus, *binned_sr_ave_minus, *binned_sr_sig_minus, global_best_sr_ave, global_best_sr_stddev;
+  double *freqarray = NULL;
   double global_best_sr_ave_inv, global_best_sr_stddev_inv;
   double kmisave, kkmisave, kmasave, mindt, qmi_test;
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
+  long double val1, val2, val3;
+  double *probvals = NULL;
+  double *srshiftvals = NULL;
+  double *srnoshiftvals = NULL;
+  int *ntvptr = NULL;
 
   nbmax = 2*nb;
 
@@ -482,11 +1341,19 @@ int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, 
      (binned_sr_sig_minus = (double *) malloc(nf * sizeof(double))) == NULL ||
      (p_minus = (double *) malloc(nf * sizeof(double))) == NULL ||
      (best_id = (int *) malloc(Npeak * sizeof(int))) == NULL)
-
     {
       fprintf(stderr,"Memory Allocation Error\n");
       exit(3);
     }
+  if(Bls->extraparams) {
+    if((freqarray = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (probvals = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (srnoshiftvals = (double *) malloc(nf * sizeof(double))) == NULL)
+      {
+	fprintf(stderr,"Memory Allocation Error\n");
+	exit(3);
+      }
+  }
 
   if(nb > nbmax) {
     error(ERR_BLSNBMAX);
@@ -736,6 +1603,8 @@ the periodogram, and then search it for peaks    *
       qtran_array[jf] = (double)(jn2 - jn1 + 1)/(double)nb;
       depth_array[jf] = powerplus/sqrt(rn3*(1.-rn3));
       bper_array[jf] = p0;
+      if(freqarray != NULL)
+	freqarray[jf] = f0;
       /*      if(powerplus >= *bpow)
 	{
 	  *bpow = powerplus;
@@ -751,6 +1620,17 @@ the periodogram, and then search it for peaks    *
 	  *bperpos = p0;
 	  }*/
     }
+  if(Bls->extraparams) {
+    /* Save a copy of the uncorrected SR values if we need to compute the
+       extra parameters; Note that the code used for the extra parameters
+       is derived from the lc/blsanal tool used by HATNet, in which SR is
+       treated as the square of the SR values computed by this BLS code.
+    */
+    memcpy(srnoshiftvals, p, nf*sizeof(double));
+    for(jf=0;jf<nf;jf++) {
+      srnoshiftvals[jf] = srnoshiftvals[jf]*srnoshiftvals[jf];
+    }
+  }
   if(!nobinnedrms) {
     allstddev = subtract_binnedrms(nf, sr_ave, BIN_FACTOR, &allave, &nclippedfreq, binned_sr_ave, binned_sr_sig);
   }
@@ -808,6 +1688,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
       *bperpos = -1.;
       *chisqrminus = 999999.;
@@ -829,6 +1757,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
@@ -906,7 +1842,7 @@ the periodogram, and then search it for peaks    *
     }
   else if(foundsofar >= 1)
     {
-      /* We have a few peaks, but Npeak of them */
+      /* We have a few peaks, but not Npeak of them */
       mysort3_int(foundsofar,snval,bper,best_id);
       for(j=foundsofar;j<Npeak;j++)
 	{
@@ -924,6 +1860,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
     }
   else
@@ -944,6 +1928,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
       *bperpos = -1.;
       *chisqrminus = 999999.;
@@ -964,6 +1996,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
@@ -989,6 +2029,127 @@ the periodogram, and then search it for peaks    *
 	}
       j--;
     }
+
+  if(Bls->extraparams) {
+
+    /* Manually compute srsum for each peak - this is a bit redundant, but
+       we want to avoid computing a sqrt at each trial point in the BLS 
+       calculation */
+    for(jf=0;jf<Npeak;jf++)
+      {
+	Bls->srsum[lcnum][jf] = 0.0;
+	p0 = bper[jf];
+	if(p0 <= 0) continue;
+	f0 = 1.0 / p0;
+	
+	if(adjust_qmin_mindt) {
+	  qmi_test = mindt*f0;
+	  if(qmi_test > 1) qmi_test = 1.0;
+	  if(qmi_test > qmi) {
+	    if(reduce_nb) {
+	      nb = MIN_(nbsave, ceil(1./(0.5*qmi_test)));
+	    }
+	    kmi = (int) (qmi_test*(double)nb);
+	    if(kmi < 1) kmi = 1;
+	    if(qmi_test > qma)
+	      kma = ((int) (qmi_test*(double)nb)) + 1;
+	    else if(reduce_nb)
+	      kma = ((int) (qma*(double)nb)) + 1;
+	    nb1 = nb;
+	    nbkma = nb+kma;
+	    kkmi = qmi;
+	    if(kkmi < (double) minbin / rn) kkmi = (double) minbin / rn;
+	  } else {
+	    kmi = kmisave; kkmi = kkmisave;
+	    kma = kmasave;
+	    if(reduce_nb)
+	      nb = nbsave;
+	    nb1 = nb;
+	    nbkma = nb+kma;
+	  }
+	}
+      /*
+	c
+	c======================================================
+	c     Compute folded time series with  *p0*  period
+	c======================================================
+	c
+      */
+	for(j=0;j<nb;j++)
+	  {
+	    y[j] = 0.;
+	    ibi[j] = 0.;
+	  }
+	nbtot = 0;
+	for(i=0;i<n;i++)
+	  {
+	    ph = u[i]*f0;
+	    ph -= (int) ph;
+	    j = (int) (nb*ph);
+	    ibi[j] += weight[i];
+	    nbtot++;
+	    y[j] += v[i]*weight[i];
+	  }
+	/*      for(i=0;i<nb;i++)
+		y[i] = ibi[i] * y[i] / rn;
+	*/
+	/*
+	  c
+	  c-----------------------------------------------
+	  c     Extend the arrays  ibi()  and  y() beyond
+	  c     nb   by  wrapping
+	  c
+	*/
+	
+	for(j=nb1;j<nbkma;j++)
+	  {
+	    jnb = j - nb;
+	    ibi[j] = ibi[jnb];
+	    nbtot += ibi[j];
+	    y[j] = y[jnb];
+	  }
+	rnbtot = (double) nbtot;
+	/*
+	  c-----------------------------------------------
+	  c
+	  c===============================================
+	  c     Compute BLS statistics for this period
+	  c===============================================
+	  c
+	*/
+	for(i=0;i<nb;i++)
+	  {
+	    s = 0.;
+	    k = 0;
+	    kk = 0.;
+	    nb2 = i+kma;
+	    for(j=i;j<nb2;j++)
+	      {
+		k++;
+		kk += ibi[j];
+		s += y[j];
+		if(k >= kmi && kk >= kkmi)
+		  {
+		    rn1 = (double) kk;
+		    rn4 = (double) k;
+		    pow = s*s/(rn1*(1. - rn1));
+		    if(s > 0.)
+		      {
+			Bls->srsum[lcnum][jf] += sqrt(pow);
+		      }
+		  }
+	      }
+	  }
+	if(Bls->extraparams) {
+	  Bls->srsum[lcnum][jf] = Bls->srsum[lcnum][jf] / kma;
+	}
+      }
+    /* Call BLS Extra Params 1 */
+    GetExtraBLSParameters1(n, x, nf, srnoshiftvals, &srshiftvals, 
+			   probvals, freqarray, Bls, lcnum, Npeak,
+			   best_id);
+  }
+
 
   /* Collect all the output bls parameters for the peaks */
   for(i=0;i<Npeak;i++)
@@ -1039,7 +2200,14 @@ the periodogram, and then search it for peaks    *
 
 	  fraconenight[i] = getfrac_onenight(n, t, u, v, e, bper[i], depth[i], qtran[i], (t[0] + in1_ph[i]*bper[i]), timezone);
 	  /* Get the signal to pink noise for the peak */
-	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i]);
+	  if(Bls->extraparams) {
+	    ntvptr = &(Bls->ntv[lcnum][i]);
+	  }
+	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i], ntvptr);
+	  if(Bls->extraparams) {
+	    /* Collect the extra BLS parameters */
+	    GetExtraBLSParameters2(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], qingress[i], OOTmag[i], Bls, lcnum, i);
+	  }
 	}
     }
 
@@ -1120,6 +2288,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
@@ -1324,7 +2500,15 @@ the periodogram, and then search it for peaks    *
   free(binned_sr_ave_minus);
   free(binned_sr_sig_minus);
   free(p_minus);
-
+  if(freqarray != NULL)
+    free(freqarray);
+  if(probvals != NULL)
+    free(probvals);
+  if(srshiftvals != NULL)
+    free(srshiftvals);
+  if(srnoshiftvals != NULL)
+    free(srnoshiftvals);
+  
 #ifdef PARALLEL
   if(srvals != NULL) free(srvals);
   if(srvals_minus != NULL) free(srvals_minus);
@@ -1336,7 +2520,7 @@ the periodogram, and then search it for peaks    *
 q = 0.076 * R**(2/3) / P**(2/3)
 */
 
-int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics)
+int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum)
 {
   double *y;
   double *ibi;
@@ -1363,6 +2547,12 @@ int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int 
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
   double global_best_sr_ave, global_best_sr_stddev, global_best_sr_ave_inv, global_best_sr_stddev_inv, qmi_test, mindt;
+  double *freqarray = NULL;
+  double *probvals = NULL;
+  double *srshiftvals = NULL;
+  double *srnoshiftvals = NULL;
+  int *ntvptr = NULL;
+
 
   if(firsttime == 0 && !nobinnedrms)
     {
@@ -1398,6 +2588,15 @@ int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int 
       fprintf(stderr,"Memory Allocation Error\n");
       exit(3);
     }
+  if(Bls->extraparams) {
+    if((freqarray = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (probvals = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (srnoshiftvals = (double *) malloc(nf * sizeof(double))) == NULL)
+      {
+	fprintf(stderr,"Memory Allocation Error\n");
+	exit(3);
+      }
+  }
 
   if(nb >= nbmax) {
     error(ERR_BLSNBMAX);
@@ -1641,6 +2840,8 @@ the periodogram, and then search it for peaks    *
       qtran_array[jf] = (double)(jn2 - jn1 + 1)/(double)nb;
       depth_array[jf] = powerplus/sqrt(rn3*(1.-rn3));
       bper_array[jf] = p0;
+      if(freqarray != NULL)
+	freqarray[jf] = f0;
       /*      if(powerplus >= *bpow)
 	{
 	  *bpow = powerplus;
@@ -1656,6 +2857,17 @@ the periodogram, and then search it for peaks    *
 	  *bperpos = p0;
 	  }*/
     }
+  if(Bls->extraparams) {
+    /* Save a copy of the uncorrected SR values if we need to compute the
+       extra parameters; Note that the code used for the extra parameters
+       is derived from the lc/blsanal tool used by HATNet, in which SR is
+       treated as the square of the SR values computed by this BLS code.
+    */
+    memcpy(srnoshiftvals, p, nf*sizeof(double));
+    for(jf=0;jf<nf;jf++) {
+      srnoshiftvals[jf] = srnoshiftvals[jf]*srnoshiftvals[jf];
+    }
+  }
   if(!nobinnedrms)
     allstddev = subtract_binnedrms(nf, sr_ave, BIN_FACTOR, &allave, &nclippedfreq, binned_sr_ave, binned_sr_sig);
   else {
@@ -1713,6 +2925,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
       *bperpos = -1.;
       *chisqrminus = 999999.;
@@ -1734,6 +2994,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
@@ -1830,6 +3098,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
     }
   else
@@ -1850,6 +3166,54 @@ the periodogram, and then search it for peaks    *
 	  sde[j] = -1.;
 	  chisqrplus[j] = 999999.;
       	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
 	}
       *bperpos = -1.;
       *chisqrminus = 999999.;
@@ -1870,6 +3234,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
@@ -1895,6 +3267,131 @@ the periodogram, and then search it for peaks    *
 	}
       j--;
     }
+
+  if(Bls->extraparams) {
+
+    /* Manually compute srsum for each peak - this is a bit redundant, but
+       we want to avoid computing a sqrt at each trial point in the BLS 
+       calculation */
+    for(jf=0;jf<Npeak;jf++)
+      {
+	Bls->srsum[lcnum][jf] = 0.0;
+	p0 = bper[jf];
+	if(p0 <= 0) continue;
+	f0 = 1.0 / p0;
+
+	Ppow = pow(p0,0.6666667);
+	qminP = 0.076*rminpow/Ppow;
+	qmaxP = 0.076*rmaxpow/Ppow;
+
+	if(qminP > 1.0) qminP = 1.0;
+	if(qmaxP > 1.0) qmaxP = 1.0;
+	
+	if(adjust_qmin_mindt) {
+	  qmi_test = mindt*f0;
+	  if(qmi_test > qminP) {
+	    qminP = qmi_test;
+	    if(qmi_test > qmaxP)
+	      qmaxP = qmi_test;
+	  }
+	  if(reduce_nb) {
+	    nb = MIN_(nbsave, ceil(1./(0.5*qminP)));
+	    if(nb < 2) nb=2;
+	    nb1 = nb;
+	  }
+	}
+
+	kmi = (int) (qminP*(double)nb);
+	if(kmi < 1) kmi = 1;
+	if(kmi > nb-1) kmi = nb-1;
+	kma = ((int) (qmaxP*(double)nb)) + 1;
+	if(kma > nb-1) kma = nb-1;
+	kkmi = qminP;
+	if(kkmi < (double) minbin / rn) kkmi = (double) minbin / rn;
+	nbkma = nb+kma;
+
+	
+      /*
+	c
+	c======================================================
+	c     Compute folded time series with  *p0*  period
+	c======================================================
+	c
+      */
+	for(j=0;j<nb;j++)
+	  {
+	    y[j] = 0.;
+	    ibi[j] = 0.;
+	  }
+	nbtot = 0;
+	for(i=0;i<n;i++)
+	  {
+	    ph = u[i]*f0;
+	    ph -= (int) ph;
+	    j = (int) (nb*ph);
+	    ibi[j] += weight[i];
+	    nbtot++;
+	    y[j] += v[i]*weight[i];
+	  }
+	/*      for(i=0;i<nb;i++)
+		y[i] = ibi[i] * y[i] / rn;
+	*/
+	/*
+	  c
+	  c-----------------------------------------------
+	  c     Extend the arrays  ibi()  and  y() beyond
+	  c     nb   by  wrapping
+	  c
+	*/
+	
+	for(j=nb1;j<nbkma;j++)
+	  {
+	    jnb = j - nb;
+	    ibi[j] = ibi[jnb];
+	    nbtot += ibi[j];
+	    y[j] = y[jnb];
+	  }
+	rnbtot = (double) nbtot;
+	/*
+	  c-----------------------------------------------
+	  c
+	  c===============================================
+	  c     Compute BLS statistics for this period
+	  c===============================================
+	  c
+	*/
+	for(i=0;i<nb;i++)
+	  {
+	    s = 0.;
+	    k = 0;
+	    kk = 0.;
+	    nb2 = i+kma;
+	    for(j=i;j<nb2;j++)
+	      {
+		k++;
+		kk += ibi[j];
+		s += y[j];
+		if(k >= kmi && kk >= kkmi)
+		  {
+		    rn1 = (double) kk;
+		    rn4 = (double) k;
+		    testpow = s*s/(rn1*(1. - rn1));
+		    if(s > 0.)
+		      {
+			Bls->srsum[lcnum][jf] += sqrt(testpow);
+		      }
+		  }
+	      }
+	  }
+	if(Bls->extraparams) {
+	  Bls->srsum[lcnum][jf] = Bls->srsum[lcnum][jf] / kma;
+	}
+      }
+    /* Call BLS Extra Params 1 */
+    GetExtraBLSParameters1(n, x, nf, srnoshiftvals, &srshiftvals, 
+			   probvals, freqarray, Bls, lcnum, Npeak,
+			   best_id);
+  }
 
   /* Collect all the output bls parameters for the peaks */
   for(i=0;i<Npeak;i++)
@@ -1947,7 +3444,14 @@ the periodogram, and then search it for peaks    *
 
 	  fraconenight[i] = getfrac_onenight(n, t, u, v, e, bper[i], depth[i], qtran[i], (t[0] +in1_ph[i]*bper[i]), timezone);
 	  /* Get the signal to pink noise for the peak */
-	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i]);
+	  if(Bls->extraparams) {
+	    ntvptr = &(Bls->ntv[lcnum][i]);
+	  }
+	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i],ntvptr);
+	  if(Bls->extraparams) {
+	    /* Collect the extra BLS parameters */
+	    GetExtraBLSParameters2(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], qingress[i], OOTmag[i], Bls, lcnum, i);
+	  }
 	}
 
     }
@@ -2028,6 +3532,14 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(freqarray != NULL)
+	free(freqarray);
+      if(probvals != NULL)
+	free(probvals);
+      if(srshiftvals != NULL)
+	free(srshiftvals);
+      if(srnoshiftvals != NULL)
+	free(srnoshiftvals);
 #ifdef PARALLEL
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
@@ -2233,6 +3745,14 @@ the periodogram, and then search it for peaks    *
   free(binned_sr_ave_minus);
   free(binned_sr_sig_minus);
   free(p_minus);
+  if(freqarray != NULL)
+    free(freqarray);
+  if(probvals != NULL)
+    free(probvals);
+  if(srshiftvals != NULL)
+    free(srshiftvals);
+  if(srnoshiftvals != NULL)
+    free(srnoshiftvals);
 
 #ifdef PARALLEL
   if(srvals != NULL) free(srvals);

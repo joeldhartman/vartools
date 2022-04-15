@@ -825,6 +825,105 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].Bls->OOTmag[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL)
 		error(ERR_MEMALLOC);
 	    }
+	  if(c[i].Bls->extraparams) {
+	    if((c[i].Bls->srsum = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->ressig = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->dipsig = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->srshift = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->srsig = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->snrextra = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->dsp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->dspg = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->freqlow = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->freqhigh = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->logprob = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->peakarea = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->peakmean = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->peakdev = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->lomblog = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->ntv = (int **) malloc(Nlcs * sizeof(int *))) == NULL ||
+	       (c[i].Bls->gezadsp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->ootsig = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->trsig = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->ootdftf = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->ootdfta = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->binsignaltonoise = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->maxphasegap = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->depth1_2tran = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->depth2_2tran = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->delchi2_2tran = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->sr_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->srsum_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->q_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->epoch_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->H_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->L_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->depth_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->nt_sec = (int **) malloc(Nlcs * sizeof(int *))) == NULL ||
+	       (c[i].Bls->Nt_sec = (int **) malloc(Nlcs * sizeof(int *))) == NULL ||
+	       (c[i].Bls->sigtopink_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->deltachi2transit_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->binsignaltonoise_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->phaseoffset_sec = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->harmmean = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->fundA = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->fundB = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->harmA = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->harmB = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->harmamp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->harmdeltachi2 = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      {
+		if((c[i].Bls->srsum[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->ressig[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->dipsig[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->srshift[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->srsig[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->snrextra[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->dsp[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->dspg[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->freqlow[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->freqhigh[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->logprob[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->peakarea[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->peakmean[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->peakdev[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->lomblog[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->ntv[j] = (int *) malloc(c[i].Bls->Npeak * sizeof(int))) == NULL ||
+		   (c[i].Bls->gezadsp[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->ootsig[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->trsig[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->ootdftf[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->ootdfta[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->binsignaltonoise[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->maxphasegap[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->depth1_2tran[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->depth2_2tran[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->delchi2_2tran[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->sr_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->srsum_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->q_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->epoch_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->H_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->L_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->depth_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->nt_sec[j] = (int *) malloc(c[i].Bls->Npeak * sizeof(int))) == NULL ||
+		   (c[i].Bls->Nt_sec[j] = (int *) malloc(c[i].Bls->Npeak * sizeof(int))) == NULL ||
+		   (c[i].Bls->sigtopink_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->deltachi2transit_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->binsignaltonoise_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->phaseoffset_sec[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->harmmean[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->fundA[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->fundB[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->harmA[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->harmB[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->harmamp[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		   (c[i].Bls->harmdeltachi2[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL)
+		  error(ERR_MEMALLOC);
+	      }
+	  }
 	  break;
 	case CNUM_FINDBLENDS:
 
@@ -1145,6 +1244,9 @@ void InitCommands(ProgramData *p, Command *c)
 	  }
 	  break;
 	case CNUM_WWZ:
+	  break;
+	case CNUM_MATCHCOMMAND:
+	  InitMatchCommand(p, c[i].MatchCommand, 0, 0);
 	  break;
 	case CNUM_STATS:
 	  if((c[i].Stats->statsout = (double **) malloc(Nlcs * sizeof(double *))) == NULL)

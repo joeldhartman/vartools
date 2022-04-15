@@ -1414,7 +1414,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i++;
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
-	    if((c[cn].RestrictTimes->restrictexprstring = (char *) malloc((strlen(argv[i]+1))*sizeof(char))) == NULL)
+	    if((c[cn].RestrictTimes->restrictexprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
 	      error(ERR_MEMALLOC);
 	    sprintf(c[cn].RestrictTimes->restrictexprstring,"%s",argv[i]);
 	  }
@@ -5592,7 +5592,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	}
 #endif
 
-      /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"]*/
+      /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"extraparams\"] [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"]*/
       else if(!strncmp(argv[i],"-BLS",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -5723,6 +5723,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    c[cn].Bls->correctlc = atoi(argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
+	  c[cn].Bls->extraparams = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"extraparams")) {
+	      c[cn].Bls->extraparams = 1;
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
 	  c[cn].Bls->fittrap = 0;
 	  i++;
 	  if(i < argc) {
@@ -8415,6 +8426,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  if(c[cn].Binlc->tflag < VARTOOLS_BINLC_TIMETYPE_CENTER || 
 	     c[cn].Binlc->tflag > VARTOOLS_BINLC_TIMETYPE_NOSHRINK)
+	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+	    
+      /* -match [\"file\" filename | \"inlist\" inlistcolumn] [\"opencommand\" command] [\"skipnum\" Nskip] [\"skipchar\" <skipchar1[,skipchar2,...]>] [\"delimiter\" delimiter] <\"matchcolumn\" [varname:colnum | colnum]> <\"addcolumns\" varname1:colnum1[:coltype1[:colformat1]][,varname2:colnum2[:coltype2[:colformat2]],...]> <\"cullmissing\" | \"nanmissing\" | \"missingval\" value> */
+      else if(!strcmp(argv[i],"-match"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_MATCHCOMMAND;
+	  if((c[cn].MatchCommand = (_MatchCommand *) malloc(sizeof(_MatchCommand))) == NULL)
+	    error(ERR_MEMALLOC);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(ParseMatchCommand(&i, argc, argv, p, c[cn].MatchCommand, cn))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}

@@ -111,6 +111,9 @@
 /* Define to 1 if you have the `m' library (-lm). */
 #define HAVE_LIBM 1
 
+/* Define to 1 if you have the `R' library (-lR). */
+#define HAVE_LIBR 1
+
 /* Define this if a modern libltdl is already installed */
 #define HAVE_LTDL 1
 
@@ -148,8 +151,8 @@
 /* Define if we are compiling with python */
 #define HAVE_PYTHON 1
 
-/* Define if you have R */
-#define HAVE_R 1
+/* Define if the Py_UNICODE 32-bit object type is available */
+#define HAVE_PYTHON_UNICODE 1
 
 /* Define to 1 if you have the `readdir' function. */
 #define HAVE_READDIR 1
@@ -157,6 +160,12 @@
 /* Define to 1 if your system has a GNU libc compatible `realloc' function,
    and to 0 otherwise. */
 #define HAVE_REALLOC 1
+
+/* Define to 1 if you have the <Rembedded.h> header file. */
+#define HAVE_REMBEDDED_H 1
+
+/* Define to 1 if you have the <Rinternals.h> header file. */
+#define HAVE_RINTERNALS_H 1
 
 /* Define if you have the shl_load function. */
 /* #undef HAVE_SHL_LOAD */
@@ -204,7 +213,7 @@
 /* #undef LTDL_DLOPEN_DEPLIBS */
 
 /* Define to the system default library search path. */
-#define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/libfakeroot:/usr/local/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/mesa-egl:/usr/lib/x86_64-linux-gnu/mesa"
+#define LT_DLSEARCH_PATH "/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/libfakeroot:/usr/local/lib/i386-linux-gnu:/lib/i386-linux-gnu:/usr/lib/i386-linux-gnu:/usr/local/lib/i686-linux-gnu:/lib/i686-linux-gnu:/usr/lib/i686-linux-gnu:/usr/local/lib:/usr/local/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu"
 
 /* The archive extension */
 #define LT_LIBEXT "a"
@@ -232,7 +241,7 @@
 /* #undef NEED_USCORE */
 
 /* Set to the header file to include for numpy */
-#define NUMPY_HEADER_FILE </home/jhartman/venv/local/lib/python2.7/site-packages/numpy/core/include/numpy/arrayobject.h>
+#define NUMPY_HEADER_FILE </usr/lib/python3/dist-packages/numpy/core/include/numpy/arrayobject.h>
 
 /* Name of package */
 #define PACKAGE "vartools"
@@ -244,7 +253,7 @@
 #define PACKAGE_NAME "vartools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "vartools 1.38"
+#define PACKAGE_STRING "vartools 1.40"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "vartools"
@@ -253,22 +262,22 @@
 #define PACKAGE_URL "http://www.astro.princeton.edu/~jhartman/vartools.html"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.38"
+#define PACKAGE_VERSION "1.40"
 
 /* Set to the PYTHONHOME */
-#define PYTHONHOMEPATH "/home/jhartman/venv"
+#define PYTHONHOMEPATH "/usr"
+
+/* Set to the PYTHONPATH */
+#define PYTHONSEARCHPATH ":/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages"
 
 /* NUMPY VERSION */
-#define PYTHON_NUMPY_VERSION 1.14.3
-
-/* Define the RHOME environment variable */
-/* #undef RHOME */
+#define PYTHON_NUMPY_VERSION 1.17.4
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.38"
+#define VERSION "1.40"
 
 /* Define so that glibc/gnulib argp.h does not typedef error_t. */
 /* #undef __error_t_defined */

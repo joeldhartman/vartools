@@ -202,7 +202,8 @@ am_vartools_OBJECTS = vartools-alarm.$(OBJEXT) vartools-aov.$(OBJEXT) \
 	vartools-help.$(OBJEXT) vartools-resample.$(OBJEXT) \
 	vartools-restricttimes.$(OBJEXT) vartools-mcmcfit.$(OBJEXT) \
 	vartools-wwz.$(OBJEXT) vartools-callrunpython.$(OBJEXT) \
-	vartools-callrunR.$(OBJEXT) vartools-fft.$(OBJEXT)
+	vartools-callrunR.$(OBJEXT) vartools-fft.$(OBJEXT) \
+	vartools-matchcommand.$(OBJEXT)
 vartools_OBJECTS = $(am_vartools_OBJECTS)
 am__DEPENDENCIES_1 =
 AM_V_P = $(am__v_P_@AM_V@)
@@ -252,7 +253,9 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/vartools-jstet.Po ./$(DEPDIR)/vartools-killharm.Po \
 	./$(DEPDIR)/vartools-linfit.Po \
 	./$(DEPDIR)/vartools-lombscargle.Po \
-	./$(DEPDIR)/vartools-main.Po ./$(DEPDIR)/vartools-mcmcfit.Po \
+	./$(DEPDIR)/vartools-main.Po \
+	./$(DEPDIR)/vartools-matchcommand.Po \
+	./$(DEPDIR)/vartools-mcmcfit.Po \
 	./$(DEPDIR)/vartools-medianfilter.Po \
 	./$(DEPDIR)/vartools-microlens.Po \
 	./$(DEPDIR)/vartools-mrqmin.Po ./$(DEPDIR)/vartools-mysort.Po \
@@ -517,10 +520,11 @@ vartools_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c \
 	microlens.c fittrap.c addnoise.c example.c parseinputlist.c \
 	parselc.c converttime.c userlib.c linfit.c help.c resample.c \
 	restricttimes.c mcmcfit.c wwz.c callrunpython.c callrunR.c \
-	fft.c analytic.h functions.h nonlinfit.h userlib.h \
-	binarylcio.h ifelse.h outcolumn.h vartools_functionpointers.h \
-	commands.h mcmcfit.h programdata.h vartools.h doublelinklist.h \
-	mysort.h userfunc.h statistics.h OutText.h
+	fft.c matchcommand.c analytic.h functions.h nonlinfit.h \
+	userlib.h binarylcio.h ifelse.h outcolumn.h \
+	vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+	vartools.h doublelinklist.h mysort.h userfunc.h statistics.h \
+	OutText.h
 vartools_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 vartools_LDADD = libvartools.la $(am__append_3) $(am__append_5) \
 	$(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
@@ -703,6 +707,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-linfit.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-lombscargle.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-main.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-matchcommand.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-mcmcfit.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-medianfilter.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vartools-microlens.Po@am__quote@ # am--include-marker
@@ -1724,6 +1729,20 @@ vartools-fft.obj: fft.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-fft.obj `if test -f 'fft.c'; then $(CYGPATH_W) 'fft.c'; else $(CYGPATH_W) '$(srcdir)/fft.c'; fi`
 
+vartools-matchcommand.o: matchcommand.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vartools-matchcommand.o -MD -MP -MF $(DEPDIR)/vartools-matchcommand.Tpo -c -o vartools-matchcommand.o `test -f 'matchcommand.c' || echo '$(srcdir)/'`matchcommand.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/vartools-matchcommand.Tpo $(DEPDIR)/vartools-matchcommand.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchcommand.c' object='vartools-matchcommand.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-matchcommand.o `test -f 'matchcommand.c' || echo '$(srcdir)/'`matchcommand.c
+
+vartools-matchcommand.obj: matchcommand.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT vartools-matchcommand.obj -MD -MP -MF $(DEPDIR)/vartools-matchcommand.Tpo -c -o vartools-matchcommand.obj `if test -f 'matchcommand.c'; then $(CYGPATH_W) 'matchcommand.c'; else $(CYGPATH_W) '$(srcdir)/matchcommand.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/vartools-matchcommand.Tpo $(DEPDIR)/vartools-matchcommand.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchcommand.c' object='vartools-matchcommand.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(vartools_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o vartools-matchcommand.obj `if test -f 'matchcommand.c'; then $(CYGPATH_W) 'matchcommand.c'; else $(CYGPATH_W) '$(srcdir)/matchcommand.c'; fi`
+
 mostlyclean-libtool:
 	-rm -f *.lo
 
@@ -1900,6 +1919,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/vartools-linfit.Po
 	-rm -f ./$(DEPDIR)/vartools-lombscargle.Po
 	-rm -f ./$(DEPDIR)/vartools-main.Po
+	-rm -f ./$(DEPDIR)/vartools-matchcommand.Po
 	-rm -f ./$(DEPDIR)/vartools-mcmcfit.Po
 	-rm -f ./$(DEPDIR)/vartools-medianfilter.Po
 	-rm -f ./$(DEPDIR)/vartools-microlens.Po
@@ -2016,6 +2036,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/vartools-linfit.Po
 	-rm -f ./$(DEPDIR)/vartools-lombscargle.Po
 	-rm -f ./$(DEPDIR)/vartools-main.Po
+	-rm -f ./$(DEPDIR)/vartools-matchcommand.Po
 	-rm -f ./$(DEPDIR)/vartools-mcmcfit.Po
 	-rm -f ./$(DEPDIR)/vartools-medianfilter.Po
 	-rm -f ./$(DEPDIR)/vartools-microlens.Po

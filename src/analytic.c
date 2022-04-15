@@ -221,6 +221,9 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_MANDELAGOLTRANSIT) {
       CheckCreateCommandOutputLCVariable(c[i].MandelAgolTransit->modelvarname,&(c[i].MandelAgolTransit->modelvar),p);
     }
+    else if(c[i].cnum == CNUM_MATCHCOMMAND) {
+      SetupMatchCommandVariables(c[i].MatchCommand,p);
+    }
 #ifdef _HAVE_GSL
     else if(c[i].cnum == CNUM_FFT) {
       if(c[i].FFT->outputvarname_real[0] != '\0') {

@@ -837,7 +837,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 #else
 		      c->Bls->p
 #endif
-		      ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram, outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+		      ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram, outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics, c->Bls, lc2);
 	      }
 	    else
 	      {
@@ -847,7 +847,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 #else
 			  c->Bls->p
 #endif
-			  ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram,outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+			  ,c->Bls->Npeak,c->Bls->bper[lc2],c->Bls->bt0[lc2],c->Bls->bpow[lc2],c->Bls->sde[lc2],c->Bls->snval[lc2],c->Bls->depth[lc2],c->Bls->qtran[lc2],c->Bls->i1[lc2],c->Bls->i2[lc2],c->Bls->i1_ph[lc2],c->Bls->i2_ph[lc2],c->Bls->chisqrplus[lc2],&c->Bls->chisqrminus[lc2],&c->Bls->bperpos[lc2],&c->Bls->meanmagval[lc2], c->Bls->timezone, c->Bls->fraconenight[lc2], c->Bls->operiodogram,outname, c->Bls->omodel, outname2, c->Bls->correctlc,p->ascii, c->Bls->nt[lc2], c->Bls->Nt[lc2], c->Bls->Nbefore[lc2], c->Bls->Nafter[lc2], c->Bls->rednoise[lc2], c->Bls->whitenoise[lc2], c->Bls->sigtopink[lc2], c->Bls->fittrap, c->Bls->qingress[lc2], c->Bls->OOTmag[lc2], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics, c->Bls, lc2);
 	      }
 	  } else {
 	    if(!p->quiet_mode) {
@@ -928,16 +928,16 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    if(!c->BlsFixPer->rflag)
 	      {
 		if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
-		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2], NULL);
 		else
-		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		  eeblsfixper(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2], NULL);
 	      }
 	    else
 	      {
 		if(c->BlsFixPer->pertype != PERTYPE_SPECIFIED)
-		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc2][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2], NULL);
 		else
-		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2]);
+		  eeblsfixper_rad(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPer->u[lc2],c->BlsFixPer->v[lc2],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc2],&c->BlsFixPer->bpow[lc2],&c->BlsFixPer->depth[lc2],&c->BlsFixPer->qtran[lc2],&c->BlsFixPer->i1[lc2],&c->BlsFixPer->i2[lc2],&c->BlsFixPer->i1_ph[lc2],&c->BlsFixPer->i2_ph[lc2],&c->BlsFixPer->chisqrplus[lc2],&c->BlsFixPer->chisqrminus[lc2],&c->BlsFixPer->meanmagval[lc2], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc2], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc2], &c->BlsFixPer->Nt[lc2], &c->BlsFixPer->Nbefore[lc2], &c->BlsFixPer->Nafter[lc2], &c->BlsFixPer->rednoise[lc2], &c->BlsFixPer->whitenoise[lc2], &c->BlsFixPer->sigtopink[lc2], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc2], &c->BlsFixPer->OOTmag[lc2], NULL);
 	      }
 	  }
       } else {
@@ -1466,6 +1466,11 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
     case CNUM_BINLC:
       /* Bin the light curve */
       binlc(p,c->Binlc,lc2);
+      break;
+
+    case CNUM_MATCHCOMMAND:
+      /* Match the light curve to an external datafile */
+      RunMatchCommand(p, c->MatchCommand, lc, lc2);
       break;
 
     case CNUM_MEDIANFILTER:
@@ -2748,7 +2753,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 #else
 			  c->Bls->p
 #endif
-			  ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+			  ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms,c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics, c->Bls, lc);
 		  }
 		else
 		  {
@@ -2758,7 +2763,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 #else
 			      c->Bls->p
 #endif
-			      ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics);
+			      ,c->Bls->Npeak,c->Bls->bper[lc],c->Bls->bt0[lc],c->Bls->bpow[lc],c->Bls->sde[lc],c->Bls->snval[lc],c->Bls->depth[lc],c->Bls->qtran[lc],c->Bls->i1[lc],c->Bls->i2[lc],c->Bls->i1_ph[lc],c->Bls->i2_ph[lc],c->Bls->chisqrplus[lc],&c->Bls->chisqrminus[lc],&c->Bls->bperpos[lc],&c->Bls->meanmagval[lc],c->Bls->timezone,c->Bls->fraconenight[lc],c->Bls->operiodogram,outname,c->Bls->omodel,outname2,c->Bls->correctlc,p->ascii, c->Bls->nt[lc], c->Bls->Nt[lc], c->Bls->Nbefore[lc], c->Bls->Nafter[lc], c->Bls->rednoise[lc], c->Bls->whitenoise[lc], c->Bls->sigtopink[lc], c->Bls->fittrap, c->Bls->qingress[lc], c->Bls->OOTmag[lc], c->Bls->ophcurve, outname3, c->Bls->phmin, c->Bls->phmax, c->Bls->phstep, c->Bls->ojdcurve, outname4, c->Bls->jdstep, c->Bls->nobinnedrms, c->Bls->freqsteptype, c->Bls->adjust_qmin_mindt, c->Bls->reduce_nb, c->Bls->reportharmonics, c->Bls, lc);
 		  }
 	      } else {
 		if(!p->quiet_mode) {
@@ -2846,11 +2851,11 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      /* Now either run bls using the fixed q range or the fixed stellar radius range */
 	      if(!c->BlsFixPer->rflag)
 		{
-		  eeblsfixper(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPer->u[0],c->BlsFixPer->v[0],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc],&c->BlsFixPer->bpow[lc],&c->BlsFixPer->depth[lc],&c->BlsFixPer->qtran[lc],&c->BlsFixPer->i1[lc],&c->BlsFixPer->i2[lc],&c->BlsFixPer->i1_ph[lc],&c->BlsFixPer->i2_ph[lc],&c->BlsFixPer->chisqrplus[lc],&c->BlsFixPer->chisqrminus[lc],&c->BlsFixPer->meanmagval[lc], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc], &c->BlsFixPer->Nt[lc], &c->BlsFixPer->Nbefore[lc], &c->BlsFixPer->Nafter[lc], &c->BlsFixPer->rednoise[lc], &c->BlsFixPer->whitenoise[lc], &c->BlsFixPer->sigtopink[lc], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc], &c->BlsFixPer->OOTmag[lc]);
+		  eeblsfixper(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPer->u[0],c->BlsFixPer->v[0],c->BlsFixPer->nbins,c->BlsFixPer->qmin,c->BlsFixPer->qmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc],&c->BlsFixPer->bpow[lc],&c->BlsFixPer->depth[lc],&c->BlsFixPer->qtran[lc],&c->BlsFixPer->i1[lc],&c->BlsFixPer->i2[lc],&c->BlsFixPer->i1_ph[lc],&c->BlsFixPer->i2_ph[lc],&c->BlsFixPer->chisqrplus[lc],&c->BlsFixPer->chisqrminus[lc],&c->BlsFixPer->meanmagval[lc], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc], &c->BlsFixPer->Nt[lc], &c->BlsFixPer->Nbefore[lc], &c->BlsFixPer->Nafter[lc], &c->BlsFixPer->rednoise[lc], &c->BlsFixPer->whitenoise[lc], &c->BlsFixPer->sigtopink[lc], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc], &c->BlsFixPer->OOTmag[lc], NULL);
 		}
 	      else
 		{
-		  eeblsfixper_rad(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPer->u[0],c->BlsFixPer->v[0],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc],&c->BlsFixPer->bpow[lc],&c->BlsFixPer->depth[lc],&c->BlsFixPer->qtran[lc],&c->BlsFixPer->i1[lc],&c->BlsFixPer->i2[lc],&c->BlsFixPer->i1_ph[lc],&c->BlsFixPer->i2_ph[lc],&c->BlsFixPer->chisqrplus[lc],&c->BlsFixPer->chisqrminus[lc],&c->BlsFixPer->meanmagval[lc], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc], &c->BlsFixPer->Nt[lc], &c->BlsFixPer->Nbefore[lc], &c->BlsFixPer->Nafter[lc], &c->BlsFixPer->rednoise[lc], &c->BlsFixPer->whitenoise[lc], &c->BlsFixPer->sigtopink[lc], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc], &c->BlsFixPer->OOTmag[lc]);
+		  eeblsfixper_rad(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPer->u[0],c->BlsFixPer->v[0],c->BlsFixPer->nbins,c->BlsFixPer->rmin,c->BlsFixPer->rmax,&c->BlsFixPer->period[lc][0],&c->BlsFixPer->bt0[lc],&c->BlsFixPer->bpow[lc],&c->BlsFixPer->depth[lc],&c->BlsFixPer->qtran[lc],&c->BlsFixPer->i1[lc],&c->BlsFixPer->i2[lc],&c->BlsFixPer->i1_ph[lc],&c->BlsFixPer->i2_ph[lc],&c->BlsFixPer->chisqrplus[lc],&c->BlsFixPer->chisqrminus[lc],&c->BlsFixPer->meanmagval[lc], c->BlsFixPer->timezone, &c->BlsFixPer->fraconenight[lc], c->BlsFixPer->omodel, outname2, c->BlsFixPer->correctlc,p->ascii, &c->BlsFixPer->nt[lc], &c->BlsFixPer->Nt[lc], &c->BlsFixPer->Nbefore[lc], &c->BlsFixPer->Nafter[lc], &c->BlsFixPer->rednoise[lc], &c->BlsFixPer->whitenoise[lc], &c->BlsFixPer->sigtopink[lc], c->BlsFixPer->fittrap, &c->BlsFixPer->qingress[lc], &c->BlsFixPer->OOTmag[lc], NULL);
 		}
 	    } else {
 	    if(!p->quiet_mode) {
@@ -3447,6 +3452,19 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  }
 	}
 	binlc(p, c->Binlc, lc);
+      }
+      break;
+
+    case CNUM_MATCHCOMMAND:
+      /* Match the light curve to an external datafile */
+      for(lc=0;lc<p->Nlcs;lc++) {
+	if(p->isifcommands) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    SkipCommand(p, c, thisindex, lc, lc);
+	    continue;
+	  }
+	}
+	RunMatchCommand(p, c->MatchCommand, lc, lc);
       }
       break;
 

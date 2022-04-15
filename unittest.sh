@@ -2317,6 +2317,195 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -R example 1
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -R example 1" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -R 'b <- sd(mag)' invars mag outvars b outputcolumns b
+EOF
+
+cat > $goodout <<EOF
+#Name R_b_0
+EXAMPLES/1 0.15946976931434592
+EXAMPLES/2 0.036640196913116818
+EXAMPLES/3 0.0048962905656505422
+EXAMPLES/4 0.0020915710522042882
+EXAMPLES/5 0.002880850234933455
+EXAMPLES/6 0.0020898736803245783
+EXAMPLES/7 0.003488095003079855
+EXAMPLES/8 0.0022502571019889705
+EXAMPLES/9 0.0018673694762206033
+EXAMPLES/10 0.0023627959129451301
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -R 'b <- sd(mag)' invars mag outvars b outputcolumns b \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -R example 2
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -R example 2" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -R 'b <- list(); for(i in 1:length(mag)) { b[[i]] <- sd(mag[[i]]); }' \
+        invars mag outvars b outputcolumns b process_all_lcs
+EOF
+
+cat > $goodout <<EOF
+#Name R_b_0
+EXAMPLES/1 0.15946976931434592
+EXAMPLES/2 0.036640196913116818
+EXAMPLES/3 0.0048962905656505422
+EXAMPLES/4 0.0020915710522042882
+EXAMPLES/5 0.002880850234933455
+EXAMPLES/6 0.0020898736803245783
+EXAMPLES/7 0.003488095003079855
+EXAMPLES/8 0.0022502571019889705
+EXAMPLES/9 0.0018673694762206033
+EXAMPLES/10 0.0023627959129451301
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -R 'b <- list(); for(i in 1:length(mag)) { b[[i]] <- sd(mag[[i]]); }' \
+        invars mag outvars b outputcolumns b process_all_lcs \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -R example 3
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -R example 3" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -savelc \
+    -binlc average binsize 0.05 taverage \
+    -resample linear delt fix 0.05 \
+    -R \
+        'mag_ts <- ts(mag, start=1, end=length(t), frequency=1);
+         arima_model <- auto.arima(mag_ts);
+         mag_arima <- mag - as.vector(arima_model$residuals);' \
+        init 'library(tseries); library(forecast);' \
+        invars mag,t outvars mag_arima \
+    -resample linear file list listcolumn 1 tcolumn 1 \
+    -restorelc 1 vars mag \
+    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
+        columnformat t,mag,mag_arima
+EOF
+
+cat > $goodout <<EOF
+#Name
+EXAMPLES/1
+EXAMPLES/2
+EXAMPLES/3
+EXAMPLES/4
+EXAMPLES/5
+EXAMPLES/6
+EXAMPLES/7
+EXAMPLES/8
+EXAMPLES/9
+EXAMPLES/10
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -savelc \
+    -binlc average binsize 0.05 taverage \
+    -resample linear delt fix 0.05 \
+    -R \
+        'mag_ts <- ts(mag, start=1, end=length(t), frequency=1);
+         arima_model <- auto.arima(mag_ts);
+         mag_arima <- mag - as.vector(arima_model$residuals);' \
+        init 'library(tseries); library(forecast);' \
+        invars mag,t outvars mag_arima \
+    -resample linear file list listcolumn 1 tcolumn 1 \
+    -restorelc 1 vars mag \
+    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
+        columnformat t,mag,mag_arima 2> /dev/null \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -R example 4
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -R example 4" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -savelc \
+    -binlc average binsize 0.05 taverage \
+    -resample linear delt fix 0.05 \
+    -python 'lcbasename = Name.split("/")[-1]' \
+        invars Name outvars lcbasename \
+    -R 'mag_arima <- DoArimaFitPlot(mag, "EXAMPLES/OUTDIR1/", lcbasename)' \
+        init file EXAMPLES/Rexample4.R \
+        invars mag,t,lcbasename outvars mag_arima \
+    -resample linear file list listcolumn 1 tcolumn 1 \
+    -restorelc 1 vars mag \
+    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
+        columnformat t,mag,mag_arima
+EOF
+
+cat > $goodout <<EOF
+#Name
+EXAMPLES/1
+EXAMPLES/2
+EXAMPLES/3
+EXAMPLES/4
+EXAMPLES/5
+EXAMPLES/6
+EXAMPLES/7
+EXAMPLES/8
+EXAMPLES/9
+EXAMPLES/10
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -inputlcformat t:1,mag:2,err:3 -header \
+    -savelc \
+    -binlc average binsize 0.05 taverage \
+    -resample linear delt fix 0.05 \
+    -python 'lcbasename = Name.split("/")[-1]' \
+        invars Name outvars lcbasename \
+    -R 'mag_arima <- DoArimaFitPlot(mag, "EXAMPLES/OUTDIR1/", lcbasename)' \
+        init file EXAMPLES/Rexample4.R \
+        invars mag,t,lcbasename outvars mag_arima \
+    -resample linear file list listcolumn 1 tcolumn 1 \
+    -restorelc 1 vars mag \
+    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
+        columnformat t,mag,mag_arima 2> /dev/null \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -resample example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -resample example 1" > /dev/stderr

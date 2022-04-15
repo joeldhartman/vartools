@@ -602,7 +602,7 @@ the periodogram, and then search it for peaks    *
 	  fraconenight[i] = getfrac_onenight(n, t, u, v, e, bper[i], depth[i], qtran[i], (t[0] + in1ph*bper[i]), timezone);
 
 	  /* Get the signal to pink noise for the peak */
-	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1ph, &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i]);
+	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1ph, &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i], NULL);
 	}
     }
 
