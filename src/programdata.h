@@ -89,7 +89,7 @@
 #define VARTOOLS_LC_DELIMTYPE_STRING 2
 
 //double sizeHISTvector;
-double JDTOL;
+extern double JDTOL;
 
 typedef struct {
   char *data;
