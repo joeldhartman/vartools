@@ -451,7 +451,7 @@ example_files = \
  EXAMPLES/OUTDIR1/file_1_00001_simout.txt \
  EXAMPLES/OUTDIR1/InjectRRLyrae.5.txt \
  EXAMPLES/OUTDIR1/4.autocorr \
-# EXAMPLES/OUTDIR1/tmp1.txt.bls.phcurve \
+ EXAMPLES/OUTDIR1/tmp1.txt.bls.phcurve \
  EXAMPLES/OUTDIR1/4.png \
  EXAMPLES/OUTDIR1/3.bls \
  EXAMPLES/OUTDIR1/4.dftclean.cspec \
