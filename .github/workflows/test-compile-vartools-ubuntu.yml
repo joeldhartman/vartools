@@ -14,6 +14,8 @@ jobs:
         run: sudo apt-get update
       - name: Install gfortran
         run: sudo apt-get install gfortran
+      - name: Install CFITSIO
+        run: sudo apt-get install libcfitsio-dev
       - name: Configure VARTOOLS
         run: ./configure
       - name: make VARTOOLS
