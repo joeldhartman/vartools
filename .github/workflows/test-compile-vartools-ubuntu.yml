@@ -1,0 +1,20 @@
+name: Test compile VARTOOLS on Ubuntu
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Manually enable/disable this test
+    # Write an if statement that is always true/false
+    if: true
+    steps:
+      - uses: actions/checkout@v3
+      - name: Update apt-get
+        run: sudo apt-get update
+      - name: Install gfortran
+        run: sudo apt-get install gfortran
+      - name: Configure VARTOOLS
+        run: ./configure
+      - name: make VARTOOLS
+        run: make
