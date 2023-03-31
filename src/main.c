@@ -33,6 +33,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+double JDTOL;
+
 typedef struct {
   ProgramData *p;
   Command *c;
