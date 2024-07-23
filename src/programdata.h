@@ -89,7 +89,6 @@
 #define VARTOOLS_LC_DELIMTYPE_STRING 2
 
 //double sizeHISTvector;
-extern double JDTOL;
 
 typedef struct {
   char *data;
@@ -149,6 +148,7 @@ typedef struct {
   int readformatused;
   int inputlcformatused;
   int inlistvars;
+  int inlist_lcnames_from_allcolumns;
   int Nlcs;
   int Ncommands;
   int Nthread;
@@ -306,12 +306,16 @@ typedef struct {
   char skipmissing;
   char skipempty;
 
+  int *skipfaillc;
+
   int pythonlibraryloaded;
   int Rlibraryloaded;
 
   int lcdelimtype;
   char delimchar;
   char *delimstring;
+
+  double JDTOL;
 
 } ProgramData;
 
@@ -432,3 +436,5 @@ typedef struct {
 #define ERR_MATCHCOMMAND_INLISTCOLUMNNOTPOSITIVE 114
 #define ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE 115
 #define ERR_MATCHCOMMAND_BADMATCHVARIABLE 116
+#define ERR_CANNOTUSE_ALLCOLUMNS_INLIST 117
+#define ERR_OUTPUTFILENAMECOMMAND 118

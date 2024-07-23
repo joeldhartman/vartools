@@ -846,3 +846,310 @@ the periodogram, and then search it for peaks    *
 
   return(0);
 }
+
+
+int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputper, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, double *depth, double *qtran, double *chisqrplus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep)
+{
+
+  double dum1, dum2;
+  double y[2000];
+  double ibi[2000];
+  int minbin = 5;
+  int nbmax = 2000, nbtot;
+  int nsrvals, nsrvals_minus, test, foundsofar, dumint1;
+  double powerplus, powerminus, dumdbl1, dumdbl2, jdtmp;
+  double sumweights, phb1, phb2;
+  double tot, rnbtot, *weight, sr_minus;
+  double rn, s,t1,f0,p0,ph,ph2,pow,rn1,rn3,s3,rn4,rn5;
+  double kkmi, kk, allave, allstddev, allave_minus, allstddev_minus, minbest, qf;
+  double *sr_ave, *binned_sr_ave, *binned_sr_sig;
+  double in1ph, in2ph;
+  int kmi, kma,nb1,nbkma,i,jf,j,k,jn1,jn2,jnb,nb2,nsr,nclippedfreq, *best_id;
+  double *p_minus, *sr_ave_minus, *binned_sr_ave_minus, *binned_sr_sig_minus, global_best_sr_ave, global_best_sr_stddev;
+  double global_best_sr_ave_inv, global_best_sr_stddev_inv;
+  double s1in, s1out, s2in, wsumin, wsumout;
+  double magin, magout;
+  long double sde_sr_ave, sde_srsqr_ave;
+  FILE *outfile, *outfile2;
+
+  double inputT0;
+
+  int nb;
+  int in1, in2;
+
+  /***********************************************************/
+
+
+  tot = t[n-1] - t[0];
+
+
+  inputT0 = inputTC - inputdur / 2.0;
+
+  /**********************************************************/
+
+  sumweights = 0.;
+  weight = (double *) malloc(n * sizeof(double));
+  for(i=0;i<n;i++)
+    {
+      weight[i] = 1./(e[i]*e[i]);
+      sumweights += weight[i];
+    }
+  for(i=0;i<n;i++)
+    weight[i] = weight[i] / sumweights;
+
+  rn = (double) n;
+  //*bpow = 0.;
+
+  /**************The following variables are defined for the extension
+		 c     of arrays  ibi()  and  y()  [ see below ] ***************/
+
+
+  /*
+    c
+    c=================================
+    c     Set temporal time series
+    c=================================
+    c
+  */
+
+  //sr_ave = 0.;
+  //srsqr_ave = 0.;
+  nsr = 0;
+
+  s = 0.;
+  t1 = t[0];
+  for(i=0;i<n;i++)
+    {
+      u[i]=t[i]-t1;
+      s += x[i]*weight[i];
+    }
+  (*meanmagval) = s;
+  //s /= sumweights;
+  for(i=0;i<n;i++)
+    v[i]=x[i]-s;
+
+
+  /* Collect all the output bls parameters */
+  in1ph = (inputT0 - t1)/inputper - floor((inputT0 - t1)/inputper);
+  in2ph = (inputT0 + inputdur - t1)/inputper - floor((inputT0 + inputdur - t1)/inputper);
+  nb = 100*ceil(inputdur/inputper);
+  /* Get the transit depth */
+  s1in = s1out = wsumin = wsumout = 0.0;
+  for(i=0; i < n; i++) {
+    ph = u[i]/inputper - floor(u[i]/inputper);
+    if((in1ph < in2ph && ph >= in1ph && ph <= in2ph) ||
+       (in1ph > in2ph && (ph <= in2ph || ph >= in1ph))) {
+      s1in += x[i]*weight[i];
+      wsumin += weight[i];
+    } else {
+      s1out += x[i]*weight[i];
+      wsumout += weight[i];
+    }
+  }
+  if(wsumin > 0 && wsumout > 0) {
+    magin = s1in/wsumin;
+    magout = s1out/wsumout;
+    *depth = s1in/wsumin - s1out/wsumout;
+  } else {
+    *depth = -1.0;
+    *chisqrplus = -1.0;
+    *meanmagval = -1.0;
+    *fraconenight = -1.0;
+    *nt = -1;
+    *Nt = -1;
+    *Nbefore = -1;
+    *Nafter = -1;
+    *rednoise = -1.0;
+    *whitenoise = -1.0;
+    *sigtopink = -1.0;
+    *qingress = -1.0;
+    *OOTmag = -1.0;
+    free(weight);
+    return 1;
+  }
+    
+  if(fittrap && !fixdepth) {
+    *qingress=0.25;
+    *OOTmag=*meanmagval;
+    dum1 = in1ph;
+    dum2 = in2ph;
+    dofittrap_amoeba_fixdur(n, t, x, e, inputper, (inputdur/inputper), qingress, in1ph, in2ph, depth, OOTmag);
+  } else {
+    if(fixdepth)
+      *qingress = inputqgress;
+    else
+      *qingress = 0.;
+    *OOTmag = *meanmagval;
+  }
+  // Be sure to correct for transits past the edge
+  *qtran = inputdur/inputper;
+  
+  s1in = s2in = s1out = wsumin = wsumout = 0.0;
+  for(i=0; i < n; i++) {
+    ph = u[i]/inputper - floor(u[i]/inputper);
+    if((in1ph < in2ph && ph >= in1ph && ph <= in2ph) ||
+       (in1ph > in2ph && (ph <= in2ph || ph >= in1ph))) {
+      s1in += (x[i]-(magin))*(x[i] - (magin))*weight[i];
+      s2in += (x[i]-(*meanmagval))*(x[i] - (*meanmagval))*weight[i];
+    } else {
+      s1in += (x[i]-(magout))*(x[i] - (magout))*weight[i];
+      s2in += (x[i]-(*meanmagval))*(x[i] - (*meanmagval))*weight[i];
+    }
+  }
+  *chisqrplus = (s1in - s2in)*sumweights;
+
+  *fraconenight = getfrac_onenight(n, t, u, v, e, inputper, *depth, *qtran, (t[0] + in1ph*inputper), timezone);
+
+  /* Get the signal to pink noise for the peak */
+  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, inputper, *qtran, *depth, in1ph, nt, Nt, Nbefore, Nafter, rednoise, whitenoise, sigtopink, *qingress, *OOTmag, NULL);
+
+  //output the model light curve if asked to
+  if(omodel)
+    {
+      if((outfile2 = fopen(modelname,"w")) == NULL)
+	error2(ERR_CANNOTWRITE,modelname);
+
+      f0 = 1./inputper;
+      phb1 = (*qingress)*(*qtran);
+      phb2 = (*qtran) - phb1;
+      //in1ph = (inputT0 - t1)/bper[0] - floor((inputT0 - t1)/bper[0]);
+
+      fprintf(outfile2,"#Time  Mag_obs   Mag_model   Error   Phase\n");
+      for(i=0;i<n;i++)
+	{
+	  ph = (t[i] - inputT0)*f0;
+	  ph -= floor(ph);
+	  if(ph >= *qtran) {
+	    ph2 = ph - 0.5*(*qtran);
+	    if(ph2 < 0)
+	      ph2 += 1.;
+	    fprintf(outfile2,"%f %f %f %f %f\n",t[i], x[i], *OOTmag, e[i], ph2);
+	  }
+	  else {
+	    if(ph >= phb1 && ph <= phb2) {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f %f %f\n", t[i], x[i], (*OOTmag)+(*depth), e[i], ph2);
+	    }
+	    else if(ph < phb1) {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f %f %f\n", t[i], x[i], (*OOTmag)+(*depth)*ph/phb1, e[i], ph2);
+	    }
+	    else {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f %f %f\n", t[i], x[i], (*OOTmag)+(*depth)*((*qtran) - ph)/phb1, e[i], ph2);
+	    }
+	  }
+	}
+      fclose(outfile2);
+    }
+  // Output the phase curve if asked to.
+  if(ophcurve)
+    {
+      if((outfile2 = fopen(ophcurvename,"w")) == NULL)
+	error2(ERR_CANNOTWRITE,ophcurvename);
+
+      fprintf(outfile2,"#Phase Mag_model\n");
+      ph2 = phmin;
+      phb1 = (*qingress)*(*qtran);
+      phb2 = *qtran - phb1;
+      while(ph2 <= phmax) {
+	ph = ph2 + 0.5*(*qtran);
+	ph -= floor(ph);
+	if(ph >= (*qtran)) {
+	  fprintf(outfile2,"%f %f\n",ph2,(*OOTmag));
+	}
+	else {
+	  if(ph >= phb1 && ph <= phb2) {
+	    fprintf(outfile2,"%f %f\n",ph2,(*OOTmag)+(*depth));
+	  }
+	  else if(ph < phb1) {
+	    fprintf(outfile2,"%f %f\n",ph2,(*OOTmag)+(*depth)*ph/phb1);
+	  }
+	  else {
+	    fprintf(outfile2,"%f %f\n",ph2,(*OOTmag)+(*depth)*((*qtran) - ph)/phb1);
+	  }
+	}
+	ph2 += phstep;
+      }
+      fclose(outfile2);
+    }
+
+  // Output the JD curve if asked to.
+  if(ojdcurve)
+    {
+      if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
+	error2(ERR_CANNOTWRITE,ojdcurvename);
+
+      fprintf(outfile2,"#Time Mag_model Phase\n");
+      jdtmp = t[0];
+      f0 = 1./inputper;
+      phb1 = (*qingress)*(*qtran);
+      phb2 = (*qtran) - phb1;
+      while(jdtmp <= t[n-1])
+	{
+	  ph = (jdtmp - inputT0)*f0;
+	  ph -= floor(ph);
+	  if(ph >= (*qtran)) {
+	    ph2 = ph - 0.5*(*qtran);
+	    if(ph2 < 0)
+	      ph2 += 1.;
+	    fprintf(outfile2,"%f %f %f\n", jdtmp, (*OOTmag), ph2);
+	  }
+	  else {
+	    if(ph >= phb1 && ph <= phb2) {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f\n", jdtmp, (*OOTmag)+(*depth), ph2);
+	    }
+	    else if(ph < phb1) {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f\n", jdtmp, (*OOTmag)+(*depth)*ph/phb1, ph2);
+	    }
+	    else {
+	      ph2 = ph - 0.5*(*qtran);
+	      if(ph2 < 0)
+		ph2 += 1.;
+	      fprintf(outfile2,"%f %f %f\n", jdtmp, (*OOTmag)+(*depth)*((*qtran) - ph)/phb1, ph2);
+	    }
+	  }
+	  jdtmp += jdstep;
+	}
+      fclose(outfile2);
+    }
+  if(correctlc)
+    {
+      f0 = 1./inputper;
+      phb1 = (*qingress)*(*qtran);
+      phb2 = (*qtran) - phb1;
+      for(i=0;i<n;i++)
+	{
+	  ph = (t[i] - inputT0)*f0;
+	  ph -= floor(ph);
+	  if(ph < (*qtran)) {
+	    if(ph >= phb1 && ph <= phb2) {
+	      x[i] -= (*depth);
+	    }
+	    else if(ph < phb1) {
+	      x[i] -= (*depth)*ph/phb1;
+	    }
+	    else {
+	      x[i] -= (*depth)*((*qtran) - ph)/phb1;
+	    }
+	  }
+	}
+
+    }
+
+  free(weight);
+
+  return(0);
+}

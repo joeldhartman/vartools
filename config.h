@@ -154,6 +154,9 @@
 /* Define if the Py_UNICODE 32-bit object type is available */
 #define HAVE_PYTHON_UNICODE 1
 
+/* Define to 1 if you have the `Py_SetPath' function. */
+#define HAVE_PY_SETPATH 1
+
 /* Define to 1 if you have the `readdir' function. */
 #define HAVE_READDIR 1
 
@@ -253,7 +256,7 @@
 #define PACKAGE_NAME "vartools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "vartools 1.40"
+#define PACKAGE_STRING "vartools 1.41"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "vartools"
@@ -262,13 +265,13 @@
 #define PACKAGE_URL "http://www.astro.princeton.edu/~jhartman/vartools.html"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.40"
+#define PACKAGE_VERSION "1.41"
 
 /* Set to the PYTHONHOME */
 #define PYTHONHOMEPATH "/usr"
 
 /* Set to the PYTHONPATH */
-#define PYTHONSEARCHPATH ":/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages"
+#define PYTHONSEARCHPATH ":/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/home/jhartman/.local/lib/python3.8/site-packages/mwdust-1.4.dev0-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/healpy-1.16.2-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/urllib3-1.26.15-py3.8.egg:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages"
 
 /* NUMPY VERSION */
 #define PYTHON_NUMPY_VERSION 1.17.4
@@ -277,7 +280,7 @@
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.40"
+#define VERSION "1.41"
 
 /* Define so that glibc/gnulib argp.h does not typedef error_t. */
 /* #undef __error_t_defined */

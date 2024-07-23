@@ -1571,6 +1571,9 @@ void example(char *c, ProgramData *p)
 
 #ifdef DYNAMICLIB
   if(!commandfound) {
+    if(CheckIfUserCommandExampleIsCalled(p, c)) 
+      commandfound = 1;
+    /*
     for(i=0; i < p->NUserLib; i++) {
       if(!strcmp(c,p->UserLib[i].commandname)) {
 	if(p->UserLib[i].ShowExample_function != NULL) {
@@ -1582,6 +1585,7 @@ void example(char *c, ProgramData *p)
 	break;
       }
     }
+    */
   }
 #endif
 

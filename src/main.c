@@ -33,8 +33,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-double JDTOL;
-
 typedef struct {
   ProgramData *p;
   Command *c;
@@ -48,7 +46,7 @@ typedef struct {
 void *ParallelProcessOneLC(void *arg)
 {
   _threaddata *t;
-  int i, k;
+  int i, k, ii;
   int readlc_retval, cnum_start;
   _StringBuffer *buf = NULL;
 
@@ -103,8 +101,22 @@ void *ParallelProcessOneLC(void *arg)
 	t->p->IfStack[t->threadnumber]->curpos = 0;
       }
     }
-    for(i=cnum_start;i<t->p->Ncommands;i++)
-      ProcessCommandSingle(t->p,&(t->c[i]),t->lcnumber,i,t->threadnumber);
+    for(i=cnum_start;i<t->p->Ncommands;i++) {
+      if(!t->p->skipfaillc[t->lcnumber])
+	ProcessCommandSingle(t->p,&(t->c[i]),t->lcnumber,i,t->threadnumber);
+      else {
+	if(t->p->Ncopycommands > 0) {
+	  /* Turn off any subsequent copies which will depend on this 
+	     light curve */
+	  turnoffcopies(t->p, t->c, i, t->threadnumber, t->lcnumber);
+	}
+	for(ii=i;ii<t->p->Ncommands;ii++) {
+	  if(t->c[ii].cnum != CNUM_SAVELC && t->c[ii].cnum != CNUM_RESTORELC)
+	    SkipCommand(t->p, &(t->c[ii]), ii, t->lcnumber, t->threadnumber);
+	}
+	break;
+      }
+    }
     if(!t->p->quiet_mode)
       {
 
@@ -152,7 +164,7 @@ int main(int argc, char **argv)
 
   FILE *outfile;
 
-  int i, j, k, kk;
+  int i, j, k, kk, ii;
 
   int cnum_start, readlc_retval;
 
@@ -231,7 +243,7 @@ int main(int argc, char **argv)
   p.lc_getcolumnsfromheader_notyetset = 1;
 
   //  sizeHISTvector = 0;
-  JDTOL = DEFAULT_JDTOL;
+  p.JDTOL = DEFAULT_JDTOL;
 
 #ifdef PARALLEL
   p.Nproc_allow = 1;
@@ -586,8 +598,22 @@ int main(int argc, char **argv)
 	      p.IfStack[0]->curpos = 0;
 	    }
 	  }
-	  for(i=cnum_start;i<p.Ncommands;i++)
-	    ProcessCommandSingle(&p,&c[i],j,i,0);
+	  for(i=cnum_start;i<p.Ncommands;i++) {
+	    if(!p.skipfaillc[j]) {
+	      ProcessCommandSingle(&p,&c[i],j,i,0);
+	    } else {
+	      if(p.Ncopycommands > 0) {
+		/* Turn off any subsequent copies which will depend on this 
+		   light curve */
+		turnoffcopies(&p, c, i, 0, j);
+	      }
+	      for(ii=i;ii<p.Ncommands;ii++) {
+		if(c[ii].cnum != CNUM_SAVELC && c[ii].cnum != CNUM_RESTORELC)
+		  SkipCommand(&p, &c[ii], ii, j, 0);
+	      }
+	      break;
+	    }
+	  }
 	  if(!p.quiet_mode)
 	    //printresults(p.tabflag,p.lcnames[j],c,p.Ncommands,0,j);
 	    printresults_new(&p, 0, j,outfile);

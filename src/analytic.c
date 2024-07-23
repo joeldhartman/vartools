@@ -875,6 +875,7 @@ int CheckVariableNameNotAcceptable(char *varname, ProgramData *p) {
      !strcmp(varname,"atanh") ||
      !strcmp(varname,"rand") ||
      !strcmp(varname,"gauss") ||
+     !strcmp(varname,"isnan") ||
      !strcmp(varname,"len")) {
       return(ERR_VARIABLEALREADYINUSE);
   }
@@ -1937,6 +1938,11 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
       error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "gauss");
     outval = gasdev();
     break;
+  case VARTOOLS_FUNCTIONCALL_ISNAN:
+    if(call->Nexpr != 1)
+      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "isnan");
+    outval = isnan(val[0]);
+    break;
   default:
 #ifdef DYNAMICLIB
     if(call->UserFunc != NULL) {
@@ -2304,6 +2310,10 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	}
 	else if(!strcmp(term2,"gauss")) {
 	  *functionid = VARTOOLS_FUNCTIONCALL_GAUSS;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"isnan")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_ISNAN;
 	  test = 1;
 	}
 	else if(!strcmp(term2,"len")) {
@@ -3304,6 +3314,7 @@ void PrintVartoolsFunctionList(ProgramData *p)
   printtostring(&s,"rand()\t\t- random number drawn from a uniform distribution between 0 and 1.\n\n");
   printtostring_indentwrap(&s,"gauss()\t\t- random number drawn from a normal distribution with 0 mean and unit variance.",8);
   printtostring(&s,"\n\n");
+  printtostring(&s,"isnan(x)\t\t- Returns 1 if the argument is NaN, 0 otherwise.\n\n");
   printtostring(&s,"Vector Functions:\n\n");
   printtostring(&s,"-----------------\n\n");
   printtostring_indentwrap(&s,"len(x)\t\t- returns the length of a vector. x must be a single number or variable, more complicated expressions are not permitted as arguments to this function.",8);

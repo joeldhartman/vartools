@@ -152,3 +152,5 @@ void VARTOOLS_MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid,
 int VARTOOLS_gnu_getline(char **, size_t *, FILE *);
 
 void VARTOOLS_mysortstringint(int, int, char **, int *);
+
+void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint);

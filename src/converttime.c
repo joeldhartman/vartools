@@ -377,7 +377,7 @@ double hjd2jd(double hjddiff, long tint, double ra, double dec, double epoch,
 /* Use the JPL NAIF cspice library to convert from Julian Date
    measured at an observatory on the earth to Barycentric Julian Date */
 double jd2bjd(double jddiff, long tint, double ra, double dec, double epoch,
-	      double obslat, double obslong, double obsalt,
+	      double obslat, double obslong, double obsalt, int obs_coords_usexyz,
 	      double mu_ra, double mu_dec, int timesys) {
   SpiceDouble et;
   SpiceDouble lt;
@@ -389,6 +389,13 @@ double jd2bjd(double jddiff, long tint, double ra, double dec, double epoch,
 
   double cd, sd, ca, sa, delta_Romer, bjdoutdiff;
   double jd, jddiffephem;
+
+  double obs_x, obs_y, obs_z;
+  if(obs_coords_usexyz) {
+    obs_x = obslat;
+    obs_y = obslong;
+    obs_z = obsalt;
+  }
 
   if(timesys == TIMESYSTEM_UTC) {
     jddiffephem = jdutc2jdtdb(jddiff, tint);
@@ -419,9 +426,16 @@ double jd2bjd(double jddiff, long tint, double ra, double dec, double epoch,
      to the Solar-System Barycenter */
   spkezr_c( "Earth", et, "J2000", "None", "SSB", state, &lt);
 
-  /* Get the J2000 frame x, y, z coordinates of the observatory
+  
+  if(obs_coords_usexyz) {
+    /* If the user inputed the J2000 frame x, y, z coordinates of the observatory relative to the center of the Earth, use those to correct the vector from the SSB to the position of the observer */
+    state[0] += obs_x;
+    state[1] += obs_y;
+    state[2] += obs_z;
+  }
+  else if(obsalt > -9998.) {
+  /* Otherwise, get the J2000 frame x, y, z coordinates of the observatory
      relative to the center of the Earth */
-  if(obsalt > -9998.) {
     bodvcd_c ( 399, "RADII", 3, &n, abc); /* Radii of the earth */
     equatr = abc[0]; polar = abc[2]; f = (equatr - polar)/equatr;
     georec_c(obslong, obslat, (obsalt/1000.), equatr, f, epos);
@@ -445,7 +459,7 @@ double jd2bjd(double jddiff, long tint, double ra, double dec, double epoch,
 
 /* JD at an observatory given a BJD */
 double bjd2jd(double bjddiff, long tint, double ra, double dec, double epoch,
-	      double obslat, double obslong, double obsalt,
+	      double obslat, double obslong, double obsalt, int obs_coords_usexyz,
 	      double mu_ra, double mu_dec, int timesys) {
   SpiceDouble et;
   SpiceDouble lt;
@@ -458,6 +472,14 @@ double bjd2jd(double bjddiff, long tint, double ra, double dec, double epoch,
   double cd, sd, ca, sa, delta_Romer, jdoutdiff, bjd, checkdelt, jddiffephem;
   double jdoutdiffold, raorig, decorig, jdephem;
   int numiter;
+
+  int obs_x, obs_y, obs_z;
+
+  if(obs_coords_usexyz) {
+    obs_x = obslat;
+    obs_y = obslong;
+    obs_z = obsalt;
+  }
 
   bjd = bjddiff + tint;
 
@@ -498,9 +520,15 @@ double bjd2jd(double bjddiff, long tint, double ra, double dec, double epoch,
        Barycenter relative to the Earth */
     spkezr_c( "SSB", et, "J2000", "None", "Earth", state, &lt);
 
-    /* Get the J2000 frame x, y, z coordinates of the observatory
+    if(obs_coords_usexyz) {
+      /* If the user inputed the J2000 frame x, y, z coordinates of the observatory relative to the center of the Earth, use those to correct the vector from the observer to the SSB */
+      state[0] -= obs_x;
+      state[1] -= obs_y;
+      state[2] -= obs_z;
+    }
+    else if(obsalt > -9998.) {
+    /* Otherwise, get the J2000 frame x, y, z coordinates of the observatory
        relative to the center of the Earth */
-    if(obsalt > -9998.) {
       bodvcd_c ( 399, "RADII", 3, &n, abc); /* Radii of the earth */
       equatr = abc[0]; polar = abc[2]; f = (equatr - polar)/equatr;
       georec_c(obslong, obslat, (obsalt/1000.), equatr, f, epos);
@@ -639,10 +667,14 @@ void ParseObservatoryCode(char *code, double *obslat, double *obslong, double *o
 /* Main Function for converting time from one system to another */
 void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 {
-  int i;
+  int i, useradecv = 0, useradecinv = 0;
   double rain, raout, decin, decout, ppm_mu_ra_in, ppm_mu_ra_out,
     ppm_mu_dec_in, ppm_mu_dec_out, epochin, epochout, obslat, obslong,
     obsalt, tdouble_add, delt;
+  double *raoutv = NULL;
+  double *decoutv = NULL;
+  double *rainv = NULL;
+  double *decinv = NULL;
   long tint;
   long tint_in, tint_out, tint_sub1, tint_sub2;
 
@@ -660,6 +692,34 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	raout = c->ravals[lcreal][0];
 	decout = c->decvals[lcreal][0];
       }
+      else if(c->radec_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	raout = EvaluateExpression(lcreal, lc, 0, c->raval_expr);
+	decout = EvaluateExpression(lcreal, lc, 0, c->decval_expr);
+      }
+      else if(c->radec_source == VARTOOLS_SOURCE_LC) {
+	useradecv = 1;
+	if(N > 0) {
+	  if((raoutv = (double *) malloc(N * sizeof(double))) == NULL ||
+	     (decoutv = (double *) malloc(N * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(i=0; i < N; i++) {
+	    raoutv[i] = c->raval_lcvals[lc][i];
+	    decoutv[i] = c->decval_lcvals[lc][i];
+	  }
+	}
+      }
+      else if(c->radec_source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	useradecv = 1;
+	if(N > 0) {
+	  if((raoutv = (double *) malloc(N * sizeof(double))) == NULL ||
+	     (decoutv = (double *) malloc(N * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(i=0; i < N; i++) {
+	    raoutv[i] = EvaluateExpression(lcreal, lc, i, c->raval_lcexpr);
+	    decoutv[i] = EvaluateExpression(lcreal, lc, i, c->decval_lcexpr);
+	  }
+	}
+      }
       else
 	error(ERR_CODEERROR);
       epochout = c->radecepoch;
@@ -672,12 +732,54 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  rain = c->inputravals[lcreal][0];
 	  decin = c->inputdecvals[lcreal][0];
 	}
+	else if(c->inputradec_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	  rain = EvaluateExpression(lcreal, lc, 0, c->inputraval_expr);
+	  decin = EvaluateExpression(lcreal, lc, 0, c->inputdecval_expr);
+	}
+	else if(c->inputradec_source == VARTOOLS_SOURCE_LC) {
+	  useradecinv = 1;
+	  if(N > 0) {
+	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
+	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(i=0; i < N; i++) {
+	      rainv[i] = c->inputraval_lcvals[lc][i];
+	      decinv[i] = c->inputdecval_lcvals[lc][i];
+	    }
+	  }
+	}
+	else if(c->inputradec_source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	  useradecinv = 1;
+	  if(N > 0) {
+	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
+	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(i=0; i < N; i++) {
+	      rainv[i] = EvaluateExpression(lcreal, lc, i, c->inputraval_lcexpr);
+	      decinv[i] = EvaluateExpression(lcreal, lc, i, c->inputdecval_lcexpr);
+	    }
+	  }
+	}
 	else
 	  error(ERR_CODEERROR);
 	epochin = c->inputradecepoch;
       }
       else {
-	rain = raout; decin = decout; epochin = epochout;
+	if(!useradecv) {
+	  rain = raout; decin = decout; epochin = epochout;
+	} else {
+	  useradecinv = 1;
+	  if(N > 0) {
+	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
+	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(i=0; i < N; i++) {
+	      rainv[i] = raoutv[i];
+	      decinv[i] = decoutv[i];
+	    }
+	  }
+	  epochin = epochout;
+	}
       }
       if(c->useppm) {
 	if(c->ppm_source == VARTOOLS_SOURCE_FIXED) {
@@ -717,6 +819,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	obslat = c->obslat_listvals[lcreal];
 	obslong = c->obslong_listvals[lcreal];
 	obsalt = c->obsalt_listvals[lcreal];
+      }
+      else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	obslat = EvaluateExpression(lcreal, lc, 0, c->obslat_expr);
+	obslong = EvaluateExpression(lcreal, lc, 0, c->obslong_expr);
+	obsalt = EvaluateExpression(lcreal, lc, 0, c->obsalt_expr);
       }
       else if(c->source_obs_coords == VARTOOLS_SOURCE_NONE) {
 	obslat = -999.; obslong = -999.; obsalt = -99999.;
@@ -823,6 +930,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	  delt = mjd2jd(delt,&tint);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(delt, tint, raout,
 			decout, epochout, ppm_mu_ra_out, ppm_mu_dec_out,
 			c->inputsys) + tint
@@ -837,6 +948,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	  delt = mjd2jd(delt,&tint);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(jdutc2jdtdb(delt,tint),tint,
 			raout, decout, epochout, ppm_mu_ra_out,
 			ppm_mu_dec_out,
@@ -851,6 +966,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	  delt = mjd2jd(delt,&tint);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(jdtdb2jdutc(delt,tint), tint,
 			raout, decout, epochout, ppm_mu_ra_out,
 			ppm_mu_dec_out,
@@ -873,29 +992,45 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(delt, tint, raout,
 			  decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(delt, tint, raout,
 			  decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  c->inputsys) + tint
 	      - c->outputsubtractval;
@@ -905,29 +1040,45 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> BJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdutc2jdtdb(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdutc2jdtdb(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
@@ -937,29 +1088,45 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> BJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdtdb2jdutc(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = mjd2jd(delt,&tint);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdtdb2jdutc(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_UTC)
 	      - c->outputsubtractval;
@@ -1071,6 +1238,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(delt, tint, raout,
 			decout, epochout, ppm_mu_ra_out, ppm_mu_dec_out,
 			c->inputsys) + tint
@@ -1084,6 +1255,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(jdutc2jdtdb(delt,tint), tint,
 			raout, decout, epochout, ppm_mu_ra_out,
 			ppm_mu_dec_out,
@@ -1097,6 +1272,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecv) {
+	    raout = raoutv[i];
+	    decout = decoutv[i];
+	  }
 	  t[i] = jd2hjd(jdtdb2jdutc(delt,tint), tint,
 			raout, decout, epochout, ppm_mu_ra_out,
 			ppm_mu_dec_out,
@@ -1119,27 +1298,43 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(delt, tint, raout,
 			  decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(delt, tint, raout,
 			  decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  c->inputsys) + tint
 	      - c->outputsubtractval;
@@ -1149,27 +1344,43 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> BJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdutc2jdtdb(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdutc2jdtdb(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
@@ -1179,27 +1390,43 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> BJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdtdb2jdutc(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
 	    t[i] = jd2bjd(jdtdb2jdutc(delt,tint), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,
 			  TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
@@ -1229,6 +1456,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  delt = hjd2jd(delt, tint, rain,
 			decin, epochin, ppm_mu_ra_in,
 			ppm_mu_dec_in,
@@ -1245,6 +1476,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  delt = hjd2jd(jdutc2jdtdb(delt,tint), tint,
 			rain, decin, epochin, ppm_mu_ra_in,
 			ppm_mu_dec_in,
@@ -1260,6 +1495,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  delt = hjd2jd(jdtdb2jdutc(delt,tint), tint,
 			rain, decin, epochin, ppm_mu_ra_in,
 			ppm_mu_dec_in,
@@ -1285,6 +1524,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  t[i] = hjd2jd(delt, tint, rain,
 			decin, epochin, ppm_mu_ra_in, ppm_mu_dec_in,
 			c->inputsys) + tint
@@ -1298,6 +1541,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  t[i] = hjd2jd(jdutc2jdtdb(delt, tint),tint,
 			rain, decin, epochin, ppm_mu_ra_in,
 			ppm_mu_dec_in,
@@ -1311,6 +1558,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	  if(useradecinv) {
+	    rain = rainv[i];
+	    decin = decinv[i];
+	  }
 	  t[i] = hjd2jd(jdtdb2jdutc(delt,tint), tint,
 			rain, decin, epochin, ppm_mu_ra_in,
 			ppm_mu_dec_in, TIMESYSTEM_UTC) + tint
@@ -1330,11 +1581,19 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> HJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd(hjd2jd(delt,tint ,
 				 rain, decin, epochin, ppm_mu_ra_in,
 				 ppm_mu_dec_in,c->inputsys), tint,
@@ -1352,11 +1611,19 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> HJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd(hjd2jd(jdutc2jdtdb(delt,tint),tint,
 				 rain, decin, epochin, ppm_mu_ra_in,
 				 ppm_mu_dec_in,TIMESYSTEM_TDB),tint,
@@ -1376,11 +1643,19 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> HJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((hjd2jd(jdtdb2jdutc(delt,tint),tint,
 				  rain, decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,TIMESYSTEM_UTC)),tint,
@@ -1412,30 +1687,54 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd(delt, tint, rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,c->inputsys)),tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd(delt, tint, rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,c->inputsys)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1444,32 +1743,56 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> BJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd((jdutc2jdtdb(delt,tint)), tint,
 				  rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,TIMESYSTEM_TDB)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd((jdutc2jdtdb(delt,tint)), tint,
 				  rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,TIMESYSTEM_TDB)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1478,32 +1801,56 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> BJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd((jdtdb2jdutc(delt,tint)), tint,
 				  rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,TIMESYSTEM_UTC)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((hjd2jd((jdtdb2jdutc(delt,tint)), tint,
 				  rain,
 				  decin, epochin, ppm_mu_ra_in,
 				  ppm_mu_dec_in,TIMESYSTEM_UTC)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out, ppm_mu_dec_out,TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1529,13 +1876,18 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> MJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    delt = bjd2jd(delt, tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, c->inputsys);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1543,14 +1895,25 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	    delt = bjd2jd(delt, tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, c->inputsys);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1561,14 +1924,19 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> MJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    delt = bjd2jd((jdutc2jdtdb(delt,tint)), tint,
 			  rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_TDB);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1576,15 +1944,26 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    delt = bjd2jd(jdutc2jdtdb(delt,tint), tint,
 			  rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_TDB);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1595,14 +1974,19 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> MJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    delt = bjd2jd(jdtdb2jdutc(delt,tint), tint,
 			  rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_UTC);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1610,15 +1994,26 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    delt = bjd2jd(jdtdb2jdutc(delt,tint), tint,
 			  rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_UTC);
 	    delt = jd2mjd(delt,&tint);
 	    t[i] = delt + tint
@@ -1634,26 +2029,42 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> JD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(delt, tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(delt, tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, c->inputsys) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1662,26 +2073,42 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> JD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(jdutc2jdtdb(delt,tint), tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(jdutc2jdtdb(delt,tint), tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_TDB) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1690,26 +2117,42 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> JD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(jdtdb2jdutc(delt,tint), tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = bjd2jd(jdtdb2jdutc(delt,tint), tint, rain,
 			  decin, epochin,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_in, ppm_mu_dec_in, TIMESYSTEM_UTC) + tint
 	      - c->outputsubtractval;
 	  }
@@ -1723,13 +2166,22 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> HJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd(delt, tint, rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  c->inputsys)), tint,
 			  raout, decout, epochout,
@@ -1738,14 +2190,29 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd(delt, tint, rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  c->inputsys)), tint,
 			  raout, decout, epochout,
@@ -1757,14 +2224,23 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> HJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd((jdutc2jdtdb(delt,tint)), tint,
 				  rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  TIMESYSTEM_TDB)), tint,
 			  raout, decout, epochout,
@@ -1774,15 +2250,30 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd((jdutc2jdtdb(delt,tint)), tint,
 				  rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  TIMESYSTEM_TDB)), tint,
 			  raout, decout, epochout,
@@ -1795,14 +2286,23 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> BJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(c->source_obs_coords != VARTOOLS_SOURCE_LC) {
+	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
+	   c->source_obs_coords != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd((jdtdb2jdutc(delt,tint)), tint,
 				  rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  TIMESYSTEM_UTC)), tint,
 			  raout, decout, epochout,
@@ -1812,15 +2312,30 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  }
 	} else {
 	  for(i=0; i < N; i++) {
-	    obslat = c->obslat_lcvals[lc][i];
-	    obslong = c->obslong_lcvals[lc][i];
-	    obsalt = c->obsalt_lcvals[lc][i];
+	    if(c->source_obs_coords == VARTOOLS_SOURCE_LC) {
+	      obslat = c->obslat_lcvals[lc][i];
+	      obslong = c->obslong_lcvals[lc][i];
+	      obsalt = c->obsalt_lcvals[lc][i];
+	    }
+	    else if(c->source_obs_coords == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+	      obslat = EvaluateExpression(lcreal, lc, i, c->obslat_lcexpr);
+	      obslong = EvaluateExpression(lcreal, lc, i, c->obslong_lcexpr);
+	      obsalt = EvaluateExpression(lcreal, lc, i, c->obsalt_lcexpr);
+	    }
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2hjd((bjd2jd((jdtdb2jdutc(delt,tint)), tint,
 				  rain,
 				  decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in, ppm_mu_dec_in,
 				  TIMESYSTEM_UTC)), tint,
 			  raout, decout, epochout,
@@ -1837,18 +2352,26 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((bjd2jd(delt, tint,
 				  rain, decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in,
 				  ppm_mu_dec_in, c->inputsys)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out,
 			  ppm_mu_dec_out,
 			  c->inputsys) + tint - c->outputsubtractval;
@@ -1863,19 +2386,27 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> BJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((bjd2jd(jdutc2jdtdb(delt,tint), tint,
 				  rain, decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in,
 				  ppm_mu_dec_in,
 				  TIMESYSTEM_TDB)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out,
 			  ppm_mu_dec_out,
 			  TIMESYSTEM_TDB) + tint - c->outputsubtractval;
@@ -1892,19 +2423,27 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* BJD -> BJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
-	if(rain != raout || decin != decout || epochin != epochout ||
+	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
 	    tint = floor(t[i] + c->inputsubtractval);
 	    delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
+	    if(useradecv) {
+	      raout = raoutv[i];
+	      decout = decoutv[i];
+	    }
+	    if(useradecinv) {
+	      rain = rainv[i];
+	      decin = decinv[i];
+	    }
 	    t[i] = jd2bjd((bjd2jd(jdtdb2jdutc(delt,tint), tint,
 				  rain, decin, epochin,
-				  obslat, obslong, obsalt,
+				  obslat, obslong, obsalt, c->obs_coords_usexyz,
 				  ppm_mu_ra_in,
 				  ppm_mu_dec_in,
 				  TIMESYSTEM_UTC)), tint,
 			  raout, decout, epochout,
-			  obslat, obslong, obsalt,
+			  obslat, obslong, obsalt, c->obs_coords_usexyz,
 			  ppm_mu_ra_out,
 			  ppm_mu_dec_out,
 			  TIMESYSTEM_UTC) + tint - c->outputsubtractval;
@@ -1933,4 +2472,6 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
   default:
     error(ERR_CODEERROR);
   }
+  if(raoutv != NULL) free(raoutv);
+  if(decoutv != NULL) free(decoutv);
 }

@@ -226,9 +226,9 @@ AWK = gawk
 BUILDDIR = /home/jhartman/SVN/HATpipe/source/vartools
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS = -O0 -g
 CPP = gcc -E
-CPPFLAGS =  -DHATP_SVN=4614  -I/usr/lib/R/include -I/usr/share/R/include
+CPPFLAGS =  -DHATP_SVN=5296 -O0 -g -I/usr/lib/R/include -I/usr/share/R/include
 CYGPATH_W = echo
 DATAROOTDIR = /home/jhartman/SVN/HATpipe/data
 DEFS = -DHAVE_CONFIG_H
@@ -299,17 +299,17 @@ OTOOL64 =
 PACKAGE = vartools
 PACKAGE_BUGREPORT = jhartman@astro.princeton.edu
 PACKAGE_NAME = vartools
-PACKAGE_STRING = vartools 1.40
+PACKAGE_STRING = vartools 1.41
 PACKAGE_TARNAME = vartools
 PACKAGE_URL = http://www.astro.princeton.edu/~jhartman/vartools.html
-PACKAGE_VERSION = 1.40
+PACKAGE_VERSION = 1.41
 PATH_SEPARATOR = :
 PYTHON = /usr/bin/python3.8
 PYTHONBINPATH = /usr/bin
 PYTHONCONFIG = 
 PYTHONHOMEPATH = /usr
-PYTHONSEARCHPATH = :/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
-PYTHON_CSPEC = -I/usr/include/python3.8 -I/usr/include/python3.8  -Wno-unused-result -Wsign-compare -g -fdebug-prefix-map=/build/python3.8-xhc1jt/python3.8-3.8.5=. -specs=/usr/share/dpkg/no-pie-compile.specs -fstack-protector -Wformat -Werror=format-security  -DNDEBUG -g -fwrapv -O3 -Wall
+PYTHONSEARCHPATH = :/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/home/jhartman/.local/lib/python3.8/site-packages/mwdust-1.4.dev0-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/healpy-1.16.2-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/urllib3-1.26.15-py3.8.egg:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
+PYTHON_CSPEC = -I/usr/include/python3.8 -I/usr/include/python3.8  -Wno-unused-result -Wsign-compare -g -fdebug-prefix-map=/build/python3.8-jMMBTh/python3.8-3.8.10=. -specs=/usr/share/dpkg/no-pie-compile.specs -fstack-protector -Wformat -Werror=format-security  -DNDEBUG -g -fwrapv -O3 -Wall
 PYTHON_EXECPREFIX = 
 PYTHON_LSPEC = -L/usr/lib/python3.8/config-3.8-x86_64-linux-gnu -L/usr/lib -lpython3.8 -lcrypt -lpthread -ldl  -lutil -lm -lm 
 PYTHON_PREFIX = 
@@ -323,7 +323,7 @@ SRCDIR = /home/jhartman/SVN/HATpipe/source/vartools
 STRIP = strip
 USERFUNCSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERFUNCS
 USERLIBSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS
-VERSION = 1.40
+VERSION = 1.41
 abs_builddir = /home/jhartman/SVN/HATpipe/source/vartools/USERFUNCS/src
 abs_srcdir = /home/jhartman/SVN/HATpipe/source/vartools/USERFUNCS/src
 abs_top_builddir = /home/jhartman/SVN/HATpipe/source/vartools

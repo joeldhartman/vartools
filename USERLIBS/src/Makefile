@@ -88,7 +88,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = x86_64-pc-linux-gnu
 host_triplet = x86_64-pc-linux-gnu
-am__append_1 = fastchi2.la 
+am__append_1 = fastchi2.la splinedetrend.la
 subdir = USERLIBS/src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_python_embed.m4 \
@@ -184,6 +184,14 @@ medlc_la_OBJECTS = $(am_medlc_la_OBJECTS)
 medlc_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(medlc_la_LDFLAGS) $(LDFLAGS) -o $@
+splinedetrend_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
+am_splinedetrend_la_OBJECTS = splinedetrend_la-splinedetrend.lo
+splinedetrend_la_OBJECTS = $(am_splinedetrend_la_OBJECTS)
+splinedetrend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(AM_CFLAGS) $(CFLAGS) $(splinedetrend_la_LDFLAGS) $(LDFLAGS) \
+	-o $@
+am_splinedetrend_la_rpath = -rpath $(userlibsdir)
 transitbisec_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
 am_transitbisec_la_OBJECTS = transitbisec.lo
 transitbisec_la_OBJECTS = $(am_transitbisec_la_OBJECTS)
@@ -210,7 +218,9 @@ am__depfiles_remade = ./$(DEPDIR)/fastchi2_la-fastchi2.Plo \
 	./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo \
 	./$(DEPDIR)/ftuneven.Plo ./$(DEPDIR)/jktebop.Plo \
 	./$(DEPDIR)/macula_c.Plo ./$(DEPDIR)/magadd.Plo \
-	./$(DEPDIR)/medlc.Plo ./$(DEPDIR)/transitbisec.Plo
+	./$(DEPDIR)/medlc.Plo \
+	./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo \
+	./$(DEPDIR)/transitbisec.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -265,12 +275,12 @@ SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
 	$(libjktebop_la_SOURCES) $(libmacula_la_SOURCES) \
 	$(macula_la_SOURCES) $(nodist_EXTRA_macula_la_SOURCES) \
 	$(magadd_la_SOURCES) $(medlc_la_SOURCES) \
-	$(transitbisec_la_SOURCES)
+	$(splinedetrend_la_SOURCES) $(transitbisec_la_SOURCES)
 DIST_SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
 	$(jktebop_la_SOURCES) $(libjktebop_la_SOURCES) \
 	$(libmacula_la_SOURCES) $(macula_la_SOURCES) \
 	$(magadd_la_SOURCES) $(medlc_la_SOURCES) \
-	$(transitbisec_la_SOURCES)
+	$(splinedetrend_la_SOURCES) $(transitbisec_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -309,9 +319,9 @@ AWK = gawk
 BUILDDIR = /home/jhartman/SVN/HATpipe/source/vartools
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS = -O0 -g
 CPP = gcc -E
-CPPFLAGS =  -DHATP_SVN=4614  -I/usr/lib/R/include -I/usr/share/R/include
+CPPFLAGS =  -DHATP_SVN=5296 -O0 -g -I/usr/lib/R/include -I/usr/share/R/include
 CYGPATH_W = echo
 DATAROOTDIR = /home/jhartman/SVN/HATpipe/data
 DEFS = -DHAVE_CONFIG_H
@@ -382,17 +392,17 @@ OTOOL64 =
 PACKAGE = vartools
 PACKAGE_BUGREPORT = jhartman@astro.princeton.edu
 PACKAGE_NAME = vartools
-PACKAGE_STRING = vartools 1.40
+PACKAGE_STRING = vartools 1.41
 PACKAGE_TARNAME = vartools
 PACKAGE_URL = http://www.astro.princeton.edu/~jhartman/vartools.html
-PACKAGE_VERSION = 1.40
+PACKAGE_VERSION = 1.41
 PATH_SEPARATOR = :
 PYTHON = /usr/bin/python3.8
 PYTHONBINPATH = /usr/bin
 PYTHONCONFIG = 
 PYTHONHOMEPATH = /usr
-PYTHONSEARCHPATH = :/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
-PYTHON_CSPEC = -I/usr/include/python3.8 -I/usr/include/python3.8  -Wno-unused-result -Wsign-compare -g -fdebug-prefix-map=/build/python3.8-xhc1jt/python3.8-3.8.5=. -specs=/usr/share/dpkg/no-pie-compile.specs -fstack-protector -Wformat -Werror=format-security  -DNDEBUG -g -fwrapv -O3 -Wall
+PYTHONSEARCHPATH = :/usr/lib/python38.zip:/usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/home/jhartman/.local/lib/python3.8/site-packages:/home/jhartman/.local/lib/python3.8/site-packages/mwdust-1.4.dev0-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/healpy-1.16.2-py3.8-linux-x86_64.egg:/home/jhartman/.local/lib/python3.8/site-packages/urllib3-1.26.15-py3.8.egg:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
+PYTHON_CSPEC = -I/usr/include/python3.8 -I/usr/include/python3.8  -Wno-unused-result -Wsign-compare -g -fdebug-prefix-map=/build/python3.8-jMMBTh/python3.8-3.8.10=. -specs=/usr/share/dpkg/no-pie-compile.specs -fstack-protector -Wformat -Werror=format-security  -DNDEBUG -g -fwrapv -O3 -Wall
 PYTHON_EXECPREFIX = 
 PYTHON_LSPEC = -L/usr/lib/python3.8/config-3.8-x86_64-linux-gnu -L/usr/lib -lpython3.8 -lcrypt -lpthread -ldl  -lutil -lm -lm 
 PYTHON_PREFIX = 
@@ -406,7 +416,7 @@ SRCDIR = /home/jhartman/SVN/HATpipe/source/vartools
 STRIP = strip
 USERFUNCSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERFUNCS
 USERLIBSDIR = /home/jhartman/SVN/HATpipe/data/vartools/USERLIBS
-VERSION = 1.40
+VERSION = 1.41
 abs_builddir = /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src
 abs_srcdir = /home/jhartman/SVN/HATpipe/source/vartools/USERLIBS/src
 abs_top_builddir = /home/jhartman/SVN/HATpipe/source/vartools
@@ -488,6 +498,10 @@ fastchi2_la_SOURCES = fastchi2.c fastchi2.h fastchi2_lib.c fastchi2_lib.h
 fastchi2_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la $(GSL_LIBS)
 fastchi2_la_CPPFLAGS = $(GSL_CFLAGS)
 fastchi2_la_LDFLAGS = -module
+splinedetrend_la_SOURCES = splinedetrend.c splinedetrend.h
+splinedetrend_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la $(GSL_LIBS)
+splinedetrend_la_CPPFLAGS = $(GSL_CFLAGS)
+splinedetrend_la_LDFLAGS = -module
 libmacula_la_SOURCES = macula.f90
 libmacula_la_LIBADD = $(FLIBS)
 nodist_EXTRA_macula_la_SOURCES = dummy2.f90
@@ -590,6 +604,9 @@ magadd.la: $(magadd_la_OBJECTS) $(magadd_la_DEPENDENCIES) $(EXTRA_magadd_la_DEPE
 medlc.la: $(medlc_la_OBJECTS) $(medlc_la_DEPENDENCIES) $(EXTRA_medlc_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(medlc_la_LINK) -rpath $(userlibsdir) $(medlc_la_OBJECTS) $(medlc_la_LIBADD) $(LIBS)
 
+splinedetrend.la: $(splinedetrend_la_OBJECTS) $(splinedetrend_la_DEPENDENCIES) $(EXTRA_splinedetrend_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(splinedetrend_la_LINK) $(am_splinedetrend_la_rpath) $(splinedetrend_la_OBJECTS) $(splinedetrend_la_LIBADD) $(LIBS)
+
 transitbisec.la: $(transitbisec_la_OBJECTS) $(transitbisec_la_DEPENDENCIES) $(EXTRA_transitbisec_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(transitbisec_la_LINK) -rpath $(userlibsdir) $(transitbisec_la_OBJECTS) $(transitbisec_la_LIBADD) $(LIBS)
 
@@ -606,6 +623,7 @@ include ./$(DEPDIR)/jktebop.Plo # am--include-marker
 include ./$(DEPDIR)/macula_c.Plo # am--include-marker
 include ./$(DEPDIR)/magadd.Plo # am--include-marker
 include ./$(DEPDIR)/medlc.Plo # am--include-marker
+include ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo # am--include-marker
 include ./$(DEPDIR)/transitbisec.Plo # am--include-marker
 
 $(am__depfiles_remade):
@@ -651,6 +669,13 @@ fastchi2_la-fastchi2_lib.lo: fastchi2_lib.c
 #	$(AM_V_CC)source='fastchi2_lib.c' object='fastchi2_la-fastchi2_lib.lo' libtool=yes \
 #	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
 #	$(AM_V_CC_no)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(fastchi2_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o fastchi2_la-fastchi2_lib.lo `test -f 'fastchi2_lib.c' || echo '$(srcdir)/'`fastchi2_lib.c
+
+splinedetrend_la-splinedetrend.lo: splinedetrend.c
+	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(splinedetrend_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT splinedetrend_la-splinedetrend.lo -MD -MP -MF $(DEPDIR)/splinedetrend_la-splinedetrend.Tpo -c -o splinedetrend_la-splinedetrend.lo `test -f 'splinedetrend.c' || echo '$(srcdir)/'`splinedetrend.c
+	$(AM_V_at)$(am__mv) $(DEPDIR)/splinedetrend_la-splinedetrend.Tpo $(DEPDIR)/splinedetrend_la-splinedetrend.Plo
+#	$(AM_V_CC)source='splinedetrend.c' object='splinedetrend_la-splinedetrend.lo' libtool=yes \
+#	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
+#	$(AM_V_CC_no)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(splinedetrend_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o splinedetrend_la-splinedetrend.lo `test -f 'splinedetrend.c' || echo '$(srcdir)/'`splinedetrend.c
 
 .f.o:
 	$(AM_V_F77)$(F77COMPILE) -c -o $@ $<
@@ -811,6 +836,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/macula_c.Plo
 	-rm -f ./$(DEPDIR)/magadd.Plo
 	-rm -f ./$(DEPDIR)/medlc.Plo
+	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -864,6 +890,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/macula_c.Plo
 	-rm -f ./$(DEPDIR)/magadd.Plo
 	-rm -f ./$(DEPDIR)/medlc.Plo
+	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

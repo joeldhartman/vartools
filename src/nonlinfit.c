@@ -1027,6 +1027,8 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
   if(c->uselinfit) {
     RegisterScalarData(p, (void *)(&(c->linfit->param_outvals)), VARTOOLS_TYPE_DOUBLE, c->linfit->Nparams);
     RegisterScalarData(p, (void *)(&(c->linfit->param_uncertainties)), VARTOOLS_TYPE_DOUBLE, c->linfit->Nparams);
+    RegisterScalarData(p, (void *)(&(c->linfit->numrej)), VARTOOLS_TYPE_INT, 0);
+    RegisterScalarData(p, (void *)(&(c->linfit->iternum)), VARTOOLS_TYPE_INT, 0);
   }
 
   if(c->fittype == VARTOOLS_NONLINFIT_FITTYPE_DEMCMC) {

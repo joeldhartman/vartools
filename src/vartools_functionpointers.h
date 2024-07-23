@@ -71,4 +71,5 @@ typedef struct {
   void (*memallocdatafromlightcurvemidprocess)(ProgramData *, int, int);
   int (*gnu_getline)(char **, size_t *, FILE *);
   void (*mysortstringint)(int, int, char **, int*);
+  void (*docorr)(double *, double *, int, int, double **, int *, double *, double *, double, int);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

@@ -224,6 +224,9 @@ void error(int errflag)
     case ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE:
       fprintf(stderr,"Error: the matchcolumn to use for matching with the -match command must be positive.\n");
       exit(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
+    case ERR_CANNOTUSE_ALLCOLUMNS_INLIST:
+      fprintf(stderr,"Error: the column for the input light curve list cannot be set to \"all\" when additional data beyond the names of the input light curves needs to be read from this list.\n");
+      exit(ERR_CANNOTUSE_ALLCOLUMNS_INLIST);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
@@ -239,6 +242,15 @@ void error2_noexit(int errflag, char *s)
       break;
     case ERR_BINARYLIGHTCURVE_INVALIDFORMAT:
       fprintf(stderr,"Unable to read the binary light curve file %s. It appears to have an invalid format.\n", s);
+      break;
+    case ERR_CANNOTOPEN:
+      fprintf(stderr,"Error: Cannot open the file %s\n",s);
+      break;
+    case ERR_IMAGEHDU:
+      fprintf(stderr,"Error: %s is a fits image, this routine only supports fits tables.\n",s);
+      break;
+    case ERR_MISSING_FITSLC_HEADERNAME:
+      fprintf(stderr,"No column with the name %s is found in the first fits light curve read-in.\n", s);
       break;
     default:
       fprintf(stderr,"Undefined Error\n");
@@ -417,6 +429,10 @@ void error2(int errflag, char *s)
     case ERR_MATCHCOMMAND_BADMATCHVARIABLE:
       fprintf(stderr,"Error cannot match to the light curve on the variable %s. This variable must already have been defined, and initialized for the light curve.\n", s);
       exit(ERR_MATCHCOMMAND_BADMATCHVARIABLE);
+      break;
+    case ERR_OUTPUTFILENAMECOMMAND:
+      fprintf(stderr,"Error generating the name for the output light curve. The shell command being executed is:\n\n\t%s\n\n", s);
+      exit(ERR_OUTPUTFILENAMECOMMAND);
       break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");

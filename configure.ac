@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.40], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.41], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -225,10 +225,10 @@ if test x"$ax_python_use" = x"true"; then
           AX_PYTHON_LSPEC( )
       fi
    elif test x"$with_pythonconfig" != xno; then
-      ax_pythonconfig_cflags=`${with_pythonconfig} --cflags --embed`
+      ax_pythonconfig_cflags=`(${with_pythonconfig} --cflags --embed 2> /dev/null || ${with_pythonconfig} --cflags) | awk '$1 !~ /Usage/ {print $0}'`
       AC_SUBST([PYTHON_CSPEC], [${ax_pythonconfig_cflags}])
       AC_MSG_NOTICE([PYTHON_CSPEC=${ax_pythonconfig_cflags}])
-      ax_pythonconfig_lflags=`${with_pythonconfig} --ldflags --embed`
+      ax_pythonconfig_lflags=`(${with_pythonconfig} --ldflags --embed 2> /dev/null || ${with_pythonconfig} --ldflags) | awk '$1 !~ /Usage/ {print $0}'`
       AC_SUBST([PYTHON_LSPEC], [${ax_pythonconfig_lflags}])
       AC_MSG_NOTICE([PYTHON_LSPEC=${ax_pythonconfig_lflags}])
    else
@@ -239,6 +239,7 @@ if test x"$ax_python_use" = x"true"; then
    AC_MSG_CHECKING([for Numpy])
 
    CPPFLAGS_SAVE="$CPPFLAGS"
+   LDFLAGS_SAVE="$LDFLAGS"
 
    CPPFLAGS="$PYTHON_CSPEC $CPPFLAGS"
    NUMPY_INCLUDE_DIR=`echo "import numpy; print(numpy.get_include())" | $PYTHON - 2>/dev/null`
@@ -272,7 +273,12 @@ if test x"$ax_python_use" = x"true"; then
              [AS_IF([test "x$with_pythonhome" != xno],
                     [AC_DEFINE_UNQUOTED([PYTHONSEARCHPATH], ["${with_pythonpath}"], [Set to the PYTHONPATH])], [])])
    fi
+   LDFLAGS="$PYTHON_LSPEC $LDFLAGS"
+   python_lib_base=`echo $PYTHON_LSPEC | awk '{for(i=1; i <= NF; i += 1) {if(\$i ~ /-lpython/) print substr(\$i,3);}}'`
+   AC_CHECK_LIB([$python_lib_base],[Py_SetPath],[AC_DEFINE(HAVE_PY_SETPATH)],[])
    CPPFLAGS="$CPPFLAGS_SAVE"
+   LDFLAGS="$LDFLAGS_SAVE"
+
 fi
 
 

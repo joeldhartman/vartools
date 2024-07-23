@@ -1409,15 +1409,15 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
     k = 0;
 
     while(k < md[0].Npoints && j < p->NJD[threadid]) {
-      while((j < p->NJD[threadid] ? dblvec_lc[lc_indx[j]] < dblvec_md[md_indx[k]] - JDTOL : 0))
+      while((j < p->NJD[threadid] ? dblvec_lc[lc_indx[j]] < dblvec_md[md_indx[k]] - p->JDTOL : 0))
 	j++;
-      while ( j < p->NJD[threadid] ? dblvec_lc[lc_indx[j]] >= dblvec_md[md_indx[k]] - JDTOL && dblvec_lc[lc_indx[j]] <= dblvec_md[md_indx[k]] + JDTOL : 0) {
+      while ( j < p->NJD[threadid] ? dblvec_lc[lc_indx[j]] >= dblvec_md[md_indx[k]] - p->JDTOL && dblvec_lc[lc_indx[j]] <= dblvec_md[md_indx[k]] + p->JDTOL : 0) {
 	match_indx[lc_indx[j]] = md_indx[k];
 	j++;
       }
       kk = k;
       k++;
-      while(k < md[0].Npoints ? dblvec_md[md_indx[k]] >= dblvec_md[md_indx[kk]] - JDTOL && dblvec_md[md_indx[k]] < dblvec_md[md_indx[kk]] + JDTOL : 0)
+      while(k < md[0].Npoints ? dblvec_md[md_indx[k]] >= dblvec_md[md_indx[kk]] - p->JDTOL && dblvec_md[md_indx[k]] < dblvec_md[md_indx[kk]] + p->JDTOL : 0)
 	k++;
     }
   }
@@ -1432,15 +1432,15 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
     k = 0;
 
     while(k < md[0].Npoints && j < p->NJD[threadid]) {
-      while((j < p->NJD[threadid] ? fltvec_lc[lc_indx[j]] < fltvec_md[md_indx[k]] - JDTOL : 0))
+      while((j < p->NJD[threadid] ? fltvec_lc[lc_indx[j]] < fltvec_md[md_indx[k]] - p->JDTOL : 0))
 	j++;
-      while ( j < p->NJD[threadid] ? fltvec_lc[lc_indx[j]] >= fltvec_md[md_indx[k]] - JDTOL && fltvec_lc[lc_indx[j]] <= fltvec_md[md_indx[k]] + JDTOL : 0) {
+      while ( j < p->NJD[threadid] ? fltvec_lc[lc_indx[j]] >= fltvec_md[md_indx[k]] - p->JDTOL && fltvec_lc[lc_indx[j]] <= fltvec_md[md_indx[k]] + p->JDTOL : 0) {
 	match_indx[lc_indx[j]] = md_indx[k];
 	j++;
       }
       kk = k;
       k++;
-      while(k < md[0].Npoints ? fltvec_md[md_indx[k]] >= fltvec_md[md_indx[kk]] - JDTOL && fltvec_md[md_indx[k]] < fltvec_md[md_indx[kk]] + JDTOL : 0)
+      while(k < md[0].Npoints ? fltvec_md[md_indx[k]] >= fltvec_md[md_indx[kk]] - p->JDTOL && fltvec_md[md_indx[k]] < fltvec_md[md_indx[kk]] + p->JDTOL : 0)
 	k++;
     }
   }

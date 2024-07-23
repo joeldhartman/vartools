@@ -785,7 +785,7 @@ void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid)
     mysortstringint(Sysrem->Njd, MAXIDSTRINGLENGTH, Sysrem->stringid, Sysrem->stringid_idx);
 }
 
-void do_sysrem(_Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **mag_in, double **sig_in, char **lcnames, int matchstringid, char ***stringid, int **stringid_idx)
+void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **mag_in, double **sig_in, char **lcnames, int matchstringid, char ***stringid, int **stringid_idx)
 {
   FILE *lcout, *trendout;
   char outname[MAXLEN];
@@ -834,13 +834,13 @@ void do_sysrem(_Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **
 	{
 	  for(i=0;i<Njd_in[j];i++)
 	    {
-	      while(t_in[j][i] > JD[k] + JDTOL && k < numjd){
+	      while(t_in[j][i] > JD[k] + p->JDTOL && k < numjd){
 		mag[j][k] = sqrt(-1);
 		sig[j][k] = sqrt(-1);
 		//X[j][k] = INDEFVAL - 1.0;
 		k++;
 	      }
-	      if(k < numjd && t_in[j][i] > JD[k] - JDTOL && t_in[j][i] < JD[k] + JDTOL)
+	      if(k < numjd && t_in[j][i] > JD[k] - p->JDTOL && t_in[j][i] < JD[k] + p->JDTOL)
 		{
 		  if(!isnan(mag_in[j][i]) && !isinf(mag_in[j][i]))
 		    {
@@ -1079,10 +1079,10 @@ void do_sysrem(_Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **
 	  for(i=0;i<Njd_in[k];i++)
 	    {
 	      l = 0;
-	      while(t_in[k][i] > JD[l] + JDTOL && l < numjd){
+	      while(t_in[k][i] > JD[l] + p->JDTOL && l < numjd){
 		l++;
 	      }
-	      if(l < numjd && t_in[k][i] > JD[l] - JDTOL && t_in[k][i] < JD[l] + JDTOL)
+	      if(l < numjd && t_in[k][i] > JD[l] - p->JDTOL && t_in[k][i] < JD[l] + p->JDTOL)
 		{
 		  if(!isnan(mag_in[k][i]) && !isinf(mag_in[k][i]))
 		    {

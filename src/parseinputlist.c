@@ -490,11 +490,9 @@ void ParseLineToColumns(char *line, char **cols, int maxcols)
   }
 }
 
-/* Parse the input list */
-void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
+void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 {
   int Np, Nc, i, j, k, u, in_indx;
-  char **incols;
   _DataFromInputList *d;
 
   double **dblptr;
@@ -518,101 +516,6 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
     Nskip = p->Ncopiestotal;
   } else {
     Nskip = 1;
-  }
-
-  Np = p->maxinputcolumn;
-
-  if(Np <= 0)
-    return;
-
-  if((incols = (char **) malloc(Np * sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
-  for(i = 0; i < Np; i++) {
-    if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
-      error(ERR_MEMALLOC);
-  }
-
-  for(i=0, in_indx = 0; i < Nlcs; i += Nskip, in_indx += 1) {
-    ParseLineToColumns(inputlines[in_indx],incols,Np);
-    for(j = 0; j < p->NDataFromInputList; j++) {
-      d = &(p->DataFromInputList[j]);
-      Nc = d->Ncolumns;
-      if(Nc == 0) {
-	if(d->incolumns[0] <= 0)
-	  continue;
-	k = d->incolumns[0] - 1;
-	switch(d->datatype) {
-	case VARTOOLS_TYPE_DOUBLE:
-	  dblptr = (double **) d->dataptr;
-	  (*dblptr)[i] = atof(incols[k]);
-	  break;
-	case VARTOOLS_TYPE_STRING:
-	  stringptr = (char ***) d->dataptr;
-	  sprintf(((*stringptr)[i]),"%s",incols[k]);
-	  break;
-	case VARTOOLS_TYPE_INT:
-	  intptr = (int **) d->dataptr;
-	  (*intptr)[i] = atoi(incols[k]);
-	  break;
-	case VARTOOLS_TYPE_SHORT:
-	  shortptr = (short **) d->dataptr;
-	  (*shortptr)[i] = (short) atoi(incols[k]);
-	  break;
-	case VARTOOLS_TYPE_FLOAT:
-	  floatptr = (float **) d->dataptr;
-	  (*floatptr)[i] = atof(incols[k]);
-	  break;
-	case VARTOOLS_TYPE_LONG:
-	  longptr = (long **) d->dataptr;
-	  (*longptr)[i] = atol(incols[k]);
-	  break;
-	case VARTOOLS_TYPE_CHAR:
-	  charptr = (char **) d->dataptr;
-	  (*charptr)[i] = incols[k][0];
-	  break;
-	default:
-	  error(ERR_BADTYPE);
-	}
-      } else {
-	for(u = 0; u < Nc; u++) {
-	  if(d->incolumns[u] <= 0)
-	    continue;
-	  k = d->incolumns[u] - 1;
-	  switch(d->datatype) {
-	  case VARTOOLS_TYPE_DOUBLE:
-	    dbl2ptr = (double ***) d->dataptr;
-	    (*dbl2ptr)[i][u] = atof(incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_STRING:
-	    string2ptr = (char ****) d->dataptr;
-	    sprintf(((*string2ptr)[i][u]),"%s",incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_INT:
-	    int2ptr = (int ***) d->dataptr;
-	    (*int2ptr)[i][u] = atoi(incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    short2ptr = (short ***) d->dataptr;
-	    (*short2ptr)[i][u] = (short) atoi(incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    float2ptr = (float ***) d->dataptr;
-	    (*float2ptr)[i][u] = atof(incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_LONG:
-	    long2ptr = (long ***) d->dataptr;
-	    (*long2ptr)[i][u] = atol(incols[k]);
-	    break;
-	  case VARTOOLS_TYPE_CHAR:
-	    char2ptr = (char ***) d->dataptr;
-	    (*char2ptr)[i][u] = incols[k][0];
-	    break;
-	  default:
-	    error(ERR_BADTYPE);
-	  }
-	}
-      }
-    }
   }
 
   /* Fill in any variables calculated from analytic expressions */
@@ -751,6 +654,301 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 	}
       }
   }
+
+  return;
+}
+
+/* Parse the input list */
+void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
+{
+  int Np, Nc, i, j, k, u, in_indx;
+  char **incols;
+  _DataFromInputList *d;
+
+  double **dblptr;
+  double ***dbl2ptr;
+  int **intptr;
+  int ***int2ptr;
+  short **shortptr;
+  short ***short2ptr;
+  char **charptr;
+  char ***char2ptr;
+  char ***stringptr;
+  char ****string2ptr;
+  float **floatptr;
+  float ***float2ptr;
+  long **longptr;
+  long ***long2ptr;
+
+  int Nskip, checkallcolsok;
+
+  if(p->Ncopycommands > 0) {
+    Nskip = p->Ncopiestotal;
+  } else {
+    Nskip = 1;
+  }
+
+  Np = p->maxinputcolumn;
+
+  if(Np <= 0)
+    return;
+
+  if((incols = (char **) malloc(Np * sizeof(char *))) == NULL)
+    error(ERR_MEMALLOC);
+  for(i = 0; i < Np; i++) {
+    if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
+      error(ERR_MEMALLOC);
+  }
+
+  if(p->inlist_lcnames_from_allcolumns) {
+    checkallcolsok = 1;
+    for(j = 0; j < p->NDataFromInputList; j++) {
+      d = &(p->DataFromInputList[j]);
+      Nc = d->Ncolumns;
+      if(Nc == 0) {
+	if(d->incolumns[0] <= 0)
+	  continue;
+	if(!strcmp(d->incolumn_names[0],"LC_Name"))
+	  continue;
+	checkallcolsok = 0;
+	break;
+      } else {
+	for(u = 0; u < Nc; u++) {
+	  if(d->incolumns[u] <= 0)
+	    continue;
+	  checkallcolsok = 0;
+	  break;
+	}
+	if(!checkallcolsok)
+	  break;
+      }
+    }
+    if(!checkallcolsok) {
+      error(ERR_CANNOTUSE_ALLCOLUMNS_INLIST);
+    }
+  }
+
+  for(i=0, in_indx = 0; i < Nlcs; i += Nskip, in_indx += 1) {
+    ParseLineToColumns(inputlines[in_indx],incols,Np);
+    for(j = 0; j < p->NDataFromInputList; j++) {
+      d = &(p->DataFromInputList[j]);
+      Nc = d->Ncolumns;
+      if(Nc == 0) {
+	if(d->incolumns[0] <= 0)
+	  continue;
+	k = d->incolumns[0] - 1;
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = (double **) d->dataptr;
+	  (*dblptr)[i] = atof(incols[k]);
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = (char ***) d->dataptr;
+	  sprintf(((*stringptr)[i]),"%s",incols[k]);
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = (int **) d->dataptr;
+	  (*intptr)[i] = atoi(incols[k]);
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = (short **) d->dataptr;
+	  (*shortptr)[i] = (short) atoi(incols[k]);
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = (float **) d->dataptr;
+	  (*floatptr)[i] = atof(incols[k]);
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = (long **) d->dataptr;
+	  (*longptr)[i] = atol(incols[k]);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = (char **) d->dataptr;
+	  (*charptr)[i] = incols[k][0];
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      } else {
+	for(u = 0; u < Nc; u++) {
+	  if(d->incolumns[u] <= 0)
+	    continue;
+	  k = d->incolumns[u] - 1;
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    dbl2ptr = (double ***) d->dataptr;
+	    (*dbl2ptr)[i][u] = atof(incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    string2ptr = (char ****) d->dataptr;
+	    sprintf(((*string2ptr)[i][u]),"%s",incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    int2ptr = (int ***) d->dataptr;
+	    (*int2ptr)[i][u] = atoi(incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    short2ptr = (short ***) d->dataptr;
+	    (*short2ptr)[i][u] = (short) atoi(incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    float2ptr = (float ***) d->dataptr;
+	    (*float2ptr)[i][u] = atof(incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    long2ptr = (long ***) d->dataptr;
+	    (*long2ptr)[i][u] = atol(incols[k]);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    char2ptr = (char ***) d->dataptr;
+	    (*char2ptr)[i][u] = incols[k][0];
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	}
+      }
+    }
+  }
+
+  /* Fill in any variables calculated from analytic expressions */
+  EvaluateInputListVariables(p, Nlcs);
+
+  /*for(j = 0; j < p->NDataFromInputList; j++) {
+    d = &(p->DataFromInputList[j]);
+    if(d->incolumns[0] <= 0)
+      {
+	if(d->scanformat != NULL) {
+	  Nc = d->Ncolumns;
+	  if(Nc != 0)
+	    error(ERR_CODEERROR);
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    for(i=0; i < Nlcs; i += Nskip) {
+	      dblptr = (double **) d->dataptr;
+	      (*dblptr)[i] = EvaluateExpression(i, 0, 0, d->expression);
+	    }
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    for(i=0; i < Nlcs; i += Nskip) {
+	      floatptr = (float **) d->dataptr;
+	      (*floatptr)[i] = EvaluateExpression(i, 0, 0, d->expression);
+	    }
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    for(i=0; i < Nlcs; i += Nskip) {
+	      intptr = (int **) d->dataptr;
+	      (*intptr)[i] = EvaluateExpression(i, 0, 0, d->expression);
+	    }
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    for(i=0; i < Nlcs; i += Nskip) {
+	      shortptr = (short **) d->dataptr;
+	      (*shortptr)[i] = EvaluateExpression(i, 0, 0, d->expression);
+	    }
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    for(i=0; i < Nlcs; i += Nskip) {
+	      longptr = (long **) d->dataptr;
+	      (*longptr)[i] = EvaluateExpression(i, 0, 0, d->expression);
+	    }
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	} else {
+	  Nc = d->Ncolumns;
+	  if(Nc == 0) {
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(i=0; i < Nlcs; i += Nskip) {
+		dblptr = (double **) d->dataptr;
+		(*dblptr)[i] = 0.0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(i=0; i < Nlcs; i += Nskip) {
+		floatptr = (float **) d->dataptr;
+		(*floatptr)[i] = 0.0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(i=0; i < Nlcs; i += Nskip) {
+		intptr = (int **) d->dataptr;
+		(*intptr)[i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(i=0; i < Nlcs; i += Nskip) {
+		shortptr = (short **) d->dataptr;
+		(*shortptr)[i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(i=0; i < Nlcs; i += Nskip) {
+		longptr = (long **) d->dataptr;
+		(*longptr)[i] = 0;
+	      }
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
+	    }
+	  }
+	  else {
+	    for(u = 0; u < Nc; u++) {
+	      if(d->incolumns[u] > 0)
+		continue;
+	      switch(d->datatype) {
+	      case VARTOOLS_TYPE_DOUBLE:
+		dbl2ptr = (double ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*dbl2ptr)[i][u] = 0.0;
+		}
+		break;
+	      case VARTOOLS_TYPE_STRING:
+ 		string2ptr = (char ****) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  sprintf(((*string2ptr)[i][u]),"");
+		}
+		break;
+	      case VARTOOLS_TYPE_INT:
+		int2ptr = (int ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*int2ptr)[i][u] = 0;
+		}
+		break;
+	      case VARTOOLS_TYPE_SHORT:
+		short2ptr = (short ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*short2ptr)[i][u] = 0;
+		}
+		break;
+	      case VARTOOLS_TYPE_FLOAT:
+		float2ptr = (float ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*float2ptr)[i][u] = 0.0;
+		}
+		break;
+	      case VARTOOLS_TYPE_LONG:
+		long2ptr = (long ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*long2ptr)[i][u] = 0;
+		}
+		break;
+	      case VARTOOLS_TYPE_CHAR:
+		char2ptr = (char ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*char2ptr)[i][u] = '\0';
+		}
+		break;
+	      default:
+		error(ERR_BADTYPE);
+	      }
+	    }
+	  }
+	}
+      }
+  }*/
 
   for(i = 0; i < Np; i++)
     free(incols[i]);

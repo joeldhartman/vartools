@@ -1269,6 +1269,12 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      sprintf(tmpstring,"Linfit_err%s_%%d", c[l].Linfit->paramnames[j-1]);
 	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Linfit->param_uncertainties), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
 	    }
+	  if(c[l].Linfit->rejectoutliers) {
+	    addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->numrej), "%d", 1, 0, 0, 0, "Linfit_numrejected_%d", l);
+	    if(c[l].Linfit->rejiterate) {
+	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->iternum), "%d", 1, 0, 0, 0, "Linfit_numiterations_%d", l);
+	    }
+	  }
 	  break;
 	case CNUM_NONLINFIT:
 	  if(c[l].Nonlinfit->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
@@ -1571,6 +1577,47 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPer_SignaltoPinknoise_%d",l);
 	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLSFixPer_deltaChi2_invtransit_%d",l);
 	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPer_MeanMag_%d",l);
+	  break;
+	case CNUM_BLSFIXPERDURTC:
+	  if(c[l].BlsFixPerDurTc->pertype != PERTYPE_SPECIFIED)
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Period_%d",l);
+	  else
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Period_%d",l);	  
+	  if(c[l].BlsFixPerDurTc->durtype != PERTYPE_SPECIFIED)
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Duration_%d",l);
+	  else
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Duration_%d",l);	  
+	  if(c[l].BlsFixPerDurTc->TCtype != PERTYPE_SPECIFIED)
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 0, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
+	  else
+	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 1, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
+	  if(c[l].BlsFixPerDurTc->fixdepth) {
+	    if(c[l].BlsFixPerDurTc->depthtype != PERTYPE_SPECIFIED)
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	    else
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	    if(c[l].BlsFixPerDurTc->qgresstype != PERTYPE_SPECIFIED)
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	    else
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	  }
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qtran_%d",l);
+	  if(c[l].BlsFixPerDurTc->fittrap && !c[l].BlsFixPerDurTc->fixdepth)
+	    {
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qingress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->OOTmag), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_OOTmag_%d",l);
+	    }
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->chisqrplus), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_deltaChi2_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->fraconenight), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_fraconenight_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsintransit_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Ntransits_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nbefore), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsbeforetransit_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nafter), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsaftertransit_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->rednoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Rednoise_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->whitenoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Whitenoise_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_SignaltoPinknoise_%d",l);
+	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_MeanMag_%d",l);
 	  break;
 	case CNUM_BLSFIXDURTC:
 	  if(c[l].BlsFixDurTc->durtype != PERTYPE_SPECIFIED)

@@ -550,12 +550,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 	    while(kk < lengthtmp)
 	      {
 		if(!j) {
-		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = sqrt(-1);
 		      j++;
 		    }
-		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = magin_tmp[kk];
 		      j++;
@@ -563,12 +563,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		}
 		else {
 		  if(jdin_tmp[kk] > jdin_last) {
-		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = sqrt(-1);
 			j++;
 		      }
-		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = magin_tmp[kk];
 			j++;
@@ -576,12 +576,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		  }
 		  else {
 		    j = 0;
-		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = sqrt(-1);
 			j++;
 		      }
-		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = magin_tmp[kk];
 			j++;
@@ -674,12 +674,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		    }
 
 		  if(!j) {
-		    while((j < tfa->Njd ? (jdin > tfa->JD[j] + JDTOL) : 0))
+		    while((j < tfa->Njd ? (jdin > tfa->JD[j] + p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = sqrt(-1);
 			j++;
 		      }
-		    if((j < tfa->Njd ? (jdin < tfa->JD[j] + JDTOL && jdin > tfa->JD[j] - JDTOL) : 0))
+		    if((j < tfa->Njd ? (jdin < tfa->JD[j] + p->JDTOL && jdin > tfa->JD[j] - p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = magin;
 			j++;
@@ -687,12 +687,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		  }
 		  else {
 		    if(jdin > jdin_last) {
-		      while((j < tfa->Njd ? (jdin > tfa->JD[j] + JDTOL) : 0))
+		      while((j < tfa->Njd ? (jdin > tfa->JD[j] + p->JDTOL) : 0))
 			{
 			  tfa->trends[j][i] = sqrt(-1);
 			  j++;
 			}
-		      if((j < tfa->Njd ? (jdin < tfa->JD[j] + JDTOL && jdin > tfa->JD[j] - JDTOL) : 0))
+		      if((j < tfa->Njd ? (jdin < tfa->JD[j] + p->JDTOL && jdin > tfa->JD[j] - p->JDTOL) : 0))
 			{
 			  tfa->trends[j][i] = magin;
 			  j++;
@@ -700,12 +700,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		    }
 		    else {
 		      j = 0;
-		      while((j < tfa->Njd ? (jdin > tfa->JD[j] + JDTOL) : 0))
+		      while((j < tfa->Njd ? (jdin > tfa->JD[j] + p->JDTOL) : 0))
 			{
 			  tfa->trends[j][i] = sqrt(-1);
 			  j++;
 			}
-		      if((j < tfa->Njd ? (jdin < tfa->JD[j] + JDTOL && jdin > tfa->JD[j] - JDTOL) : 0))
+		      if((j < tfa->Njd ? (jdin < tfa->JD[j] + p->JDTOL && jdin > tfa->JD[j] - p->JDTOL) : 0))
 			{
 			  tfa->trends[j][i] = magin;
 			  j++;
@@ -963,7 +963,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   }
 }
 
-void detrend_tfa(_TFA *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, int matchstringid, char **stringid, int *stringid_idx, int threadid)
+void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, int matchstringid, char **stringid, int *stringid_idx, int threadid)
 {
   int isatrend_flag, k, i, l, h, n, j;
   FILE *coeff_file, *lcout;
@@ -995,7 +995,7 @@ void detrend_tfa(_TFA *tfa, int N, double *t, double *m, double *e, double lcx, 
     {
       for(i=0,k=0; i < N; i++)
 	{
-	  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+	  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 	    {
 	      if(tfa->use_lc_errors) {
 		evec[k] = sqrt(-1.0);
@@ -1003,7 +1003,7 @@ void detrend_tfa(_TFA *tfa, int N, double *t, double *m, double *e, double lcx, 
 	      tfa->b[threadid][k] = sqrt(-1);
 	      k++;
 	    }
-	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 	    {
 	      if(tfa->use_lc_errors) {
 		evec[k] = e[i];
@@ -1170,8 +1170,8 @@ void detrend_tfa(_TFA *tfa, int N, double *t, double *m, double *e, double lcx, 
 		  k = 0;
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a[threadid][l]*tfa->trends[k][i];
 			  k++;
@@ -1501,12 +1501,12 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 	    while(kk < lengthtmp)
 	      {
 		if(!j) {
-		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		  while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = sqrt(-1);
 		      j++;
 		    }
-		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		  if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = magin_tmp[kk];
 		      j++;
@@ -1514,12 +1514,12 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		}
 		else {
 		  if(jdin_tmp[kk] > jdin_last) {
-		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = sqrt(-1);
 			j++;
 		      }
-		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = magin_tmp[kk];
 			j++;
@@ -1527,12 +1527,12 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		  }
 		  else {
 		    j = 0;
-		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + JDTOL) : 0))
+		    while((j < tfa->Njd ? (jdin_tmp[kk] > tfa->JD[j] + p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = sqrt(-1);
 			j++;
 		      }
-		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + JDTOL && jdin_tmp[kk] > tfa->JD[j] - JDTOL) : 0))
+		    if((j < tfa->Njd ? (jdin_tmp[kk] < tfa->JD[j] + p->JDTOL && jdin_tmp[kk] > tfa->JD[j] - p->JDTOL) : 0))
 		      {
 			tfa->trends[j][i] = magin_tmp[kk];
 			j++;
@@ -1623,12 +1623,12 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 			error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		    }
 
-		  while((j < tfa->Njd ? (jdin > tfa->JD[j] + JDTOL) : 0))
+		  while((j < tfa->Njd ? (jdin > tfa->JD[j] + p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = sqrt(-1);
 		      j++;
 		    }
-		  if((j < tfa->Njd ? (jdin < tfa->JD[j] + JDTOL && jdin > tfa->JD[j] - JDTOL) : 0))
+		  if((j < tfa->Njd ? (jdin < tfa->JD[j] + p->JDTOL && jdin > tfa->JD[j] - p->JDTOL) : 0))
 		    {
 		      tfa->trends[j][i] = magin;
 		      j++;
@@ -1886,7 +1886,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 }
 
 /* This function runs tfa iteratively in signal reconstruction mode */
-void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, double period, char *signalfilename, int matchstringid, char **stringid, int *stringid_idx, int lcindex, int threadid)
+void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, double period, char *signalfilename, int matchstringid, char **stringid, int *stringid_idx, int lcindex, int threadid)
 {
   int isatrend_flag, j, k, i, l, lstart, h, n, Ntrends_, iter;
   FILE *coeff_file, *lcout, *signalfile;
@@ -1962,12 +1962,12 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
     {
       for(i=0,k=0; i < N; i++)
 	{
-	  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+	  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 	    {
 	      tfa->bstore[threadid][k] = sqrt(-1);
 	      k++;
 	    }
-	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 	    {
 	      tfa->bstore[threadid][k] = m[i];
 	      val1 += m[i];
@@ -2035,7 +2035,7 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(i=0;i<N;i++)
 		{
-		  ph = (t[i] - t[0]) / (t[N-1] + JDTOL - t[0]);
+		  ph = (t[i] - t[0]) / (t[N-1] + p->JDTOL - t[0]);
 		  k = floor(ph * nbins);
 		  tfa->signal_bin_ids[threadid][i] = k;
 		  tfa->signal_bin_N[threadid][k]++;
@@ -2058,12 +2058,12 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	{
 	  for(i=0,k=0; i < N; i++)
 	    {
-	      while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+	      while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 		{
 		  tfa->b[threadid][k] = tfa->bstore[threadid][k];
 		  k++;
 		}
-	      if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+	      if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		{
 		  tfa->b[threadid][k] = tfa->bstore[threadid][k] - tfa->signal[threadid][i];
 		  val1 += tfa->b[threadid][k];
@@ -2123,7 +2123,7 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(i=0;i<N;i++)
 		{
-		  ph = (t[i] - t[0]) / (t[N-1] + JDTOL - t[0]);
+		  ph = (t[i] - t[0]) / (t[N-1] + p->JDTOL - t[0]);
 		  k = floor(ph * nbins);
 		  tfa->signal_bin_ids[threadid][i] = k;
 		  tfa->signal_bin_N[threadid][k]++;
@@ -2154,7 +2154,7 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(i=0,k=0; i < N; i++)
 		{
-		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 		    {
 		      l = lstart;
 		      tfa->decorr_trends[threadid][k][l] = 0.;
@@ -2166,7 +2166,7 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 			}
 		      k++;
 		    }
-		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      l = lstart;
 		      tfa->decorr_trends[threadid][k][l] = tfa->lcdecorr_terms_in[j][lcindex][i];
@@ -2387,8 +2387,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a_decorr[threadid][i]*tfa->decorr_trends[threadid][k][i];
 			  k++;
@@ -2414,11 +2414,11 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(i=0,k=0; i < N; i++)
 		{
-		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 		    {
 		      k++;
 		    }
-		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      tfa->b[threadid][k] = tfa->b[threadid][k] - tfa->m_out[threadid][i];
 		      k++;
@@ -2455,8 +2455,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a[threadid][l]*tfa->trends[k][i];
 			  k++;
@@ -2490,8 +2490,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a[threadid][i]*tfa->decorr_trends[threadid][k][l];
 			  k++;
@@ -2520,8 +2520,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(h = 0; h<N; h++)
 		{
-		  while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		  if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		  while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		  if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      for(l=0;l<2*(1 + Nharm + Nsubharm);l++)
 			{
@@ -2607,12 +2607,12 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(i=0,k=0; i < N; i++)
 		{
-		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + JDTOL) : 0))
+		  while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
 		    {
 		      tfa->b[threadid][k] = tfa->bstore[threadid][k];
 		      k++;
 		    }
-		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + JDTOL && t[i] > tfa->JD[k] - JDTOL) : 0)
+		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      tfa->b[threadid][k] = tfa->bstore[threadid][k] - tfa->signal[threadid][i];
 		      val1 += tfa->b[threadid][k];
@@ -2710,8 +2710,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a_decorr[threadid][i]*tfa->decorr_trends[threadid][k][i];
 			  k++;
@@ -2743,8 +2743,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a[threadid][l]*tfa->trends[k][i];
 			  k++;
@@ -2779,8 +2779,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 		{
 		  for(h = 0; h<N; h++)
 		    {
-		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		      while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		      if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 			{
 			  tfa->m_out[threadid][h] += tfa->a[threadid][i]*tfa->decorr_trends[threadid][k][l];
 			  k++;
@@ -2810,8 +2810,8 @@ void detrend_tfa_sr(_TFA_SR *tfa, int N, double *t, double *m, double *e, double
 	    {
 	      for(h = 0; h<N; h++)
 		{
-		  while((k < tfa->Njd ? (t[h] > tfa->JD[k] + JDTOL) : 0)) k++;
-		  if(k < tfa->Njd ? (t[h] < tfa->JD[k] + JDTOL && t[h] > tfa->JD[k] - JDTOL) : 0)
+		  while((k < tfa->Njd ? (t[h] > tfa->JD[k] + p->JDTOL) : 0)) k++;
+		  if(k < tfa->Njd ? (t[h] < tfa->JD[k] + p->JDTOL && t[h] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      for(l=0;l<2*(1 + Nharm + Nsubharm);l++)
 			{

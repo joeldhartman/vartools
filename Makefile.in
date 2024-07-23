@@ -434,6 +434,7 @@ example_files = \
  EXAMPLES/OUTDIR1/2.autocorr \
  EXAMPLES/OUTDIR1/3.transit.softenedtransit.model \
  EXAMPLES/OUTDIR1/9.autocorr \
+ EXAMPLES/OUTDIR1/6479535620075955328.splinedetrend.lc.txt \
  EXAMPLES/OUTDIR1/1.tfa.coeff \
  EXAMPLES/OUTDIR1/1.bls.phcurve \
  EXAMPLES/OUTDIR1/3.starspot.test_tfa_sr_bin \
@@ -460,6 +461,7 @@ example_files = \
  EXAMPLES/OUTDIR1/7.arimaforecast.png \
  EXAMPLES/OUTDIR1/5.autocorr \
  EXAMPLES/OUTDIR1/2.cleanharm \
+ EXAMPLES/OUTDIR1/6479535620075955328_llc.fits.splinedetrend_modelcoeffs \
  EXAMPLES/OUTDIR1/kplr000757076-2009166043257_llc.asc.txt \
  EXAMPLES/OUTDIR1/8.arimaresiduals.png \
  EXAMPLES/OUTDIR1/3.phasebin.txt \
@@ -526,6 +528,7 @@ example_files = \
  EXAMPLES/OUTDIR1/8.wwz \
  EXAMPLES/OUTDIR1/8.wwz.pm3d \
  EXAMPLES/OUTDIR1/InjectRRLyrae.9.txt \
+ EXAMPLES/OUTDIR1/6479535620075955328_llc.fits.splinedetrend_model \
  EXAMPLES/OUTDIR1/6.arimaresiduals.png \
  EXAMPLES/OUTDIR1/2.mwwz \
  EXAMPLES/OUTDIR1/9.png \
@@ -640,6 +643,7 @@ example_files = \
  EXAMPLES/M3.V006.lc \
  EXAMPLES/Rexample4.R \
  EXAMPLES/3 \
+ EXAMPLES/1_withID.txt \
  EXAMPLES/6 \
  EXAMPLES/3.cliptransit \
  EXAMPLES/Rexample4.R~ \
@@ -660,6 +664,7 @@ example_files = \
  EXAMPLES/2.testblend \
  EXAMPLES/4 \
  EXAMPLES/3.transit \
+ EXAMPLES/6479535620075955328_llc.fits \
  EXAMPLES/lc_list_tfa_fits \
  EXAMPLES/lc_list_tfa_sr_bin \
  EXAMPLES/trendlist_tfa \

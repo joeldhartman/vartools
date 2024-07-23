@@ -3,7 +3,7 @@ userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la medlc.la f
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
 
 if HAVE_GSL
-userlibs_LTLIBRARIES += fastchi2.la 
+userlibs_LTLIBRARIES += fastchi2.la splinedetrend.la
 endif
 
 ftuneven_la_SOURCES = ftuneven.c ftuneven.h 
@@ -30,6 +30,11 @@ fastchi2_la_SOURCES = fastchi2.c fastchi2.h fastchi2_lib.c fastchi2_lib.h
 fastchi2_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la $(GSL_LIBS)
 fastchi2_la_CPPFLAGS = $(GSL_CFLAGS)
 fastchi2_la_LDFLAGS = -module
+
+splinedetrend_la_SOURCES = splinedetrend.c splinedetrend.h
+splinedetrend_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la $(GSL_LIBS)
+splinedetrend_la_CPPFLAGS = $(GSL_CFLAGS)
+splinedetrend_la_LDFLAGS = -module
 
 libmacula_la_SOURCES = macula.f90
 libmacula_la_LIBADD = $(FLIBS)

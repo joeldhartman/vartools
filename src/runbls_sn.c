@@ -1008,15 +1008,21 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
 	      &otfreqsdft, 
 	      &dftampl, NULL, NULL);
   
-  maxamp = dftampl[0];
-  maxfreq = otfreqsdft[0];
-  for(i=0; i < n; i++) {
-    if(dftampl[i] > maxamp) {
-      maxamp = dftampl[i];
-      maxfreq = otfreqsdft[i];
+  if(dftampl != NULL && otfreqsdft != NULL) {
+    maxamp = dftampl[0];
+    maxfreq = otfreqsdft[0];
+    for(i=0; i < n; i++) {
+      if(dftampl[i] > maxamp) {
+	maxamp = dftampl[i];
+	maxfreq = otfreqsdft[i];
+      }
     }
+    gezadsp = fabs(depth)/sqrt(Hvar+maxamp*maxamp);
+  } else {
+    maxamp = 0.0;
+    maxfreq = 0.0;
+    gezadsp = 0.0;
   }
-  gezadsp = fabs(depth)/sqrt(Hvar+maxamp*maxamp);
 
   Bls->ressig[lcnum][peaknum] = ressig;
   Bls->dipsig[lcnum][peaknum] = dipsig;

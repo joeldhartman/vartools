@@ -183,19 +183,51 @@ void MemAllocScalarData(ProgramData *p, int Nthreads)
   }
 }
 
+int CountColumnsInLine(char *line)
+{
+  int j, i;
+  j = 0;
+  i = 0;
+  while(line[j] != '\0' && line[j] != '\n') {
+    while((line[j] == ' ' || line[j] == '\t') && 
+	  line[j] != '\0' && line[j] != '\n') j++;
+    if(line[j] != '\0' && line[j] != '\n') i++;
+    while(line[j] != ' ' && line[j] != '\t' && 
+	  line[j] != '\0' && line[j] != '\n') j++;
+  }
+  return(i);
+}
+
+
+int GetNextColStringLength(char *line)
+{
+  int j;
+  j = 0;
+  while((line[j] == ' ' || line[j] == '\t') && 
+	line[j] != '\0' && line[j] != '\n') j++;
+  if(line[j] == '\0' || line[j] == '\n') return 0;
+  while(line[j] != ' ' && line[j] != '\t' && 
+	line[j] != '\0' && line[j] != '\n') j++;
+  return(j);
+}
+
+
 void InitCommands(ProgramData *p, Command *c)
 {
 
-  int i, j, k, Nlcs, Ncommands;
+  int i, j, k, ii, jj, kk, Nlcs, Ncommands;
   FILE *inlist;
   char **inputlistlines, *teststring;
+  char **inputlistlines_tmp;
   size_t *size_inputlistline;
+  size_t *size_inputlistline_tmp;
 
   int Nkillharmterms;
   int sizeperptrs;
   int *Npers;
   double ***perptrs;
   int sizeinputlistvec = 1000;
+  int sizeinputlistvec_tmp = 1000;
 
   Ncommands = p->Ncommands;
 
@@ -212,37 +244,107 @@ void InitCommands(ProgramData *p, Command *c)
       else
 	inlist = stdin;
 
-      /* Read the file first into a buffer */
-      if((inputlistlines = (char **) malloc(sizeinputlistvec * sizeof(char *))) == NULL ||
-	 (size_inputlistline = (size_t *) malloc(sizeinputlistvec * sizeof(size_t))) == NULL)
-	error(ERR_MEMALLOC);
-      for(j=0;j<sizeinputlistvec;j++) {
-	size_inputlistline[j] = MAXLEN;
-	if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
+      if(!p->inlist_lcnames_from_allcolumns) {
+	/* Read the file first into a buffer */
+	if((inputlistlines = (char **) malloc(sizeinputlistvec * sizeof(char *))) == NULL ||
+	   (size_inputlistline = (size_t *) malloc(sizeinputlistvec * sizeof(size_t))) == NULL)
 	  error(ERR_MEMALLOC);
-      }
-
-      p->Nlcs = 0;
-      while(gnu_getline(&(inputlistlines[p->Nlcs]), &(size_inputlistline[p->Nlcs]), inlist) >= 0)
-	{
-	  if(inputlistlines[p->Nlcs][0] != '#')
-	    p->Nlcs++;
-	  /* Increase the size of the buffer if we need more space for the next line */
-	  if(p->Nlcs >= sizeinputlistvec)
-	    {
-	      sizeinputlistvec += 1000;
-	      if((inputlistlines = (char **) realloc(inputlistlines, sizeinputlistvec * sizeof(char *))) == NULL ||
-		 (size_inputlistline = (size_t *) realloc(size_inputlistline, sizeinputlistvec * sizeof(size_t))) == NULL)
-		error(ERR_MEMALLOC);
-	      for(j=sizeinputlistvec - 1000; j < sizeinputlistvec; j++)
-		{
-		  size_inputlistline[j] = MAXLEN;
-		  if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
-		}
-	    }
+	for(j=0;j<sizeinputlistvec;j++) {
+	  size_inputlistline[j] = MAXLEN;
+	  if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
 	}
+	
+	p->Nlcs = 0;
 
+	while(gnu_getline(&(inputlistlines[p->Nlcs]), &(size_inputlistline[p->Nlcs]), inlist) >= 0)
+	  {
+	    if(inputlistlines[p->Nlcs][0] != '#')
+	      p->Nlcs++;
+	    /* Increase the size of the buffer if we need more space for the next line */
+	    if(p->Nlcs >= sizeinputlistvec)
+	      {
+		sizeinputlistvec += 1000;
+		if((inputlistlines = (char **) realloc(inputlistlines, sizeinputlistvec * sizeof(char *))) == NULL ||
+		   (size_inputlistline = (size_t *) realloc(size_inputlistline, sizeinputlistvec * sizeof(size_t))) == NULL)
+		  error(ERR_MEMALLOC);
+		for(j=sizeinputlistvec - 1000; j < sizeinputlistvec; j++)
+		  {
+		    size_inputlistline[j] = MAXLEN;
+		    if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
+		      error(ERR_MEMALLOC);
+		  }
+	      }
+	  }
+      } else {
+	sizeinputlistvec = 0;
+	/* Recast all columns in each input line into a single list of files */
+	if((inputlistlines_tmp = (char **) malloc(sizeinputlistvec_tmp * sizeof(char *))) == NULL ||
+	   (size_inputlistline_tmp = (size_t *) malloc(sizeinputlistvec_tmp * sizeof(size_t))) == NULL)
+	  error(ERR_MEMALLOC);
+	for(j=0;j<sizeinputlistvec_tmp;j++) {
+	  size_inputlistline_tmp[j] = MAXLEN;
+	  if((inputlistlines_tmp[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	
+	i = 0;
+	while(gnu_getline(&(inputlistlines_tmp[i]), &(size_inputlistline_tmp[i]), inlist) >= 0)
+	  {
+	    if(inputlistlines_tmp[i][0] != '#')
+	      i++;
+	    /* Increase the size of the buffer if we need more space for the next line */
+	    if(i >= sizeinputlistvec_tmp)
+	      {
+		sizeinputlistvec_tmp += 1000;
+		if((inputlistlines_tmp = (char **) realloc(inputlistlines_tmp, sizeinputlistvec_tmp * sizeof(char *))) == NULL ||
+		   (size_inputlistline_tmp = (size_t *) realloc(size_inputlistline_tmp, sizeinputlistvec_tmp * sizeof(size_t))) == NULL)
+		  error(ERR_MEMALLOC);
+		for(j=sizeinputlistvec_tmp - 1000; j < sizeinputlistvec_tmp; j++)
+		  {
+		    size_inputlistline_tmp[j] = MAXLEN;
+		    if((inputlistlines_tmp[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
+		      error(ERR_MEMALLOC);
+		  }
+	      }
+	  }
+	
+	p->Nlcs = 0;
+	
+	for(j = 0; j < i; j++) {
+	  /* Parse all the columns and copy them into new lines */
+	  k = CountColumnsInLine(inputlistlines_tmp[j]);
+
+	  if(p->Nlcs +k >= sizeinputlistvec)
+	    {
+	      if(!sizeinputlistvec) {
+		sizeinputlistvec = p->Nlcs + k;
+		if((inputlistlines = (char **) malloc(sizeinputlistvec * sizeof(char *))) == NULL ||
+		   (size_inputlistline = (size_t *) malloc(sizeinputlistvec * sizeof(size_t))) == NULL)
+		  error(ERR_MEMALLOC);
+	      } else {
+		sizeinputlistvec = p->Nlcs + k;
+		if((inputlistlines = (char **) realloc(inputlistlines, sizeinputlistvec * sizeof(char *))) == NULL ||
+		   (size_inputlistline = (size_t *) realloc(size_inputlistline, sizeinputlistvec * sizeof(size_t))) == NULL)
+		  error(ERR_MEMALLOC);
+	      }
+	    }
+	  jj = 0;
+	  for(ii = 0; ii < k; ii++) {
+	    kk = GetNextColStringLength(&(inputlistlines_tmp[j][jj]));
+	    if((inputlistlines[p->Nlcs] = (char *) malloc((kk+1)*sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	    size_inputlistline[p->Nlcs] = kk+1;
+	    jj += parseone(&(inputlistlines_tmp[j][jj]),(void *) ((inputlistlines[p->Nlcs])), VARTOOLS_TYPE_STRING);
+	    p->Nlcs += 1;
+	  }
+	}
+	for(j=0; j < sizeinputlistvec_tmp; j++) {
+	  free(inputlistlines_tmp[j]);
+	}
+	free(inputlistlines_tmp);
+	free(size_inputlistline_tmp);
+      }
       Nlcs = p->Nlcs;
     }
   else {
@@ -293,6 +395,8 @@ void InitCommands(ProgramData *p, Command *c)
       free(inputlistlines);
       free(size_inputlistline);
     }
+  else if(!p->listflag && p->NDataFromInputList > 0)
+    EvaluateInputListVariables(p, Nlcs);
 
   if(p->Ncopycommands > 0)
     SetupLCCopies(p, c);
@@ -1072,6 +1176,56 @@ void InitCommands(ProgramData *p, Command *c)
 		error(ERR_MEMALLOC);
 	    }
 	  break;
+	case CNUM_BLSFIXPERDURTC:
+	  if(c[i].BlsFixPerDurTc->pertype != PERTYPE_SPECIFIED)
+	    {
+	      if((c[i].BlsFixPerDurTc->inputper = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  if(c[i].BlsFixPerDurTc->durtype != PERTYPE_SPECIFIED)
+	    {
+	      if((c[i].BlsFixPerDurTc->inputdur = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  if(c[i].BlsFixPerDurTc->TCtype != PERTYPE_SPECIFIED)
+	    {
+	      if((c[i].BlsFixPerDurTc->inputTC = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  if(c[i].BlsFixPerDurTc->fixdepth) {
+	    if(c[i].BlsFixPerDurTc->depthtype != PERTYPE_SPECIFIED)
+	      {
+		if((c[i].BlsFixPerDurTc->inputdepth = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		  error(ERR_MEMALLOC);
+	      }
+	    if(c[i].BlsFixPerDurTc->qgresstype != PERTYPE_SPECIFIED)
+	      {
+		if((c[i].BlsFixPerDurTc->inputqgress = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		  error(ERR_MEMALLOC);
+	      }
+	  }
+	  if((c[i].BlsFixPerDurTc->sizeuv = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].BlsFixPerDurTc->u = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->v = (double **) malloc(Nlcs * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	  for(j=0; j < Nlcs; j++)
+	    c[i].BlsFixPerDurTc->sizeuv[j] = 0;
+	  if((c[i].BlsFixPerDurTc->depth = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->qtran = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->chisqrplus = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->meanmagval = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->fraconenight = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->nt = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].BlsFixPerDurTc->Nt = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].BlsFixPerDurTc->Nbefore = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].BlsFixPerDurTc->Nafter = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].BlsFixPerDurTc->rednoise = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->whitenoise = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->sigtopink = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->qingress = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].BlsFixPerDurTc->OOTmag = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	  break;
 	case CNUM_SOFTENEDTRANSIT:
 	  if((c[i].SoftenedTransit->period = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].SoftenedTransit->T0 = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1217,7 +1371,9 @@ void InitCommands(ProgramData *p, Command *c)
 	  break;
 	case CNUM_LINFIT:
 	  if((c[i].Linfit->param_outvals = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
-	     (c[i].Linfit->param_uncertainties = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	     (c[i].Linfit->param_uncertainties = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Linfit->numrej = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].Linfit->iternum = (int *) malloc(Nlcs * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
 	  for(j = 0; j < Nlcs; j++)
 	    {

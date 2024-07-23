@@ -52,7 +52,7 @@ void SkipCommand(ProgramData *p, Command *c, int thisindex, int lc, int lc2)
 
 void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int lc2)
 {
-  double d1, d2, d3, d4;
+  double d0, d1, d2, d3, d4;
   double *d1ptr, *d2ptr, *d3ptr, *d4ptr;
   int i1, i2, i3, i4, i;
   char *s1;
@@ -1095,6 +1095,140 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       }
       break;
 
+    case CNUM_BLSFIXPERDURTC:
+      /* Perform BLS with fixed period, transit duration and epoch on the light curves */
+      if(p->NJD[lc2] > 1)
+	{
+	  if(c->BlsFixPerDurTc->omodel)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname2,"%s/%s%s",c->BlsFixPerDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->modelsuffix);
+	    }
+	  if(c->BlsFixPerDurTc->ophcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname3,"%s/%s%s",c->BlsFixPerDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->ophcurvesuffix);
+	    }
+	  if(c->BlsFixPerDurTc->ojdcurve)
+	    {
+	      i1 = 0;
+	      i2 = 0;
+	      while(p->lcnames[lc][i1] != '\0')
+		{
+		  if(p->lcnames[lc][i1] == '/')
+		    i2 = i1 + 1;
+		  i1++;
+		}
+	      sprintf(outname4,"%s/%s%s",c->BlsFixPerDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->ojdcurvesuffix);
+	    }
+	  /* First check to see that the u/v vectors are large enough */
+	  if(c->BlsFixPerDurTc->sizeuv[lc2] == 0)
+	    {
+	      c->BlsFixPerDurTc->sizeuv[lc2] = p->NJD[lc2];
+	      if((c->BlsFixPerDurTc->u[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->BlsFixPerDurTc->v[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  else if(c->BlsFixPerDurTc->sizeuv[lc2] < p->NJD[lc2])
+	    {
+	      c->BlsFixPerDurTc->sizeuv[lc2] = p->NJD[lc2];
+	      free(c->BlsFixPerDurTc->u[lc2]);
+	      free(c->BlsFixPerDurTc->v[lc2]);
+	      if((c->BlsFixPerDurTc->u[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
+		 (c->BlsFixPerDurTc->v[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
+		error(ERR_MEMALLOC);
+	    }
+	  
+	  if(c->BlsFixPerDurTc->pertype == PERTYPE_FIX)
+	    {
+	      c->BlsFixPerDurTc->inputper[lc2] = c->BlsFixPerDurTc->fixper;
+	      d0 = c->BlsFixPerDurTc->inputper[lc2];
+	    }
+	  else if(c->BlsFixPerDurTc->pertype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->BlsFixPerDurTc->fixper_linkedcolumn, lc2, lc, 
+			      VARTOOLS_TYPE_DOUBLE, 
+			      &(c->BlsFixPerDurTc->inputper[lc2]));
+	    d0 = c->BlsFixPerDurTc->inputper[lc2];
+	  } else {
+	    d0 = c->BlsFixPerDurTc->inputper[lc];
+	  }
+	  if(c->BlsFixPerDurTc->durtype == PERTYPE_FIX)
+	    {
+	      c->BlsFixPerDurTc->inputdur[lc2] = c->BlsFixPerDurTc->fixdur;
+	      d1 = c->BlsFixPerDurTc->inputdur[lc2];
+	    }
+	  else if(c->BlsFixPerDurTc->durtype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->BlsFixPerDurTc->fixdur_linkedcolumn, lc2, lc, 
+			      VARTOOLS_TYPE_DOUBLE, 
+			      &(c->BlsFixPerDurTc->inputdur[lc2]));
+	    d1 = c->BlsFixPerDurTc->inputdur[lc2];
+	  } else {
+	    d1 = c->BlsFixPerDurTc->inputdur[lc];
+	  }
+	  if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIX)
+	    {
+	      c->BlsFixPerDurTc->inputTC[lc2] = c->BlsFixPerDurTc->fixTC;
+	      d2 = c->BlsFixPerDurTc->fixTC;
+	    }
+	  else if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->BlsFixPerDurTc->fixTC_linkedcolumn, lc2, lc, 
+			      VARTOOLS_TYPE_DOUBLE, 
+			      &(c->BlsFixPerDurTc->inputTC[lc2]));
+	    d2 = c->BlsFixPerDurTc->inputTC[lc2];
+	  }
+	  else {
+	    d2 = c->BlsFixPerDurTc->inputTC[lc];
+	  }
+	  if(c->BlsFixPerDurTc->fixdepth) {
+	    if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIX) {
+	      c->BlsFixPerDurTc->inputdepth[lc2] = c->BlsFixPerDurTc->fixdepthval;
+	      d3 = c->BlsFixPerDurTc->fixdepthval;
+	    }
+	    else if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIXCOLUMN) {
+	      getoutcolumnvalue(c->BlsFixPerDurTc->fixdepth_linkedcolumn, lc2, lc, 
+				VARTOOLS_TYPE_DOUBLE, 
+				&(c->BlsFixPerDurTc->inputdepth[lc2]));
+	      d3 = c->BlsFixPerDurTc->inputdepth[lc2];
+	    }
+	    else {
+	      d3 = c->BlsFixPerDurTc->inputdepth[lc];
+	    }
+	    if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIX) {
+	      c->BlsFixPerDurTc->inputqgress[lc2] = c->BlsFixPerDurTc->qgressval;
+	      d4 = c->BlsFixPerDurTc->qgressval;
+	    }
+	    else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
+	      getoutcolumnvalue(c->BlsFixPerDurTc->fixqgress_linkedcolumn, lc2, lc, 
+				VARTOOLS_TYPE_DOUBLE, 
+				&(c->BlsFixPerDurTc->inputqgress[lc2]));
+	      d4 = c->BlsFixPerDurTc->inputqgress[lc2];
+	    }
+	    else {
+	      d4 = c->BlsFixPerDurTc->inputqgress[lc];
+	    }
+	  }
+	  eeblsfixperdurtc(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixPerDurTc->u[lc2],c->BlsFixPerDurTc->v[lc2],d0,d2,d1,c->BlsFixPerDurTc->fixdepth,d3,d4,&(c->BlsFixPerDurTc->depth[lc2]),&(c->BlsFixPerDurTc->qtran[lc2]),&(c->BlsFixPerDurTc->chisqrplus[lc2]),&(c->BlsFixPerDurTc->meanmagval[lc2]), c->BlsFixPerDurTc->timezone, &(c->BlsFixPerDurTc->fraconenight[lc2]), c->BlsFixPerDurTc->omodel, outname2, c->BlsFixPerDurTc->correctlc, &(c->BlsFixPerDurTc->nt[lc2]), &(c->BlsFixPerDurTc->Nt[lc2]), &(c->BlsFixPerDurTc->Nbefore[lc2]), &(c->BlsFixPerDurTc->Nafter[lc2]), &(c->BlsFixPerDurTc->rednoise[lc2]), &(c->BlsFixPerDurTc->whitenoise[lc2]), &(c->BlsFixPerDurTc->sigtopink[lc2]), c->BlsFixPerDurTc->fittrap, &(c->BlsFixPerDurTc->qingress[lc2]), &(c->BlsFixPerDurTc->OOTmag[lc2]), c->BlsFixPerDurTc->ophcurve, outname3, c->BlsFixPerDurTc->phmin, c->BlsFixPerDurTc->phmax, c->BlsFixPerDurTc->phstep, c->BlsFixPerDurTc->ojdcurve, outname4, c->BlsFixPerDurTc->jdstep);
+	} else {
+	if(!p->quiet_mode) {
+	  fprintf(stderr,"Warning: skipping -BLSFixPerDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
+	}
+      }
+      break;
+
     case CNUM_SOFTENEDTRANSIT:
       /* Fit a Softened Transit model to the light curve and remove it if we're doing that */
       if(c->SoftenedTransit->omodel)
@@ -1303,7 +1437,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       c->MandelAgolTransit->K[lc2] = c->MandelAgolTransit->K0;
       if(p->NJD[lc2] > 1)
 	{
-	  fitmandelagoltransit_amoeba(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],&c->MandelAgolTransit->period[lc2],&c->MandelAgolTransit->T0[lc2],&c->MandelAgolTransit->r[lc2],&c->MandelAgolTransit->a[lc2],&c->MandelAgolTransit->inc[lc2],&c->MandelAgolTransit->bimpact[lc2],&c->MandelAgolTransit->e[lc2],&c->MandelAgolTransit->omega[lc2],&c->MandelAgolTransit->mconst[lc2],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc2],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc2],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc2], &c->MandelAgolTransit->gamma[lc2], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc2);
+	  fitmandelagoltransit_amoeba(p, p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],&c->MandelAgolTransit->period[lc2],&c->MandelAgolTransit->T0[lc2],&c->MandelAgolTransit->r[lc2],&c->MandelAgolTransit->a[lc2],&c->MandelAgolTransit->inc[lc2],&c->MandelAgolTransit->bimpact[lc2],&c->MandelAgolTransit->e[lc2],&c->MandelAgolTransit->omega[lc2],&c->MandelAgolTransit->mconst[lc2],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc2],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc2],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc2], &c->MandelAgolTransit->gamma[lc2], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc2);
 	}
       break;
 
@@ -1366,9 +1500,9 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      sprintf(outname2,"%s/%s%s",c->TFA->coeff_outdir,&p->lcnames[lc][i2],c->TFA->coeff_suffix);
 	    }
 	  if(p->matchstringid)
-	    detrend_tfa(c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2);
+	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2);
 	  else
-	    detrend_tfa(c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], 0, NULL, NULL, lc2);
+	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], 0, NULL, NULL, lc2);
 	}
       break;
 
@@ -1441,9 +1575,9 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  else
 	    s1 = NULL;
 	  if(p->matchstringid)
-	    detrend_tfa_sr(c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2, lc2);
+	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2, lc2);
 	  else
-	    detrend_tfa_sr(c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, 0, NULL, NULL, lc2, lc2);
+	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, 0, NULL, NULL, lc2, lc2);
 	}
       break;
 
@@ -1676,7 +1810,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
 void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 {
-  double d1, d2, d3, d4;
+  double d0, d1, d2, d3, d4;
   double *ers1, *ers2, *ers3;
   int i1, i2, i3, i, lc, i4;
   char *s1;
@@ -1702,7 +1836,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Convert from isis differential flux to magnitudes */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1715,7 +1849,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Convert from isis differential flux to magnitudes */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1728,7 +1862,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Evaluate an analytic expression */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1741,7 +1875,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Fit a model that is linear in its free parameters to the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1754,7 +1888,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Fit a model that is nonlinear in its free parameters to the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1767,7 +1901,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Run the WWZ Transform */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1800,7 +1934,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Clip the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1813,7 +1947,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Perform a time conversion */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -1892,7 +2026,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -1924,7 +2058,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2018,7 +2152,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2039,7 +2173,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2053,7 +2187,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2067,7 +2201,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2081,7 +2215,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2098,7 +2232,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2112,7 +2246,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2125,7 +2259,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Add time-correlated noise to the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -2139,7 +2273,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2162,7 +2296,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2231,7 +2365,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2300,7 +2434,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2370,7 +2504,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2386,7 +2520,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2424,7 +2558,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2472,7 +2606,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2539,7 +2673,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2565,7 +2699,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2591,7 +2725,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2646,7 +2780,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Calculate light curve statistics */
       for(lc=0; lc < p->Nlcs; lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -2660,7 +2794,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2783,7 +2917,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -2870,7 +3004,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3022,12 +3156,155 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	}
       break;
 
+    case CNUM_BLSFIXPERDURTC:
+      /* Perform BLS with fixed transit duration and epoch on the light curves */
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(p->NJD[lc] > 1)
+	    {
+	      if(c->BlsFixPerDurTc->omodel)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname2,"%s/%s%s",c->BlsFixPerDurTc->modeloutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->modelsuffix);
+		}
+	      if(c->BlsFixPerDurTc->ophcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname3,"%s/%s%s",c->BlsFixPerDurTc->ophcurveoutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->ophcurvesuffix);
+		}
+	      if(c->BlsFixPerDurTc->ojdcurve)
+		{
+		  i1 = 0;
+		  i2 = 0;
+		  while(p->lcnames[lc][i1] != '\0')
+		    {
+		      if(p->lcnames[lc][i1] == '/')
+			i2 = i1 + 1;
+		      i1++;
+		    }
+		  sprintf(outname4,"%s/%s%s",c->BlsFixPerDurTc->ojdcurveoutdir,&p->lcnames[lc][i2],c->BlsFixPerDurTc->ojdcurvesuffix);
+		}
+	      /* First check to see that the u/v vectors are large enough */
+	      if(c->BlsFixPerDurTc->sizeuv[0] == 0)
+		{
+		  c->BlsFixPerDurTc->sizeuv[0] = p->NJD[lc];
+		  if((c->BlsFixPerDurTc->u[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixPerDurTc->v[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      else if(c->BlsFixPerDurTc->sizeuv[0] < p->NJD[lc])
+		{
+		  c->BlsFixPerDurTc->sizeuv[0] = p->NJD[lc];
+		  free(c->BlsFixPerDurTc->u[0]);
+		  free(c->BlsFixPerDurTc->v[0]);
+		  if((c->BlsFixPerDurTc->u[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL ||
+		     (c->BlsFixPerDurTc->v[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL)
+		    error(ERR_MEMALLOC);
+		}
+	      
+	      if(c->BlsFixPerDurTc->pertype == PERTYPE_FIX)
+		{
+		  c->BlsFixPerDurTc->inputper[lc] = c->BlsFixPerDurTc->fixper;
+		  d0 = c->BlsFixPerDurTc->inputper[lc];
+		}
+	      else if(c->BlsFixPerDurTc->pertype == PERTYPE_FIXCOLUMN) {
+		getoutcolumnvalue(c->BlsFixPerDurTc->fixper_linkedcolumn, lc, lc, 
+				  VARTOOLS_TYPE_DOUBLE, 
+				  &(c->BlsFixPerDurTc->inputper[lc]));
+		d0 = c->BlsFixPerDurTc->inputper[lc];
+	      } else {
+		d0 = c->BlsFixPerDurTc->inputper[lc];
+	      }
+	      if(c->BlsFixPerDurTc->durtype == PERTYPE_FIX)
+		{
+		  c->BlsFixPerDurTc->inputdur[lc] = c->BlsFixPerDurTc->fixdur;
+		  d1 = c->BlsFixPerDurTc->inputdur[lc];
+		}
+	      else if(c->BlsFixPerDurTc->durtype == PERTYPE_FIXCOLUMN) {
+		getoutcolumnvalue(c->BlsFixPerDurTc->fixdur_linkedcolumn, lc, lc, 
+				  VARTOOLS_TYPE_DOUBLE, 
+				  &(c->BlsFixPerDurTc->inputdur[lc]));
+		d1 = c->BlsFixPerDurTc->inputdur[lc];
+	      } else {
+		d1 = c->BlsFixPerDurTc->inputdur[lc];
+	      }
+	      if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIX)
+		{
+		  c->BlsFixPerDurTc->inputTC[lc] = c->BlsFixPerDurTc->fixTC;
+		  d2 = c->BlsFixPerDurTc->fixTC;
+		}
+	      else if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIXCOLUMN) {
+		getoutcolumnvalue(c->BlsFixPerDurTc->fixTC_linkedcolumn, lc, lc, 
+				  VARTOOLS_TYPE_DOUBLE, 
+				  &(c->BlsFixPerDurTc->inputTC[lc]));
+		d2 = c->BlsFixPerDurTc->inputTC[lc];
+	      }
+	      else {
+		d2 = c->BlsFixPerDurTc->inputTC[lc];
+	      }
+	      if(c->BlsFixPerDurTc->fixdepth) {
+		if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIX) {
+		  c->BlsFixPerDurTc->inputdepth[lc] = c->BlsFixPerDurTc->fixdepthval;
+		  d3 = c->BlsFixPerDurTc->fixdepthval;
+		}
+		else if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIXCOLUMN) {
+		  getoutcolumnvalue(c->BlsFixPerDurTc->fixdepth_linkedcolumn, lc, lc, 
+				    VARTOOLS_TYPE_DOUBLE, 
+				    &(c->BlsFixPerDurTc->inputdepth[lc]));
+		  d3 = c->BlsFixPerDurTc->inputdepth[lc];
+		}
+		else {
+		  d3 = c->BlsFixPerDurTc->inputdepth[lc];
+		}
+		if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIX) {
+		  c->BlsFixPerDurTc->inputqgress[lc] = c->BlsFixPerDurTc->qgressval;
+		  d4 = c->BlsFixPerDurTc->qgressval;
+		}
+		else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
+		  getoutcolumnvalue(c->BlsFixPerDurTc->fixqgress_linkedcolumn, lc, lc, 
+				    VARTOOLS_TYPE_DOUBLE, 
+				    &(c->BlsFixPerDurTc->inputqgress[lc]));
+		  d4 = c->BlsFixPerDurTc->inputqgress[lc];
+		}
+		else {
+		  d4 = c->BlsFixPerDurTc->inputqgress[lc];
+		}
+	      }
+	      eeblsfixperdurtc(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixPerDurTc->u[lc],c->BlsFixPerDurTc->v[lc],d0,d2,d1,c->BlsFixPerDurTc->fixdepth,d3,d4,&(c->BlsFixPerDurTc->depth[lc]),&(c->BlsFixPerDurTc->qtran[lc]),&(c->BlsFixPerDurTc->chisqrplus[lc]),&c->BlsFixPerDurTc->meanmagval[lc], c->BlsFixPerDurTc->timezone, &(c->BlsFixPerDurTc->fraconenight[lc]), c->BlsFixPerDurTc->omodel, outname2, c->BlsFixPerDurTc->correctlc, &(c->BlsFixPerDurTc->nt[lc]), &(c->BlsFixPerDurTc->Nt[lc]), &(c->BlsFixPerDurTc->Nbefore[lc]), &(c->BlsFixPerDurTc->Nafter[lc]), &(c->BlsFixPerDurTc->rednoise[lc]), &(c->BlsFixPerDurTc->whitenoise[lc]), &(c->BlsFixPerDurTc->sigtopink[lc]), c->BlsFixPerDurTc->fittrap, &(c->BlsFixPerDurTc->qingress[lc]), &(c->BlsFixPerDurTc->OOTmag[lc]), c->BlsFixPerDurTc->ophcurve, outname3, c->BlsFixPerDurTc->phmin, c->BlsFixPerDurTc->phmax, c->BlsFixPerDurTc->phstep, c->BlsFixPerDurTc->ojdcurve, outname4, c->BlsFixPerDurTc->jdstep);
+	    } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLSFixPerDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLSFixPerDurTc.\n", thisindex, lc, p->lcnames[lc]);
+	    }
+	  }
+	}
+      break;
+
     case CNUM_SOFTENEDTRANSIT:
       /* Fit a Softened Transit model to the light curve and remove it if we're doing that */
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3127,7 +3404,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3244,7 +3521,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  c->MandelAgolTransit->mconst[lc] = c->MandelAgolTransit->mconst0;
 	  if(p->NJD[lc] > 1)
 	    {
-	      fitmandelagoltransit_amoeba(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],&c->MandelAgolTransit->period[lc],&c->MandelAgolTransit->T0[lc],&c->MandelAgolTransit->r[lc],&c->MandelAgolTransit->a[lc],&c->MandelAgolTransit->inc[lc],&c->MandelAgolTransit->bimpact[lc],&c->MandelAgolTransit->e[lc],&c->MandelAgolTransit->omega[lc],&c->MandelAgolTransit->mconst[lc],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc], &c->MandelAgolTransit->gamma[lc], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc);
+	      fitmandelagoltransit_amoeba(p, p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],&c->MandelAgolTransit->period[lc],&c->MandelAgolTransit->T0[lc],&c->MandelAgolTransit->r[lc],&c->MandelAgolTransit->a[lc],&c->MandelAgolTransit->inc[lc],&c->MandelAgolTransit->bimpact[lc],&c->MandelAgolTransit->e[lc],&c->MandelAgolTransit->omega[lc],&c->MandelAgolTransit->mconst[lc],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc], &c->MandelAgolTransit->gamma[lc], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc);
 	    }
 	}
       break;
@@ -3254,7 +3531,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3286,7 +3563,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 
     case CNUM_SYSREM:
       /* Run the SYSREM detrending algorithm */
-      do_sysrem(c->Sysrem, p->Nlcs, p->NJD, p->t, p->mag, p->sig, p->lcnames,p->matchstringid,p->stringid,p->stringid_idx);
+      do_sysrem(p, c->Sysrem, p->Nlcs, p->NJD, p->t, p->mag, p->sig, p->lcnames,p->matchstringid,p->stringid,p->stringid_idx);
       break;
 
     case CNUM_TFA:
@@ -3294,7 +3571,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3326,9 +3603,9 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  sprintf(outname2,"%s/%s%s",c->TFA->coeff_outdir,&p->lcnames[lc][i2],c->TFA->coeff_suffix);
 		}
 	      if(p->matchstringid)
-		detrend_tfa(c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],p->matchstringid,p->stringid[lc],p->stringid_idx[lc], 0);
+		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],p->matchstringid,p->stringid[lc],p->stringid_idx[lc], 0);
 	      else
-		detrend_tfa(c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],0,NULL,NULL, 0);
+		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],0,NULL,NULL, 0);
 	    }
 	}
       break;
@@ -3338,7 +3615,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3410,9 +3687,9 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      else
 		s1 = NULL;
 	      if(p->matchstringid)
-		detrend_tfa_sr(c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,p->matchstringid,p->stringid[lc],p->stringid_idx[lc], lc, 0);
+		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,p->matchstringid,p->stringid[lc],p->stringid_idx[lc], lc, 0);
 	      else
-		detrend_tfa_sr(c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,0,NULL,NULL, lc, 0);
+		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,0,NULL,NULL, lc, 0);
 	    }
 	}
       break;
@@ -3422,7 +3699,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3446,7 +3723,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Bin the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -3459,7 +3736,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* Match the light curve to an external datafile */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -3472,7 +3749,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       /* median filter the light curve */
       for(lc=0;lc<p->Nlcs;lc++) {
 	if(p->isifcommands) {
-	  if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	    SkipCommand(p, c, thisindex, lc, lc);
 	    continue;
 	  }
@@ -3486,7 +3763,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3571,7 +3848,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       for(lc=0;lc<p->Nlcs;lc++)
 	{
 	  if(p->isifcommands) {
-	    if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 	      SkipCommand(p, c, thisindex, lc, lc);
 	      continue;
 	    }
@@ -3670,7 +3947,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	for(lc=0;lc<p->Nlcs;lc++)
 	  {
 	    if(p->isifcommands) {
-	      if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	      if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 		SkipCommand(p, c, thisindex, lc, lc);
 		continue;
 	      }
@@ -3698,7 +3975,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	for(lc = 0; lc < p->Nlcs; lc++)
 	  {
 	    if(p->isifcommands) {
-	      if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	      if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 		SkipCommand(p, c, thisindex, lc, lc);
 		continue;
 	      }
@@ -3735,7 +4012,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	for(lc = 0; lc < p->Nlcs; lc++)
 	  {
 	    if(p->isifcommands) {
-	      if(!TestIf(p->IfStack[lc], p, c, lc, lc)) {
+	      if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
 		SkipCommand(p, c, thisindex, lc, lc);
 		continue;
 	      }

@@ -178,8 +178,9 @@
 #define CNUM_FFT 55
 #define CNUM_R 56
 #define CNUM_MATCHCOMMAND 57
+#define CNUM_BLSFIXPERDURTC 58
 
-#define TOT_CNUMS 57
+#define TOT_CNUMS 58
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -768,6 +769,47 @@ typedef struct {
 } _BlsFixDurTc;
 
 typedef struct {
+  double **u, **v;
+  int pertype;
+  double fixper;
+  OutColumn *fixper_linkedcolumn;
+  int durtype;
+  double fixdur;
+  OutColumn *fixdur_linkedcolumn;
+  int TCtype;
+  double fixTC;
+  OutColumn *fixTC_linkedcolumn;
+  double *inputTC, *inputdur, *inputper;
+  int fixdepth;
+  int depthtype;
+  double fixdepthval;
+  OutColumn *fixdepth_linkedcolumn;
+  int qgresstype;
+  double qgressval;
+  OutColumn *fixqgress_linkedcolumn;
+  double *inputdepth, *inputqgress;
+  double *depth, *qtran;
+  double *chisqrplus, *meanmagval, *fraconenight, *rednoise, *whitenoise, *sigtopink, *qingress, *OOTmag;
+  int *nt, *Nt, *Nbefore, *Nafter;
+  int *sizeuv, rflag;
+  double timezone;
+  int omodel;
+  char modeloutdir[MAXLEN];
+  char modelsuffix[23];
+  int ophcurve;
+  char ophcurveoutdir[MAXLEN];
+  char ophcurvesuffix[23];
+  double phmin, phmax, phstep;
+  int ojdcurve;
+  char ojdcurveoutdir[MAXLEN];
+  char ojdcurvesuffix[23];
+  double jdstep;
+  int correctlc;
+  int fittrap;
+} _BlsFixPerDurTc;
+
+
+typedef struct {
   int pertype;
   int lastlsindex;
   int lastaovindex;
@@ -938,6 +980,8 @@ typedef struct {
   char **printfformats;
   char **varnames;
   char sepchar;
+  int useoutnamecommand;
+  char *outnamecommand;
 } _Outputlcs;
 
 typedef struct {
@@ -1070,8 +1114,16 @@ typedef struct {
   double outputsubtractval;
   int useradec;
   int radec_source;
+  _Expression *raval_expr;
+  _Expression *decval_expr;
+  _Expression *raval_lcexpr;
+  _Expression *decval_lcexpr;
   double **ravals;
   double **decvals;
+  int raval_lc_col;
+  int decval_lc_col;
+  double **raval_lcvals;
+  double **decval_lcvals;
   double raval_fix;
   double decval_fix;
   double radecepoch;
@@ -1083,8 +1135,16 @@ typedef struct {
   double ppm_mu_dec_fix;
   int useinput_radec;
   int inputradec_source;
+  _Expression *inputraval_expr;
+  _Expression *inputdecval_expr;
+  _Expression *inputraval_lcexpr;
+  _Expression *inputdecval_lcexpr;
   double **inputravals;
   double **inputdecvals;
+  int inputraval_lc_col;
+  int inputdecval_lc_col;
+  double **inputraval_lcvals;
+  double **inputdecval_lcvals;
   double inputraval_fix;
   double inputdecval_fix;
   double inputradecepoch;
@@ -1111,6 +1171,13 @@ typedef struct {
   double **obslat_lcvals;
   double **obslong_lcvals;
   double **obsalt_lcvals;
+  _Expression *obslat_expr;
+  _Expression *obslat_lcexpr;
+  _Expression *obslong_expr;
+  _Expression *obslong_lcexpr;
+  _Expression *obsalt_expr;
+  _Expression *obsalt_lcexpr;
+  int obs_coords_usexyz;
 #endif
 } _ConvertTime;
 
@@ -1146,9 +1213,17 @@ typedef struct {
   double *chi2out;
   double **param_outvals;
   double **param_uncertainties;
+  int *numrej;
+  int *iternum;
   _Variable **params;
   _Expression **expressions;
   _Expression *constantexpression;
+  int rejectoutliers;
+  double rejsigclip;
+  int rejuseMAD;
+  int rejiterate;
+  int rejfixnum;
+  int rejiternum;
 } _Linfit;
 
 typedef struct {
@@ -1599,6 +1674,8 @@ typedef struct {
 
   void *FullList;
 
+  int skipfail;
+
 } _PythonCommand;
 #else
 typedef struct {
@@ -1662,6 +1739,8 @@ typedef struct {
   int RequireReadAll;
 
   void *FullList;
+
+  int verboseR;
 
 } _RCommand;
 #else
@@ -1736,6 +1815,7 @@ typedef struct {
   _Bls *Bls;
   _BlsFixPer *BlsFixPer;
   _BlsFixDurTc *BlsFixDurTc;
+  _BlsFixPerDurTc *BlsFixPerDurTc;
   _Phase *Phase;
   _Binlc *Binlc;
   _SoftenedTransit *SoftenedTransit;

@@ -825,9 +825,9 @@ int RestrictTimes_JDlist_apply(int N, double *t,
   j = 0;
   k = 0;
   for(i=0; i < N; i++) {
-    while((k < Nlist ? (t[i] > JDlist[k] + JDTOL) : 0))
+    while((k < Nlist ? (t[i] > JDlist[k] + p->JDTOL) : 0))
       k++;
-    test = k < Nlist ? (t[i] < JDlist[k] + JDTOL && t[i] > JDlist[k] - JDTOL) : 0;
+    test = k < Nlist ? (t[i] < JDlist[k] + p->JDTOL && t[i] > JDlist[k] - p->JDTOL) : 0;
     if((!exclude && test) || (exclude && !test)){
       sigclip_copyterms(i,j,p,lc);
       j++;

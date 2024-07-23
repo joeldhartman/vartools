@@ -1129,7 +1129,7 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
   /* Determine the frequency spacing and number of frequencies */
   /* Also check if the sampling is uniform */
   isuniform = 1;
-  twojdtol = 2.0*JDTOL;
+  twojdtol = 2.0*p->JDTOL;
   if(t[1] != t[0])
     delmin = t[1] - t[0];
   else

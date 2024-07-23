@@ -36,12 +36,18 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
   /* This function executes the linear fit command. The command needs
      to first be initialized (one time) with the InitLinfit function */
   
-  int Nparam, i, j, Njd, i1, i2;
+  int Nparam, i, j, k, Njd, i1, i2;
   double **decorr;
   int *order;
+  int doiterate;
+  int iternum;
+  int numrej;
+  int numrejlast;
   double *A_errvector;
   double *constantterm;
   double *magtofit;
+  double *tmpmag = NULL, *tmpmag2 = NULL;
+  double rmsval;
   double modelval;
   char outname[MAXLEN];
   FILE *outfile;
@@ -75,13 +81,79 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
   }
   
   /* Do the fit */
-  docorr(magtofit, p->sig[threadid], Njd, Nparam, decorr, order, 
-	 c->param_outvals[threadid], c->param_uncertainties[threadid], 0., 0);
+  iternum = -1;
+  numrej = 0;
+  numrejlast = 0;
+  do {
+    doiterate = 0;
+    docorr(magtofit, p->sig[threadid], Njd, Nparam, decorr, order, 
+	   c->param_outvals[threadid], c->param_uncertainties[threadid], 0., 0);
 
-  /* Store the resulting parameter values in the appropriate variables */
-  for(j=0; j < Nparam; j++) {
-    (*((double **) c->params[j]->dataptr))[threadid] = c->param_outvals[threadid][j];
-  }
+    /* Store the resulting parameter values in the appropriate variables */
+    for(j=0; j < Nparam; j++) {
+      (*((double **) c->params[j]->dataptr))[threadid] = c->param_outvals[threadid][j];
+    }
+    iternum++;
+    if(c->rejectoutliers) {
+      if((!c->rejiterate && iternum == 1) || 
+	 (c->rejiterate && !c->rejfixnum) ||
+	 (c->rejiterate && c->rejfixnum && iternum < c->rejiternum)) {
+	numrejlast = numrej;
+	if(tmpmag == NULL) {
+	  if((tmpmag = malloc(Njd * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	if(tmpmag2 == NULL) {
+	  if((tmpmag2 = malloc(Njd * sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+	k = 0;
+	for(i=0; i < Njd; i++) {
+	  modelval = constantterm[i];
+	  for(j=0; j < Nparam; j++) {
+	    modelval += c->param_outvals[threadid][j]*decorr[i][j];
+	  }
+	  tmpmag[i] = p->mag[threadid][i] - modelval;
+	  if(!isnan(tmpmag[i]) && !isinf(tmpmag[i])) {
+	    tmpmag2[k] = tmpmag[i];
+	    k++;
+	  }
+	}
+	if(!c->rejuseMAD) {
+	  rmsval = stddev(k, tmpmag2);
+	} else {
+	  rmsval = MAD(k, tmpmag2);
+	}
+	numrej=0;
+	for(i=0; i < Njd; i++) {
+	  if(!isnan(p->mag[threadid][i]) && !isinf(p->mag[threadid][i])) {
+	    if(tmpmag[i] > rmsval*c->rejsigclip || tmpmag[i] < -rmsval*c->rejsigclip) {
+	      magtofit[i] = sqrt(-1.0);
+	      numrej++;
+	    }
+	    else {
+	      magtofit[i] = p->mag[threadid][i] - constantterm[i];
+	    }
+	  }
+	}
+	if(!c->rejiterate && iternum == 1) {
+	  if(numrej > 0) doiterate = 1;
+	}
+	else if(c->rejiterate && !c->rejfixnum) {
+	  if(numrej > numrejlast) doiterate = 1;
+	}
+	else if(c->rejiterate && c->rejfixnum && iternum < c->rejiternum) {
+	  if(numrej > numrejlast) doiterate = 1;
+	}
+      }
+    }
+  } while(doiterate);
+
+  c->numrej[threadid] = numrej;
+  c->iternum[threadid] = iternum;
+
+  if(tmpmag != NULL) free(tmpmag);
+  if(tmpmag2 != NULL) free(tmpmag2);
   
   /* generate the model, correct the light curve, and output the result,
      as requested */
@@ -90,13 +162,13 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
       GetOutputFilename(outname,p->lcnames[lcid],c->outdir,c->outfile_extension,
 			c->outfilename_format, lcid);
       /*      i1 = 0; i2 = 0;
-      while(p->lcnames[lcid][i1] != '\0')
-	{
-	  if(p->lcnames[lcid][i1] == '/')
-	    i2 = i1 + 1;
-	  i1++;
-	}
-	sprintf(outname,"%s/%s.linfit.model", c->outdir, &p->lcnames[lcid][i2]);*/
+	      while(p->lcnames[lcid][i1] != '\0')
+	      {
+	      if(p->lcnames[lcid][i1] == '/')
+	      i2 = i1 + 1;
+	      i1++;
+	      }
+	      sprintf(outname,"%s/%s.linfit.model", c->outdir, &p->lcnames[lcid][i2]);*/
       if((outfile = fopen(outname,"w")) == NULL)
 	error2(ERR_CANNOTWRITE,outname);
     }
@@ -2048,6 +2120,12 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->calcchi2out = 0;
   c->correctlc = 0;
   c->omodel = 0;
+  c->rejectoutliers = 0;
+  c->rejsigclip = 0.0;
+  c->rejuseMAD = 0;
+  c->rejiterate = 0;
+  c->rejfixnum = 0;
+  c->rejiternum = 0;
   i++;
   if(i < argc) {
     if(!strcmp(argv[i],"modelvar")) {
@@ -2056,6 +2134,48 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if((c->modelvarname= (char *) malloc((strlen(argv[i])+1))) == NULL)
 	error(ERR_MEMALLOC);
       sprintf(c->modelvarname,"%s",argv[i]);
+    } else
+      i--;
+  }
+  else
+    i--;
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"reject")) {
+      c->rejectoutliers = 1;
+      i++;
+      if(i >= argc) {*iret = i; return 1;}
+      c->rejsigclip = atof(argv[i]);
+      i++;
+      if(i < argc) {
+	if(!strcmp(argv[i],"useMAD")) {
+	  c->rejuseMAD = 1;
+	} else
+	  i--;
+      }
+      else
+	i--;
+      i++;
+      if(i < argc) {
+	if(!strcmp(argv[i],"iter")) {
+	  c->rejiterate = 1;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"fixednum")) {
+	      c->rejfixnum = 1;
+	      i++;
+	      if(i >= argc) {*iret = i; return 1;}
+	      c->rejiternum = atoi(argv[i]);
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+	} else
+	  i--;
+      }
+      else
+	i--;
     } else
       i--;
   }

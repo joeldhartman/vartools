@@ -109,6 +109,8 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
 
   c->RequireReadAll = 0;
 
+  c->skipfail = 0;
+
   c->cnum = -1;
 
   return c;

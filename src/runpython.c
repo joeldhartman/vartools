@@ -503,10 +503,14 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   tmp1 = Py_DecodeLocale(PYTHONHOMEPATH,NULL);
   Py_SetPythonHome(tmp1);
   tmp3 = Py_DecodeLocale(PYTHONSEARCHPATH,NULL);
+#ifdef HAVE_PY_SETPATH
   Py_SetPath(tmp3);
+#endif
 #else
   Py_SetPythonHome(PYTHONHOMEPATH);
+#ifdef HAVE_PY_SETPATH
   Py_SetPath(PYTHONSEARCHPATH);
+#endif
 #endif
 #endif
 
@@ -2392,7 +2396,13 @@ void RunPythonCommand(ProgramData *p, int lcindex, int threadindex, int pythread
   
   if(retval) {
     fprintf(stderr,"Python function %d returned an error for light curve number %d\n", c->cnum, lcindex);
-    exit(1);
+    if(!c->skipfail)
+      exit(1);
+    else {
+      p->skipfaillc[lcindex] = 1;
+      fprintf(stderr,"Warning, skipping further processing of light curve %s\n", p->lcnames[lcindex]);
+      return;
+    }
   }
   
   if(ReadVariablesFromChildPythonProcess(p, lcindex, threadindex, pythreadindex, c)) {
@@ -2518,7 +2528,7 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
              "continueprocess" prior_python_command_number ]
            [ "vars" variablelist | 
              [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
-           [ "outputcolumns" variablelist ] [ "process_all_lcs" ]
+           [ "outputcolumns" variablelist ] [ "process_all_lcs" ] [ "skipfail" ]
 */
 {
   int i, j, k, ii;
@@ -2780,6 +2790,16 @@ int ParsePythonCommand(int *iret, int argc, char **argv, ProgramData *p,
     if(!strcmp(argv[i],"process_all_lcs")) {
       c->RequireReadAll = 1;
       p->readallflag = 1;
+    } else
+      i--;
+  } else
+    i--;
+
+  c->skipfail = 0;
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"skipfail")) {
+      c->skipfail = 1;
     } else
       i--;
   } else

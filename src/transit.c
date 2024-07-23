@@ -1080,7 +1080,7 @@ double getminsini(double a, double e, double omega, double p)
 #define CONVERGENCELIMIT 0.00001
 #define INITIALSTEP 0.05
 
-void fitmandelagoltransit_amoeba(int N, double *t, double *mag, double *sig, double *P, double *T0, double *r, double *a, double *inc, double *bimpact, double *e, double *omega, double *mconst, int type, double *ldcoeffs, int fitephem, int fitr, int fita, int fitinclterm, int fite, int fitomega, int fitmconst, int *fitldcoeffs, double *chi2_, int correctlc, int omodel, char *modelname, int fitRV, char *RVfilename, char *omodelRVcurve, double *K, double *gamma, int fitK, int fitgamma, int refititer, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, char *modelvarname, _Variable *modelvar, int threadid)
+void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, double *mag, double *sig, double *P, double *T0, double *r, double *a, double *inc, double *bimpact, double *e, double *omega, double *mconst, int type, double *ldcoeffs, int fitephem, int fitr, int fita, int fitinclterm, int fite, int fitomega, int fitmconst, int *fitldcoeffs, double *chi2_, int correctlc, int omodel, char *modelname, int fitRV, char *RVfilename, char *omodelRVcurve, double *K, double *gamma, int fitK, int fitgamma, int refititer, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, char *modelvarname, _Variable *modelvar, int threadid)
 {
   /* This function fits a Mandel and Agol 2002 transit model to a light curve with t, mag and sig; The parameters are:
      P = period, T0 = time of transit minimum, r = planet to star radius ratio, a = ratio of semi-major axis to star radius, sin_i = sin inclination angle, e = eccentricity, omega = argument of periastron, mconst = out of transit magnitude, type = 0 for quadratic limb darkening, 1 for non-linear limb-darkening. ldcoeffs should be ldcoeffs[4]. */
@@ -1449,11 +1449,11 @@ void fitmandelagoltransit_amoeba(int N, double *t, double *mag, double *sig, dou
 	for(i=0; i < Nphase; i++) delmag[i] = 1.;
       }
       for(i=0; i < Nphase; i++) {
-	if((phase[i] < phmin && i > 0) || (phase[i] < phmin - JDTOL && i == 0)) {
+	if((phase[i] < phmin && i > 0) || (phase[i] < phmin - programdat->JDTOL && i == 0)) {
 	  phase[i] = phase[i] + ceil(phmin - phase[i]);
 	} else if(i == 0 && phase[i] == phmin+1.0) {
 	  phase[i] = phmin;
-	} else if((phase[i] > phmax && i < (Nphase - 1)) || (phase[i] > phmax + JDTOL && i == Nphase - 1)) {
+	} else if((phase[i] > phmax && i < (Nphase - 1)) || (phase[i] > phmax + programdat->JDTOL && i == Nphase - 1)) {
 	  phase[i] = phase[i] - ceil(phase[i] - phmax);
 	} else if(i == Nphase - 1 && phase[i] == phmax-1.0)
 	  phase[i] = phmax;

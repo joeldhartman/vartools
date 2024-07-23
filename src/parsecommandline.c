@@ -98,6 +98,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   p->readformatused = 0;
   p->inputlcformatused = 0;
   p->inlistvars = 0;
+  p->inlist_lcnames_from_allcolumns = 0;
   p->t = NULL;
   p->mag = NULL;
   p->sig = NULL;
@@ -128,11 +129,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  p->Nlcs = 1;
 	  if((p->lcnames = (char **) malloc(p->Nlcs * sizeof(char *))) == NULL ||
 	     (p->NJD = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
-	     (p->is_inputlc_fits = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
+	     (p->is_inputlc_fits = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
+	     (p->skipfaillc = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
 	  for(j=0;j<p->Nlcs;j++)
 	    {
 	      p->is_inputlc_fits[j] = 0;
+	      p->skipfaillc[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
 		error(ERR_MEMALLOC);
 	    }
@@ -199,7 +202,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  i++;
 		  if(i < argc)
 		    {
-		      k = atoi(argv[i]);
+		      if(!strcmp(argv[i],"all")) {
+			k = 1;
+			p->inlist_lcnames_from_allcolumns = 1;
+		      } else {
+			k = atoi(argv[i]);
+		      }
 		    }
 		  else
 		    help(argv[iterm],p);
@@ -219,6 +227,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    VARTOOLS_TYPE_INT,
 				    0, -1, 0, 0, "0",
 				    -1, "Is_InputLC_FITS");
+	  RegisterDataFromInputList(p, 
+				    (void *)(&p->skipfaillc), 
+				    VARTOOLS_TYPE_INT,
+				    0, -1, 0, 0, "0",
+				    -1, "SkipFailLC");
 				    
 #ifdef _USEBINARY_LC
 	  i++;
@@ -2751,9 +2764,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
     ["inputsubtract" value] ["inputsys-tdb" | "inputsys-utc"]
     <"output" <"mjd" | "jd" | "hjd" | "bjd" >>
     ["outputsubtract" value] ["outputsys-tdb" | "outputsys-utc"]
-    ["radec" <"list" ["column" col] | "fix" raval decval> ["epoch" epoch]]
+    ["radec" <"list" ["column" col] | "fix" raval decval | 
+              "expr" raexpr decexpr | "perJD expr" raexpr decexpr |
+              "perJD fromlc" ralccol declccol> ["epoch" epoch]]
     ["ppm" <"list" ["column" col] | "fix" mu_ra mu_dec>]
-    ["input-radec" <"list" ["column" col] | "fix" raval decval> ["epoch" epoch]]
+    ["input-radec" <"list" ["column" col] | "fix" raval decval |
+                    "expr" raexpr decexpr" | "perJD expr" raexpr decexpr |
+                    "perJD fromlc" ralccol declccol> ["epoch" epoch]]
     ["input-ppm" <"list" ["column" col] | "fix" mu_ra mu_dec>] 
     ["ephemfile" file] ["leapsecfile" file] ["planetdatafile" file]
     ["observatory" < code | "show-codes">
@@ -2949,6 +2966,63 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].ConvertTime->radec_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+			  i++;
+			  if(i >= argc)
+			    listcommands(argv[iterm],p);
+			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->raval_expr));
+			  i++;
+			  if(i >= argc)
+			    listcommands(argv[iterm],p);
+			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->decval_expr));
+			}
+		      else if(!strcmp(argv[i],"perJD")) {
+			i++;
+			if(i < argc) {
+			  if(!strcmp(argv[i],"expr")) {
+			    c[cn].ConvertTime->radec_source = VARTOOLS_SOURCE_EVALEXPRESSION_LC;
+			    i++;
+			    if(i >= argc)
+			      listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->raval_lcexpr));
+			    i++;
+			    if(i >= argc)
+			      listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->decval_lcexpr));
+			  }
+			  else if(!strncmp(argv[i],"fromlc",6) && strlen(argv[i]) == 6) {
+			    c[cn].ConvertTime->radec_source = VARTOOLS_SOURCE_LC;
+			    i++;
+			    if(i < argc) {
+			      c[cn].ConvertTime->raval_lc_col = atoi(argv[i]);
+			      RegisterDataFromLightCurve(p, 
+							 &(c[cn].ConvertTime->raval_lcvals), 
+							 VARTOOLS_TYPE_DOUBLE, 0, 0, cn, 
+							 0, 0, NULL, NULL,
+							 c[cn].ConvertTime->raval_lc_col,
+							 "RightAscension");
+			    }
+			    else
+			      listcommands(argv[iterm],p);
+			    i++;
+			    if(i < argc) {
+			      c[cn].ConvertTime->decval_lc_col = atoi(argv[i]);
+			      RegisterDataFromLightCurve(p, 
+							 &(c[cn].ConvertTime->decval_lcvals), 
+							 VARTOOLS_TYPE_DOUBLE, 0, 0, cn, 
+							 0, 0, NULL, NULL,
+							 c[cn].ConvertTime->decval_lc_col,
+							 "Declination");
+			    }
+			    else
+			      listcommands(argv[iterm],p);
+			  }
+			}
+			else
+			  listcommands(argv[iterm],p);
+		      }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -3104,6 +3178,63 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].ConvertTime->inputradec_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+			  i++;
+			  if(i >= argc)
+			    listcommands(argv[iterm],p);
+			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->inputraval_expr));
+			  i++;
+			  if(i >= argc)
+			    listcommands(argv[iterm],p);
+			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->inputdecval_expr));
+			}
+		      else if(!strcmp(argv[i],"perJD")) {
+			i++;
+			if(i < argc) {
+			  if(!strcmp(argv[i],"expr")) {
+			    c[cn].ConvertTime->inputradec_source = VARTOOLS_SOURCE_EVALEXPRESSION_LC;
+			    i++;
+			    if(i >= argc)
+			      listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->inputraval_lcexpr));
+			    i++;
+			    if(i >= argc)
+			      listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->inputdecval_lcexpr));
+			  }
+			  else if(!strncmp(argv[i],"fromlc",6) && strlen(argv[i]) == 6) {
+			    c[cn].ConvertTime->inputradec_source = VARTOOLS_SOURCE_LC;
+			    i++;
+			    if(i < argc) {
+			      c[cn].ConvertTime->inputraval_lc_col = atoi(argv[i]);
+			      RegisterDataFromLightCurve(p, 
+							 &(c[cn].ConvertTime->inputraval_lcvals), 
+							 VARTOOLS_TYPE_DOUBLE, 0, 0, cn, 
+							 0, 0, NULL, NULL,
+							 c[cn].ConvertTime->inputraval_lc_col,
+							 "RightAscension");
+			    }
+			    else
+			      listcommands(argv[iterm],p);
+			    i++;
+			    if(i < argc) {
+			      c[cn].ConvertTime->inputdecval_lc_col = atoi(argv[i]);
+			      RegisterDataFromLightCurve(p, 
+							 &(c[cn].ConvertTime->inputdecval_lcvals), 
+							 VARTOOLS_TYPE_DOUBLE, 0, 0, cn, 
+							 0, 0, NULL, NULL,
+							 c[cn].ConvertTime->inputdecval_lc_col,
+							 "Declination");
+			    }
+			    else
+			      listcommands(argv[iterm],p);
+			  }
+			}
+			else
+			  listcommands(argv[iterm],p);
+		      }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -3235,6 +3366,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    } else i--;
 	  } else i--;
 	  c[cn].ConvertTime->source_obs_coords = VARTOOLS_SOURCE_NONE;
+	  c[cn].ConvertTime->obs_coords_usexyz = 0;
 	  i++;
 	  if(i < argc) {
 	    if(!strncmp(argv[i],"observatory",11) && strlen(argv[i]) == 11) {
@@ -3250,6 +3382,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	    else if(!strncmp(argv[i],"coords",6) && strlen(argv[i]) == 6) {
 	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"xyz")) {
+		  c[cn].ConvertTime->obs_coords_usexyz = 1;
+		  i++;
+		}
+	      }
 	      if(i < argc) {
 		if(!strncmp(argv[i],"fix",3) && strlen(argv[i]) == 3) {
 		  c[cn].ConvertTime->source_obs_coords = VARTOOLS_SOURCE_FIXED;
@@ -3346,6 +3484,36 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  }
 		  else
 		    listcommands(argv[iterm],p);
+		}
+		else if(!strcmp(argv[i],"expr")) {
+		  c[cn].ConvertTime->source_obs_coords = VARTOOLS_SOURCE_EVALEXPRESSION;
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obslat_expr));
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obslong_expr));
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obsalt_expr));
+		}
+		else if(!strcmp(argv[i],"lcexpr")) {
+		  c[cn].ConvertTime->source_obs_coords = VARTOOLS_SOURCE_EVALEXPRESSION_LC;
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obslat_lcexpr));
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obslong_lcexpr));
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].ConvertTime->obsalt_lcexpr));
 		}
 		else
 		  listcommands(argv[iterm],p);
@@ -3792,6 +3960,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->copyheaderfrominput = 0;
 	  c[cn].Outputlcs->logcommandline = 0;
 	  c[cn].Outputlcs->noclobber = 0;
+	  c[cn].Outputlcs->useoutnamecommand = 0;
+	  c[cn].Outputlcs->outnamecommand = NULL;
 	  i++;
 	  if(i < argc)
 	    {
@@ -3801,6 +3971,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  i++;
 		  if(i < argc)
 		    sprintf(c[cn].Outputlcs->format,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"namecommand"))
+		{
+		  c[cn].Outputlcs->useoutnamecommand = 1;
+		  i++;
+		  if(i < argc) {
+		    c[cn].Outputlcs->outnamecommand = (char *) malloc((strlen(argv[i])+1)*sizeof(char));
+		    sprintf(c[cn].Outputlcs->outnamecommand,"%s",argv[i]);
+		  }
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -6518,6 +6699,338 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  cn++;
 	}
+
+      /* -BLSFixPerDurTc <\"period\" <\"fix\" per | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"duration\" < \"fix\" dur | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"Tc\" < \"fix\" tcval | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> [ \"fixdepth\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] [ \"qgress\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col]] ] timezone omodel [modeloutdir] correctlc [\"fittrap\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] */
+
+      else if(!strcmp(argv[i],"-BLSFixPerDurTc"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_BLSFIXPERDURTC;
+	  if((c[cn].BlsFixPerDurTc = (_BlsFixPerDurTc *) malloc(sizeof(_BlsFixPerDurTc))) == NULL)
+	    error(ERR_MEMALLOC);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(strcmp(argv[i],"period"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"fix")) {
+	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_FIX;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    c[cn].BlsFixPerDurTc->fixper = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"fixcolumn")) {
+	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_FIXCOLUMN;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    increaselinkedcols(p, &(c[cn].BlsFixPerDurTc->fixper_linkedcolumn), argv[i], cn);
+	  }
+	  else if(!strcmp(argv[i],"list")) {
+	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_SPECIFIED;
+	    k = 0;
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"column")) {
+		i++;
+		if(i < argc)
+		  k = atoi(argv[i]);
+		else
+		  listcommands(argv[iterm],p);
+	      } else i--;
+	    } else i--;
+	    RegisterDataFromInputList(p,
+				      (void *) (&(c[cn].BlsFixPerDurTc->inputper)),
+				      VARTOOLS_TYPE_DOUBLE,
+				      0, cn, 0, 0, NULL, k,
+				      "BLSFIXPERDURPHASE_PERIOD");
+	  }
+	  else
+	    listcommands(argv[iterm],p);
+
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(strcmp(argv[i],"duration"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"fix")) {
+	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_FIX;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    c[cn].BlsFixPerDurTc->fixdur = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"fixcolumn")) {
+	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_FIXCOLUMN;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    increaselinkedcols(p, &(c[cn].BlsFixPerDurTc->fixdur_linkedcolumn), argv[i], cn);
+	  }
+	  else if(!strcmp(argv[i],"list")) {
+	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_SPECIFIED;
+	    k = 0;
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"column")) {
+		i++;
+		if(i < argc)
+		  k = atoi(argv[i]);
+		else
+		  listcommands(argv[iterm],p);
+	      } else i--;
+	    } else i--;
+	    RegisterDataFromInputList(p,
+				      (void *) (&(c[cn].BlsFixPerDurTc->inputdur)),
+				      VARTOOLS_TYPE_DOUBLE,
+				      0, cn, 0, 0, NULL, k,
+				      "BLSFIXPERDURPHASE_DURATION");
+	  }
+	  else
+	    listcommands(argv[iterm],p);
+
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(strcmp(argv[i],"Tc"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"fix")) {
+	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_FIX;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    c[cn].BlsFixPerDurTc->fixTC = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"fixcolumn")) {
+	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_FIXCOLUMN;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    increaselinkedcols(p, &(c[cn].BlsFixPerDurTc->fixTC_linkedcolumn), argv[i], cn);
+	  }
+	  else if(!strcmp(argv[i],"list")) {
+	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_SPECIFIED;
+	    k = 0;
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"column")) {
+		i++;
+		if(i < argc)
+		  k = atoi(argv[i]);
+		else
+		  listcommands(argv[iterm],p);
+	      } else i--;
+	    } else i--;
+	    RegisterDataFromInputList(p,
+				      (void *) (&(c[cn].BlsFixPerDurTc->inputTC)),
+				      VARTOOLS_TYPE_DOUBLE,
+				      0, cn, 0, 0, NULL, k,
+				      "BLSFIXPERDURPHASE_TC");
+	  }
+	  else
+	    listcommands(argv[iterm],p);
+
+	  c[cn].BlsFixPerDurTc->fixdepth = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"fixdepth")) {
+	      c[cn].BlsFixPerDurTc->fixdepth = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"fix")) {
+		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_FIX;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		c[cn].BlsFixPerDurTc->fixdepthval = atof(argv[i]);
+	      }
+	      else if(!strcmp(argv[i],"fixcolumn")) {
+		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_FIXCOLUMN;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		increaselinkedcols(p, &(c[cn].BlsFixPerDurTc->fixdepth_linkedcolumn), argv[i], cn);
+	      }
+	      else if(!strcmp(argv[i],"list")) {
+		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_SPECIFIED;
+		k = 0;
+		i++;
+		if(i < argc) {
+		  if(!strcmp(argv[i],"column")) {
+		    i++;
+		    if(i < argc)
+		      k = atoi(argv[i]);
+		    else
+		      listcommands(argv[iterm],p);
+		  } else i--;
+		} else i--;
+		RegisterDataFromInputList(p,
+					  (void *) (&(c[cn].BlsFixPerDurTc->inputdepth)),
+				      VARTOOLS_TYPE_DOUBLE,
+					  0, cn, 0, 0, NULL, k,
+					  "BLSFIXPERDURPHASE_DEPTH");
+	      }
+	      else
+		listcommands(argv[iterm],p);
+	      
+	      c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_FIX;
+	      c[cn].BlsFixPerDurTc->qgressval = 0.0;
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"qgress")) {
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"fix")) {
+		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_FIX;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    c[cn].BlsFixPerDurTc->qgressval = atof(argv[i]);
+		  }
+		  else if(!strcmp(argv[i],"fixcolumn")) {
+		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_FIXCOLUMN;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    increaselinkedcols(p, &(c[cn].BlsFixPerDurTc->fixqgress_linkedcolumn), argv[i], cn);
+		  }
+		  else if(!strcmp(argv[i],"list")) {
+		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_SPECIFIED;
+		    k = 0;
+		    i++;
+		    if(i < argc) {
+		      if(!strcmp(argv[i],"column")) {
+			i++;
+			if(i < argc)
+			  k = atoi(argv[i]);
+			else
+			  listcommands(argv[iterm],p);
+		      } else i--;
+		    } else i--;
+		    RegisterDataFromInputList(p,
+					      (void *) (&(c[cn].BlsFixPerDurTc->inputqgress)),
+					      VARTOOLS_TYPE_DOUBLE,
+					      0, cn, 0, 0, NULL, k,
+					      "BLSFIXPERDURPHASE_DEPTH");
+		  }
+		  else
+		    listcommands(argv[iterm],p);
+		} else 
+		  i--;
+	      } else
+		i--;
+	    } else 
+	      i--;
+	  } else
+	    i--;
+	  
+
+	  i++;
+	  if(i < argc)
+	    c[cn].BlsFixPerDurTc->timezone = atof(argv[i]);
+	  else
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i < argc)
+	    c[cn].BlsFixPerDurTc->omodel = atoi(argv[i]);
+	  else
+	    listcommands(argv[iterm],p);
+	  if(c[cn].BlsFixPerDurTc->omodel)
+	    {
+	      i++;
+	      if(i < argc)
+		sprintf(c[cn].BlsFixPerDurTc->modeloutdir,"%s",argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	      sprintf(c[cn].BlsFixPerDurTc->modelsuffix,".blsfixperdurtc.model");
+	    }
+	  i++;
+	  if(i < argc)
+	    c[cn].BlsFixPerDurTc->correctlc = atoi(argv[i]);
+	  else
+	    listcommands(argv[iterm],p);
+	  c[cn].BlsFixPerDurTc->fittrap = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"fittrap")) {
+	      c[cn].BlsFixPerDurTc->fittrap = 1;
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+	  c[cn].BlsFixPerDurTc->ophcurve = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"ophcurve")) {
+	      c[cn].BlsFixPerDurTc->ophcurve = 1;
+	      i++;
+	      if(i < argc)
+		sprintf(c[cn].BlsFixPerDurTc->ophcurveoutdir,"%s",argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	      sprintf(c[cn].BlsFixPerDurTc->ophcurvesuffix,".blsfixperdurtc.phcurve");
+	      i++;
+	      if(i < argc)
+		c[cn].BlsFixPerDurTc->phmin = atof(argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	      i++;
+	      if(i < argc)
+		c[cn].BlsFixPerDurTc->phmax = atof(argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	      i++;
+	      if(i < argc)
+		c[cn].BlsFixPerDurTc->phstep = atof(argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+	  c[cn].BlsFixPerDurTc->ojdcurve = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"ojdcurve")) {
+	      c[cn].BlsFixPerDurTc->ojdcurve = 1;
+	      i++;
+	      if(i < argc)
+		sprintf(c[cn].BlsFixPerDurTc->ojdcurveoutdir,"%s",argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	      sprintf(c[cn].BlsFixPerDurTc->ojdcurvesuffix,".blsfixperdurtc.jdcurve");
+	      i++;
+	      if(i < argc)
+		c[cn].BlsFixPerDurTc->jdstep = atof(argv[i]);
+	      else
+		listcommands(argv[iterm],p);
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+	  cn++;
+	}
 	  
 
       /* -SoftenedTransit <"bls" | "blsfixper" | P0 T00 eta0 delta0 mconst0 cval0> fitephem fiteta fitcval fitdelta fitmconst correctlc omodel [modeloutdir] fit_harm [nharm nsubharm] */
@@ -8725,7 +9238,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
                 "continueprocess" prior_python_command_number ]
              [ "vars" variablelist | 
                [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
-             [ "outputcolumns" variablelist ] */
+             [ "outputcolumns" variablelist ] [ "skipfail" ] */
       else if(!strcmp(argv[i],"-python"))
 	{
 	  //if(!p->pythonlibraryloaded)
@@ -8983,7 +9496,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  iterm = i;
 	  i++;
 	  if(i < argc)
-	    JDTOL = atof(argv[i]);
+	    p->JDTOL = atof(argv[i]);
 	  else
 	    help(argv[iterm],p);
 	}

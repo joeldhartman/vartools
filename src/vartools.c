@@ -701,3 +701,8 @@ void VARTOOLS_mysortstringint(int N, int sizestr, char **data1, int *data2)
   VARTOOLS_FUNCTION_POINTER_STRUCT.mysortstringint(N, sizestr, data1, data2);
 }
 
+void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.docorr(mag, err, Npoints, ndecorr, decorr, order, Avector, A_errvector, mag_ave, zeropoint);
+}
+

@@ -596,6 +596,42 @@ int CheckIfUserCommandHelpIsCalled(ProgramData *p, int all, char *argv) {
 }
 
 
+int CheckIfUserCommandExampleIsCalled(ProgramData *p, char *argv) {
+#ifdef DYNAMICLIB
+  int i;
+  int check = 0;
+  /* Cycle through all the libraries which have been loaded so far */
+  for(i=0; i < p->NUserLib; i++) {
+    if((!strcmp(p->UserLib[i].commandname,argv))) {
+      /* We Have a match */
+      check = 1;
+      p->UserLib[i].ShowExample_function(stderr);
+      fprintf(stderr,"\n");
+    }
+  }
+  if(!check) {
+    /* Try to load a library with a name given by the command */
+    if(strlen(argv) <= 1) return check;
+    lt_dlhandle lib = lt_dlopenext(&(argv[1]));
+    
+    if(lib != NULL) {
+      load_user_library(&(argv[1]), p, 1, lib);
+      i = p->NUserLib-1;
+      if(!strcmp(p->UserLib[i].commandname,argv)) {
+	/* We Have a match */
+	check = 1;
+	p->UserLib[i].ShowExample_function(stderr);
+	fprintf(stderr,"\n");
+      }
+    }
+  }
+  return check;
+#else
+  return 0;
+#endif
+}
+
+
 /* This is an internal function called from the CreateOutputColumns function
    the user should not need to call this function */
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
@@ -3753,6 +3789,7 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->memallocdatafromlightcurvemidprocess = &MemAllocDataFromLightCurveMidProcess;
   fptr->gnu_getline = &gnu_getline;
   fptr->mysortstringint = &mysortstringint;
+  fptr->docorr = &docorr;
 #else
   return;
 #endif

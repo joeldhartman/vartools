@@ -363,13 +363,27 @@ int InitializeR(ProgramData *p, _RCommand *c, int threadindex)
 
   R_len_t ii;
 
-  int r_argc = 2;
-  char *r_argv[] = {"R", "--slave"};
+  int r_argc_slave = 3;
+  char *r_argv_slave[] = {"R", "--slave", "--no-save"};
+
+  int r_argc_noslave = 2;
+  char *r_argv_noslave[] = {"R", "--no-save"};
+
+  int r_argc;
+  char **r_argv;
 
   SEXP cmdSexp;
   SEXP cmdexp;
   SEXP ans;
   ParseStatus status;
+
+  if(c->verboseR) {
+    r_argc = r_argc_noslave;
+    r_argv = r_argv_noslave;
+  } else {
+    r_argc = r_argc_slave;
+    r_argv = r_argv_slave;
+  }
 
   usercodetext.s = NULL;
   usercodetext.space = 0;
@@ -2250,7 +2264,7 @@ int ParseRCommand(int *iret, int argc, char **argv, ProgramData *p,
              "continueprocess" prior_R_command_number ]
            [ "vars" variablelist | 
              [ "invars" inputvariablelist ] [ "outvars" outputvariablelist ] ]
-           [ "outputcolumns" variablelist ] [ "process_all_lcs" ]
+           [ "outputcolumns" variablelist ] [ "process_all_lcs" ] [ "verbose" ]
 */
 {
   int i, j, k, ii;
@@ -2514,6 +2528,17 @@ int ParseRCommand(int *iret, int argc, char **argv, ProgramData *p,
       i--;
   } else
     i--;
+
+  c->verboseR = 0;
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"verbose")) {
+      c->verboseR = 1;
+    } else
+      i--;
+  } else
+    i--;
+
   
   if(c->invarliststring == NULL && c->outvarliststring == NULL &&
      c->inoutvarliststring == NULL)

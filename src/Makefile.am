@@ -5,7 +5,7 @@ libvartools_la_SOURCES = vartools.c
 if PYTHON_USE
 lib_LTLIBRARIES += libvartoolsrunpython.la
 libvartoolsrunpython_la_SOURCES = runpython.c runpython.h
-libvartoolsrunpython_la_CFLAGS = @PYTHON_CSPEC@
+libvartoolsrunpython_la_CFLAGS = @PYTHON_CSPEC@ -O0
 libvartoolsrunpython_la_LDFLAGS = @PYTHON_LSPEC@
 endif
 

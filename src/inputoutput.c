@@ -278,6 +278,45 @@ int parseonedelimchar(char *line, void *val, int vartype, char delim)
   return(i);
 }
 
+void GetOutputFilenameFromCommand(char *lcoutname, char *lcname, char *outdir,
+				  int lc_name_num, char *lcnamecommand)
+{
+  FILE *lc_name_pipe;
+  char *execcommand;
+  int size_execcommand;
+  char *line = NULL;
+  size_t line_size = 2048;
+  int i1 = 0;
+
+  line = (char *) malloc(line_size*sizeof(char));
+
+  size_execcommand = 10 + strlen(lcname) + strlen(outdir) + ceil(log((double) lc_name_num)) + strlen(lcnamecommand) + 1;
+
+  if((execcommand = (char *) malloc((size_execcommand+1))) == NULL)
+    error(ERR_MEMALLOC);
+
+  sprintf(execcommand,"echo %s %s %d | %s", lcname, outdir, lc_name_num, lcnamecommand);
+
+  if((lc_name_pipe = popen(execcommand,"r")) == NULL) {
+    error2(ERR_OUTPUTFILENAMECOMMAND,execcommand);
+  }
+
+  if(gnu_getline(&line,&line_size,lc_name_pipe) <= 0) {
+    error2(ERR_OUTPUTFILENAMECOMMAND,execcommand);
+  }
+  i1 = 0;
+  while(line[i1] != '\n' && line[i1] != '\0') {
+    lcoutname[i1] = line[i1];
+    i1++;
+  }
+  if(!i1)
+    error2(ERR_OUTPUTFILENAMECOMMAND,execcommand);
+  
+  pclose(lc_name_pipe);
+  free(line);
+  free(execcommand);
+}
+
 
 void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
 		       char *suffix, char *format, int lc_name_num)
@@ -301,15 +340,17 @@ void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
               format contains at %d flag).
 */
 {
-  int i1, i2, i3, i4;
+  int i1, i2, i3, i4, i5, i6;
 
   char tmpstring[MAXLEN];
 
-  i1 = 0; i2 = 0;
+  i1 = 0; i2 = 0; i5 = -1;
   while(lcname[i1] != '\0')
     {
       if(lcname[i1] == '/')
 	i2 = i1 + 1;
+      if(lcname[i1] == '.')
+	i5 = i1 - 1;
       i1++;
     }
 
@@ -339,6 +380,22 @@ void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
 		i3++;
 		sprintf(&lcoutname[i1],"%s",&(lcname[i2]));
 		i1 = strlen(lcoutname);
+	      }
+	    else if(format[i3] == 'b')
+	      {
+		i3++;
+		i6 = i2;
+		if(i5 > i2) {
+		  for(; i6 <= i5; i6++) {
+		    lcoutname[i1] = lcname[i6];
+		    i1++;
+		  }
+		  lcoutname[i1] = '\0';
+		}
+		else {
+		  sprintf(&lcoutname[i1],"%s",&(lcname[i2]));
+		  i1 = strlen(lcoutname);
+		}
 	      }
 	    else if(format[i3] == 'd')
 	      {
@@ -543,13 +600,13 @@ void Filldecorr_matrix(ProgramData *p, Command *c, int lc)
 		  j = 0;
 		  while (k < p->NJD[lc] && j < c[i].Decorr->N_globaldecorr_JD)
 		    {
-		      while(k < p->NJD[lc] ? (c[i].Decorr->globaldecorr_JD[j] > p->t[lc][k] + JDTOL) : 0)
+		      while(k < p->NJD[lc] ? (c[i].Decorr->globaldecorr_JD[j] > p->t[lc][k] + p->JDTOL) : 0)
 			{
 			  for(l=0;l<m;l++)
 			    c[i].Decorr->decorr_terms[lc][k][l] = sqrt(-1);
 			  k++;
 			}
-		      if(k < p->NJD[lc] ? (c[i].Decorr->globaldecorr_JD[j] > p->t[lc][k] - JDTOL) : 0)
+		      if(k < p->NJD[lc] ? (c[i].Decorr->globaldecorr_JD[j] > p->t[lc][k] - p->JDTOL) : 0)
 			{
 			  for(l=0;l<m;l++)
 			    c[i].Decorr->decorr_terms[lc][k][l] = c[i].Decorr->globaldecorr_terms[j][l];
@@ -1499,82 +1556,108 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 
 void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 {
-  int i1, i2, i3, i4;
+  int i1, i2, i3, i4, i5, i6;
   char outname[MAXLEN], tmpstring[MAXLEN];
   /* First determine the output name of the light curve */
   if(p->listflag || p->Ncopycommands > 0)
     {
-      i1 = 0;
-      i2 = 0;
-      while(p->lcnames[lcid][i1] != '\0')
-	{
-	  if(p->lcnames[lcid][i1] == '/')
-	    i2 = i1 + 1;
-	  i1++;
-	}
-      if(!c->useformat)
-	sprintf(outname,"%s/%s",c->outdir,&p->lcnames[lcid][i2]);
-      else
-	{
-	  sprintf(outname,"%s/",c->outdir);
-	  i1=strlen(outname);
-	  i3=0;
-	  while(c->format[i3] != '\0')
-	    {
-	      if(c->format[i3] != '%')
-		{
-		  outname[i1] = c->format[i3];
-		  i1++;
-		  outname[i1] = '\0';
-		  i3++;
-		}
-	      else
-		{
-		  i3++;
-		  if(c->format[i3] == 's')
-		    {
-		      i3++;
-		      sprintf(&outname[i1],"%s",&p->lcnames[lcid][i2]);
-		      i1 = strlen(outname);
-		    }
-		  else if(c->format[i3] == 'd')
-		    {
-		      i3++;
-		      sprintf(&outname[i1],"%d",lcid+1);
-		      i1 = strlen(outname);
-		    }
-		  else if(c->format[i3] == '0')
-		    {
-		      i3++;
-		      tmpstring[0] = '%';
-		      tmpstring[1] = '0';
-		      i4 = 2;
-		      while(c->format[i3] >= '1' && c->format[i3] <= '9')
+      if(c->useoutnamecommand) {
+	for(i1=0; i1 < MAXLEN; i1++) outname[i1] = '\0';
+	GetOutputFilenameFromCommand(outname, p->lcnames[lcid], c->outdir,
+				     lcid+1, c->outnamecommand);
+      }
+      else {
+	i1 = 0;
+	i2 = 0;
+	i5 = -1;
+	while(p->lcnames[lcid][i1] != '\0')
+	  {
+	    if(p->lcnames[lcid][i1] == '/')
+	      i2 = i1 + 1;
+	    if(p->lcnames[lcid][i1] == '.')
+	      i5 = i1 - 1;
+	    i1++;
+	  }
+	if(!c->useformat)
+	  sprintf(outname,"%s/%s",c->outdir,&p->lcnames[lcid][i2]);
+	else
+	  {
+	    sprintf(outname,"%s/",c->outdir);
+	    i1=strlen(outname);
+	    i3=0;
+	    while(c->format[i3] != '\0')
+	      {
+		if(c->format[i3] != '%')
+		  {
+		    outname[i1] = c->format[i3];
+		    i1++;
+		    outname[i1] = '\0';
+		    i3++;
+		  }
+		else
+		  {
+		    i3++;
+		    if(c->format[i3] == 's')
+		      {
+			i3++;
+			sprintf(&outname[i1],"%s",&p->lcnames[lcid][i2]);
+			i1 = strlen(outname);
+		      }
+		    else if(c->format[i3] == 'b')
+		      {
+			i3++;
+			i6 = i2;
+			if(i5 >= i2) {
+			  for(; i6 <= i5; i6++) {
+			    outname[i1] = p->lcnames[lcid][i6];
+			    i1++;
+			  }
+			  outname[i1] = '\0';
+			}
+			else {
+			  sprintf(&outname[i1],"%s",&p->lcnames[lcid][i2]);
+			  i1 = strlen(outname);
+			}
+		      }
+		    else if(c->format[i3] == 'd')
+		      {
+			i3++;
+			sprintf(&outname[i1],"%d",lcid+1);
+			i1 = strlen(outname);
+		      }
+		    else if(c->format[i3] == '0')
+		      {
+			i3++;
+			tmpstring[0] = '%';
+			tmpstring[1] = '0';
+			i4 = 2;
+			while(c->format[i3] >= '1' && c->format[i3] <= '9')
 			{
 			  tmpstring[i4] = c->format[i3];
 			  i4++;
 			  i3++;
 			}
-		      if(c->format[i3] != 'd')
-			error(ERR_INVALIDOUTPUTFORMAT);
-		      i3++;
-		      tmpstring[i4] = 'd';
-		      i4++;
-		      tmpstring[i4] = '\0';
-		      sprintf(&outname[i1],tmpstring,lcid+1);
-		      i1 = strlen(outname);
-		    }
-		  else if(c->format[i3] == '%')
-		    {
-		      i3++;
-		      outname[i1] = '%';
-		      i1++;
-		      outname[i1] = '\0';
-		    }
-		  else
-		    error(ERR_INVALIDOUTPUTFORMAT);
-		}
-	    }
+			if(c->format[i3] != 'd')
+			  error(ERR_INVALIDOUTPUTFORMAT);
+			i3++;
+			tmpstring[i4] = 'd';
+			i4++;
+			tmpstring[i4] = '\0';
+			sprintf(&outname[i1],tmpstring,lcid+1);
+			i1 = strlen(outname);
+		      }
+		    else if(c->format[i3] == '%')
+		      {
+			i3++;
+			outname[i1] = '%';
+			i1++;
+			outname[i1] = '\0';
+		      }
+		    else
+		      error(ERR_INVALIDOUTPUTFORMAT);
+		  }
+	      }
+	  }
 	}
 #ifdef USECFITSIO
       if(c->outfits) {
