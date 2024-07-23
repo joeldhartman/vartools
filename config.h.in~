@@ -153,7 +153,7 @@
 /* Define if the Py_UNICODE 32-bit object type is available */
 #undef HAVE_PYTHON_UNICODE
 
-/* Define if Py_SetPath is present */
+/* Define to 1 if you have the `Py_SetPath' function. */
 #undef HAVE_PY_SETPATH
 
 /* Define to 1 if you have the `readdir' function. */

@@ -275,7 +275,7 @@ if test x"$ax_python_use" = x"true"; then
    fi
    LDFLAGS="$PYTHON_LSPEC $LDFLAGS"
    python_lib_base=`echo $PYTHON_LSPEC | awk '{for(i=1; i <= NF; i += 1) {if(\$i ~ /-lpython/) print substr(\$i,3);}}'`
-   AC_CHECK_LIB([$python_lib_base],[Py_SetPath],[AC_DEFINE(HAVE_PY_SETPATH)],[])
+   AC_CHECK_LIB([$python_lib_base],[Py_SetPath],[AC_DEFINE([HAVE_PY_SETPATH],[1],[Define if Py_SetPath is present])],[])
    CPPFLAGS="$CPPFLAGS_SAVE"
    LDFLAGS="$LDFLAGS_SAVE"
 
