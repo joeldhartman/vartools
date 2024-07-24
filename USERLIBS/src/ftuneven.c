@@ -422,6 +422,12 @@ void ftuneven_ShowHelp(FILE *outfile)
 	  );
 }
 
+void ftuneven_ShowExample(FILE *outfile)
+{
+  fprintf(outfile,
+	  "No examples implemented yet for this command.\n");
+}
+
 void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)
 /* 
    This is the function called by VARTOOLS to run the command on a
