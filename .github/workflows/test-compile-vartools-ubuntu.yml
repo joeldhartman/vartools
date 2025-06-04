@@ -16,6 +16,8 @@ jobs:
         run: sudo apt-get install gfortran
       - name: Install CFITSIO
         run: sudo apt-get install libcfitsio-dev
+      - name: Build auto-tools
+        run: ./autogen.sh
       - name: Configure VARTOOLS
         run: ./configure
       - name: make VARTOOLS
