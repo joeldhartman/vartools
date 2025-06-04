@@ -413,6 +413,7 @@ example_files = \
  EXAMPLES/6.png \
  EXAMPLES/4.microlensinject \
  EXAMPLES/9.fits \
+ EXAMPLES/lc_list_tfa_microlensinject \
  EXAMPLES/2.gz \
  EXAMPLES/8.fits \
  EXAMPLES/1.png \
@@ -430,10 +431,14 @@ example_files = \
  EXAMPLES/OUTDIR1/InjectRRLyrae.2.txt \
  EXAMPLES/OUTDIR1/6.png \
  EXAMPLES/OUTDIR1/10.autocorr \
+ EXAMPLES/OUTDIR1/3.aov_harm \
  EXAMPLES/OUTDIR1/10.bls.model \
+ EXAMPLES/OUTDIR1/8.aov_harm \
  EXAMPLES/OUTDIR1/2.autocorr \
+ EXAMPLES/OUTDIR1/3.aov \
  EXAMPLES/OUTDIR1/3.transit.softenedtransit.model \
  EXAMPLES/OUTDIR1/9.autocorr \
+ EXAMPLES/OUTDIR1/6479535620075955328.splinedetrend.lc.txt \
  EXAMPLES/OUTDIR1/1.tfa.coeff \
  EXAMPLES/OUTDIR1/1.bls.phcurve \
  EXAMPLES/OUTDIR1/3.starspot.test_tfa_sr_bin \
@@ -452,6 +457,7 @@ example_files = \
  EXAMPLES/OUTDIR1/InjectRRLyrae.5.txt \
  EXAMPLES/OUTDIR1/4.autocorr \
  EXAMPLES/OUTDIR1/tmp1.txt.bls.phcurve \
+ EXAMPLES/OUTDIR1/4.aov \
  EXAMPLES/OUTDIR1/4.png \
  EXAMPLES/OUTDIR1/3.bls \
  EXAMPLES/OUTDIR1/4.dftclean.cspec \
@@ -459,11 +465,16 @@ example_files = \
  EXAMPLES/OUTDIR1/10.arimaresiduals.png \
  EXAMPLES/OUTDIR1/7.arimaforecast.png \
  EXAMPLES/OUTDIR1/5.autocorr \
+ EXAMPLES/OUTDIR1/1.aov_harm \
  EXAMPLES/OUTDIR1/2.cleanharm \
+ EXAMPLES/OUTDIR1/6479535620075955328_llc.fits.splinedetrend_modelcoeffs \
  EXAMPLES/OUTDIR1/kplr000757076-2009166043257_llc.asc.txt \
+ EXAMPLES/OUTDIR1/1.aov \
  EXAMPLES/OUTDIR1/8.arimaresiduals.png \
  EXAMPLES/OUTDIR1/3.phasebin.txt \
+ EXAMPLES/OUTDIR1/4.aov_harm \
  EXAMPLES/OUTDIR1/InjectRRLyrae.8.txt \
+ EXAMPLES/OUTDIR1/3.maculainject.maculacurve \
  EXAMPLES/OUTDIR1/2.phase.txt \
  EXAMPLES/OUTDIR1/2.bls.model \
  EXAMPLES/OUTDIR1/stdin.mcmc \
@@ -479,8 +490,10 @@ example_files = \
  EXAMPLES/OUTDIR1/1.bls \
  EXAMPLES/OUTDIR1/file_8_00008_simout.txt \
  EXAMPLES/OUTDIR1/noisesim3.txt \
+ EXAMPLES/OUTDIR1/7.aov_harm \
  EXAMPLES/OUTDIR1/2.arimaresiduals.png \
  EXAMPLES/OUTDIR1/10.png \
+ EXAMPLES/OUTDIR1/9.aov_harm \
  EXAMPLES/OUTDIR1/5.cleanharm \
  EXAMPLES/OUTDIR1/3.nonlinfit.model \
  EXAMPLES/OUTDIR1/2.test_tfa_sr \
@@ -500,10 +513,13 @@ example_files = \
  EXAMPLES/OUTDIR1/10.phase.txt \
  EXAMPLES/OUTDIR1/3.starspot.starspot.model \
  EXAMPLES/OUTDIR1/1.medianlowpass \
+ EXAMPLES/OUTDIR1/10.aov \
  EXAMPLES/OUTDIR1/2.tfa.model \
  EXAMPLES/OUTDIR1/5.arimaforecast.png \
+ EXAMPLES/OUTDIR1/7.aov \
  EXAMPLES/OUTDIR1/3.transit.bls.phcurve \
  EXAMPLES/OUTDIR1/6.bls \
+ EXAMPLES/OUTDIR1/3.maculainject.macula \
  EXAMPLES/OUTDIR1/2.png \
  EXAMPLES/OUTDIR1/8.bls.phcurve \
  EXAMPLES/OUTDIR1/3.transit.mandelagoltransit.phcurve \
@@ -518,21 +534,26 @@ example_files = \
  EXAMPLES/OUTDIR1/7.sysrem.model \
  EXAMPLES/OUTDIR1/5.bls \
  EXAMPLES/OUTDIR1/5.arimamodel \
+ EXAMPLES/OUTDIR1/6.aov_harm \
  EXAMPLES/OUTDIR1/4.phase.txt \
  EXAMPLES/OUTDIR1/1.arimaforecast.png \
+ EXAMPLES/OUTDIR1/8.aov \
  EXAMPLES/OUTDIR1/7.bls \
  EXAMPLES/OUTDIR1/1.test_tfa_sr_decorr \
  EXAMPLES/OUTDIR1/2.killharm.model \
  EXAMPLES/OUTDIR1/8.wwz \
  EXAMPLES/OUTDIR1/8.wwz.pm3d \
  EXAMPLES/OUTDIR1/InjectRRLyrae.9.txt \
+ EXAMPLES/OUTDIR1/6479535620075955328_llc.fits.splinedetrend_model \
  EXAMPLES/OUTDIR1/6.arimaresiduals.png \
  EXAMPLES/OUTDIR1/2.mwwz \
  EXAMPLES/OUTDIR1/9.png \
  EXAMPLES/OUTDIR1/3.arimaresiduals.png \
  EXAMPLES/OUTDIR1/3.arimamodel \
+ EXAMPLES/OUTDIR1/5.aov_harm \
  EXAMPLES/OUTDIR1/8.png \
  EXAMPLES/OUTDIR1/3.cleanharm \
+ EXAMPLES/OUTDIR1/9.aov \
  EXAMPLES/OUTDIR1/3.autocorr \
  EXAMPLES/OUTDIR1/8.arimamodel \
  EXAMPLES/OUTDIR1/2.tfa.coeff \
@@ -577,6 +598,7 @@ example_files = \
  EXAMPLES/OUTDIR1/file_10_00010_simout.txt \
  EXAMPLES/OUTDIR1/9.arimamodel \
  EXAMPLES/OUTDIR1/8.arimaforecast.png \
+ EXAMPLES/OUTDIR1/6.aov \
  EXAMPLES/OUTDIR1/3.bls.model \
  EXAMPLES/OUTDIR1/2.ls \
  EXAMPLES/OUTDIR1/1.arimamodel \
@@ -605,6 +627,8 @@ example_files = \
  EXAMPLES/OUTDIR1/4.dftclean.dspec \
  EXAMPLES/OUTDIR1/2.dftclean.dspec \
  EXAMPLES/OUTDIR1/8.bls \
+ EXAMPLES/OUTDIR1/10.aov_harm \
+ EXAMPLES/OUTDIR1/5.aov \
  EXAMPLES/OUTDIR1/3.bls.phcurve \
  EXAMPLES/OUTDIR1/file_6_00006_simout.txt \
  EXAMPLES/OUTDIR1/file_3_00003_simout.txt \
@@ -640,18 +664,21 @@ example_files = \
  EXAMPLES/M3.V006.lc \
  EXAMPLES/Rexample4.R \
  EXAMPLES/3 \
+ EXAMPLES/1_withID.txt \
  EXAMPLES/6 \
  EXAMPLES/3.cliptransit \
  EXAMPLES/Rexample4.R~ \
  EXAMPLES/9 \
  EXAMPLES/7.gz \
  EXAMPLES/10.fits \
+ EXAMPLES/dates_Jstet \
  EXAMPLES/9.png \
  EXAMPLES/4.gz \
  EXAMPLES/8.png \
  EXAMPLES/6.fits \
  EXAMPLES/11.highpassfftfilter \
  EXAMPLES/3.maculacurve \
+ EXAMPLES/1.tmpout.fits \
  EXAMPLES/lc_list_tfa_sr_decorr \
  EXAMPLES/1.UTC \
  EXAMPLES/5 \
@@ -660,6 +687,7 @@ example_files = \
  EXAMPLES/2.testblend \
  EXAMPLES/4 \
  EXAMPLES/3.transit \
+ EXAMPLES/6479535620075955328_llc.fits \
  EXAMPLES/lc_list_tfa_fits \
  EXAMPLES/lc_list_tfa_sr_bin \
  EXAMPLES/trendlist_tfa \
