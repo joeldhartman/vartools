@@ -24,6 +24,7 @@
 typedef struct {
   void *ParseCL_function_ptr;
   void *RunCommand_function_ptr;
+  void *CloseCommand_function_ptr;
 
   void (*ShowSyntax_function)(FILE *);
   void (*ShowHelp_function)(FILE *);

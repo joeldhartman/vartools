@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.41], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.51], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -275,7 +275,7 @@ if test x"$ax_python_use" = x"true"; then
    fi
    LDFLAGS="$PYTHON_LSPEC $LDFLAGS"
    python_lib_base=`echo $PYTHON_LSPEC | awk '{for(i=1; i <= NF; i += 1) {if(\$i ~ /-lpython/) print substr(\$i,3);}}'`
-   AC_CHECK_LIB([$python_lib_base],[Py_SetPath],[AC_DEFINE([HAVE_PY_SETPATH],[1],[Define if Py_SetPath is present])],[])
+   AC_CHECK_LIB([$python_lib_base],[Py_SetPath],[AC_DEFINE(HAVE_PY_SETPATH)],[])
    CPPFLAGS="$CPPFLAGS_SAVE"
    LDFLAGS="$LDFLAGS_SAVE"
 

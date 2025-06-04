@@ -65,19 +65,24 @@ int ParseParameter(ProgramData *p, Command *c, int *iret, char **argv,
 		   _ParseParameter_InitializeStruct *ppstruct);
 
 int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
-			   int argc, const char *keyword, int datatype,
+			   int argc, const char *keyword, char datatype,
 			   void *dataptr, int Ncolumns);
 
 int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
 			  int argc, int Nvec, _ParseFixSpecFixcolumnStruct *s);
 
 void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr, 
-			int datatype, int Ncolumns, int source, 
+			char datatype, int Ncolumns, int source, 
 			int output, char *outname, va_list varlist);
 
 void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr);
 
+void vAdd_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keyname,
+					char *comment, int hdutouse, int updateexisting,
+					int dtype, va_list argp);
+
 int load_user_library(char *libname, ProgramData *p, int islib, ...) {
+
 
 #ifdef DYNAMICLIB  
 /*
@@ -166,8 +171,9 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
         examplelibrary_ShowHelp
 	examplelibrary_Initialize
 
-     it may also contain the optional function:
+     it may also contain the optional functions:
         examplelibrary_ShowExample
+	examplelibrary_CloseCommand
 
      as well as any other functions needed to execute the command
 
@@ -257,6 +263,22 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
   }
   else {
     p->UserLib[j].ShowExample_function = NULL;
+  }
+
+  sprintf(tmpstring,"%s_CloseCommand",libbasename);
+  func = lt_dlsym(lib,tmpstring);
+  /*
+#ifndef ISWINDOWS
+  func = dlsym(lib,tmpstring);
+#else
+  func = GetProcAddress(lib,tmpstring);
+#endif
+  */
+  if(func != NULL) {
+    p->UserLib[j].CloseCommand_function_ptr = func;
+  }
+  else {
+    p->UserLib[j].CloseCommand_function_ptr = NULL;
   }
 
   /* Run the initialization routine which gives the name of the
@@ -477,12 +499,15 @@ int CheckIfUserCommandIsCalled(ProgramData *p, Command *c, int cn, char *argv) {
       c[cn].cnum = CNUM_USERCOMMAND;
       if((c[cn].UserCommand = (_UserCommand *) malloc(sizeof(_UserCommand))) == NULL)
 	error(ERR_MEMALLOC);
-      c[cn].UserCommand->lib = &(p->UserLib[i]);
+      /*c[cn].UserCommand->lib = &(p->UserLib[i]);*/
+      c[cn].UserCommand->libnum = i;
       if((c[cn].UserCommand->userdata = (void *) malloc(p->UserLib[i].sizeuserdata)) == NULL)
 	error(ERR_MEMALLOC);
 
-      c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;
-      c[cn].require_distinct = c[cn].UserCommand->lib->RequireDistinctTimes;
+      /*c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;*/
+      c[cn].require_sort = p->UserLib[i].RequireSortLC;
+      /*c[cn].require_distinct = c[cn].UserCommand->lib->RequireDistinctTimes;*/
+      c[cn].require_distinct = p->UserLib[i].RequireDistinctTimes;
       c[cn].UserCommand->Nfix = 0;
       c[cn].UserCommand->Ninlist = 0;
       c[cn].UserCommand->Ninlc = 0;
@@ -519,12 +544,15 @@ int CheckIfUserCommandIsCalled(ProgramData *p, Command *c, int cn, char *argv) {
 	c[cn].cnum = CNUM_USERCOMMAND;
 	if((c[cn].UserCommand = (_UserCommand *) malloc(sizeof(_UserCommand))) == NULL)
 	  error(ERR_MEMALLOC);
-	c[cn].UserCommand->lib = &(p->UserLib[i]);
+	/*c[cn].UserCommand->lib = &(p->UserLib[i]);*/
+	c[cn].UserCommand->libnum = i;
 	if((c[cn].UserCommand->userdata = (void *) malloc(p->UserLib[i].sizeuserdata)) == NULL)
 	  error(ERR_MEMALLOC);
 	
-	c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;
-	c[cn].require_distinct = c[cn].UserCommand->lib->RequireDistinctTimes;
+	/*c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;*/
+	c[cn].require_sort = p->UserLib[i].RequireSortLC;
+	/*c[cn].require_distinct = c[cn].UserCommand->lib->RequireDistinctTimes;*/
+	c[cn].require_distinct = p->UserLib[i].RequireDistinctTimes;
 	c[cn].UserCommand->Nfix = 0;
 	c[cn].UserCommand->Ninlist = 0;
 	c[cn].UserCommand->Ninlc = 0;
@@ -605,8 +633,12 @@ int CheckIfUserCommandExampleIsCalled(ProgramData *p, char *argv) {
     if((!strcmp(p->UserLib[i].commandname,argv))) {
       /* We Have a match */
       check = 1;
-      p->UserLib[i].ShowExample_function(stderr);
-      fprintf(stderr,"\n");
+      if(p->UserLib[i].ShowExample_function != NULL) {
+	p->UserLib[i].ShowExample_function(stderr);
+	fprintf(stderr,"\n");
+      } else {
+	fprintf(stderr,"No example is available for the user command: %s\n", argv);
+      }
     }
   }
   if(!check) {
@@ -620,8 +652,12 @@ int CheckIfUserCommandExampleIsCalled(ProgramData *p, char *argv) {
       if(!strcmp(p->UserLib[i].commandname,argv)) {
 	/* We Have a match */
 	check = 1;
-	p->UserLib[i].ShowExample_function(stderr);
-	fprintf(stderr,"\n");
+	if(p->UserLib[i].ShowExample_function != NULL) {
+	  p->UserLib[i].ShowExample_function(stderr);
+	  fprintf(stderr,"\n");
+	} else {
+	  fprintf(stderr,"No example is available for the user command: %s\n", argv);
+	}
       }
     }
   }
@@ -639,6 +675,7 @@ void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
   int i, j, k;
   _UserDataPointer *d;
   _UserCommand *co;
+  _UserLib *lib;
   char tmpstring[MAXLEN];
   char fmt[MAXLEN];
   char firstlet;
@@ -662,6 +699,7 @@ void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
   void *voidptr;
 
   co = c[cnum].UserCommand;
+  lib = &(p->UserLib[co->libnum]);
   for(i=0; i < co->Noutput; i++)
     {
       d = &(co->OutputData[i]);
@@ -725,15 +763,15 @@ void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
 	  error(ERR_BADTYPE);
 	  }*/
 	k = 0;
-	while(co->lib->commandname[k] != '\0' && co->lib->commandname[k] == '-')
+	while(lib->commandname[k] != '\0' && lib->commandname[k] == '-')
 	  k++;
-	if(co->lib->commandname[k] != '\0') {
-	  firstlet = (char) toupper((int) co->lib->commandname[k]);
-	  sprintf(tmpstring,"%c%s_%s_%%d",firstlet,&(co->lib->commandname[k+1]),d->outname);
+	if(lib->commandname[k] != '\0') {
+	  firstlet = (char) toupper((int) lib->commandname[k]);
+	  sprintf(tmpstring,"%c%s_%s_%%d",firstlet,&(lib->commandname[k+1]),d->outname);
 	} else {
-	  sprintf(tmpstring,"%s_%s_%%d",&(co->lib->commandname[k]),d->outname);
+	  sprintf(tmpstring,"%s_%s_%%d",&(lib->commandname[k]),d->outname);
 	}
-	addcolumn(p, cnum, d->datatype, 0, d->dataptr, fmt, 1, 0, 0, 0, tmpstring, cnum);
+	addcolumn(p, c, cnum, d->datatype, 0, d->dataptr, fmt, 1, 0, 0, 0, tmpstring, cnum);
       } else {
 	/*
 	switch(d->datatype){
@@ -769,16 +807,16 @@ void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
 	  error(ERR_BADTYPE);
 	  }*/
 	k = 0;
-	while(co->lib->commandname[k] != '\0' && co->lib->commandname[k] == '-')
+	while(lib->commandname[k] != '\0' && lib->commandname[k] == '-')
 	  k++;
-	if(co->lib->commandname[k] != '\0') {
-	  firstlet = (char) toupper((int) co->lib->commandname[k]);
-	  sprintf(tmpstring,"%c%s_%s_%%d_%%d",firstlet,&(co->lib->commandname[k+1]),d->outname);
+	if(lib->commandname[k] != '\0') {
+	  firstlet = (char) toupper((int) lib->commandname[k]);
+	  sprintf(tmpstring,"%c%s_%s_%%d_%%d",firstlet,&(lib->commandname[k+1]),d->outname);
 	} else {
-	  sprintf(tmpstring,"%s_%s_%%d_%%d",&(co->lib->commandname[k]),d->outname);
+	  sprintf(tmpstring,"%s_%s_%%d_%%d",&(lib->commandname[k]),d->outname);
 	}
 	for(j=0; j < d->Ncolumns; j++) {
-	  addcolumn(p, cnum, d->datatype, 0, d->dataptr, fmt, 2, 0, 0, 0, j, tmpstring, j+1, cnum);
+	  addcolumn(p, c, cnum, d->datatype, 0, d->dataptr, fmt, 2, 0, 0, 0, j, tmpstring, j+1, cnum);
 	}
       }
     }
@@ -793,6 +831,7 @@ void SetLinkedColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
   _UserCommand *co;
 
   co = c->UserCommand;
+
   for(i=0; i < co->Nptrs; i++) {
     d = &(co->UserDataPointers[i]);
     if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN) {
@@ -827,16 +866,20 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
   _UserDataPointer *d;
   _UserDataPointer *fix;
   _UserCommand *co;
+  _UserLib *lib;
 
   void (*RunCommand_Function)(ProgramData *, void *, int, int);
 
   co=c->UserCommand;
-
+  lib = &(p->UserLib[co->libnum]);
   /* Fill in values which come from previously executed commands, or which
      are fixed */
   for(i=0; i < co->Nptrs; i++) {
     d = &(co->UserDataPointers[i]);
-    if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN) {
+    if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN ||
+       (d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	(d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	(*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) : 0)) {
       Nc = d->Ncolumns;
       if(Nc <= 0) {
 	switch(d->datatype) {
@@ -871,9 +914,13 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	default:
 	  error(ERR_BADTYPE);
 	}
-	getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
-			  lc_list_num, d->datatype, voidptr);
-
+	if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN)
+	  getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
+			    lc_list_num, d->datatype, voidptr);
+	else {
+	  getoutcolumnvalue((*(d->existingvariable))->outc, lc_num,
+			    lc_list_num, d->datatype, voidptr);
+	}
       } else {
 	for(k=0; k < Nc; k++) {
 	  switch(d->datatype) {
@@ -1127,11 +1174,134 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  error(ERR_BADTYPE);
 	}
       }
+    } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	      (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	       (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_INLIST) : 0) {
+      Nc = d->Ncolumns;
+      if(Nc <= 0) {
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = &((*((double **) d->dataptr))[lc_num]);
+	  *dblptr = ((*((double **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	  lstringptr = &((*((char ***) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  sprintf(*stringptr, "%s", *lstringptr);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = &((*((char **) d->dataptr))[lc_num]);
+	  *charptr = ((*((char **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = &((*((int **) d->dataptr))[lc_num]);
+	  *intptr = ((*((int **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = &((*((short **) d->dataptr))[lc_num]);
+	  *shortptr = ((*((short **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = &((*((long **) d->dataptr))[lc_num]);
+	  *longptr = ((*((long **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = &((*((float **) d->dataptr))[lc_num]);
+	  *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_list_num]);
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      } else {
+	error(ERR_CODEERROR);
+      }
+    }  else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	       (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+		(*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_CONSTANT) : 0) {
+      Nc = d->Ncolumns;
+      if(Nc <= 0) {
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = &((*((double **) d->dataptr))[lc_num]);
+	  *dblptr = ((*((double *) (*(d->existingvariable))->dataptr)));
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	  lstringptr = &((*((char **) (*(d->existingvariable))->dataptr)));
+	  sprintf(*stringptr, "%s", *lstringptr);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = &((*((char **) d->dataptr))[lc_num]);
+	  *charptr = ((*((char *) (*(d->existingvariable))->dataptr)));
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = &((*((int **) d->dataptr))[lc_num]);
+	  *intptr = ((*((int *) (*(d->existingvariable))->dataptr)));
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = &((*((short **) d->dataptr))[lc_num]);
+	  *shortptr = ((*((short *) (*(d->existingvariable))->dataptr)));
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = &((*((long **) d->dataptr))[lc_num]);
+	  *longptr = ((*((long *) (*(d->existingvariable))->dataptr)));
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = &((*((float **) d->dataptr))[lc_num]);
+	  *floatptr = ((*((float *) (*(d->existingvariable))->dataptr)));
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      } else {
+	error(ERR_CODEERROR);
+      }
+    } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	      (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	       (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_SCALAR) : 0) {
+      Nc = d->Ncolumns;
+      if(Nc <= 0) {
+	switch(d->datatype) {
+	case VARTOOLS_TYPE_DOUBLE:
+	  dblptr = &((*((double **) d->dataptr))[lc_num]);
+	  *dblptr = ((*((double **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	case VARTOOLS_TYPE_STRING:
+	  stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	  lstringptr = &((*((char ***) (*(d->existingvariable))->dataptr))[lc_num]);
+	  sprintf(*stringptr, "%s", *lstringptr);
+	  break;
+	case VARTOOLS_TYPE_CHAR:
+	  charptr = &((*((char **) d->dataptr))[lc_num]);
+	  *charptr = ((*((char **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	case VARTOOLS_TYPE_INT:
+	  intptr = &((*((int **) d->dataptr))[lc_num]);
+	  *intptr = ((*((int **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	case VARTOOLS_TYPE_SHORT:
+	  shortptr = &((*((short **) d->dataptr))[lc_num]);
+	  *shortptr = ((*((short **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	case VARTOOLS_TYPE_LONG:
+	  longptr = &((*((long **) d->dataptr))[lc_num]);
+	  *longptr = ((*((long **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	case VARTOOLS_TYPE_FLOAT:
+	  floatptr = &((*((float **) d->dataptr))[lc_num]);
+	  *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
+	  break;
+	default:
+	  error(ERR_BADTYPE);
+	}
+      } else {
+	error(ERR_CODEERROR);
+      }
     }
   }
 
   RunCommand_Function = (void (*)(ProgramData *, void *, int, int)) 
-    c->UserCommand->lib->RunCommand_function_ptr;
+    lib->RunCommand_function_ptr;
 
   RunCommand_Function(p, c->UserCommand->userdata,
 		      lc_list_num, lc_num);
@@ -1157,17 +1327,22 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
   _UserDataPointer *d;
   _UserDataPointer *fix;
   _UserCommand *co;
+  _UserLib *lib;
 
   void (*RunCommand_Function)(ProgramData *, void *, int, int);
 
   co=c->UserCommand;
+  lib = &(p->UserLib[co->libnum]);
 
   /* Fill in values which come from previously executed commands, or which
      are fixed */
   for(lc_num=0; lc_num < p->Nlcs; lc_num++) {
     for(i=0; i < co->Nptrs; i++) {
       d = &(co->UserDataPointers[i]);
-      if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN) {
+      if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN || 
+	 (d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	  (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	   (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) : 0)) {
 	Nc = d->Ncolumns;
 	if(Nc <= 0) {
 	  switch(d->datatype) {
@@ -1202,8 +1377,13 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	  default:
 	    error(ERR_BADTYPE);
 	  }
-	  getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
-			    lc_num, d->datatype, voidptr);
+	  if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN)
+	    getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
+			      lc_num, d->datatype, voidptr);
+	  else {
+	    getoutcolumnvalue((*(d->existingvariable))->outc, lc_num,
+			      lc_num, d->datatype, voidptr);
+	  }
 	  
 	} else {
 	  for(k=0; k < Nc; k++) {
@@ -1458,13 +1638,137 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    error(ERR_BADTYPE);
 	  }
 	}
+      } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+		(d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+		 (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_INLIST) : 0) {
+	Nc = d->Ncolumns;
+	if(Nc <= 0) {
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    dblptr = &((*((double **) d->dataptr))[lc_num]);
+	    *dblptr = ((*((double **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	    lstringptr = &((*((char ***) (*(d->existingvariable))->dataptr))[lc_num]);
+	    sprintf(*stringptr, "%s", *lstringptr);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = &((*((char **) d->dataptr))[lc_num]);
+	    *charptr = ((*((char **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    intptr = &((*((int **) d->dataptr))[lc_num]);
+	    *intptr = ((*((int **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = &((*((short **) d->dataptr))[lc_num]);
+	    *shortptr = ((*((short **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    longptr = &((*((long **) d->dataptr))[lc_num]);
+	    *longptr = ((*((long **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = &((*((float **) d->dataptr))[lc_num]);
+	    *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	} else {
+	  error(ERR_CODEERROR);
+	}
+      }  else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+		 (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+		  (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_CONSTANT) : 0) {
+	Nc = d->Ncolumns;
+	if(Nc <= 0) {
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    dblptr = &((*((double **) d->dataptr))[lc_num]);
+	    *dblptr = ((*((double *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	    lstringptr = &((*((char **) (*(d->existingvariable))->dataptr)));
+	    sprintf(*stringptr, "%s", *lstringptr);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = &((*((char **) d->dataptr))[lc_num]);
+	    *charptr = ((*((char *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    intptr = &((*((int **) d->dataptr))[lc_num]);
+	    *intptr = ((*((int *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = &((*((short **) d->dataptr))[lc_num]);
+	    *shortptr = ((*((short *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    longptr = &((*((long **) d->dataptr))[lc_num]);
+	    *longptr = ((*((long *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = &((*((float **) d->dataptr))[lc_num]);
+	    *floatptr = ((*((float *) (*(d->existingvariable))->dataptr)));
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	} else {
+	  error(ERR_CODEERROR);
+	}
+      } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+		(d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
+		 (*(d->existingvariable))->vectortype == VARTOOLS_VECTORTYPE_SCALAR) : 0) {
+	Nc = d->Ncolumns;
+	if(Nc <= 0) {
+	  switch(d->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    dblptr = &((*((double **) d->dataptr))[lc_num]);
+	    *dblptr = ((*((double **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = &((*((char ***) d->dataptr))[lc_num]);
+	    lstringptr = &((*((char ***) (*(d->existingvariable))->dataptr))[lc_num]);
+	    sprintf(*stringptr, "%s", *lstringptr);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = &((*((char **) d->dataptr))[lc_num]);
+	    *charptr = ((*((char **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    intptr = &((*((int **) d->dataptr))[lc_num]);
+	    *intptr = ((*((int **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = &((*((short **) d->dataptr))[lc_num]);
+	    *shortptr = ((*((short **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    longptr = &((*((long **) d->dataptr))[lc_num]);
+	    *longptr = ((*((long **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = &((*((float **) d->dataptr))[lc_num]);
+	    *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
+	    break;
+	  default:
+	    error(ERR_BADTYPE);
+	  }
+	} else {
+	  error(ERR_CODEERROR);
+	}
       }
+
 
     }
   }
 
   RunCommand_Function = (void (*)(ProgramData *, void *, int, int)) 
-    c->UserCommand->lib->RunCommand_function_ptr;
+    lib->RunCommand_function_ptr;
 
   RunCommand_Function(p, c->UserCommand->userdata,
 		      -1, -1);
@@ -1474,6 +1778,29 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 }
 
 
+void CloseUserCommand(ProgramData *p, Command *c) {
+#ifdef DYNAMICLIB
+
+  _UserCommand *co;
+  _UserLib *lib;
+
+  void (*CloseCommand_Function)(ProgramData *, void *);
+
+  co=c->UserCommand;
+  lib = &(p->UserLib[co->libnum]);
+
+  if(lib->CloseCommand_function_ptr != NULL) {
+    CloseCommand_Function = (void (*)(ProgramData *, void *))
+      lib->CloseCommand_function_ptr;
+    
+    CloseCommand_Function(p, c->UserCommand->userdata);
+  }
+
+#else
+  return;
+#endif
+}
+
 int ParseCL_UserCommand(ProgramData *p, Command *c, int *iterm, char **argv, int argc) {
 #ifdef DYNAMICLIB
   int retval;
@@ -1481,12 +1808,16 @@ int ParseCL_UserCommand(ProgramData *p, Command *c, int *iterm, char **argv, int
 
   int idiff;
 
+  _UserLib *lib;
+
   int (*ParseCL_function)(ProgramData *, Command *, void *, int *, char **, int);
+
+  lib = &(p->UserLib[c->UserCommand->libnum]);
 
   itermnew = 0;
 
   ParseCL_function = (int (*)(ProgramData *, Command *, void *, int *, char **, int))
-    c->UserCommand->lib->ParseCL_function_ptr;
+    lib->ParseCL_function_ptr;
 
   idiff = argc - (*iterm);
 
@@ -1500,7 +1831,7 @@ int ParseCL_UserCommand(ProgramData *p, Command *c, int *iterm, char **argv, int
     return 0;
   }
   else {
-    c->UserCommand->lib->ShowSyntax_function(stderr);
+    lib->ShowSyntax_function(stderr);
     exit(ERR_USAGE);
   }
 #else
@@ -1652,7 +1983,7 @@ void GetDoubleParameterValue(int threadid, int lcid,
 }
 
 void RegisterDataVector(ProgramData *p, Command *c, void *dataptr, 
-			int datatype, int Ncolumns, int source, 
+			char datatype, int Ncolumns, int source, 
 			int output, char *outname, ...) 
 /* Use this function to register data for a user command. The data is
    a vector, or 2-d array, for which each row corresponds to a
@@ -1672,23 +2003,26 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
    dataptr = pointer to array storing the data. For example, if the
              user wishes to register a vector of doubles, they should
              define it as a pointer (e.g. double* mydoubles) and then
-             pass a pointer to it to this function (&mydoubles).
+             pass a pointer to it to this function (&mydoubles). This can
+             be NULL if source = VARTOOLS_SOURCE_EXISTINGVARIABLE
 
    datatype = VARTOOLS_TYPE_DOUBLE, VARTOOLS_TYPE_INT, VARTOOLS_TYPE_SHORT,
               VARTOOLS_TYPE_FLOAT, VARTOOLS_TYPE_LONG, VARTOOLS_TYPE_CHAR,
               VARTOOLS_TYPE_STRING, VARTOOLS_TYPE_USERDEF.
 
    Ncolumns = Number of columns in the array. If this is 0 and the
-              source is not VARTOOLS_SOURCE_LC or
-              VARTOOLS_SOURCE_EVALEXPRESSION_LC, then dataptr is a
+              source is not VARTOOLS_SOURCE_LC,
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, or 
+              VARTOOLS_SOURCE_EXISTINGVARIABLE, then dataptr is a
               pointer to a vector (e.g. double **), if it is > 0 then
               it is a pointer to an array (e.g. double ***). If the
-              source is VARTOOLS_SOURCE_LC or
+              source is VARTOOLS_SOURCE_LC, or
               VARTOOLS_SOURCE_EVALEXPRESSION_LC, then if this is 0 it
               is a pointer to an array (e.g. it should be type double
               ***), if it is > 0 or < 0 it is a pointer to a 3-d array
               (e.g. type double ****). For
-              VARTOOLS_SOURCE_EVALEXPRESSION_LC, only Nc = 0 is
+              VARTOOLS_SOURCE_EVALEXPRESSION_LC, and 
+              VARTOOLS_SOURCE_EXISTINGVARIABLE only Nc = 0 is
               permitted. For VARTOOLS_SOURCE_LC and
               VARTOOLS_SOURCE_EVALEXPRESSION_LC, Nc=0 implies that the
               array will be indexed as (*dataptr)[Nthread][NJD]. Nc >
@@ -1717,13 +2051,20 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
             VARTOOLS_SOURCE_EVALEXPRESSION_LC -- a light curve vector
                                   whose data will be determined by
                                   evaluating an expression.
+            VARTOOLS_SOURCE_EXISTINGVARIABLE -- in this case the data will come
+                                  from an existing variable that should have
+                                  already been defined by an earlier vartools
+                                  command. 
 
    output = 1 if the data should be included in the output ascii
             table, 0 if it will not be included. Note, if the source
             is VARTOOLS_SOURCE_LC or
             VARTOOLS_SOURCE_EVALEXPRESSION_LC, then the data will not
             be included in the ascii table, no matter what output is
-            set equal to.
+            set equal to. If output = 1 and dataptr = NULL, and error
+            will be given. Also if output = 1 and source =
+            VARTOOLS_SOURCE_EXISTINGVARIABLE, an error will be given.
+
 
    outname = root name of the corresponding column in the output ascii
              table (can be NULL if output == 0). The name of the
@@ -1855,8 +2196,30 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 
 	char *varnameout - Optionally associate this
                      data with a (possibly new) variable. This creates
-                     a variable that the user can use to access this
+                     a variable that
+ the user can use to access this
                      data from subsequent commands.
+
+    VARTOOLS_SOURCE_EXISTINGVARIABLE:
+
+        Note - Ncolumns must be == 0 for this option. Use this option if the
+               variable has 1 value per light curve.
+
+        char *varname - name of the existing variable to match to.
+
+	char vectortype - the vectortype that is expected for this variable
+                          VARTOOLS_VECTORTYPE_CONSTANT
+                          VARTOOLS_VECTORTYPE_SCALAR
+                          VARTOOLS_VECTORTYPE_INLIST
+                          VARTOOLS_VECTORTYPE_LC
+                          VARTOOLS_VECTORTYPE_OUTCOLUMN
+			  VARTOOLS_VECTORTYPE_PERSTARDATA - use this to allow
+                                constant, scalar, inlist or outcolumn vector
+                                types for the source.
+
+        _Variable **var - a pointer to a (_Variable *) that will point to the
+                          matched variable.
+
 */
 {
   va_list varlist;
@@ -1867,7 +2230,7 @@ void RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 }
 
 void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr, 
-			int datatype, int Ncolumns, int source, 
+			char datatype, int Ncolumns, int source, 
 			int output, char *outname, va_list varlist) 
 /* This function does the actual work of the RegisterDataVector function
    described below */
@@ -1919,8 +2282,17 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
     error(ERR_BADTYPE);
 
   if((source == VARTOOLS_SOURCE_EVALEXPRESSION && Ncolumns != 0) ||
-     (source == VARTOOLS_SOURCE_EVALEXPRESSION_LC && Ncolumns != 0))
+     (source == VARTOOLS_SOURCE_EVALEXPRESSION_LC && Ncolumns != 0) ||
+     (source == VARTOOLS_SOURCE_EXISTINGVARIABLE && Ncolumns != 0))
     error(ERR_BADTYPE);
+
+  if(dataptr == NULL && output) {
+    error(ERR_BADTYPE);
+  }
+
+  if(source == VARTOOLS_SOURCE_EXISTINGVARIABLE && output) {
+    error(ERR_BADTYPE);
+  }
 
   switch(datatype)
     {
@@ -1971,6 +2343,8 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       }
     }
   }
+
+  ptr[co->Nptrs].expectedvectortype = -1;
 
   ptr[co->Nptrs].datatype = datatype;
   ptr[co->Nptrs].source = source;
@@ -2432,6 +2806,38 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       }
       break;
 
+    case VARTOOLS_SOURCE_EXISTINGVARIABLE:
+      
+      if(c->N_prior_vars == 0) {
+	if((c->prior_var_datatypes = (char *) malloc(sizeof(char))) == NULL ||
+	   (c->prior_var_vectortypes = (char *) malloc(sizeof(char))) == NULL ||
+	   (c->prior_var_names = (char **) malloc(sizeof(char *))) == NULL ||
+	   (c->prior_vars = (_Variable ***) malloc(sizeof(_Variable **))) == NULL)
+	  error(ERR_MEMALLOC);
+      } else {
+	if((c->prior_var_datatypes = (char *) realloc(c->prior_var_datatypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
+	   (c->prior_var_vectortypes = (char *) realloc(c->prior_var_vectortypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
+	   (c->prior_var_names = (char **) realloc(c->prior_var_names, (c->N_prior_vars + 1)*sizeof(char *))) == NULL ||
+	   (c->prior_vars = (_Variable ***) realloc(c->prior_vars, (c->N_prior_vars + 1)*sizeof(_Variable **))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+      exprstring = va_arg(varlist,char *);
+      if((c->prior_var_names[c->N_prior_vars] = (char *) malloc(strlen(exprstring)+1)) == NULL)
+	error(ERR_MEMALLOC);
+      sprintf(c->prior_var_names[c->N_prior_vars],"%s",exprstring);
+      c->prior_var_vectortypes[c->N_prior_vars] = (char) va_arg(varlist,int);
+      c->prior_vars[c->N_prior_vars] = va_arg(varlist,_Variable **);
+      ptr[co->Nptrs].existingvariable = c->prior_vars[c->N_prior_vars];
+      ptr[co->Nptrs].expectedvectortype = c->prior_var_vectortypes[c->N_prior_vars];
+      c->prior_var_datatypes[c->N_prior_vars] = datatype;
+      if(c->prior_var_vectortypes[c->N_prior_vars] == VARTOOLS_VECTORTYPE_LC &&
+	 output) {
+	error(ERR_BADTYPE);
+      }
+
+      c->N_prior_vars += 1;
+      break;
+
     default:
       error(ERR_BADTYPE);
       break;
@@ -2863,7 +3269,7 @@ Return values:
 }		        
 
 int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
-			   int argc, const char *keyword, int datatype,
+			   int argc, const char *keyword, char datatype,
 			   void *dataptr, int Ncolumns)
 /* Use this function to parse a command of the form:
    "keyword" value [value2 value3 ... valueNvec]
@@ -3614,7 +4020,9 @@ void MemAllocDataForUserCommand(Command *c, int Nlc)
   for(i=0; i < co->Nptrs; i++) {
     d = &(co->UserDataPointers[i]);
     Nc = d->Ncolumns;
-    if(d->source != VARTOOLS_SOURCE_LC && d->source != VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
+    if((d->source != VARTOOLS_SOURCE_LC && d->source != VARTOOLS_SOURCE_EVALEXPRESSION_LC && d->source != VARTOOLS_SOURCE_EXISTINGVARIABLE) ||
+       (d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
+	d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA : 0)) {
       if(Nc <= 0) {
 	switch(d->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
@@ -3747,6 +4155,31 @@ void MemAllocDataForUserCommand(Command *c, int Nlc)
 #endif
 }
 
+void RegisterTrackedOpenFile(ProgramData *p, FILE *f){
+  if(!p->N_tracked_open_files) {
+    if((p->tracked_open_files = (FILE **) malloc(sizeof(FILE *))) == NULL)
+      error(ERR_MEMALLOC);
+  } else {
+    if((p->tracked_open_files = (FILE **) realloc(p->tracked_open_files, (p->N_tracked_open_files+1)*sizeof(FILE *))) == NULL)
+      error(ERR_MEMALLOC);
+  }
+  p->tracked_open_files[p->N_tracked_open_files] = f;
+  p->N_tracked_open_files += 1;
+  return;
+}
+
+void CloseTrackedOpenFiles(ProgramData *p) {
+  int i;
+  for(i = 0; i < p->N_tracked_open_files; i++) {
+    fclose(p->tracked_open_files[i]);
+  }
+  p->N_tracked_open_files = 0;
+  if(p->tracked_open_files != NULL)
+    free(p->tracked_open_files);
+  p->tracked_open_files = NULL;
+  return;
+}
+
 void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
 #ifdef DYNAMICLIB
   fptr->ParseParameter = &ParseParameter;
@@ -3790,6 +4223,12 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->gnu_getline = &gnu_getline;
   fptr->mysortstringint = &mysortstringint;
   fptr->docorr = &docorr;
+  fptr->vAdd_Keyword_To_OutputLC_FitsHeader = &vAdd_Keyword_To_OutputLC_FitsHeader;
+  fptr->findX = &findX;
+  fptr->findX_string = &findX_string;
+  fptr->RegisterTrackedOpenFile = &RegisterTrackedOpenFile;
+  fptr->parseone = &parseone;
+  fptr->printtostring = &printtostring;
 #else
   return;
 #endif

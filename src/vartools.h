@@ -17,6 +17,9 @@
 /*                                                                           */
 #include "commands.h"
 #include "programdata.h"
+#ifndef _OUTTEXTSTRUCTDEFINE
+#include "OutText.h"
+#endif 
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -46,7 +49,7 @@ int VARTOOLS_ParseConstantParameter(ProgramData *p,
 				    char **argv,
 				    int argc,
 				    const char *keyword,
-				    int datatype,
+				    char datatype,
 				    void *dataptr,
 				    int Ncolumns);
 
@@ -74,7 +77,7 @@ void VARTOOLS_amoeba_initializesimplexchi2(int Nparameters, int Ntovary, double 
 void VARTOOLS_amoeba_cleanup(int *Nparameters, int *Ntovary, double ***p, int **ia, double **chi2vals);
 
 void VARTOOLS_RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
-				 int datatype, int Ncolumns, int source,
+				 char datatype, int Ncolumns, int source,
 				 int output, char *outname, ...);
 
 void VARTOOLS_GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
@@ -153,4 +156,19 @@ int VARTOOLS_gnu_getline(char **, size_t *, FILE *);
 
 void VARTOOLS_mysortstringint(int, int, char **, int *);
 
-void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint);
+void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex);
+
+void VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, 
+						 char *keyname,
+						 char *comment, int hdutouse, 
+						 int updateexisting,
+						 int dtype, ...);
+int VARTOOLS_findX(double *, double, int, int);
+
+int VARTOOLS_findX_string(char **, int *, char *, int, int);
+
+void VARTOOLS_RegisterTrackedOpenFile(ProgramData *p, FILE *f);
+
+int VARTOOLS_parseone(char *line, void *val, int vartype);
+
+void VARTOOLS_printtostring(OutText *text, const char *stoadd);

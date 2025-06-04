@@ -488,13 +488,94 @@ void finddftpeaks(int Nf, double df, double *pow, int Npeaks, double *peaks, dou
   free(pow_cpy);
 }
 
-void dodftclean(int N, double *t, double *mag, double *sig, int lc, _Dftclean *c, char *lcbasename, int ascii)
+void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, _Dftclean *c, char *lcbasename, int ascii, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double df, gain, SNlimit, maxfreq, T, delmin, fval;
   int Nf, nb, Nb, i, Nftot, Nwtot, Nbtot;
   FILE *outfile;
   double *R_r, *R_i, *R_pow, *C_r, *C_i, *C_pow, *W_r, *W_i, *B_r, *S_r, *S_i;
   char outname[MAXLEN];
+  int N;
+  double *t, *mag, *sig;
+  double *t_mask = NULL, *mag_mask = NULL, *sig_mask = NULL;
+
+  if ( N_in <= 1 ) {
+    for(i=0; i < c->Npeaks_dirty; i++) {
+      c->peakfreqs_dirty[lc][i] = -1.;
+      c->peakpows_dirty[lc][i] = 0.;
+      c->SNR_dirty[lc][i] = 0.;
+    }
+    if(c->verboseout && c->Npeaks_dirty > 0) {
+      c->aveper_dirty[lc] = 0.;
+      c->stdper_dirty[lc] = 0.;
+      c->aveper_noclip_dirty[lc] = 0.;
+      c->stdper_noclip_dirty[lc] = 0.;
+    }
+    for(i=0; i < c->Npeaks_clean; i++) {
+      c->peakfreqs_clean[lc][i] = -1.;
+      c->peakpows_clean[lc][i] = 0.;
+      c->SNR_clean[lc][i] = 0.;
+    }
+    if(c->verboseout && c->Npeaks_clean > 0) {
+      c->aveper_clean[lc] = 0.;
+      c->stdper_clean[lc] = 0.;
+      c->aveper_noclip_clean[lc] = 0.;
+      c->stdper_noclip_clean[lc] = 0.;
+    }
+    return;
+  }
+
+  if(!usemask) {
+    N = N_in;
+    t = t_in;
+    mag = mag_in;
+    sig = sig_in;
+  } else {
+    if((t_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+       (mag_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+       (sig_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
+      error(ERR_MEMALLOC);
+    N = 0;
+    for(i = 0; i < N_in; i++) {
+      if(!isnan(mag_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[N] = t_in[i];
+	mag_mask[N] = mag_in[i];
+	sig_mask[N] = sig_in[i];
+	N++;
+      }
+    }
+    t = t_mask;
+    mag = mag_mask;
+    sig = sig_mask;
+    if(N <= 1) {
+      for(i=0; i < c->Npeaks_dirty; i++) {
+	c->peakfreqs_dirty[lc][i] = -1.;
+	c->peakpows_dirty[lc][i] = 0.;
+	c->SNR_dirty[lc][i] = 0.;
+      }
+      if(c->verboseout && c->Npeaks_dirty > 0) {
+	c->aveper_dirty[lc] = 0.;
+	c->stdper_dirty[lc] = 0.;
+	c->aveper_noclip_dirty[lc] = 0.;
+	c->stdper_noclip_dirty[lc] = 0.;
+      }
+      for(i=0; i < c->Npeaks_clean; i++) {
+	c->peakfreqs_clean[lc][i] = -1.;
+	c->peakpows_clean[lc][i] = 0.;
+	c->SNR_clean[lc][i] = 0.;
+      }
+      if(c->verboseout && c->Npeaks_clean > 0) {
+	c->aveper_clean[lc] = 0.;
+	c->stdper_clean[lc] = 0.;
+	c->aveper_noclip_clean[lc] = 0.;
+	c->stdper_noclip_clean[lc] = 0.;
+      }
+      if(t_mask != NULL) free(t_mask);
+      if(mag_mask != NULL) free(mag_mask);
+      if(sig_mask != NULL) free(sig_mask);
+      return;
+    }
+  }
 
   gain = c->gain;
   SNlimit = c->SNlimit;
@@ -676,5 +757,8 @@ void dodftclean(int N, double *t, double *mag, double *sig, int lc, _Dftclean *c
   free(W_i);
   free(S_r);
   free(S_i);
-
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(sig_mask != NULL) free(sig_mask);
+  
 }

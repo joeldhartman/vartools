@@ -1083,7 +1083,7 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
   float ****float2ptr;
   long ***longptr;
   long ****long2ptr;
-  int k, u, Nc, Nbin;
+  int k, u, Nc, Nbin, kk;
   _DataFromLightCurve *d;
   double td;
   short tsh;
@@ -1108,13 +1108,13 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  td = 0.0;
 	  /* Handle the error vector differently */
 	  if((*dblptr)[lc] != p->sig[lc]) {
-	    for(k=i; k <= j; k++) {
-	      td += (*dblptr)[lc][k];
+	    for(kk=i; kk <= j; kk++) {
+	      td += (*dblptr)[lc][kk];
 	    }
 	    td = td/Nbin;
 	  } else {
-	    for(k=i; k <= j; k++) {
-	      td += ((*dblptr)[lc][k])*((*dblptr)[lc][k]);
+	    for(kk=i; kk <= j; kk++) {
+	      td += ((*dblptr)[lc][kk])*((*dblptr)[lc][kk]);
 	    }
 	    td = sqrt(td/Nbin);
 	  }
@@ -1125,13 +1125,13 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  td = 0.0;
 	  /* Handle the error vector differently */
 	  if((*dblptr)[lc] != p->sig[lc]) {
-	    for(k=i; k <= j; k++) {
-	      td += (*dblptr)[lc][k];
+	    for(kk=i; kk <= j; kk++) {
+	      td += (*dblptr)[lc][kk];
 	    }
 	    td = td/Nbin;
 	  } else {
-	    for(k=i; k <= j; k++) {
-	      td += ((*dblptr)[lc][k])*((*dblptr)[lc][k]);
+	    for(kk=i; kk <= j; kk++) {
+	      td += ((*dblptr)[lc][kk])*((*dblptr)[lc][kk]);
 	    }
 	    td = sqrt(td/Nbin);
 	  }
@@ -1140,16 +1140,16 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	case VARTOOLS_TYPE_STRING:
 	  stringptr = (char ****) d->dataptr;
 	  /* For strings, just adopt the middle value */
-	  k = (i+j)/2;
-	  if(h != k)
-	    memcpy(((*stringptr)[lc][h]),((*stringptr)[lc][k]),
+	  kk = (i+j)/2;
+	  if(h != kk)
+	    memcpy(((*stringptr)[lc][h]),((*stringptr)[lc][kk]),
 		   d->maxstringlength);
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  intptr = (int ***) d->dataptr;
 	  ti = 0;
-	  for(k=i; k <= j; k++) {
-	    ti += (*intptr)[lc][k];
+	  for(kk=i; kk <= j; kk++) {
+	    ti += (*intptr)[lc][kk];
 	  }
 	  ti = ti/Nbin;
 	  (*intptr)[lc][h] = ti;
@@ -1157,8 +1157,8 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	case VARTOOLS_TYPE_SHORT:
 	  shortptr = (short ***) d->dataptr;
 	  tsh = 0;
-	  for(k=i; k <= j; k++) {
-	    tsh += (*shortptr)[lc][k];
+	  for(kk=i; kk <= j; kk++) {
+	    tsh += (*shortptr)[lc][kk];
 	  }
 	  tsh = tsh/Nbin;
 	  (*shortptr)[lc][h] = tsh;
@@ -1166,8 +1166,8 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	case VARTOOLS_TYPE_FLOAT:
 	  floatptr = (float ***) d->dataptr;
 	  tf = 0.;
-	  for(k=i; k <= j; k++) {
-	    tf += (*floatptr)[lc][k];
+	  for(kk=i; kk <= j; kk++) {
+	    tf += (*floatptr)[lc][kk];
 	  }
 	  tf = tf/Nbin;
 	  (*floatptr)[lc][h] = tf;
@@ -1175,17 +1175,17 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	case VARTOOLS_TYPE_LONG:
 	  longptr = (long ***) d->dataptr;
 	  tl = 0;
-	  for(k=i; k <= j; k++) {
-	    tl += (*longptr)[lc][k];
+	  for(kk=i; kk <= j; kk++) {
+	    tl += (*longptr)[lc][kk];
 	  }
 	  (*longptr)[lc][h] = tl;
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  charptr = (char ***) d->dataptr;
 	  /* For chars just adopt the middle value */
-	  k = (i+j)/2;
-	  if(h != k)
-	    (*charptr)[lc][h] = (*charptr)[lc][k];
+	  kk = (i+j)/2;
+	  if(h != kk)
+	    (*charptr)[lc][h] = (*charptr)[lc][kk];
 	  break;
 	default:
 	  error(ERR_BADTYPE);
@@ -1200,13 +1200,13 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	    dbl2ptr = (double ****) d->dataptr;
 	    /* Handle the error vector differently */
 	    if((*dbl2ptr)[lc][u] != p->sig[lc]) {
-	      for(k=i; k <= j; k++) {
-		td += (*dbl2ptr)[lc][u][k];
+	      for(kk=i; kk <= j; kk++) {
+		td += (*dbl2ptr)[lc][u][kk];
 	      }
 	      td = td/Nbin;
 	    } else {
-	      for(k=i; k <= j; k++) {
-		td += ((*dbl2ptr)[lc][u][k])*((*dbl2ptr)[lc][u][k]);
+	      for(kk=i; kk <= j; kk++) {
+		td += ((*dbl2ptr)[lc][u][kk])*((*dbl2ptr)[lc][u][kk]);
 	      }
 	      td = sqrt(td/Nbin);
 	    }
@@ -1217,13 +1217,13 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	    td = 0.0;
 	    /* Handle the error vector differently */
 	    if((*dbl2ptr)[lc][u] != p->sig[lc]) {
-	      for(k=i; k <= j; k++) {
-		td += (*dbl2ptr)[lc][u][k];
+	      for(kk=i; kk <= j; kk++) {
+		td += (*dbl2ptr)[lc][u][kk];
 	      }
 	      td = td/Nbin;
 	    } else {
-	      for(k=i; k <= j; k++) {
-		td += ((*dbl2ptr)[lc][u][k])*((*dbl2ptr)[lc][u][k]);
+	      for(kk=i; kk <= j; kk++) {
+		td += ((*dbl2ptr)[lc][u][kk])*((*dbl2ptr)[lc][u][kk]);
 	      }
 	      td = sqrt(td/Nbin);
 	    }
@@ -1232,16 +1232,16 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  case VARTOOLS_TYPE_STRING:
 	    string2ptr = (char *****) d->dataptr;
 	    /* For strings, just adopt the middle value */
-	    k = (i+j)/2;
-	    if(h != k)
-	      memcpy(((*string2ptr)[lc][u][h]),((*string2ptr)[lc][u][k]),
+	    kk = (i+j)/2;
+	    if(h != kk)
+	      memcpy(((*string2ptr)[lc][u][h]),((*string2ptr)[lc][u][kk]),
 		     d->maxstringlength);
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    int2ptr = (int ****) d->dataptr;
 	    ti = 0.0;
-	    for(k=i; k <= j; k++) {
-	      ti += (*int2ptr)[lc][u][k];
+	    for(kk=i; kk <= j; kk++) {
+	      ti += (*int2ptr)[lc][u][kk];
 	    }
 	    ti = ti/Nbin;
 	    (*int2ptr)[lc][u][h] = ti;
@@ -1249,8 +1249,8 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  case VARTOOLS_TYPE_SHORT:
 	    short2ptr = (short ****) d->dataptr;
 	    tsh = 0.0;
-	    for(k=i; k <= j; k++) {
-	      tsh += (*short2ptr)[lc][u][k];
+	    for(kk=i; kk <= j; kk++) {
+	      tsh += (*short2ptr)[lc][u][kk];
 	    }
 	    tsh = tsh/Nbin;
 	    (*short2ptr)[lc][u][h] = tsh;
@@ -1258,8 +1258,8 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  case VARTOOLS_TYPE_FLOAT:
 	    float2ptr = (float ****) d->dataptr;
 	    tf = 0.0;
-	    for(k=i; k <= j; k++) {
-	      tf += (*float2ptr)[lc][u][k];
+	    for(kk=i; kk <= j; kk++) {
+	      tf += (*float2ptr)[lc][u][kk];
 	    }
 	    tf = tf/Nbin;
 	    (*float2ptr)[lc][u][h] = tf;
@@ -1267,8 +1267,8 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  case VARTOOLS_TYPE_LONG:
 	    long2ptr = (long ****) d->dataptr;
 	    tl = 0;
-	    for(k=i; k <= j; k++) {
-	      tl += (*long2ptr)[lc][u][k];
+	    for(kk=i; kk <= j; kk++) {
+	      tl += (*long2ptr)[lc][u][kk];
 	    }
 	    tl = tl/Nbin;
 	    (*long2ptr)[lc][u][h] = tl;
@@ -1276,9 +1276,9 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	  case VARTOOLS_TYPE_CHAR:
 	    char2ptr = (char ****) d->dataptr;
 	    /* For chars, just adopt the middle value */
-	    k = (i+j)/2;
-	    if(i != k)
-	      (*char2ptr)[lc][u][h] = (*char2ptr)[lc][u][k];
+	    kk = (i+j)/2;
+	    if(i != kk)
+	      (*char2ptr)[lc][u][h] = (*char2ptr)[lc][u][kk];
 	    break;
 	  default:
 	    error(ERR_BADTYPE);
@@ -1385,6 +1385,720 @@ int sortlcbytime(int size, double *t, int lc, ProgramData *p)
   return 0;
 }
 
+
+int sortlcbytime_rev_internal(int i0, int iN, double *t, int lc, ProgramData *p)
+{
+  double v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbytime_rev_internal(i0, i-1, t, lc, p);
+  sortlcbytime_rev_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbytime_rev(int size, double *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  double v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] > t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbytime_rev_internal(0, i-1, t, lc, p);
+  sortlcbytime_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvardbl(int size, double *t, int lc, ProgramData *p)
+{
+  return(sortlcbytime(size, t, lc, p));
+}
+
+int sortlcbyvardbl_rev(int size, double *t, int lc, ProgramData *p)
+{
+  return(sortlcbytime_rev(size, t, lc, p));
+}
+
+int sortlcbyvarint_internal(int i0, int iN, int *t, int lc, ProgramData *p)
+{
+  int v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarint_internal(i0, i-1, t, lc, p);
+  sortlcbyvarint_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarint(int size, int *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  int v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] < t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarint_internal(0, i-1, t, lc, p);
+  sortlcbyvarint_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarint_rev_internal(int i0, int iN, int *t, int lc, ProgramData *p)
+{
+  int v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarint_rev_internal(i0, i-1, t, lc, p);
+  sortlcbyvarint_rev_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarint_rev(int size, int *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  int v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] > t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarint_rev_internal(0, i-1, t, lc, p);
+  sortlcbyvarint_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarstring_internal(int i0, int iN, char **t, int lc, ProgramData *p)
+{
+  char *v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  if((v = (char *) malloc((strlen(t[i0])+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  sprintf(v,"%s",t[i0]);
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? strcmp(t[i], v) < 0 : 0) { }
+      while(strcmp(t[--j], v) > 0) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarstring_internal(i0, i-1, t, lc, p);
+  sortlcbyvarstring_internal(i, iN, t, lc, p);
+
+  free(v);
+
+}
+
+int sortlcbyvarstring(int size, char **t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  char *v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(strcmp(t[i], t[i-1]) < 0)
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  if((v = (char *) malloc((strlen(t[0])+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  sprintf(v,"%s",t[0]);
+
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? strcmp(t[i],v) < 0 : 0) { }
+      while(strcmp(t[--j],v) > 0) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarstring_internal(0, i-1, t, lc, p);
+  sortlcbyvarstring_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(strcmp(t[i],t[i-1]) == 0) {
+      free(v);
+      return 1;
+    }
+  }
+
+  free(v);
+  return 0;
+}
+
+int sortlcbyvarstring_rev_internal(int i0, int iN, char **t, int lc, ProgramData *p)
+{
+  char *v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  if((v = (char *) malloc((strlen(t[i0])+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  sprintf(v,"%s",t[i0]);
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? strcmp(t[i], v) > 0 : 0) { }
+      while(strcmp(t[--j], v) < 0) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarstring_rev_internal(i0, i-1, t, lc, p);
+  sortlcbyvarstring_rev_internal(i, iN, t, lc, p);
+
+  free(v);
+
+}
+
+int sortlcbyvarstring_rev(int size, char **t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  char *v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(strcmp(t[i], t[i-1]) > 0)
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  if((v = (char *) malloc((strlen(t[0])+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  sprintf(v,"%s",t[0]);
+
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? strcmp(t[i],v) > 0 : 0) { }
+      while(strcmp(t[--j],v) < 0) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarstring_rev_internal(0, i-1, t, lc, p);
+  sortlcbyvarstring_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(strcmp(t[i],t[i-1]) == 0) {
+      free(v);
+      return 1;
+    }
+  }
+
+  free(v);
+  return 0;
+}
+
+int sortlcbyvarfloat_internal(int i0, int iN, float *t, int lc, ProgramData *p)
+{
+  float v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarfloat_internal(i0, i-1, t, lc, p);
+  sortlcbyvarfloat_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarfloat(int size, float *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  float v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] < t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarfloat_internal(0, i-1, t, lc, p);
+  sortlcbyvarfloat_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarfloat_rev_internal(int i0, int iN, float *t, int lc, ProgramData *p)
+{
+  float v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarfloat_rev_internal(i0, i-1, t, lc, p);
+  sortlcbyvarfloat_rev_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarfloat_rev(int size, float *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  float v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] > t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarfloat_rev_internal(0, i-1, t, lc, p);
+  sortlcbyvarfloat_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarchar_internal(int i0, int iN, char *t, int lc, ProgramData *p)
+{
+  char v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarchar_internal(i0, i-1, t, lc, p);
+  sortlcbyvarchar_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarchar(int size, char *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  char v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] < t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarchar_internal(0, i-1, t, lc, p);
+  sortlcbyvarchar_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarchar_rev_internal(int i0, int iN, char *t, int lc, ProgramData *p)
+{
+  char v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarchar_rev_internal(i0, i-1, t, lc, p);
+  sortlcbyvarchar_rev_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarchar_rev(int size, char *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  char v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] > t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarchar_rev_internal(0, i-1, t, lc, p);
+  sortlcbyvarchar_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarlong_internal(int i0, int iN, long *t, int lc, ProgramData *p)
+{
+  long v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarlong_internal(i0, i-1, t, lc, p);
+  sortlcbyvarlong_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarlong(int size, long *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  long v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] < t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] < v : 0) { }
+      while(t[--j] > v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarlong_internal(0, i-1, t, lc, p);
+  sortlcbyvarlong_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+int sortlcbyvarlong_rev_internal(int i0, int iN, long *t, int lc, ProgramData *p)
+{
+  long v;
+  int i, j, k;
+
+  if(iN - i0 <= 1) return 0;
+
+  v = t[i0];
+  i = i0;
+  j = iN;
+  for(;;)
+    {
+      while(++i < iN ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(i0,i-1,p,lc);
+
+  sortlcbyvarlong_rev_internal(i0, i-1, t, lc, p);
+  sortlcbyvarlong_rev_internal(i, iN, t, lc, p);
+
+}
+
+int sortlcbyvarlong_rev(int size, long *t, int lc, ProgramData *p)
+{
+  int i, j, k;
+  long v;
+
+  if(size<=1) return 0;
+
+  /* Check if the lc is already sorted, return if it is */
+  for(i=1; i < size; i++) {
+    if(t[i] > t[i-1])
+      break;
+  }
+  if(i == size)
+    return 0;
+
+  v = t[0];
+  i = 0;
+  j = size;
+  for(;;)
+    {
+      while(++i < size ? t[i] > v : 0) { }
+      while(t[--j] < v) {}
+      if(i >= j) break;
+      SwapLightCurvePoints(i, j, p, lc);
+    }
+  SwapLightCurvePoints(0, i-1, p, lc);
+  sortlcbyvarlong_rev_internal(0, i-1, t, lc, p);
+  sortlcbyvarlong_rev_internal(i, size, t, lc, p);
+
+  /* Check for any = time points */
+  for(i=1; i < size; i++) {
+    if(t[i] == t[i-1])
+      return 1;
+  }
+
+  return 0;
+}
+
+
 int check_isspecialchar(char c){
   if(c == ' ' ||
      c == '\n' ||
@@ -1417,4 +2131,70 @@ int check_isspecialchar(char c){
     return 1;
   else
     return 0;
+}
+
+int findX(double *x, double xval, int i1, int N)
+{
+  int u;
+  if(x[i1] >= xval)
+    return(i1);
+  if(x[N-1] < xval)
+    return(N);
+  while(1)
+    {
+      u = (N+i1)/2;
+      if(u == N || u == i1)
+	return(u);
+      if(x[u] >= xval)
+	{
+	  if(x[u-1] < xval)
+	    return(u);
+	  N = u;
+	}
+      if(x[u] <= xval)
+	{
+	  if(u == N-1)
+	    return(N);
+	  if(x[u+1] >= xval)
+	    return(u+1);
+	  i1 = u;
+	}
+    }
+}
+
+
+int findX_string(char **in_str_vec, int *in_str_vec_sortindx, char *str_to_find, int i1, int N)
+{
+  int u, v;
+  v = strcmp(in_str_vec[in_str_vec_sortindx[i1]],str_to_find);
+  if(!v) return i1;
+  else if(v >= 0)
+    return -1;
+  if(strcmp(in_str_vec[in_str_vec_sortindx[N-1]],str_to_find) < 0)
+    return -1;
+  while(1)
+    {
+      u = (N+i1)/2;
+      v = strcmp(in_str_vec[in_str_vec_sortindx[u]],str_to_find);
+      if(!v) return(u);
+      if(u == N || u == i1) {
+	return -1;
+      }
+      if(v > 0)
+	{
+	  if(strcmp(in_str_vec[in_str_vec_sortindx[u-1]],str_to_find) < 0)
+	    return -1;
+	  N = u;
+	}
+      if(v < 0)
+	{
+	  if(u == N-1)
+	    return(-1);
+	  v = strcmp(in_str_vec[in_str_vec_sortindx[u+1]],str_to_find);
+	  if(!v) return(u+1);
+	  if(v > 0)
+	    return -1;
+	  i1 = u;
+	}
+    }
 }

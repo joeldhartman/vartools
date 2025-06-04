@@ -64,10 +64,56 @@ void w_ave(int ngood, double *data, double *sig, double *ws, double *ave)
     }
 }
 
-void getJstet(int ngood, double tmin, double wkmax, double *time, double *mag, double *sig, double *wtave, double *jst, double *kur, double *lst)
+void getJstet(int ngood_in, double tmin, double wkmax, double *time_in, double *mag_in, double *sig_in, double *wtave, double *jst, double *kur, double *lst, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, flag = 0, npair = 0;
   double dt, wave = 0.0, sigma = 0.0, *ws, wtave1, delta, *delt, *pk, *wk, dumval, s=0.0, weight;
+  int ngood;
+  double *time, *mag, *sig;
+  double *time_mask = NULL, *mag_mask = NULL, *sig_mask = NULL;
+
+  if(ngood_in < 1) {
+    *wtave = 0.;
+    *jst = 0.;
+    *kur = 0.;
+    *lst = 0.;
+    return;
+  }
+
+  if(!usemask) {
+    ngood = ngood_in;
+    time = time_in;
+    mag = mag_in;
+    sig = sig_in;
+  } else {
+    if((time_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL ||
+       (mag_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL ||
+       (sig_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL)
+      error(ERR_MEMALLOC);
+    ngood = 0;
+    for(i = 0; i < ngood_in; i++) {
+      if(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	time_mask[ngood] = time_in[i];
+	mag_mask[ngood] = mag_in[i];
+	sig_mask[ngood] = sig_in[i];
+	ngood++;
+      }
+    }
+    if(ngood < 1 ) {
+      *wtave = 0.;
+      *jst = 0.;
+      *kur = 0.;
+      *lst = 0.;
+      free(time_mask);
+      free(mag_mask);
+      free(sig_mask);
+      return;
+    }
+    time = time_mask;
+    mag = mag_mask;
+    sig = sig_mask;
+  }
+
 
   /* Compute weighted average magnitude */
   for(i=0; i<ngood; i++)
@@ -152,6 +198,9 @@ void getJstet(int ngood, double tmin, double wkmax, double *time, double *mag, d
   free(delt);
   free(pk);
   free(wk);
+  if(time_mask != NULL) free(time_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(sig_mask != NULL) free(sig_mask);
 }
 
 #undef abs_

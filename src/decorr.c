@@ -40,7 +40,7 @@
 
 #define TOLERANCE 1.0E-9
 
-void docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint)
+void docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int ncomp, nused, i, j, k, l, s;
   double **Amatrix, *Bvector, **v, *w, *wti, tmp, term, wmax, thresh, sum;
@@ -68,43 +68,83 @@ void docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr,
 
       /* Fill out the design matrix */
       s = 0;
-      for(i = 0; i<Npoints; i++)
-	{
-	  if(!isnan(mag[i]) && !isinf(mag[i]) && err[i] > 0.)
-	    {
-	      tmp = 1./err[i];
-	      Bvector[s] = mag[i]*tmp;
-	      if(zeropoint)
-		{
-		  Amatrix[s][0] = tmp;
-		  j=1;
-		}
-	      else
-		j = 0;
-	      for(k=0;k<ndecorr;k++)
-		{
-		  if(!isnan(decorr[i][k]) && !isinf(decorr[i][k]))
-		    {
-		      term = 1.;
-		      for(l=0;l<order[k];l++)
-			{
-			  term *= decorr[i][k];
-			  Amatrix[s][j] = term*tmp;
-			  j++;
-			}
-		    }
-		  else
-		    {
-		      for(l=0;l<order[k];l++)
-			{
-			  Amatrix[s][j] = 0.;
-			  j++;
-			}
-		    }
-		}
-	      s++;
-	    }
-	}
+      if(!usemask) {
+	for(i = 0; i<Npoints; i++)
+	  {
+	    if(!isnan(mag[i]) && !isinf(mag[i]) && err[i] > 0.)
+	      {
+		tmp = 1./err[i];
+		Bvector[s] = mag[i]*tmp;
+		if(zeropoint)
+		  {
+		    Amatrix[s][0] = tmp;
+		    j=1;
+		  }
+		else
+		  j = 0;
+		for(k=0;k<ndecorr;k++)
+		  {
+		    if(!isnan(decorr[i][k]) && !isinf(decorr[i][k]))
+		      {
+			term = 1.;
+			for(l=0;l<order[k];l++)
+			  {
+			    term *= decorr[i][k];
+			    Amatrix[s][j] = term*tmp;
+			    j++;
+			  }
+		      }
+		    else
+		      {
+			for(l=0;l<order[k];l++)
+			  {
+			    Amatrix[s][j] = 0.;
+			    j++;
+			  }
+		      }
+		  }
+		s++;
+	      }
+	  }
+      } else {
+	for(i = 0; i<Npoints; i++)
+	  {
+	    if(!isnan(mag[i]) && !isinf(mag[i]) && err[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		tmp = 1./err[i];
+		Bvector[s] = mag[i]*tmp;
+		if(zeropoint)
+		  {
+		    Amatrix[s][0] = tmp;
+		    j=1;
+		  }
+		else
+		  j = 0;
+		for(k=0;k<ndecorr;k++)
+		  {
+		    if(!isnan(decorr[i][k]) && !isinf(decorr[i][k]))
+		      {
+			term = 1.;
+			for(l=0;l<order[k];l++)
+			  {
+			    term *= decorr[i][k];
+			    Amatrix[s][j] = term*tmp;
+			    j++;
+			  }
+		      }
+		    else
+		      {
+			for(l=0;l<order[k];l++)
+			  {
+			    Amatrix[s][j] = 0.;
+			    j++;
+			  }
+		      }
+		  }
+		s++;
+	      }
+	  }
+      }
       nused = s;
 
       /* Run singular value decomposition */
@@ -145,7 +185,7 @@ void docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr,
     }
 }
 
-void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr,double **decorr,int *order,double *coefficients,double *chi2val, double *mean, double mag_ave, int omodel, char *modelname, int zeropoint)
+void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr,double **decorr,int *order,double *coefficients,double *chi2val, double *mean, double mag_ave, int omodel, char *modelname, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int i, j, k, l, n;
   double term, modelterm;
@@ -158,83 +198,158 @@ void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr
 	error2(ERR_CANNOTWRITE,modelname);
     }
 
-  for(i=0;i<Npoints;i++)
-    {
-      if(!isnan(mag[i]) && !isinf(mag[i]))
-	{
-	  if(zeropoint)
-	    {
-	      modelterm = (double) coefficients[0];
-	      //mag[i] -= (double) coefficients[0];
-	      //mag[i] += mag_ave;
-	      l = 1;
-	    }
-	  else
-	    {
-	      modelterm = 0.;
-	      l = 0;
-	    }
-	  for(j=0;j<ndecorr;j++)
-	    {
-	      if(!isnan(decorr[i][j]) && !isinf(decorr[i][j]))
-		{
-		  term = 1.;
-		  for(k=0;k<order[j];k++)
-		    {
-		      term *= decorr[i][j];
-		      modelterm += term*((double) coefficients[l]);
-		      //mag[i] -= term*((double) coefficients[l]);
-		      l++;
-		    }
-		}
-	      else
-		{
-		  l += order[j];
-		}
-	    }
-	  if(omodel)
-	    {
-	      switch(ttype)
-		{
-		case VARTOOLS_TYPE_DOUBLE:
-		  fprintf(outfile,"%f %f %f %f\n",((double *) t)[i],mag[i],modelterm,sig[i]);
-		  break;
-		case VARTOOLS_TYPE_STRING:
-		  fprintf(outfile,"%s %f %f %f\n",((char **) t)[i],mag[i],modelterm,sig[i]);
-		  break;
-		default:
-		  error(ERR_BADTYPE);
-		}
-	    }
-	  mag[i] = mag[i] - modelterm + mag_ave;
-	}
-    }
+  if(!usemask) {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && !isinf(mag[i]))
+	  {
+	    if(zeropoint)
+	      {
+		modelterm = (double) coefficients[0];
+		//mag[i] -= (double) coefficients[0];
+		//mag[i] += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		modelterm = 0.;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]) && !isinf(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			modelterm += term*((double) coefficients[l]);
+			//mag[i] -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    if(omodel)
+	      {
+		switch(ttype)
+		  {
+		  case VARTOOLS_TYPE_DOUBLE:
+		    fprintf(outfile,"%f %f %f %f\n",((double *) t)[i],mag[i],modelterm,sig[i]);
+		    break;
+		  case VARTOOLS_TYPE_STRING:
+		    fprintf(outfile,"%s %f %f %f\n",((char **) t)[i],mag[i],modelterm,sig[i]);
+		    break;
+		  default:
+		    error(ERR_BADTYPE);
+		  }
+	      }
+	    mag[i] = mag[i] - modelterm + mag_ave;
+	  }
+      }
+  } else {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && !isinf(mag[i]) && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    if(zeropoint)
+	      {
+		modelterm = (double) coefficients[0];
+		//mag[i] -= (double) coefficients[0];
+		//mag[i] += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		modelterm = 0.;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]) && !isinf(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			modelterm += term*((double) coefficients[l]);
+			//mag[i] -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    if(omodel)
+	      {
+		switch(ttype)
+		  {
+		  case VARTOOLS_TYPE_DOUBLE:
+		    fprintf(outfile,"%f %f %f %f\n",((double *) t)[i],mag[i],modelterm,sig[i]);
+		    break;
+		  case VARTOOLS_TYPE_STRING:
+		    fprintf(outfile,"%s %f %f %f\n",((char **) t)[i],mag[i],modelterm,sig[i]);
+		    break;
+		  default:
+		    error(ERR_BADTYPE);
+		  }
+	      }
+	    mag[i] = mag[i] - modelterm + mag_ave;
+	  }
+      }
+  }
   if(omodel)
     fclose(outfile);
   val1 = 0.;
   val2 = 0.;
   n = 0;
-  for(i=0;i<Npoints;i++)
-    {
-      if(!isnan(mag[i]))
-	{
-	  n++;
-	  val1 += mag[i];
-	  val2 += mag[i]*mag[i];
-	}
-    }
+  if(!usemask) {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]))
+	  {
+	    n++;
+	    val1 += mag[i];
+	    val2 += mag[i]*mag[i];
+	  }
+      }
+  }
+  else {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    n++;
+	    val1 += mag[i];
+	    val2 += mag[i]*mag[i];
+	  }
+      }
+  }
   val1 /= n;
   val2 /= n;
   *chi2val = 0.;
   *mean = val1;
-  for(i=0;i<Npoints;i++)
-    {
-      if(!isnan(mag[i]) && sig[i] > 0.)
-	(*chi2val) += SQR((mag[i] - val1)/sig[i]);
-    }
+  if(!usemask) {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && sig[i] > 0.)
+	  (*chi2val) += SQR((mag[i] - val1)/sig[i]);
+      }
+  } else {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	  (*chi2val) += SQR((mag[i] - val1)/sig[i]);
+      }
+  }
 }
 
-void  magcorr_chi2only(double *t,double *mag,double *sig,int Npoints,int ndecorr,double **decorr,int *order,double *coefficients,double *chi2val, double *mean, double mag_ave, int omodel, char *modelname, int zeropoint)
+void  magcorr_chi2only(double *t,double *mag,double *sig,int Npoints,int ndecorr,double **decorr,int *order,double *coefficients,double *chi2val, double *mean, double mag_ave, int omodel, char *modelname, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int i, j, k, l, n;
   double term;
@@ -247,86 +362,167 @@ void  magcorr_chi2only(double *t,double *mag,double *sig,int Npoints,int ndecorr
       if((outfile = fopen(modelname,"w")) == NULL)
 	error2(ERR_CANNOTWRITE,modelname);
     }
-  for(i=0;i<Npoints;i++)
-    {
-      if(!isnan(mag[i]))
-	{
-	  magtemp = mag[i];
-	  if(zeropoint)
-	    {
-	      magtemp -= (double) coefficients[0];
-	      magtemp += mag_ave;
-	      l = 1;
-	    }
-	  else
-	    {
-	      magtemp += mag_ave;
-	      l = 0;
-	    }
-	  for(j=0;j<ndecorr;j++)
-	    {
-	      if(!isnan(decorr[i][j]))
-		{
-		  term = 1.;
-		  for(k=0;k<order[j];k++)
-		    {
-		      term *= decorr[i][j];
-		      magtemp -= term*((double) coefficients[l]);
-		      l++;
-		    }
-		}
-	      else
-		{
-		  l += order[j];
-		}
-	    }
-	  if(omodel)
-	    fprintf(outfile,"%f %f %f %f\n",t[i],mag[i],magtemp,sig[i]);
-	  val1 += magtemp/(sig[i]*sig[i]);
-	  val2 += 1./(sig[i]*sig[i]);
-	}
-    }
+  if(!usemask) {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]))
+	  {
+	    magtemp = mag[i];
+	    if(zeropoint)
+	      {
+		magtemp -= (double) coefficients[0];
+		magtemp += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		magtemp += mag_ave;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			magtemp -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    if(omodel)
+	      fprintf(outfile,"%f %f %f %f\n",t[i],mag[i],magtemp,sig[i]);
+	    val1 += magtemp/(sig[i]*sig[i]);
+	    val2 += 1./(sig[i]*sig[i]);
+	  }
+      }
+  } else {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    magtemp = mag[i];
+	    if(zeropoint)
+	      {
+		magtemp -= (double) coefficients[0];
+		magtemp += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		magtemp += mag_ave;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			magtemp -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    if(omodel)
+	      fprintf(outfile,"%f %f %f %f\n",t[i],mag[i],magtemp,sig[i]);
+	    val1 += magtemp/(sig[i]*sig[i]);
+	    val2 += 1./(sig[i]*sig[i]);
+	  }
+      }
+  }
   if(omodel)
     fclose(outfile);
   *mean = val1/val2;
   *chi2val = 0.;
   n = 0;
-  for(i=0;i<Npoints;i++)
-    {
-      if(!isnan(mag[i]))
-	{
-	  magtemp = mag[i];
-	  if(zeropoint)
-	    {
-	      magtemp -= (double) coefficients[0];
-	      magtemp += mag_ave;
-	      l = 1;
-	    }
-	  else
-	    {
-	      magtemp += mag_ave;
-	      l = 0;
-	    }
-	  for(j=0;j<ndecorr;j++)
-	    {
-	      if(!isnan(decorr[i][j]))
-		{
-		  term = 1.;
-		  for(k=0;k<order[j];k++)
-		    {
-		      term *= decorr[i][j];
-		      magtemp -= term*((double) coefficients[l]);
-		      l++;
-		    }
-		}
-	      else
-		{
-		  l += order[j];
-		}
-	    }
-	  (*chi2val) += SQR((magtemp - *mean)/sig[i]);
-	}
-    }
+  if(!usemask) {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]))
+	  {
+	    magtemp = mag[i];
+	    if(zeropoint)
+	      {
+		magtemp -= (double) coefficients[0];
+		magtemp += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		magtemp += mag_ave;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			magtemp -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    (*chi2val) += SQR((magtemp - *mean)/sig[i]);
+	  }
+      }
+  } else {
+    for(i=0;i<Npoints;i++)
+      {
+	if(!isnan(mag[i]) && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    magtemp = mag[i];
+	    if(zeropoint)
+	      {
+		magtemp -= (double) coefficients[0];
+		magtemp += mag_ave;
+		l = 1;
+	      }
+	    else
+	      {
+		magtemp += mag_ave;
+		l = 0;
+	      }
+	    for(j=0;j<ndecorr;j++)
+	      {
+		if(!isnan(decorr[i][j]))
+		  {
+		    term = 1.;
+		    for(k=0;k<order[j];k++)
+		      {
+			term *= decorr[i][j];
+			magtemp -= term*((double) coefficients[l]);
+			l++;
+		      }
+		  }
+		else
+		  {
+		    l += order[j];
+		  }
+	      }
+	    (*chi2val) += SQR((magtemp - *mean)/sig[i]);
+	  }
+      }
+  }
 }
 
 /* These ludcmp routines are not used, but saved here in case we decide to switch to them */
@@ -479,13 +675,13 @@ double fitpoly(int N, double *x, double *y, double *sig, int order,
 
 
   /* Do the fit */
-  docorr(y, err, N, 1, decorr, &order, Avector, Aerrvector, 0., 1);
+  docorr(y, err, N, 1, decorr, &order, Avector, Aerrvector, 0., 1, 0, NULL, 0, 0);
 
   /* Calculate chi2, and subtract the model if requested */
   if(subtractfit) {
-    magcorr(x, 0, y, err, N, 1, decorr, &order, Avector, &out_chi2, &out_mean, 0., 0, NULL, 1);
+    magcorr(x, 0, y, err, N, 1, decorr, &order, Avector, &out_chi2, &out_mean, 0., 0, NULL, 1, 0, NULL, 0, 0);
   } else {
-    magcorr_chi2only(x, y, err, N, 1, decorr, &order, Avector, &out_chi2, &out_mean, 0., 0, NULL, 1);
+    magcorr_chi2only(x, y, err, N, 1, decorr, &order, Avector, &out_chi2, &out_mean, 0., 0, NULL, 1, 0, NULL, 0, 0);
   }
 
   for(i=0; i < N; i++)

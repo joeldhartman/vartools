@@ -36,6 +36,87 @@
 #include "programdata.h"
 #include "functions.h"
 
+void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int lc_list_num) {
+  int i;
+  double *dblptr;
+  float *floatptr;
+  int *intptr;
+  short *shortptr;
+  long *longptr;
+  char *charptr;
+  char **stringptr;
+  for(i=0; i < PrintCommand->Nvars; i++) {
+    switch(PrintCommand->vars[i]->datatype) {
+    case VARTOOLS_TYPE_CONVERTJD:
+    case VARTOOLS_TYPE_NUMERIC:
+    case VARTOOLS_TYPE_DOUBLE:
+      dblptr = (double *) PrintCommand->dataptr[i];
+      dblptr[lcnum] = EvaluateVariable_Double(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      floatptr = (float *) PrintCommand->dataptr[i];
+      floatptr[lcnum] = EvaluateVariable_Float(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      intptr = (float *) PrintCommand->dataptr[i];
+      intptr[lcnum] = EvaluateVariable_Int(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      shortptr = (short *) PrintCommand->dataptr[i];
+      shortptr[lcnum] = EvaluateVariable_Short(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      longptr = (long *) PrintCommand->dataptr[i];
+      longptr[lcnum] = EvaluateVariable_Long(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      charptr = (char *) PrintCommand->dataptr[i];
+      charptr[lcnum] = EvaluateVariable_Char(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      stringptr = (char **) PrintCommand->dataptr[i];
+      EvaluateVariable_String(lc_list_num, lcnum, 0, PrintCommand->vars[i], stringptr[lcnum]);
+      break;
+    }
+  }
+}
+
+
+void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum) {
+  char *tmpfmt;
+  char doublefmt[] = "%.17g";
+  char floatfmt[] = "%f";
+  char intfmt[] = "%d";
+  char charfmt[] = "%c";
+  char stringfmt[] = "%s";
+  switch(c[cnum].PrintCommand->vars[varnum]->datatype) {
+  case VARTOOLS_TYPE_NUMERIC:
+  case VARTOOLS_TYPE_CONVERTJD:
+  case VARTOOLS_TYPE_DOUBLE:
+    tmpfmt = doublefmt;
+    break;
+  case VARTOOLS_TYPE_FLOAT:
+    tmpfmt = floatfmt;
+    break;
+  case VARTOOLS_TYPE_INT:
+  case VARTOOLS_TYPE_SHORT:
+  case VARTOOLS_TYPE_LONG:
+    tmpfmt = intfmt;
+    break;
+  case VARTOOLS_TYPE_CHAR:
+    tmpfmt = charfmt;
+    break;
+  case VARTOOLS_TYPE_STRING:
+    tmpfmt = stringfmt;
+    break;
+  default:
+    tmpfmt = doublefmt;
+    break;
+  }
+  sprintf(p->outcolumns[c[cnum].PrintCommand->colindx[varnum]].outputformat,
+	  "%s", tmpfmt);
+}
+
 void increaseNcolumns(ProgramData *p, int cnum)
 {
   int i, j, k;
@@ -86,13 +167,13 @@ void increaseNcolumns(ProgramData *p, int cnum)
   (p->Ncolumns)++;
 }
 
-void addcolumn(ProgramData *p, int cnum, int type, int stringsize, void *ptr, char *outputformat, int Ndereference, int usereallc, int lcdereferencecol, ...)
+void addcolumn(ProgramData *p, Command *command, int cnum, int type, int stringsize, void *ptr, char *outputformat, int Ndereference, int usereallc, int lcdereferencecol, ...)
 {
   va_list varlist;
   OutColumn *c;
   char *columnnamefmt;
   char colnamefmtcpy[MAX_COLNAME_LENGTH];
-  int i;
+  int i, j;
   increaseNcolumns(p, cnum);
   c = &(p->outcolumns[p->Ncolumns-1]);
   va_start(varlist, lcdereferencecol);
@@ -115,6 +196,20 @@ void addcolumn(ProgramData *p, int cnum, int type, int stringsize, void *ptr, ch
   else
     sprintf(colnamefmtcpy,"%s",columnnamefmt);
   vsprintf(c->columnname,colnamefmtcpy,varlist);
+  if(cnum >= 0) {
+    if(command[cnum].command_outcolumn_suffix != NULL) {
+      for(j = strlen(c->columnname) - 1; j >= 0; j--) {
+	if(c->columnname[j] == '_') break;
+      }
+      if(j >= 0) {
+	if(command[cnum].command_outcolumn_suffix[0] == '\0')
+	  c->columnname[j] = '\0';
+	else {
+	  sprintf(&(c->columnname[j+1]),"%s",command[cnum].command_outcolumn_suffix);
+	}
+      }
+    }
+  }
   c->length_columnname = strlen(c->columnname);
   c->cnum = cnum;
 }
@@ -1041,7 +1136,14 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 {
   int i, j, k, l, m;
   char tmpstring[MAXLEN];
-  addcolumn(p, -1, VARTOOLS_TYPE_STRING, MAXLEN, &(p->lcnames), "%s", 1, 1, 0, 0, "Name");
+  char *tmpfmt;
+  char doublefmt[] = "%.17g";
+  char floatfmt[] = "%f";
+  char intfmt[] = "%d";
+  char charfmt[] = "%c";
+  char stringfmt[] = "%s";
+
+  addcolumn(p, c, -1, VARTOOLS_TYPE_STRING, MAXLEN, &(p->lcnames), "%s", 1, 1, 0, 0, "Name");
   for(l=0;l<Ncommands;l++)
     {
       switch(c[l].cnum)
@@ -1054,186 +1156,208 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 #ifdef _HAVE_GSL
 	case CNUM_ADDNOISE:
 	  if(c[l].AddNoise->gammaval_type == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->gammaval), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Gamma_%d_%d", 1, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->gammaval), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Gamma_%d_%d", 1, l);
 	  if(c[l].AddNoise->sig_r_type == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->sig_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Sig_Red_%d_%d", 1, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->sig_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Sig_Red_%d_%d", 1, l);
 	  if(c[l].AddNoise->sig_w_type == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->sig_w), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Sig_White_%d_%d", 1, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->sig_w), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Sig_White_%d_%d", 1, l);
 	  if(c[l].AddNoise->rho_r_type == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->rho_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Rho_%d_%d", 1, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->rho_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Rho_%d_%d", 1, l);
 	  if(c[l].AddNoise->nu_r_type == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->nu_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Nu_%d_%d", 1, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AddNoise->nu_r), "%9.5f", 2, 1, 0, 0, 0, "AddNoise_Nu_%d_%d", 1, l);
 	  break;
 #endif
 	case CNUM_CLIP:
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Clip->Nclip), "%5d", 1, 0, 0, 0, "Nclip_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Clip->Nclip), "%5d", 1, 0, 0, 0, "Nclip_%d", l);
 	  break;
 	case CNUM_ENSEMBLERESCALESIG:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ensemblerescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ensemblerescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
+	  break;
+	case CNUM_PRINT:
+	  for(i=0;i<c[l].PrintCommand->Nvars;i++)
+	    {
+	      if(c[l].PrintCommand->isformat) {
+		tmpfmt = c[l].PrintCommand->formatstrings[i];
+	      } else {
+		tmpfmt = doublefmt;
+	      }
+	      if(c[l].PrintCommand->iscolname) {
+		sprintf(tmpstring,"%s_%%d",c[l].PrintCommand->colnames[i]);
+		addcolumn(p, c, l, VARTOOLS_TYPE_ANY, 0,
+			  &(c[l].PrintCommand->dataptr[i]), tmpfmt, 1, 0, 0, 0, 
+			  tmpstring, l);
+	      } else {
+		sprintf(tmpstring,"Print_%s_%%d_%%d", c[l].PrintCommand->varnames[i]);
+		addcolumn(p, c, l, VARTOOLS_TYPE_ANY, 0,
+			  &(c[l].PrintCommand->dataptr[i]), tmpfmt, 1, 0, 0, 0, 
+			  tmpstring, i, l);
+	      }
+	      c[l].PrintCommand->colindx[i] = p->Ncolumns - 1;
+	    }
 	  break;
 	case CNUM_RESCALESIG:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Rescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Rescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
 	  break;
 	case CNUM_RESTRICTTIMES:
 	  if(c[l].RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_JDRANGE) {
 	    if(c[l].RestrictTimes->minJDtype != PERTYPE_SPECIFIED) {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->minJD), "%.17g", 1, 0, 0, 0, "RestrictTimes_MinJD_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->minJD), "%.17g", 1, 0, 0, 0, "RestrictTimes_MinJD_%d", l);
 	    } 
 	    else {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->minJD), "%.17g", 1, 1, 0, 0, "RestrictTimes_MinJD_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->minJD), "%.17g", 1, 1, 0, 0, "RestrictTimes_MinJD_%d", l);
 	    } 
 	    if(c[l].RestrictTimes->maxJDtype != PERTYPE_SPECIFIED) {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->maxJD), "%.17g", 1, 0, 0, 0, "RestrictTimes_MaxJD_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->maxJD), "%.17g", 1, 0, 0, 0, "RestrictTimes_MaxJD_%d", l);
 	    }
 	    else {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->maxJD), "%.17g", 1, 1, 0, 0, "RestrictTimes_MaxJD_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RestrictTimes->maxJD), "%.17g", 1, 1, 0, 0, "RestrictTimes_MaxJD_%d", l);
 	    }
 	  }
 	  break;
 	case CNUM_CHI2_NOBIN:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_NoBin->chi2val), "%12.5f", 1, 0, 0, 0, "Chi2_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_NoBin->wtave), "%9.5f", 1, 0, 0, 0, "Weighted_Mean_Mag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_NoBin->chi2val), "%12.5f", 1, 0, 0, 0, "Chi2_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_NoBin->wtave), "%9.5f", 1, 0, 0, 0, "Weighted_Mean_Mag_%d", l);
 	  break;
 	case CNUM_CHI2_BIN:
 	  for(i=0;i<c[l].Chi2_Bin->Nbin;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_Bin->chi2binvals), "%12.5f", 2, 0, 0, 0, i, "Chi2Bin_%d.%d_%d", (int) (c[l].Chi2_Bin->bintimes[i]*MINUTESPERDAY), (int) (100.0 * (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY))), l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_Bin->wtavebin), "%9.5f", 2, 0, 0, 0, i, "Weight_Mean_Mag_Bin_%d.%d_%d", (int) (c[l].Chi2_Bin->bintimes[i]*MINUTESPERDAY), (int) (100.0 * (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY))),l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_Bin->chi2binvals), "%12.5f", 2, 0, 0, 0, i, "Chi2Bin_%d.%d_%d", (int) (c[l].Chi2_Bin->bintimes[i]*MINUTESPERDAY), (int) (100.0 * (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY))), l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Chi2_Bin->wtavebin), "%9.5f", 2, 0, 0, 0, i, "Weight_Mean_Mag_Bin_%d.%d_%d", (int) (c[l].Chi2_Bin->bintimes[i]*MINUTESPERDAY), (int) (100.0 * (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].Chi2_Bin->bintimes[i] * MINUTESPERDAY))),l);
 	    }
 	  break;
 	case CNUM_CHANGEERROR:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Changeerror->ave), "%9.5f", 1, 0, 0, 0, "Mean_Mag_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Changeerror->rmsval), "%9.5f", 1, 0, 0, 0, "RMS_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Changeerror->ngood), "%5d", 1, 0, 0, 0, "Npoints_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Changeerror->ave), "%9.5f", 1, 0, 0, 0, "Mean_Mag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Changeerror->rmsval), "%9.5f", 1, 0, 0, 0, "RMS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Changeerror->ngood), "%5d", 1, 0, 0, 0, "Npoints_%d", l);
 	  break;
 	case CNUM_RMS_NOBIN:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->ave), "%9.5f", 1, 0, 0, 0, "Mean_Mag_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->rmsval), "%9.5f", 1, 0, 0, 0, "RMS_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->rmsthy), "%9.5f", 1, 0, 0, 0, "Expected_RMS_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].RMS_NoBin->ngood), "%5d", 1, 0, 0, 0, "Npoints_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->ave), "%9.5f", 1, 0, 0, 0, "Mean_Mag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->rmsval), "%9.5f", 1, 0, 0, 0, "RMS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_NoBin->rmsthy), "%9.5f", 1, 0, 0, 0, "Expected_RMS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].RMS_NoBin->ngood), "%5d", 1, 0, 0, 0, "Npoints_%d", l);
 	  break;
 	case CNUM_RMS_BIN:
 	  for(i=0;i<c[l].RMS_Bin->Nbin;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_Bin->rmsbinvals), "%9.5f", 2, 0, 0, 0, i, "RMSBin_%d.%d_%d", (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY), (int) (100.0 * (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY))),l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_Bin->rmsthybin), "%9.5f", 2, 0, 0, 0, i, "Expected_RMS_Bin_%d.%d_%d", (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY), (int) (100.0 * (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY))),l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_Bin->rmsbinvals), "%9.5f", 2, 0, 0, 0, i, "RMSBin_%d.%d_%d", (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY), (int) (100.0 * (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY))),l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RMS_Bin->rmsthybin), "%9.5f", 2, 0, 0, 0, i, "Expected_RMS_Bin_%d.%d_%d", (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY), (int) (100.0 * (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY - (int) (c[l].RMS_Bin->bintimes[i] * MINUTESPERDAY))),l);
 	    }
 	  break;
 	case CNUM_JSTET:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->jst), "%9.5f", 1, 0, 0, 0, "Jstet_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->kur), "%9.5f", 1, 0, 0, 0, "Kurtosis_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->lst), "%9.5f", 1, 0, 0, 0, "Lstet_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->jst), "%9.5f", 1, 0, 0, 0, "Jstet_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->kur), "%9.5f", 1, 0, 0, 0, "Kurtosis_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Jstet->lst), "%9.5f", 1, 0, 0, 0, "Lstet_%d", l);
 	  break;
 	case CNUM_ALARM:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Alarm->alarmvals), "%9.5f", 1, 0, 0, 0, "Alarm_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Alarm->alarmvals), "%9.5f", 1, 0, 0, 0, "Alarm_%d", l);
 	  break;
 	case CNUM_FINDBLENDS:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->blendamps), "%9.5g", 1, 0, 0, 0, "FindBlends_FluxAmp_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->blendamps), "%9.5g", 1, 0, 0, 0, "FindBlends_FluxAmp_%d",l);
 	  break;
 	case CNUM_AOV:
 	  for(i=1;i<=c[l].Aov->Npeaks;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "Period_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "Period_%d_%d",i,l);
 	      if(c[l].Aov->uselog)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakvalues), "%9.5f", 2, 0, 0, 0, i-1, "AOV_LOGSNR_%d_%d",i,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakvalues), "%9.5f", 2, 0, 0, 0, i-1, "AOV_LOGSNR_%d_%d",i,l);
 	      else
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakvalues), "%9.5f", 2, 0, 0, 0, i-1, "AOV_%d_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakSNR), "%9.5f", 2, 0, 0, 0, i-1, "AOV_SNR_%d_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakFAP), "%9.5f", 2, 0, 0, 0, i-1, "AOV_NEG_LN_FAP_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakvalues), "%9.5f", 2, 0, 0, 0, i-1, "AOV_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakSNR), "%9.5f", 2, 0, 0, 0, i-1, "AOV_SNR_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->peakFAP), "%9.5f", 2, 0, 0, 0, i-1, "AOV_NEG_LN_FAP_%d_%d",i,l);
 		}
 	      if(c[l].Aov->whiten && c[l].Aov->uselog)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->aveaov_whiten), "%9.5f", 2, 0, 0, 0, i-1, "Mean_lnAOV_%d_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov_whiten), "%9.5f", 2, 0, 0, 0, i-1, "RMS_lnAOV_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->aveaov_whiten), "%9.5f", 2, 0, 0, 0, i-1, "Mean_lnAOV_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov_whiten), "%9.5f", 2, 0, 0, 0, i-1, "RMS_lnAOV_%d_%d",i,l);
 		}
 	    }
 	  if(c[l].Aov->fixperiodSNR)
 	    {
 	      if(c[l].Aov->uselog)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_LOGSNR_PeriodFix_%d",l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_LOGSNR_PeriodFix_%d",l);
 		}
 	      else
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_PeriodFix_%d",l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakSNR), "%10.5f", 1, 0, 0, 0, "AOV_SNR_PeriodFix_%d",l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakFAP), "%10.5f", 1, 0, 0, 0, "AOV_NEG_LN_FAP_PeriodFix_%d", l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_PeriodFix_%d",l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakSNR), "%10.5f", 1, 0, 0, 0, "AOV_SNR_PeriodFix_%d",l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->fixperiodSNR_peakFAP), "%10.5f", 1, 0, 0, 0, "AOV_NEG_LN_FAP_PeriodFix_%d", l);
 		}
 	    }
 	  if(!c[l].Aov->whiten && c[l].Aov->uselog)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->aveaov), "%9.5f", 1, 0, 0, 0, "Mean_lnAOV_%d", l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov), "%9.5f", 1, 0, 0, 0, "RMS_lnAOV_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->aveaov), "%9.5f", 1, 0, 0, 0, "Mean_lnAOV_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov), "%9.5f", 1, 0, 0, 0, "RMS_lnAOV_%d", l);
 	    }
 	  break;
 	case CNUM_HARMAOV:
 	  for(i=1;i<=c[l].AovHarm->Npeaks;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "Period_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "Period_%d_%d",i,l);
 	      if(c[l].AovHarm->Nharm > 0)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakvalues), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_%d_%d",i,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakvalues), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_%d_%d",i,l);
 	      else
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakvalues), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_NEG_LOG_FAP_%d_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].AovHarm->peakNharm), "%2d", 2, 0, 0, 0, i-1, "AOV_HARM_NHARM_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakvalues), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_NEG_LOG_FAP_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].AovHarm->peakNharm), "%2d", 2, 0, 0, 0, i-1, "AOV_HARM_NHARM_%d_%d",i,l);
 		}
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakSNR), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakSNR), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_SNR_%d_%d",i,l);
 	      if(c[l].AovHarm->Nharm > 0)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakFAP), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_NEG_LOG_FAP_%d_%d",i,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->peakFAP), "%9g", 2, 0, 0, 0, i-1, "AOV_HARM_NEG_LOG_FAP_%d_%d",i,l);
 	      if(c[l].AovHarm->whiten)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->aveaov_whiten), "%9g", 2, 0, 0, 0, i-1, "Mean_AOV_HARM_%d_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->rmsaov_whiten), "%9g", 2, 0, 0, 0, i-1, "RMS_AOV_HARM_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->aveaov_whiten), "%9g", 2, 0, 0, 0, i-1, "Mean_AOV_HARM_%d_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->rmsaov_whiten), "%9g", 2, 0, 0, 0, i-1, "RMS_AOV_HARM_%d_%d",i,l);
 		}
 	    }
 	  if(c[l].AovHarm->fixperiodSNR)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_HARM_PeriodFix_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakSNR), "%10.5f", 1, 0, 0, 0, "AOV_HARM_SNR_PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "AOV_HARM_PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakSNR), "%10.5f", 1, 0, 0, 0, "AOV_HARM_SNR_PeriodFix_%d",l);
 	      if(c[l].AovHarm->Nharm > 0)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakFAP), "%10.5f", 1, 0, 0, 0, "AOV_HARM_NEG_LN_FAP_PeriodFix_%d", l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->fixperiodSNR_peakFAP), "%10.5f", 1, 0, 0, 0, "AOV_HARM_NEG_LN_FAP_PeriodFix_%d", l);
 	    }
 	  if(!c[l].AovHarm->whiten)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->aveaov), "%9g", 1, 0, 0, 0, "Mean_AOV_HARM_%d", l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->rmsaov), "%9g", 1, 0, 0, 0, "RMS_AOV_HARM_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->aveaov), "%9g", 1, 0, 0, 0, "Mean_AOV_HARM_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].AovHarm->rmsaov), "%9g", 1, 0, 0, 0, "RMS_AOV_HARM_%d", l);
 	    }
 	  break;
 	case CNUM_LS:
 	  for(i=1;i<=c[l].Ls->Npeaks;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "LS_Period_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakFAP), "%10.5f", 2, 0, 0, 0, i-1, "Log10_LS_Prob_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakvalues), "%10.5f", 2, 0, 0, 0, i-1, "LS_Periodogram_Value_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->SNRvalues), "%10.5f", 2, 0, 0, 0, i-1, "LS_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "LS_Period_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakFAP), "%10.5f", 2, 0, 0, 0, i-1, "Log10_LS_Prob_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->peakvalues), "%10.5f", 2, 0, 0, 0, i-1, "LS_Periodogram_Value_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->SNRvalues), "%10.5f", 2, 0, 0, 0, i-1, "LS_SNR_%d_%d",i,l);
 	    }
 	  if(c[l].Ls->fixperiodSNR)
 	    {
 	      if(c[l].Ls->fixperiodSNR_pertype != PERTYPE_SPECIFIED)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "LS_PeriodFix_%d",l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_periods), "%14.8f", 2, 0, 0, 0, 0, "LS_PeriodFix_%d",l);
 	      else
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_periods), "%14.8f", 2, 1, 0, 0, 0, "LS_PeriodFix_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_FAPvalues), "%10.5f", 1, 0, 0, 0, "Log10_LS_Prob_PeriodFix_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "LS_Periodogram_Value_PeriodFix_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_SNRvalues), "%10.5f", 1, 0, 0, 0, "LS_SNR_PeriodFix_%d",l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_periods), "%14.8f", 2, 1, 0, 0, 0, "LS_PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_FAPvalues), "%10.5f", 1, 0, 0, 0, "Log10_LS_Prob_PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_peakvalues), "%10.5f", 1, 0, 0, 0, "LS_Periodogram_Value_PeriodFix_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ls->fixperiodSNR_SNRvalues), "%10.5f", 1, 0, 0, 0, "LS_SNR_PeriodFix_%d",l);
 	    }
 	  break;
 	case CNUM_GETLSAMPTHRESH:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].GetLSAmpThresh->ampthresh_scale), "%9.5f", 1, 0, 0, 0, "LS_AmplitudeScaleFactor_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].GetLSAmpThresh->amp), "%9.5f", 1, 0, 0, 0, "LS_MinimumAmplitude_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].GetLSAmpThresh->ampthresh_scale), "%9.5f", 1, 0, 0, 0, "LS_AmplitudeScaleFactor_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].GetLSAmpThresh->amp), "%9.5f", 1, 0, 0, 0, "LS_MinimumAmplitude_%d",l);
 	  break;
 	case CNUM_DECORR:
 	  k = 0;
 	  if(c[l].Decorr->zeropointterm)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, 0, "Decorr_constant_term_%d", l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, 0, "Decorr_constant_term_err_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, 0, "Decorr_constant_term_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, 0, "Decorr_constant_term_err_%d", l);
 	      m = 1;
 	    }
 	  else
@@ -1242,8 +1366,8 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    {
 	      for(j=1;j<=c[l].Decorr->order[k];j++)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, m, "Global_%d_coeff_%d_%d",i,j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, m, "Global_%d_coeff_err_%d_%d",i,j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, m, "Global_%d_coeff_%d_%d",i,j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, m, "Global_%d_coeff_err_%d_%d",i,j,l);
 		  m++;
 		}
 	      k++;
@@ -1252,56 +1376,56 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    {
 	      for(j=1;j<=c[l].Decorr->order[k];j++)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, m, "LCColumn_%d_coeff_%d_%d",c[l].Decorr->lc_columns[i],j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, m, "LCColumn_%d_coeff_err_%d_%d",c[l].Decorr->lc_columns[i],j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b), "%20.13f", 2, 0, 0, 0, m, "LCColumn_%d_coeff_%d_%d",c[l].Decorr->lc_columns[i],j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->b_err), "%20.13f", 2, 0, 0, 0, m, "LCColumn_%d_coeff_err_%d_%d",c[l].Decorr->lc_columns[i],j,l);
 		  m++;
 		}
 	      k++;
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->chi2val), "%12.5f", 1, 0, 0, 0, "Decorr_chi2_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Decorr->chi2val), "%12.5f", 1, 0, 0, 0, "Decorr_chi2_%d", l);
 	  break;
 	case CNUM_LINFIT:
 	  for(j=1;j<=c[l].Linfit->Nparams;j++)
 	    {
 	      sprintf(tmpstring,"Linfit_%s_%%d", c[l].Linfit->paramnames[j-1]);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Linfit->param_outvals), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Linfit->param_outvals), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
 
 	      sprintf(tmpstring,"Linfit_err%s_%%d", c[l].Linfit->paramnames[j-1]);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Linfit->param_uncertainties), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Linfit->param_uncertainties), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
 	    }
 	  if(c[l].Linfit->rejectoutliers) {
-	    addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->numrej), "%d", 1, 0, 0, 0, "Linfit_numrejected_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->numrej), "%d", 1, 0, 0, 0, "Linfit_numrejected_%d", l);
 	    if(c[l].Linfit->rejiterate) {
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->iternum), "%d", 1, 0, 0, 0, "Linfit_numiterations_%d", l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Linfit->iternum), "%d", 1, 0, 0, 0, "Linfit_numiterations_%d", l);
 	    }
 	  }
 	  break;
 	case CNUM_NONLINFIT:
 	  if(c[l].Nonlinfit->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
-	    addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Nonlinfit->amoeba_isconverged), "%d", 1, 0, 0, 0, "Nonlinfit_HasConverged_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Nonlinfit->amoeba_isconverged), "%d", 1, 0, 0, 0, "Nonlinfit_HasConverged_%d", l);
 	  }
 	  for(j=1;j<=c[l].Nonlinfit->Nparams;j++)
 	    {
 	      sprintf(tmpstring,"Nonlinfit_%s_BestFit_%%d", c[l].Nonlinfit->paramnames[j-1]);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->param_outvals), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->param_outvals), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
 	      if(c[l].Nonlinfit->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
 		sprintf(tmpstring,"Nonlinfit_%s_Err_%%d", c[l].Nonlinfit->paramnames[j-1]);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->param_uncertainties), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->param_uncertainties), "%.17g", 2, 0, 0, 0, j-1, tmpstring, l, 0);
 	      }
 	    }
 	  if(c[l].Nonlinfit->uselinfit)
 	    {
 	      for(m=0; m < c[l].Nonlinfit->linfit->Nparams;m++) {
 		sprintf(tmpstring,"Nonlinfit_%s_BestFit_%%d", c[l].Nonlinfit->linfit->paramnames[m]);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->linfit->param_outvals), "%.17g", 2, 0, 0, 0, m, tmpstring, l, 0);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->linfit->param_outvals), "%.17g", 2, 0, 0, 0, m, tmpstring, l, 0);
 		if(c[l].Nonlinfit->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
 		  sprintf(tmpstring,"Nonlinfit_%s_Err_%%d", c[l].Nonlinfit->linfit->paramnames[m]);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->linfit->param_uncertainties), "%.17g", 2, 0, 0, 0, m, tmpstring, l, 0);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->linfit->param_uncertainties), "%.17g", 2, 0, 0, 0, m, tmpstring, l, 0);
 		}
 
 	      }
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->chi2out),
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->chi2out),
 		    "%.17g", 1, 0, 0, 0, "Nonlinfit_BestFit_Chi2_%d", l);
 	  for(k=0,i=0; i < c[l].Nonlinfit->N_mcmc_chain_expressions; i++)
 	    {
@@ -1359,424 +1483,424 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 		  default:
 		    break;
 		  }
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->mcmc_statsout), "%.17g", 2, 0, 0, 0, k, tmpstring, l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Nonlinfit->mcmc_statsout), "%.17g", 2, 0, 0, 0, k, tmpstring, l);
 		}
 	    }
 	  break;
 	case CNUM_KILLHARM:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, "Killharm_Mean_Mag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, "Killharm_Mean_Mag_%d", l);
 	  for(j=1;j<=c[l].Killharm->Nper;j++)
 	    {
 	      if(c[l].Killharm->pertype == PERTYPE_SPECIFIED)
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
 	      else
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
 	      for(i=2;i<=c[l].Killharm->Nsubharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Coscoeff_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Sincoeff_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Coscoeff_%d",j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Amp_%d_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_%d",j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_1_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_R_%d_1_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_1_%d",j,i,l);
 		    }
 		}
 	      if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Sincoeff_%d",j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Coscoeff_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Sincoeff_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Coscoeff_%d",j,l);
 		}
 	      else
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Amp_%d",j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Phi_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Amp_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Phi_%d",j,l);
 		}
 	      for(i=2;i<=c[l].Killharm->Nharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Coscoeff_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Sincoeff_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Coscoeff_%d",j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Amp_%d_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_%d",j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_1_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_R_%d_1_%d",j,i,l);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_1_%d",j,i,l);
 		    }
 		}
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Amplitude_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Amplitude_%d",j,l);
 	    }
 	  break;
 	case CNUM_INJECTHARM:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);
 	  for(i=2;i<=c[l].Injectharm->Nsubharm+1;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->subharm_amp), "%9.5f", 2, 0, 0, 0, i-2, "Injectharm_Subharm_%d_Amp_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->subharm_phase), "%9.5f", 2, 0, 0, 0, i-2, "Injectharm_Subharm_%d_Phase_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->subharm_amp), "%9.5f", 2, 0, 0, 0, i-2, "Injectharm_Subharm_%d_Amp_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->subharm_phase), "%9.5f", 2, 0, 0, 0, i-2, "Injectharm_Subharm_%d_Phase_%d",i,l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_amp), "%9.5f", 2, 0, 0, 0, 0, "Injectharm_Fundamental_Amp_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_phase), "%9.5f", 2, 0, 0, 0, 0, "Injectharm_Fundamental_Phase_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_amp), "%9.5f", 2, 0, 0, 0, 0, "Injectharm_Fundamental_Amp_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_phase), "%9.5f", 2, 0, 0, 0, 0, "Injectharm_Fundamental_Phase_%d",l);
 	  for(i=2;i<=c[l].Injectharm->Nharm+1;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_amp), "%9.5f", 2, 0, 0, 0, i-1, "Injectharm_Harm_%d_Amp_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_phase), "%9.5f", 2, 0, 0, 0, i-1, "Injectharm_Harm_%d_Phase_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_amp), "%9.5f", 2, 0, 0, 0, i-1, "Injectharm_Harm_%d_Amp_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->harm_phase), "%9.5f", 2, 0, 0, 0, i-1, "Injectharm_Harm_%d_Phase_%d",i,l);
 	    }
 	  break;
 	case CNUM_INJECTTRANSIT:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_PERIOD]), "%14.8f", 1, 0, 0, 0, "Injecttransit_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_RP]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Rp_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_MP]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Mp_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_PHASE]), "%9.5f", 1, 0, 0, 0, "Injecttransit_phase_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_SINI]), "%9.5f", 1, 0, 0, 0, "Injecttransit_sin_i_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_PERIOD]), "%14.8f", 1, 0, 0, 0, "Injecttransit_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_RP]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Rp_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_MP]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Mp_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_PHASE]), "%9.5f", 1, 0, 0, 0, "Injecttransit_phase_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_SINI]), "%9.5f", 1, 0, 0, 0, "Injecttransit_sin_i_%d",l);
 	  if(c[l].Injecttransit->eomegatype)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_E]), "%9.5f", 1, 0, 0, 0, "Injecttransit_e_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_OMEGA]), "%9.5f", 1, 0, 0, 0, "Injecttransit_omega_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_E]), "%9.5f", 1, 0, 0, 0, "Injecttransit_e_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_OMEGA]), "%9.5f", 1, 0, 0, 0, "Injecttransit_omega_%d",l);
 	    }
 	  else
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_H]), "%9.5f", 1, 0, 0, 0, "Injecttransit_h_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_K]), "%9.5f", 1, 0, 0, 0, "Injecttransit_k_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_H]), "%9.5f", 1, 0, 0, 0, "Injecttransit_h_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_K]), "%9.5f", 1, 0, 0, 0, "Injecttransit_k_%d",l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_MSTAR]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Mstar_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_RSTAR]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Rstar_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_MSTAR]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Mstar_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_RSTAR]), "%9.5f", 1, 0, 0, 0, "Injecttransit_Rstar_%d",l);
 	  for(i=1;i<=c[l].Injecttransit->Nld;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_LD+i-1]), "%9.5f", 1, 0, 0, 0, "Injecttransit_ld_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injecttransit->paraminject[INJECTTR_IDX_LD+i-1]), "%9.5f", 1, 0, 0, 0, "Injecttransit_ld_%d_%d",i,l);
 	    }
 	  break;
 	case CNUM_STARSPOT:
 	  if(c[l].Starspot->pertype == PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->period), "%14.8f", 2, 1, 0, 0, 0, "Starspot_Period_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->period), "%14.8f", 2, 1, 0, 0, 0, "Starspot_Period_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->period), "%14.8f", 2, 0, 0, 0, 0, "Starspot_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->a), "%9.5f", 1, 0, 0, 0, "Starspot_a_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->b), "%9.5f", 1, 0, 0, 0, "Starspot_b_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->alpha), "%9.5f", 1, 0, 0, 0, "Starspot_alpha_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->inclination), "%9.5f", 1, 0, 0, 0, "Starspot_inclination_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->chi), "%9.5f", 1, 0, 0, 0, "Starspot_chi_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->psi0), "%9.5f", 1, 0, 0, 0, "Starspot_psi0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->mconst), "%9.5f", 1, 0, 0, 0, "Starspot_mconst_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->chisq), "%9.5f", 1, 0, 0, 0, "Starspot_chi2perdof_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->period), "%14.8f", 2, 0, 0, 0, 0, "Starspot_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->a), "%9.5f", 1, 0, 0, 0, "Starspot_a_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->b), "%9.5f", 1, 0, 0, 0, "Starspot_b_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->alpha), "%9.5f", 1, 0, 0, 0, "Starspot_alpha_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->inclination), "%9.5f", 1, 0, 0, 0, "Starspot_inclination_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->chi), "%9.5f", 1, 0, 0, 0, "Starspot_chi_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->psi0), "%9.5f", 1, 0, 0, 0, "Starspot_psi0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->mconst), "%9.5f", 1, 0, 0, 0, "Starspot_mconst_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Starspot->chisq), "%9.5f", 1, 0, 0, 0, "Starspot_chi2perdof_%d",l);
 	  break;
 	case CNUM_BLS:
 	  for(j=1;j<=c[l].Bls->Npeak;j++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bper), "%14.8f", 2, 0, 0, 0, j-1, "BLS_Period_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bt0), "%.17g", 2, 0, 0, 0, j-1, "BLS_Tc_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->snval), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SN_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bpow), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SR_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sde), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SDE_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Depth_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->qtran), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Qtran_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bper), "%14.8f", 2, 0, 0, 0, j-1, "BLS_Period_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bt0), "%.17g", 2, 0, 0, 0, j-1, "BLS_Tc_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->snval), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SN_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bpow), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SR_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sde), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SDE_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Depth_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->qtran), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Qtran_%d_%d",j,l);
 	      if(c[l].Bls->fittrap)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->qingress), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Qingress_%d_%d",j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->OOTmag), "%9.5f", 2, 0, 0, 0, j-1, "BLS_OOTmag_%d_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->qingress), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Qingress_%d_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->OOTmag), "%9.5f", 2, 0, 0, 0, j-1, "BLS_OOTmag_%d_%d",j,l);
 		}
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->i1_ph), "%9.5f", 2, 0, 0, 0, j-1, "BLS_i1_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->i2_ph), "%9.5f", 2, 0, 0, 0, j-1, "BLS_i2_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->chisqrplus), "%9.5f", 2, 0, 0, 0, j-1, "BLS_deltaChi2_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fraconenight), "%9.5f", 2, 0, 0, 0, j-1, "BLS_fraconenight_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->nt), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsintransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nt), "%5d", 2, 0, 0, 0, j-1, "BLS_Ntransits_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nbefore), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsbeforetransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nafter), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsaftertransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->rednoise), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Rednoise_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->whitenoise), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Whitenoise_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sigtopink), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SignaltoPinknoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->i1_ph), "%9.5f", 2, 0, 0, 0, j-1, "BLS_i1_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->i2_ph), "%9.5f", 2, 0, 0, 0, j-1, "BLS_i2_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->chisqrplus), "%9.5f", 2, 0, 0, 0, j-1, "BLS_deltaChi2_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fraconenight), "%9.5f", 2, 0, 0, 0, j-1, "BLS_fraconenight_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->nt), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsintransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nt), "%5d", 2, 0, 0, 0, j-1, "BLS_Ntransits_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nbefore), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsbeforetransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nafter), "%5d", 2, 0, 0, 0, j-1, "BLS_Npointsaftertransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->rednoise), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Rednoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->whitenoise), "%9.5f", 2, 0, 0, 0, j-1, "BLS_Whitenoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sigtopink), "%9.5f", 2, 0, 0, 0, j-1, "BLS_SignaltoPinknoise_%d_%d",j,l);
 	      if(c[l].Bls->extraparams) {
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsum), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSum_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ressig), "%.17g", 2, 0, 0, 0, j-1, "BLS_ResSig_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dipsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_DipSig_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srshift), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRShift_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSig_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->snrextra), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRShiftSNR_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dsp), "%.17g", 2, 0, 0, 0, j-1, "BLS_DSP_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dspg), "%.17g", 2, 0, 0, 0, j-1, "BLS_DSPG_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->freqlow), "%.17g", 2, 0, 0, 0, j-1, "BLS_FreqLow_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->freqhigh), "%.17g", 2, 0, 0, 0, j-1, "BLS_FreqHigh_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->logprob), "%.17g", 2, 0, 0, 0, j-1, "BLS_LogProb_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakarea), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakArea_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakmean), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakMean_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakdev), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakDev_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->lomblog), "%.17g", 2, 0, 0, 0, j-1, "BLS_LombLog_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->ntv), "%10d", 2, 0, 0, 0, j-1, "BLS_NTV_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->gezadsp), "%.17g", 2, 0, 0, 0, j-1, "BLS_GDSP_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTSig_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->trsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_TRSig_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootdftf), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTDFTF_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootdfta), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTDFTA_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->binsignaltonoise), "%.17g", 2, 0, 0, 0, j-1, "BLS_BinSN_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->maxphasegap), "%.17g", 2, 0, 0, 0, j-1, "BLS_MaxPhaseGap_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth1_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_Dip1DblPeriod_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth2_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_Dip2DblPeriod_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->delchi2_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_DelChi2DblPeriod_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sr_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsum_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSumSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->q_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_QSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->epoch_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_EpochSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->H_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_HSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->L_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_LSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_DepthSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->nt_sec), "%5d", 2, 0, 0, 0, j-1, "BLS_NPointsInTransitSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nt_sec), "%5d", 2, 0, 0, 0, j-1, "BLS_NTransitsSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sigtopink_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SignaltoPinknoiseSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->deltachi2transit_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_DeltaChi2TransitSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->binsignaltonoise_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_BinSNSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->phaseoffset_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_PhaseOffsetSecondary_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmmean), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmMean_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fundA), "%.17g", 2, 0, 0, 0, j-1, "BLS_fundA_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fundB), "%.17g", 2, 0, 0, 0, j-1, "BLS_fundB_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmA), "%.17g", 2, 0, 0, 0, j-1, "BLS_harmA_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmB), "%.17g", 2, 0, 0, 0, j-1, "BLS_harmB_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmamp), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmAmp_%d_%d",j,l);
-		addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmdeltachi2), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmDeltaChi2_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsum), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSum_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ressig), "%.17g", 2, 0, 0, 0, j-1, "BLS_ResSig_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dipsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_DipSig_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srshift), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRShift_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSig_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->snrextra), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRShiftSNR_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dsp), "%.17g", 2, 0, 0, 0, j-1, "BLS_DSP_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->dspg), "%.17g", 2, 0, 0, 0, j-1, "BLS_DSPG_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->freqlow), "%.17g", 2, 0, 0, 0, j-1, "BLS_FreqLow_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->freqhigh), "%.17g", 2, 0, 0, 0, j-1, "BLS_FreqHigh_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->logprob), "%.17g", 2, 0, 0, 0, j-1, "BLS_LogProb_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakarea), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakArea_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakmean), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakMean_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->peakdev), "%.17g", 2, 0, 0, 0, j-1, "BLS_PeakDev_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->lomblog), "%.17g", 2, 0, 0, 0, j-1, "BLS_LombLog_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->ntv), "%10d", 2, 0, 0, 0, j-1, "BLS_NTV_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->gezadsp), "%.17g", 2, 0, 0, 0, j-1, "BLS_GDSP_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTSig_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->trsig), "%.17g", 2, 0, 0, 0, j-1, "BLS_TRSig_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootdftf), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTDFTF_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->ootdfta), "%.17g", 2, 0, 0, 0, j-1, "BLS_OOTDFTA_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->binsignaltonoise), "%.17g", 2, 0, 0, 0, j-1, "BLS_BinSN_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->maxphasegap), "%.17g", 2, 0, 0, 0, j-1, "BLS_MaxPhaseGap_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth1_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_Dip1DblPeriod_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth2_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_Dip2DblPeriod_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->delchi2_2tran), "%.17g", 2, 0, 0, 0, j-1, "BLS_DelChi2DblPeriod_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sr_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->srsum_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SRSumSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->q_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_QSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->epoch_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_EpochSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->H_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_HSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->L_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_LSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->depth_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_DepthSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->nt_sec), "%5d", 2, 0, 0, 0, j-1, "BLS_NPointsInTransitSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Bls->Nt_sec), "%5d", 2, 0, 0, 0, j-1, "BLS_NTransitsSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->sigtopink_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_SignaltoPinknoiseSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->deltachi2transit_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_DeltaChi2TransitSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->binsignaltonoise_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_BinSNSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->phaseoffset_sec), "%.17g", 2, 0, 0, 0, j-1, "BLS_PhaseOffsetSecondary_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmmean), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmMean_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fundA), "%.17g", 2, 0, 0, 0, j-1, "BLS_fundA_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->fundB), "%.17g", 2, 0, 0, 0, j-1, "BLS_fundB_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmA), "%.17g", 2, 0, 0, 0, j-1, "BLS_harmA_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmB), "%.17g", 2, 0, 0, 0, j-1, "BLS_harmB_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmamp), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmAmp_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmdeltachi2), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmDeltaChi2_%d_%d",j,l);
 	      }
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bperpos), "%14.8f", 1, 0, 0, 0, "BLS_Period_invtransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLS_deltaChi2_invtransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->meanmagval), "%9.5f", 1, 0, 0, 0, "BLS_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bperpos), "%14.8f", 1, 0, 0, 0, "BLS_Period_invtransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLS_deltaChi2_invtransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->meanmagval), "%9.5f", 1, 0, 0, 0, "BLS_MeanMag_%d",l);
 	  break;
 	case CNUM_FIXPERBLS:
 	  if(c[l].BlsFixPer->pertype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->period), "%14.8f", 2, 0, 0, 0, 0, "BLSFixPer_Period_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->period), "%14.8f", 2, 0, 0, 0, 0, "BLSFixPer_Period_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->period), "%14.8f", 2, 1, 0, 0, 0, "BLSFixPer_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->bt0), "%.17g", 1, 0, 0, 0, "BLSFixPer_Tc_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->bpow), "%9.5f", 1, 0, 0, 0, "BLSFixPer_SR_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Depth_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Qtran_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->period), "%14.8f", 2, 1, 0, 0, 0, "BLSFixPer_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->bt0), "%.17g", 1, 0, 0, 0, "BLSFixPer_Tc_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->bpow), "%9.5f", 1, 0, 0, 0, "BLSFixPer_SR_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Depth_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Qtran_%d",l);
 	  if(c[l].BlsFixPer->fittrap) {
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->qingress), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Qingress_%d",l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->OOTmag), "%9.5f", 1, 0, 0, 0, "BLSFixPer_OOTmag_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->qingress), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Qingress_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->OOTmag), "%9.5f", 1, 0, 0, 0, "BLSFixPer_OOTmag_%d",l);
 	  }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->i1_ph), "%9.5f", 1, 0, 0, 0, "BLSFixPer_i1_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->i2_ph), "%9.5f", 1, 0, 0, 0, "BLSFixPer_i2_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->chisqrplus), "%9.5f", 1, 0, 0, 0, "BLSFixPer_deltaChi2_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->fraconenight), "%9.5f", 1, 0, 0, 0, "BLSFixPer_fraconenight_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->nt), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsintransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nt), "%5d", 1, 0, 0, 0, "BLSFixPer_Ntransits_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nbefore), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsbeforetransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nafter), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsaftertransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->rednoise), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Rednoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->whitenoise), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Whitenoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPer_SignaltoPinknoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLSFixPer_deltaChi2_invtransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPer_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->i1_ph), "%9.5f", 1, 0, 0, 0, "BLSFixPer_i1_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->i2_ph), "%9.5f", 1, 0, 0, 0, "BLSFixPer_i2_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->chisqrplus), "%9.5f", 1, 0, 0, 0, "BLSFixPer_deltaChi2_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->fraconenight), "%9.5f", 1, 0, 0, 0, "BLSFixPer_fraconenight_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->nt), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsintransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nt), "%5d", 1, 0, 0, 0, "BLSFixPer_Ntransits_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nbefore), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsbeforetransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPer->Nafter), "%5d", 1, 0, 0, 0, "BLSFixPer_Npointsaftertransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->rednoise), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Rednoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->whitenoise), "%9.5f", 1, 0, 0, 0, "BLSFixPer_Whitenoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPer_SignaltoPinknoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLSFixPer_deltaChi2_invtransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPer->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPer_MeanMag_%d",l);
 	  break;
 	case CNUM_BLSFIXPERDURTC:
 	  if(c[l].BlsFixPerDurTc->pertype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Period_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Period_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Period_%d",l);	  
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputper), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Period_%d",l);	  
 	  if(c[l].BlsFixPerDurTc->durtype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Duration_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Duration_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Duration_%d",l);	  
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdur), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Duration_%d",l);	  
 	  if(c[l].BlsFixPerDurTc->TCtype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 0, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 0, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 1, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputTC), "%.17g", 1, 1, 0, 0, "BLSFixPerDurTc_Tc_%d",l);
 	  if(c[l].BlsFixPerDurTc->fixdepth) {
 	    if(c[l].BlsFixPerDurTc->depthtype != PERTYPE_SPECIFIED)
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
 	    else
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputdepth), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
 	    if(c[l].BlsFixPerDurTc->qgresstype != PERTYPE_SPECIFIED)
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
 	    else
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
 	  }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qtran_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qtran_%d",l);
 	  if(c[l].BlsFixPerDurTc->fittrap && !c[l].BlsFixPerDurTc->fixdepth)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qingress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->OOTmag), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_OOTmag_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qingress), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->OOTmag), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_OOTmag_%d",l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->chisqrplus), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_deltaChi2_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->fraconenight), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_fraconenight_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsintransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Ntransits_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nbefore), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsbeforetransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nafter), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsaftertransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->rednoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Rednoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->whitenoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Whitenoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_SignaltoPinknoise_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->chisqrplus), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_deltaChi2_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->fraconenight), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_fraconenight_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsintransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nt), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Ntransits_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nbefore), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsbeforetransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixPerDurTc->Nafter), "%5d", 1, 0, 0, 0, "BLSFixPerDurTc_Npointsaftertransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->rednoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Rednoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->whitenoise), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Whitenoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->sigtopink), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_SignaltoPinknoise_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_MeanMag_%d",l);
 	  break;
 	case CNUM_BLSFIXDURTC:
 	  if(c[l].BlsFixDurTc->durtype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdur), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Duration_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdur), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Duration_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdur), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Duration_%d",l);	  
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdur), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Duration_%d",l);	  
 	  if(c[l].BlsFixDurTc->TCtype != PERTYPE_SPECIFIED)
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputTC), "%.17g", 1, 0, 0, 0, "BLSFixDurTc_Tc_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputTC), "%.17g", 1, 0, 0, 0, "BLSFixDurTc_Tc_%d",l);
 	  else
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputTC), "%.17g", 1, 1, 0, 0, "BLSFixDurTc_Tc_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputTC), "%.17g", 1, 1, 0, 0, "BLSFixDurTc_Tc_%d",l);
 	  if(c[l].BlsFixDurTc->fixdepth) {
 	    if(c[l].BlsFixDurTc->depthtype != PERTYPE_SPECIFIED)
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdepth), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Depth_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdepth), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Depth_%d",l);
 	    else
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdepth), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Depth_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputdepth), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Depth_%d",l);
 	    if(c[l].BlsFixDurTc->qgresstype != PERTYPE_SPECIFIED)
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputqgress), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Qingress_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputqgress), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_Qingress_%d",l);
 	    else
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Qingress_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixDurTc_Qingress_%d",l);
 	  }
 	  for(j=1;j<=c[l].BlsFixDurTc->Npeak;j++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bper), "%14.8f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Period_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->snval), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SN_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bpow), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SR_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->sde), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SDE_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->depth), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Depth_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->qtran), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Qtran_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bper), "%14.8f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Period_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->snval), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SN_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bpow), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SR_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->sde), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SDE_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->depth), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Depth_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->qtran), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Qtran_%d_%d",j,l);
 	      if(c[l].BlsFixDurTc->fittrap && !c[l].BlsFixDurTc->fixdepth)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->qingress), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Qingress_%d_%d",j,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->OOTmag), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_OOTmag_%d_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->qingress), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Qingress_%d_%d",j,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->OOTmag), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_OOTmag_%d_%d",j,l);
 		}
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->chisqrplus), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_deltaChi2_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->fraconenight), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_fraconenight_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->nt), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsintransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nt), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Ntransits_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nbefore), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsbeforetransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nafter), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsaftertransit_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->rednoise), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Rednoise_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->whitenoise), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Whitenoise_%d_%d",j,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->sigtopink), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SignaltoPinknoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->chisqrplus), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_deltaChi2_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->fraconenight), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_fraconenight_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->nt), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsintransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nt), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Ntransits_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nbefore), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsbeforetransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].BlsFixDurTc->Nafter), "%5d", 2, 0, 0, 0, j-1, "BLSFixDurTc_Npointsaftertransit_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->rednoise), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Rednoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->whitenoise), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Whitenoise_%d_%d",j,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->sigtopink), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SignaltoPinknoise_%d_%d",j,l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bperpos), "%14.8f", 1, 0, 0, 0, "BLSFixDurTc_Period_invtransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_deltaChi2_invtransit_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bperpos), "%14.8f", 1, 0, 0, 0, "BLSFixDurTc_Period_invtransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_deltaChi2_invtransit_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->meanmagval), "%9.5f", 1, 0, 0, 0, "BLSFixDurTc_MeanMag_%d",l);
 	  break;
 	case CNUM_SOFTENEDTRANSIT:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->period), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->T0), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_T0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->eta), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_eta_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->cval), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_cval_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->delta), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_delta_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->mconst), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_mconst_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->period), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->T0), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_T0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->eta), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_eta_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->cval), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_cval_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->delta), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_delta_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->mconst), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_mconst_%d",l);
 	  if(c[l].SoftenedTransit->dokillharm)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->per_harm_out), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_perharm_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->per_harm_out), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_perharm_%d",l);
 	      for(i=2;i<=c[l].SoftenedTransit->nsubharm+1;i++)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->subharmA), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Subharm_%d_Sincoeff_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->subharmB), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Subharm_%d_Coscoeff_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->subharmA), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Subharm_%d_Sincoeff_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->subharmB), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Subharm_%d_Coscoeff_%d",i,l);
 		}
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->fundA), "%9.5f", 1, 0, 0, 0, "SoftenedTransit_Fundamental_Sincoeff_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->fundB), "%9.5f", 1, 0, 0, 0, "SoftenedTransit_Fundamental_Coscoeff_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->fundA), "%9.5f", 1, 0, 0, 0, "SoftenedTransit_Fundamental_Sincoeff_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->fundB), "%9.5f", 1, 0, 0, 0, "SoftenedTransit_Fundamental_Coscoeff_%d",l);
 	      for(i=2;i<=c[l].SoftenedTransit->nharm+1;i++)
 		{
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->harmA), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Harm_%d_Sincoeff_%d",i,l);
-		  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->harmB), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Harm_%d_Coscoeff_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->harmA), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Harm_%d_Sincoeff_%d",i,l);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->harmB), "%9.5f", 2, 0, 0, 0, i-2, "SoftenedTransit_Harm_%d_Coscoeff_%d",i,l);
 		}
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->chisq), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_chi2perdof_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].SoftenedTransit->chisq), "%14.8f", 1, 0, 0, 0, "SoftenedTransit_chi2perdof_%d",l);
 	  break;
 	case CNUM_MANDELAGOLTRANSIT:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->period), "%14.8f", 1, 0, 0, 0, "MandelAgolTransit_Period_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->T0), "%14.8f", 1, 0, 0, 0, "MandelAgolTransit_T0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->r), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_r_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->a), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_a_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->bimpact), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_bimpact_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->inc), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_inc_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->e), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_e_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->omega), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_omega_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->mconst), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_mconst_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 0, "MandelAgolTransit_ldcoeff1_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 1, "MandelAgolTransit_ldcoeff2_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->period), "%14.8f", 1, 0, 0, 0, "MandelAgolTransit_Period_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->T0), "%14.8f", 1, 0, 0, 0, "MandelAgolTransit_T0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->r), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_r_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->a), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_a_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->bimpact), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_bimpact_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->inc), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_inc_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->e), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_e_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->omega), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_omega_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->mconst), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_mconst_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 0, "MandelAgolTransit_ldcoeff1_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 1, "MandelAgolTransit_ldcoeff2_%d",l);
 	  if(c[l].MandelAgolTransit->type)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 2, "MandelAgolTransit_ldcoeff3_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 3, "MandelAgolTransit_ldcoeff4_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 2, "MandelAgolTransit_ldcoeff3_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->ldcoeffs), "%9.5f", 2, 0, 0, 0, 3, "MandelAgolTransit_ldcoeff4_%d",l);
 	    }
 	  if(c[l].MandelAgolTransit->fitRV)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->K), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_K_%d",l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->gamma), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_gamma_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->K), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_K_%d",l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->gamma), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_gamma_%d",l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->chisq), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_chi2_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MandelAgolTransit->chisq), "%9.5f", 1, 0, 0, 0, "MandelAgolTransit_chi2_%d",l);
 	  break;
 	case CNUM_MICROLENS:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f0), "%.14g", 1, 0, 0, 0, "Microlens_f0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f1), "%.14g", 1, 0, 0, 0, "Microlens_f1_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f0), "%.14g", 1, 0, 0, 0, "Microlens_u0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->t0), "%.14g", 1, 0, 0, 0, "Microlens_t0_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->tmax), "%.14g", 1, 0, 0, 0, "Microlens_tmax_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->chi2_), "%.14g", 1, 0, 0, 0, "Microlens_chi2perdof_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f0), "%.14g", 1, 0, 0, 0, "Microlens_f0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f1), "%.14g", 1, 0, 0, 0, "Microlens_f1_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->f0), "%.14g", 1, 0, 0, 0, "Microlens_u0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->t0), "%.14g", 1, 0, 0, 0, "Microlens_t0_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->tmax), "%.14g", 1, 0, 0, 0, "Microlens_tmax_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MicroLens->chi2_), "%.14g", 1, 0, 0, 0, "Microlens_chi2perdof_%d",l);
 	  break;
 	case CNUM_SYSREM:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->mag_ave), "%9.5f", 1, 0, 0, 0, "SYSREM_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->mag_ave), "%9.5f", 1, 0, 0, 0, "SYSREM_MeanMag_%d",l);
 	  for(i=0;i<c[l].Sysrem->Nsysrem_total;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->final_colors[i]), "%9.5f", 1, 0, 0, 0, "SYSREM_Trend_%d_Coeff_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->final_colors[i]), "%9.5f", 1, 0, 0, 0, "SYSREM_Trend_%d_Coeff_%d",i,l);
 	    }
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->rms_out), "%9.5f", 1, 0, 0, 0, "SYSREM_RMS_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Sysrem->rms_out), "%9.5f", 1, 0, 0, 0, "SYSREM_RMS_%d",l);
 	  break;
 	case CNUM_TFA:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA->ave_out), "%9.5f", 1, 0, 0, 0, "TFA_MeanMag_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA->rms_out), "%9.5f", 1, 0, 0, 0, "TFA_RMS_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA->ave_out), "%9.5f", 1, 0, 0, 0, "TFA_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA->rms_out), "%9.5f", 1, 0, 0, 0, "TFA_RMS_%d",l);
 	  break;
 	case CNUM_TFA_SR:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA_SR->ave_out), "%9.5f", 1, 0, 0, 0, "TFA_SR_MeanMag_%d",l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA_SR->rms_out), "%9.5f", 1, 0, 0, 0, "TFA_SR_RMS_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA_SR->ave_out), "%9.5f", 1, 0, 0, 0, "TFA_SR_MeanMag_%d",l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].TFA_SR->rms_out), "%9.5f", 1, 0, 0, 0, "TFA_SR_RMS_%d",l);
 	  break;
 	case CNUM_WWZ:
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_z), "%.17g", 1, 0, 0, 0, "MaxWWZ_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_freq), "%.17g", 1, 0, 0, 0, "MaxWWZ_Freq_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_tau), "%.17g", 1, 0, 0, 0, "MaxWWZ_TShift_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_pow), "%.17g", 1, 0, 0, 0, "MaxWWZ_Power_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_amp), "%.17g", 1, 0, 0, 0, "MaxWWZ_Amplitude_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_neff), "%.17g", 1, 0, 0, 0, "MaxWWZ_Neffective_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_con), "%.17g", 1, 0, 0, 0, "MaxWWZ_AverageMag_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_z), "%.17g", 1, 0, 0, 0, "Med_WWZ_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_freq), "%.17g", 1, 0, 0, 0, "Med_Freq_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_pow), "%.17g", 1, 0, 0, 0, "Med_Power_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_amp), "%.17g", 1, 0, 0, 0, "Med_Amplitude_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_neff), "%.17g", 1, 0, 0, 0, "Med_Neffective_%d", l);
-	  addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_con), "%.17g", 1, 0, 0, 0, "Med_AverageMag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_z), "%.17g", 1, 0, 0, 0, "MaxWWZ_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_freq), "%.17g", 1, 0, 0, 0, "MaxWWZ_Freq_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_tau), "%.17g", 1, 0, 0, 0, "MaxWWZ_TShift_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_pow), "%.17g", 1, 0, 0, 0, "MaxWWZ_Power_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_amp), "%.17g", 1, 0, 0, 0, "MaxWWZ_Amplitude_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_neff), "%.17g", 1, 0, 0, 0, "MaxWWZ_Neffective_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->max_con), "%.17g", 1, 0, 0, 0, "MaxWWZ_AverageMag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_z), "%.17g", 1, 0, 0, 0, "Med_WWZ_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_freq), "%.17g", 1, 0, 0, 0, "Med_Freq_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_pow), "%.17g", 1, 0, 0, 0, "Med_Power_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_amp), "%.17g", 1, 0, 0, 0, "Med_Amplitude_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_neff), "%.17g", 1, 0, 0, 0, "Med_Neffective_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].WWZ->med_con), "%.17g", 1, 0, 0, 0, "Med_AverageMag_%d", l);
 	  break;
 	case CNUM_DFTCLEAN:
 	  for(i=0;i<c[l].Dftclean->Npeaks_dirty;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakfreqs_dirty), "%14.8f", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_FREQ_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakpows_dirty), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_POW_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->SNR_dirty), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakfreqs_dirty), "%14.8f", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_FREQ_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakpows_dirty), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_POW_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->SNR_dirty), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_DSPEC_PEAK_SNR_%d_%d",i,l);
 	    }
 	  if(c[l].Dftclean->verboseout && c[l].Dftclean->Npeaks_dirty > 0) {
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_AVESPEC_%d",l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_STDSPEC_%d",l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_noclip_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_AVESPEC_NOCLIP_%d", l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_noclip_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_STDSPEC_NOCLIP_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_AVESPEC_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_STDSPEC_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_noclip_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_AVESPEC_NOCLIP_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_noclip_dirty), "%9g", 1, 0, 0, 0, "DFTCLEAN_DSPEC_STDSPEC_NOCLIP_%d", l);
           }
 	  for(i=0;i<c[l].Dftclean->Npeaks_clean;i++)
 	    {
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakfreqs_clean), "%14.8f", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_FREQ_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakpows_clean), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_POW_%d_%d",i,l);
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->SNR_clean), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakfreqs_clean), "%14.8f", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_FREQ_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->peakpows_clean), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_POW_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->SNR_clean), "%9g", 2, 0, 0, 0, i, "DFTCLEAN_CSPEC_PEAK_SNR_%d_%d",i,l);
 	    }
 	  if(c[l].Dftclean->verboseout && c[l].Dftclean->Npeaks_clean > 0) {
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_AVESPEC_%d",l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_STDSPEC_%d",l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_noclip_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_AVESPEC_NOCLIP_%d", l);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_noclip_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_STDSPEC_NOCLIP_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_AVESPEC_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_STDSPEC_%d",l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->aveper_noclip_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_AVESPEC_NOCLIP_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Dftclean->stdper_noclip_clean), "%9g", 1, 0, 0, 0, "DFTCLEAN_CSPEC_STDSPEC_NOCLIP_%d", l);
           }
 	  break;
 	case CNUM_STATS:
@@ -1834,7 +1958,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      default:
 		break;
 	      }
-	      addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Stats->statsout), "%.17g", 2, 0, 0, 0, k, tmpstring, l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Stats->statsout), "%.17g", 2, 0, 0, 0, k, tmpstring, l);
 	    }
 	  }
 	  break;
@@ -1842,7 +1966,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_PYTHON:
 	  for(i=0; i < c[l].PythonCommand->Noutcolumnvars; i++) {
 	    sprintf(tmpstring,"PYTHON_%s_%%d",c[l].PythonCommand->outcolumnnames[i]);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].PythonCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].PythonCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
 	  }
 	  break;
 #endif
@@ -1850,7 +1974,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_R:
 	  for(i=0; i < c[l].RCommand->Noutcolumnvars; i++) {
 	    sprintf(tmpstring,"R_%s_%%d",c[l].RCommand->outcolumnnames[i]);
-	    addcolumn(p, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].RCommand->outcolumndata), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
 	  }
 	  break;
 #endif

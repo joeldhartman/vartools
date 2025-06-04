@@ -31,6 +31,10 @@
 
 #ifdef PARALLEL
 #include <pthread.h>
+#if defined(__APPLE__) || defined(__MACH__)
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
 #include <semaphore.h>
 
 typedef struct {
@@ -63,7 +67,11 @@ void *ParallelProcessOneLC(void *arg)
 
     if(t->p->Ncopycommands > 0) {
       if(t->p->start_cnum[t->lcnumber] <= 0) {
-	readlc_retval = ReadSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber);
+	if(!t->p->combinelcs) {
+	  readlc_retval = ReadSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber,0);
+	} else {
+	  readlc_retval = ReadCombineSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber);
+	}
 	cnum_start = 0;
       } else {
 	getlccopy(t->p, t->c, t->threadnumber, t->lcnumber);
@@ -71,7 +79,11 @@ void *ParallelProcessOneLC(void *arg)
 	readlc_retval = 0;
       }
     } else {
-      readlc_retval = ReadSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber);
+      if(!t->p->combinelcs) {
+	readlc_retval = ReadSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber, 0);
+      } else {
+	readlc_retval = ReadCombineSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber, 0);
+      }
       cnum_start = 0;
     }
 
@@ -87,7 +99,11 @@ void *ParallelProcessOneLC(void *arg)
       t->p->threadsinuse[t->threadnumber] = 0;
       //t->p->Nproc = t->p->Nproc - 1;
       pthread_mutex_unlock(&(t->p->Nproc_mutex));
+#if defined(__APPLE__) || defined(__MACH__)
+      sem_post(t->p->threadfree);
+#else
       sem_post(&(t->p->threadfree));
+#endif
       continue;
     }
     if(t->p->basename)
@@ -101,12 +117,13 @@ void *ParallelProcessOneLC(void *arg)
 	t->p->IfStack[t->threadnumber]->curpos = 0;
       }
     }
+    Reset_outlc_fitsheader_additions(t->p, t->threadnumber);
     for(i=cnum_start;i<t->p->Ncommands;i++) {
       if(!t->p->skipfaillc[t->lcnumber])
 	ProcessCommandSingle(t->p,&(t->c[i]),t->lcnumber,i,t->threadnumber);
       else {
 	if(t->p->Ncopycommands > 0) {
-	  /* Turn off any subsequent copies which will depend on this 
+	  /* Turn off any subsequent copies which will depend on this
 	     light curve */
 	  turnoffcopies(t->p, t->c, i, t->threadnumber, t->lcnumber);
 	}
@@ -141,7 +158,7 @@ void *ParallelProcessOneLC(void *arg)
 	while(pthread_mutex_trylock(&(t->p->outfile_mutex)));
 	pushFullBuffer(t->p,buf);
 	pthread_mutex_unlock(&(t->p->outfile_mutex));
-	
+
 	//printresults(p.tabflag,p.lcnames[j],c,p.Ncommands,0,j);
 	/*while(pthread_mutex_trylock(&(t->p->outfile_mutex)));
 	printresults_new(t->p, t->threadnumber, t->lcnumber,t->outfile);
@@ -151,7 +168,11 @@ void *ParallelProcessOneLC(void *arg)
     t->p->threadsinuse[t->threadnumber] = 0;
     //t->p->Nproc = t->p->Nproc - 1;
     pthread_mutex_unlock(&(t->p->Nproc_mutex));
+#if defined(__APPLE__) || defined(__MACH__)
+    sem_post(t->p->threadfree);
+#else
     sem_post(&(t->p->threadfree));
+#endif
   }
   return NULL;
 }
@@ -235,6 +256,9 @@ int main(int argc, char **argv)
 
   p.lcdelimtype = VARTOOLS_LC_DELIMTYPE_WHITESPACE;
 
+  p.combinelcs = 0;
+  p.combinelcinfo = NULL;
+
 #ifdef _USEBINARY_LC
   p.binarylcinput = 0;
 #endif
@@ -258,6 +282,11 @@ int main(int argc, char **argv)
   p.AnalyticUserFunc = NULL;
 #endif
 
+  p.N_tracked_open_files = 0;
+  p.tracked_open_files = NULL;
+
+  p.next_command_outcolumn_suffix = NULL;
+
   InitLinkedList(&(p.lcs_to_proc));
 
   if((c = (Command *) malloc(p.sizecommandvector * sizeof(Command))) == NULL)
@@ -266,6 +295,12 @@ int main(int argc, char **argv)
     c[i].require_sort = 0;
     c[i].require_distinct = 0;
     c[i].N_setparam_expr = 0;
+    c[i].N_prior_vars = 0;
+    c[i].prior_var_datatypes = NULL;
+    c[i].prior_var_vectortypes = NULL;
+    c[i].prior_var_names = NULL;
+    c[i].prior_vars = NULL;
+    c[i].command_outcolumn_suffix = NULL;
   }
 
 #ifdef DYNAMICLIB
@@ -393,7 +428,7 @@ int main(int argc, char **argv)
 	kk += (1 + strlen(argv[i]));
       }
     }
-  }    
+  }
 
   /* Print out the header if we're supposed to. */
   if(p.header || p.tabflag || p.headeronly) {
@@ -439,7 +474,7 @@ int main(int argc, char **argv)
   /* The program will be run differently depending on whether or not we're reading in all the light curves at once */
   if(p.readallflag)
     {
-      InitializeMemAllocDataFromLightCurve(&p, p.Nlcs);
+      InitializeMemAllocDataFromLightCurve(&p, c, p.Nlcs);
       /* Read in the light curves */
       if(ReadAllLightCurves(&p, c)) {
 	RemoveEmptyLightCurves(&p, c);
@@ -466,19 +501,35 @@ int main(int argc, char **argv)
   else
     {
 #ifdef PARALLEL
+#if defined(__APPLE__) || defined(__MACH__)
+      if(p.Nproc_allow > SEM_VALUE_MAX)
+	p.Nproc_allow = SEM_VALUE_MAX;
+#endif
       if(p.Nproc_allow > 1) {
 	/*Cycle through the light curves, processing each command one at a time,
 	  Light curves are processed in parallel in this branch */
 	if((threaddata = (_threaddata *) malloc(p.Nproc_allow*sizeof(_threaddata))) == NULL)
 	  error(ERR_MEMALLOC);
+#if defined(__APPLE__) || defined(__MACH__)
+	k = 0;
+	while(1) {
+	  sprintf(p.threadfree_name,"/VARTOOLS_THREADFREE_%d",k);
+	  p.threadfree = sem_open(p.threadfree_name, O_CREAT | O_EXCL, S_IRWXU, p.Nproc_allow);
+	  if(p.threadfree != SEM_FAILED)
+	    break;
+	  k++;
+	}
+
+#else
 	sem_init(&p.threadfree, 0, p.Nproc_allow);
+#endif
 	for(k=0;k<p.Nproc_allow;k++) {
 	  threaddata[k].p = &p;
 	  threaddata[k].c = c;
 	  threaddata[k].outfile = outfile;
 	  threaddata[k].finished = 0;
 	}
-	InitializeMemAllocDataFromLightCurve(&p, p.Nproc_allow);
+	InitializeMemAllocDataFromLightCurve(&p, c, p.Nproc_allow);
 	InitializeOutputBufferStacks(&p);
 	p.Nproc = 0;
 	for(j=0; j < p.Nproc_allow; j++)
@@ -487,7 +538,11 @@ int main(int argc, char **argv)
 	  PushNode(&(p.lcs_to_proc),j);
 	while(p.lcs_to_proc.Nnodes > 0)
 	  {
+#if defined(__APPLE__) || defined(__MACH__)
+	    sem_wait(p.threadfree);
+#else
 	    sem_wait(&(p.threadfree));
+#endif
 	    while(pthread_mutex_trylock(&(p.Nproc_mutex)));
 	    for(k=0; k < p.Nproc_allow; k++) {
 	      if(p.threadsinuse[k] <= 0)
@@ -529,7 +584,11 @@ int main(int argc, char **argv)
 		sem_post(&(threaddata[k].newthreaddata));
 	      }
 	    } else {
+#if defined(__APPLE__) || defined(__MACH__)
+	      sem_post(p.threadfree);
+#else
 	      sem_post(&(p.threadfree));
+#endif
 	    }
 	    pthread_mutex_unlock(&(p.Nproc_mutex));
 	  }
@@ -556,19 +615,30 @@ int main(int argc, char **argv)
 	if(p.Nbuffs_full > 0) {
 	  emptyresults_buffer(&p,outfile);
 	}
+#if defined(__APPLE__) || defined(__MACH__)
+	sem_unlink(p.threadfree_name);
+	sem_close(p.threadfree);
+#else
+	sem_destroy(&(p.threadfree));
+#endif
+
       } else {
 #endif
       /*Cycle through the light curves, processing each command one at a time */
       /* This branch is if we do not compile with parallel-processing enabled */
       /* or if running using only 1 process */
-      InitializeMemAllocDataFromLightCurve(&p, 1);
+      InitializeMemAllocDataFromLightCurve(&p, c, 1);
       for(j=0;j<p.Nlcs;j++)
 	{
 	  if(p.Ncopycommands > 0) {
 	    if(p.is_lc_ready[j] < 0)
 	      continue;
 	    if(p.start_cnum[j] <= 0) {
-	      readlc_retval = ReadSingleLightCurve(&p,c,j,0);
+	      if(!p.combinelcs) {
+		readlc_retval = ReadSingleLightCurve(&p,c,j,0,0);
+	      } else {
+		readlc_retval = ReadCombineSingleLightCurve(&p,c,j,0);
+	      }
 	      cnum_start = 0;
 	    } else {
 	      getlccopy(&p, c, 0, j);
@@ -576,7 +646,11 @@ int main(int argc, char **argv)
 	      readlc_retval = 0;
 	    }
 	  } else {
-	    readlc_retval = ReadSingleLightCurve(&p,c,j,0);
+	    if(!p.combinelcs) {
+	      readlc_retval = ReadSingleLightCurve(&p,c,j,0,0);
+	    } else {
+	      readlc_retval = ReadCombineSingleLightCurve(&p,c,j,0);
+	    }
 	    cnum_start = 0;
 	  }
 	  if(readlc_retval ||
@@ -598,12 +672,13 @@ int main(int argc, char **argv)
 	      p.IfStack[0]->curpos = 0;
 	    }
 	  }
+	  Reset_outlc_fitsheader_additions(&p, 0);
 	  for(i=cnum_start;i<p.Ncommands;i++) {
 	    if(!p.skipfaillc[j]) {
 	      ProcessCommandSingle(&p,&c[i],j,i,0);
 	    } else {
 	      if(p.Ncopycommands > 0) {
-		/* Turn off any subsequent copies which will depend on this 
+		/* Turn off any subsequent copies which will depend on this
 		   light curve */
 		turnoffcopies(&p, c, i, 0, j);
 	      }
@@ -622,6 +697,13 @@ int main(int argc, char **argv)
       }
 #endif
     }
+
+  /* Call the Close Command function, if it exists, for any user commands */
+  for(i=0; i < p.Ncommands; i++) {
+    if(c[i].cnum == CNUM_USERCOMMAND)
+      CloseUserCommand(&p,&c[i]);
+  }
+
   if(outfile != stdout)
     fclose(outfile);
 #ifdef _HAVE_PYTHON
@@ -630,6 +712,7 @@ int main(int argc, char **argv)
 #ifdef _HAVE_R
   KillAllRProcesses(&p, c);
 #endif
+  CloseTrackedOpenFiles(&p);
   exit(0);
 }
 

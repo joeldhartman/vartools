@@ -36,7 +36,7 @@
 #include "programdata.h"
 #include "functions.h"
 
-void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, double tmax, double tstep, char *outname)
+void autocorrelation(double *t_in, double *mag_in, double *sig_in, int N_in, double tmin, double tmax, double tstep, char *outname, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, u, l;
   double t_;
@@ -48,6 +48,39 @@ void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, do
   int *Nudcf;
 
   int Nbins;
+
+  int N;
+  double *t, *mag, *sig;
+  double *t_mask = NULL, *mag_mask = NULL, *sig_mask = NULL;
+  
+  if(!usemask) {
+    N = N_in;
+    t = t_in;
+    mag = mag_in;
+    sig = sig_in;
+  } else {
+    if(N_in > 0) {
+      if((t_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+	 (mag_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+	 (sig_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
+	error(ERR_MEMALLOC);
+      N = 0;
+      for(i = 0; i < N_in; i++) {
+	if(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	  t_mask[N] = t_in[i];
+	  mag_mask[N] = mag_in[i];
+	  sig_mask[N] = sig_in[i];
+	  N++;
+	}
+      }
+      t = t_mask;
+      mag = mag_mask;
+      sig = sig_mask;
+    } else {
+      N = 0;
+    }
+  }
+
 
   if((outfile = fopen(outname,"w")) == NULL)
     {
@@ -70,6 +103,7 @@ void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, do
   for(i=0;i<Nbins;i++)
     {
       udcf[i] = 0.;
+      eudcf[i] = 0.;
       Nudcf[i] = 0;
     }
 
@@ -116,6 +150,9 @@ void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, do
   free(udcf);
   free(eudcf);
   free(Nudcf);
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(sig_mask != NULL) free(sig_mask);
   fclose(outfile);
 }
 

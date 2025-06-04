@@ -500,7 +500,7 @@ int isDifferentPeriodsDontCheckHarmonics (double period1, double period2, double
 }
 
 /* Given a light curve, this function will compute an AOV periodogram and find the top Npeaks peaks */
-void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP)
+void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, k, peakiter, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple, Ngood, nclippedthis, nclippedlast, m_eff, sizeHISTvector = 0;
 
@@ -510,6 +510,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
   double *aveper_whiten = NULL;
   double *stdper_whiten = NULL;
   int size_aveper_whiten = 0;
+  int Norig;
 
   double *t, *mag, *sig, a_, b_;
   double testperiod, bestscore, lastpoint;
@@ -520,6 +521,27 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
   FILE *outfile;
 
   _HistType h;
+
+  if(N <= 1) {
+    for(i = 0; i < Npeaks; i++) {
+      perpeaks[i] = -1.0;
+      aovpeaks[i] = 0.0;
+      aovSNR[i] = 0.0;
+      aovFAP[i] = 0.0;
+    }
+    *aveaov = 0.0;
+    *stddevaov = 0.0;
+    if(whiten) {
+      *aveaov_whiten = 0.0;
+      *stddevaov_whiten = 0.0;
+    }
+    if(fixperiodSNR) {
+      *fixperiodSNR_value = 0.0;
+      *fixperiodSNR_SNR = 0.0;
+      *fixperiodSNR_FAP = 0.0;
+    }
+    return;
+  }
 
   if(!size_aveper_whiten)
     {
@@ -587,12 +609,74 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
      (sig = (double *) malloc(N * sizeof(double))) == NULL)
     error(ERR_MEMALLOC);
 
-  for(i=0;i<N;i++)
-    {
-      t[i] = t_[i];
-      mag[i] = mag_[i];
-      sig[i] = sig_[i];
+  if(!usemask) {
+    for(i=0;i<N;i++)
+      {
+	t[i] = t_[i];
+	mag[i] = mag_[i];
+	sig[i] = sig_[i];
+      }
+  } else {
+    Norig = N;
+    N = 0;
+    for(i = 0; i < Norig; i++) {
+      if(!isnan(mag_[i]) && sig_[i] > 0. && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t[N] = t_[i];
+	mag[N] = mag_[i];
+	sig[N] = sig_[i];
+	N++;
+      }
     }
+    if(N <= 1) {
+      for(i = 0; i < Npeaks; i++) {
+	perpeaks[i] = -1.0;
+	aovpeaks[i] = 0.0;
+	aovSNR[i] = 0.0;
+	aovFAP[i] = 0.0;
+      }
+      *aveaov = 0.0;
+      *stddevaov = 0.0;
+      if(whiten) {
+	*aveaov_whiten = 0.0;
+	*stddevaov_whiten = 0.0;
+      }
+      if(fixperiodSNR) {
+	*fixperiodSNR_value = 0.0;
+	*fixperiodSNR_SNR = 0.0;
+	*fixperiodSNR_FAP = 0.0;
+      }
+      free(t);
+      free(mag);
+      free(sig);
+      if(sizeHISTvector > 0) {
+	free(h.histN);
+	free(h.histA);
+	free(h.histB);
+	free(h.histC);
+	free(h.histD);
+	free(h.histE);
+      }
+      
+      if(periods != NULL)
+	free(periods);
+      
+      if(periodogram != NULL)
+	free(periodogram);
+      
+      if(periodogram_whiten != NULL) {
+	for(i=0; i < Npeaks + 1; i++)
+	  free(periodogram_whiten[i]);
+	free(periodogram_whiten);
+      }
+      
+      if(aveper_whiten != NULL)
+	free(aveper_whiten);
+      
+      if(stdper_whiten != NULL)
+	free(stdper_whiten);
+      return;
+    }
+  }
 
   /* initialize some of the period search variables*/
   T = t[N - 1] - t[0];
@@ -1288,8 +1372,119 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 
 }
 
+void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex)
+{
+  int i1, i2;
+  char outname[MAXLEN];
+  double d1;
+  double *d1ptr, *d2ptr, *d3ptr;
+  /* Calculate the AoV with phase binning */
+  if(Aov->operiodogram)
+    {
+      i1 = 0;
+      i2 = 0;
+      while(p->lcnames[lc_name_num][i1] != '\0')
+	{
+	  if(p->lcnames[lc_name_num][i1] == '/')
+	    i2 = i1 + 1;
+	  i1++;
+	}
+      sprintf(outname,"%s/%s%s",Aov->outdir,&p->lcnames[lc_name_num][i2],Aov->suffix);
+    }
+
+  if(Aov->minp_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Aov->minp_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Aov->minp_expr);
+  }
+  else if(Aov->minp_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Aov->minp_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Aov->minp_var);
+  }
+  else {
+    Aov->minp_vals[lcnum] = Aov->minp;
+  }
+
+  if(Aov->maxp_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Aov->maxp_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Aov->maxp_expr);
+  }
+  else if(Aov->maxp_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Aov->maxp_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Aov->maxp_var);
+  }
+  else {
+    Aov->maxp_vals[lcnum] = Aov->maxp;
+  }
+
+  if(Aov->subsample_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Aov->subsample_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Aov->subsample_expr);
+  }
+  else if(Aov->subsample_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Aov->subsample_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Aov->subsample_var);
+  }
+  else {
+    Aov->subsample_vals[lcnum] = Aov->subsample;
+  }
+
+  if(Aov->finetune_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Aov->finetune_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Aov->finetune_expr);
+  }
+  else if(Aov->finetune_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Aov->finetune_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Aov->finetune_var);
+  }
+  else {
+    Aov->finetune_vals[lcnum] = Aov->finetune;
+  }
+
+  if(Aov->Nbin_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Aov->Nbin_vals[lcnum] = ceil(EvaluateExpression(lc_name_num, lcnum, 0, Aov->Nbin_expr));
+  }
+  else if(Aov->Nbin_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Aov->Nbin_vals[lcnum] = ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Aov->Nbin_var));
+  }
+  else {
+    Aov->Nbin_vals[lcnum] = Aov->Nbin;
+  }
 
 
+  if(Aov->fixperiodSNR)
+    {
+      if(Aov->fixperiodSNR_pertype == PERTYPE_AOV)
+	{
+	  i1=Aov->fixperiodSNR_lastaovindex;
+	  if(c[i1-thisindex].cnum == CNUM_AOV)
+	    Aov->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Aov->peakperiods[lcnum][0];
+	  else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	    Aov->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].AovHarm->peakperiods[lcnum][0];
+	  
+	}
+      else if(Aov->fixperiodSNR_pertype == PERTYPE_LS)
+	{
+	  i1 = Aov->fixperiodSNR_lastaovindex;
+	  Aov->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Aov->peakperiods[lcnum][0];
+	}
+      else if(Aov->fixperiodSNR_pertype == PERTYPE_INJECTHARM)
+	{
+	  i1 = Aov->fixperiodSNR_lastaovindex;
+	  Aov->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Injectharm->periodinject[lcnum];
+	}
+      else if(Aov->fixperiodSNR_pertype == PERTYPE_FIX)
+	{
+	  Aov->fixperiodSNR_periods[lcnum][0] = Aov->fixperiodSNR_fixedperiod;
+	}
+      else if(Aov->fixperiodSNR_pertype == PERTYPE_FIXCOLUMN)
+	{
+	  getoutcolumnvalue(Aov->fixperiodSNR_linkedcolumn, lcnum, lc_name_num, VARTOOLS_TYPE_DOUBLE, &(Aov->fixperiodSNR_periods[lcnum][0]));
+	}
+      d1 = Aov->fixperiodSNR_periods[lcnum][0];
+      d1ptr = &(Aov->fixperiodSNR_peakvalues[lcnum]);
+      d2ptr = &(Aov->fixperiodSNR_peakSNR[lcnum]);
+      d3ptr = &(Aov->fixperiodSNR_peakFAP[lcnum]);
+    }
+  else
+    {
+      d1 = 1.;
+      d1ptr = NULL;
+      d2ptr = NULL;
+      d3ptr = NULL;
+    }
+  findPeaks_aov(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum], Aov->peakperiods[lcnum], Aov->peakvalues[lcnum], Aov->peakSNR[lcnum], Aov->peakFAP[lcnum], Aov->Npeaks, Aov->minp_vals[lcnum], Aov->maxp_vals[lcnum], Aov->subsample_vals[lcnum], Aov->finetune_vals[lcnum], Aov->operiodogram, outname, &Aov->aveaov[lcnum], &Aov->rmsaov[lcnum], Aov->aveaov_whiten[lcnum], Aov->rmsaov_whiten[lcnum], p->ascii, Aov->Nbin_vals[lcnum], Aov->whiten, Aov->uselog, Aov->clip, Aov->clipiter, Aov->fixperiodSNR, d1, d1ptr, d2ptr, d3ptr, lcnum, lc_name_num, Aov->usemask, Aov->maskvar);
 
-
+}
 

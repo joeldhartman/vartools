@@ -63,6 +63,8 @@
 #define VARTOOLS_TYPE_CONVERTJD 6
 #define VARTOOLS_TYPE_SHORT 7
 #define VARTOOLS_TYPE_USERDEF 8
+#define VARTOOLS_TYPE_NUMERIC 9
+#define VARTOOLS_TYPE_ANY 10
 
 #define VARTOOLS_SOURCE_INLIST 0
 #define VARTOOLS_SOURCE_COMPUTED 1
@@ -73,6 +75,7 @@
 #define VARTOOLS_SOURCE_RECENTCOMMAND 6
 #define VARTOOLS_SOURCE_EVALEXPRESSION 7
 #define VARTOOLS_SOURCE_EVALEXPRESSION_LC 8
+#define VARTOOLS_SOURCE_EXISTINGVARIABLE 9
 
 #define MAXIDSTRINGLENGTH 256
 
@@ -87,6 +90,10 @@
 #define VARTOOLS_LC_DELIMTYPE_WHITESPACE 0
 #define VARTOOLS_LC_DELIMTYPE_CHAR 1
 #define VARTOOLS_LC_DELIMTYPE_STRING 2
+
+#define VARTOOLS_TFA_DEFAULT_CLIPPING_VALUE 5.0
+
+#define VARTOOLS_MASK_TINY 1.0e-7
 
 //double sizeHISTvector;
 
@@ -115,9 +122,11 @@ typedef struct {
   char **incolumn_header_names;
   char *scanformat;
   int UTCindex[6];
+  int multilcinputlistvar;
   void *dataptr;
   _Variable *variable;
   _Expression *expression;
+  
 } _DataFromLightCurve;
 
 typedef struct {
@@ -140,6 +149,41 @@ typedef struct {
   int memsize_lc_columns;
 } binarylightcurve;
 #endif
+
+typedef struct {
+  int combinelcs_delimtype;
+  char combinelcs_delimchar;
+  char *combinelcs_delimstring;
+  char *lcnumvarname;
+  _Variable *lcnumvar;
+  int *Ncombinelcs;
+  void *multilcinputlistvals;
+  int Nmultilcinputlistvals;
+  int *multilcinputlistvals_datatype;
+  char ***combinelcnames;
+  int ncombinelc_coldetindx;
+} _CombineLCInfo;
+
+typedef struct {
+  int datatype;
+  char *keyname;
+  int keyname_veclen;
+  double dbl_val;
+  int int_val;
+  long long_val;
+  char *string_val;
+  int string_val_veclen;
+  char *comment;
+  int comment_veclen;
+  int hdutouse;
+  int updateexisting;
+} _vartools_header_entry;
+
+typedef struct {
+  int N_added_keywords;
+  int size_added_keywords_vec;
+  _vartools_header_entry *hdrterms;
+} _vartools_outlcfits_header_additions;
 
 typedef struct {
   struct LinkedList lcs_to_proc;
@@ -203,6 +247,7 @@ typedef struct {
 
   char **lcnames;
   int *is_inputlc_fits;
+  _vartools_outlcfits_header_additions *fits_header_adds;
   char lclistname[MAXLEN];
   int sizecommandvector;
   int Ncol;
@@ -263,9 +308,15 @@ typedef struct {
   pthread_mutex_t outfile_mutex;
   pthread_t *pth;
   char *pth_init;
+#if defined(__APPLE__) || defined(__MACH__)
+  sem_t *threadfree;
+  char threadfree_name[251];
+#else
   sem_t threadfree;
+#endif
   pthread_mutex_t cfitsio_mutex;
   pthread_mutex_t is_lc_ready_mutex;
+  pthread_mutex_t cspice_mutex;
 #endif
 
 #ifdef DYNAMICLIB
@@ -316,6 +367,14 @@ typedef struct {
   char *delimstring;
 
   double JDTOL;
+
+  int combinelcs;
+  _CombineLCInfo *combinelcinfo;
+  
+  int N_tracked_open_files;
+  FILE **tracked_open_files;
+
+  char *next_command_outcolumn_suffix;
 
 } ProgramData;
 
@@ -438,3 +497,12 @@ typedef struct {
 #define ERR_MATCHCOMMAND_BADMATCHVARIABLE 116
 #define ERR_CANNOTUSE_ALLCOLUMNS_INLIST 117
 #define ERR_OUTPUTFILENAMECOMMAND 118
+#define ERR_BADVECTORTYPE 119
+#define ERR_BADDATATYPE 120
+#define ERR_RESTORETIMES_MARKRESTRICT 121
+#define ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL 122
+#define ERR_COMBINELCINLISTVARS_NOTINLIST 123
+#define ERR_INVALIDVARIABLEFORSORTLC 124
+#define ERR_INVALIDKEYNAMEFORMAT 125
+#define ERR_PRINTNUMVARSNOTMATCH 126
+#define ERR_BLS_OPTIMAL_MUSTUSEDENSITY 127

@@ -45,11 +45,44 @@
 #define SIGN(A) ((A) >= 0 ? (1) : (-1))
 #define ROUND(A) ((A) - floor((double) A) > 0.5 ? ((A) - floor((double) A) + 1) : ((A) - floor((double) A)));
 #define DEFAULT_ALARMVAL 2.2732395
-double doalarm(int N, double *resid, double *err)
+double doalarm(int N_in, double *resid_in, double *err_in, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double a, ave;
   long double sum1, sum2;
   int sign, i, n;
+  int N;
+  double *resid, *err;
+  double *resid_mask = NULL, *err_mask = NULL;
+
+  if(N_in < 1)
+    return 0.;
+
+  if(!usemask) {
+    N = N_in;
+    resid = resid_in;
+    err = err_in;
+  } else {
+    if((resid_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+       (err_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
+      error(ERR_MEMALLOC);
+    N = 0;
+    for(i=0; i < N_in; i++) {
+      if(!isnan(resid_in[i]) && !isnan(err_in[i]) && err_in[i] > 0. &&
+	 EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	resid_mask[N] = resid_in[i];
+	err_mask[N] = err_in[i];
+	N++;
+      }
+    }
+    resid = resid_mask;
+    err = err_mask;
+    if(N < 1) {
+      free(resid_mask);
+      free(err_mask);
+      return(0.);
+    }
+  }
+      
 
   sum1 = 0.;
   sum2 = 0.;
@@ -94,6 +127,8 @@ double doalarm(int N, double *resid, double *err)
       a += (sum2 * sum2);
       a = (a / sum1) - DEFAULT_ALARMVAL;
     }
+  if(resid_mask != NULL) free(resid_mask);
+  if(err_mask != NULL) free(err_mask);
   return(a);
 }
 

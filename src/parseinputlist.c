@@ -35,6 +35,8 @@ int ParseInListVarsString(char *argv, ProgramData *p)
   char *format;
   char *parsecopy;
   int sizestring;
+  int multilc;
+
 
   sizestring = MAXLEN;
   format = (char *) malloc(sizestring);
@@ -64,40 +66,47 @@ int ParseInListVarsString(char *argv, ProgramData *p)
       parsecopy[j] = '\0';
       if(termscan == 0) {
 	sprintf(varname,"%s",parsecopy);
+	multilc = 0;
       }
       else if(termscan == 1) {
 	column = atoi(parsecopy);
       }
       else if(termscan == 2) {
-	if(!strcmp(parsecopy,"double")) {
-	  datatype = VARTOOLS_TYPE_DOUBLE;
-	}
-	else if(!strcmp(parsecopy,"float")) {
-	  datatype = VARTOOLS_TYPE_FLOAT;
-	}
-	else if(!strcmp(parsecopy,"int")) {
-	  datatype = VARTOOLS_TYPE_INT;
-	}
-	else if(!strcmp(parsecopy,"long")) {
-	  datatype = VARTOOLS_TYPE_LONG;
-	}
-	else if(!strcmp(parsecopy,"short")) {
-	  datatype = VARTOOLS_TYPE_SHORT;
-	}
-	else if(!strcmp(parsecopy,"char")) {
-	  datatype = VARTOOLS_TYPE_CHAR;
-	}
-	else if(!strcmp(parsecopy,"string")) {
-	  datatype = VARTOOLS_TYPE_STRING;
-	}
-	else if(!strcmp(parsecopy,"utc")) {
-	  datatype = VARTOOLS_TYPE_CONVERTJD;
+	if(!strcmp(parsecopy,"combinelc")) {
+	  multilc = 1;
+	  termscan--;
 	}
 	else {
-	  free(parsecopy);
-	  free(format);
-	  free(varname);
-	  return 1;
+	  if(!strcmp(parsecopy,"double")) {
+	    datatype = VARTOOLS_TYPE_DOUBLE;
+	  }
+	  else if(!strcmp(parsecopy,"float")) {
+	    datatype = VARTOOLS_TYPE_FLOAT;
+	  }
+	  else if(!strcmp(parsecopy,"int")) {
+	    datatype = VARTOOLS_TYPE_INT;
+	  }
+	  else if(!strcmp(parsecopy,"long")) {
+	    datatype = VARTOOLS_TYPE_LONG;
+	  }
+	  else if(!strcmp(parsecopy,"short")) {
+	    datatype = VARTOOLS_TYPE_SHORT;
+	  }
+	  else if(!strcmp(parsecopy,"char")) {
+	    datatype = VARTOOLS_TYPE_CHAR;
+	  }
+	  else if(!strcmp(parsecopy,"string")) {
+	    datatype = VARTOOLS_TYPE_STRING;
+	  }
+	  else if(!strcmp(parsecopy,"utc")) {
+	    datatype = VARTOOLS_TYPE_CONVERTJD;
+	  }
+	  else {
+	    free(parsecopy);
+	    free(format);
+	    free(varname);
+	    return 1;
+	  }
 	}
       }
       else if(termscan == 3) {
@@ -130,7 +139,11 @@ int ParseInListVarsString(char *argv, ProgramData *p)
 	   !strcmp(varname,"mag")) {
 	  error2(ERR_RESERVEDVARIABLENAME,varname);
 	}
-	SetupInListVariable(p, varname, column, datatype, format);
+	if(!multilc) {
+	  SetupInListVariable(p, varname, column, datatype, format);
+	} else {
+	  SetupInListMultiLCVariable(p, varname, column, datatype, format);
+	}
 	varname[0] = '\0';
 	column = -1;
 	datatype = -1;
@@ -152,6 +165,49 @@ int ParseInListVarsString(char *argv, ProgramData *p)
   free(varname);
   return 0;
 }
+
+void SetupInListMultiLCVariable(ProgramData *p, char *varname, int column, int datatype, char *format)
+{
+  _Variable *variable_inlist;
+  _Variable *variable;
+  char varname_inlist[MAXLEN];
+  _CombineLCInfo *pclci;
+
+  if(p->combinelcinfo == NULL) {
+    p->combinelcinfo = (_CombineLCInfo *) malloc(sizeof(_CombineLCInfo));
+    p->combinelcinfo->combinelcs_delimtype = VARTOOLS_LC_DELIMTYPE_CHAR;
+    p->combinelcinfo->combinelcs_delimchar = ',';
+    p->combinelcinfo->combinelcs_delimstring = NULL;
+    p->combinelcinfo->lcnumvarname = NULL;
+    p->combinelcinfo->lcnumvar = NULL;
+    p->combinelcinfo->Ncombinelcs = NULL;
+    p->combinelcinfo->multilcinputlistvals = NULL;
+    p->combinelcinfo->Nmultilcinputlistvals = 0;
+    p->combinelcinfo->multilcinputlistvals_datatype = NULL;
+    p->combinelcinfo->combinelcnames = NULL;
+  }
+  pclci = p->combinelcinfo;
+
+
+  sprintf(varname_inlist,"VARTOOLS_INLISTVAR_FDJKLHQBD_%s",varname);
+  variable_inlist = CreateVariable(p, varname_inlist, (char) datatype, VARTOOLS_VECTORTYPE_INLIST, NULL);
+
+  RegisterDataFromInputList(p,
+			     p->DefinedVariables[p->NDefinedVariables - 1]->dataptr,
+			     datatype,
+			     -1, 0, 0, 0, format,
+			     (column == 0 ? column - 1 : column),
+			     varname);
+
+  variable = CreateVariable(p, varname, (char) datatype, VARTOOLS_VECTORTYPE_LC, NULL);
+  RegisterDataFromLightCurve(p,
+			     p->DefinedVariables[p->NDefinedVariables - 1]->dataptr,
+			     datatype,
+			     (datatype == VARTOOLS_TYPE_STRING ? MAXLEN : 0), 
+			     0, 0, -(pclci->Nmultilcinputlistvals), 0, NULL, 
+			     variable_inlist, -1, varname);
+}
+
 
 void SetupInListVariable(ProgramData *p, char *varname, int column, int datatype, char *format)
 {
@@ -178,7 +234,9 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
 
    Ncolumns = The number of columns in the array. If this is 0 then dataptr
       is a vector (e.g. (double *)), if it is > 0 then it is an array
-      (e.g. (double **)).
+      (e.g. (double **)). If it is < 0, then it is a multilcinputlist array
+      where the number of columns will be different for every line in the
+      list.
 
    cnum = command number (this is appended to the column name, if it is < 0
         then it is not appended.)
@@ -206,9 +264,17 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
   int incolumn;
   int i, Nmalloc;
   _DataFromInputList *d;
+  _CombineLCInfo *pclci;
 
-  if(Ncolumns < 0)
+  /*if(Ncolumns < 0)
+    error(ERR_CODEERROR);*/
+
+  if(disjointcolumns && Ncolumns < 0)
     error(ERR_CODEERROR);
+  
+  if(Ncolumns < 0 && !p->combinelcs)
+    error(ERR_CODEERROR);
+
 
   va_start(varlist, scanformat);
 
@@ -236,7 +302,7 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
   }
 
   Nmalloc = Ncolumns;
-  if(Nmalloc == 0)
+  if(Nmalloc == 0 || Nmalloc < 0)
     Nmalloc = 1;
 
   if((d->incolumns = (int *) malloc(Nmalloc*sizeof(int))) == NULL)
@@ -248,6 +314,23 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
   for(i=0; i < Nmalloc; i++) {
     if((d->incolumn_names[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
       error(ERR_MEMALLOC);
+  }
+
+  if(Ncolumns < 0) {
+    pclci = p->combinelcinfo;
+    if(!pclci->Nmultilcinputlistvals) {
+      pclci->Nmultilcinputlistvals = 1;
+      if((pclci->multilcinputlistvals = (void *) malloc(sizeof(void *))) == NULL ||
+	 (pclci->multilcinputlistvals_datatype = (int *) malloc(sizeof(int))) == NULL)
+	error(ERR_MEMALLOC);
+    } else {
+      pclci->Nmultilcinputlistvals += 1;
+      if((pclci->multilcinputlistvals = (void *) realloc(pclci->multilcinputlistvals, pclci->Nmultilcinputlistvals*sizeof(void *))) == NULL ||
+	 (pclci->multilcinputlistvals_datatype = (int *) realloc(pclci->multilcinputlistvals_datatype, pclci->Nmultilcinputlistvals*sizeof(int))) == NULL)
+	error(ERR_MEMALLOC);
+    }
+    (((char **) pclci->multilcinputlistvals)[pclci->Nmultilcinputlistvals-1]) = (char *) dataptr;
+    pclci->multilcinputlistvals_datatype[pclci->Nmultilcinputlistvals-1] = datatype;
   }
 
   if(disjointcolumns) {
@@ -266,7 +349,7 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
     incolumn = va_arg(varlist, int);
     if(incolumn == 0) {
       d->incolumns[0] = p->inputcolumn_iter_index + 1;
-      if(Ncolumns == 0)
+      if(Ncolumns <= 0)
 	p->inputcolumn_iter_index += 1;
       else
 	p->inputcolumn_iter_index += Ncolumns;
@@ -283,7 +366,7 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
   }
 
   if(Nonuniformnames) {
-    if(!Ncolumns) {
+    if(Ncolumns <= 0) {
       columnname = va_arg(varlist, char *);
       if(cnum >= 0) {
 	sprintf(d->incolumn_names[i],"%s_%d", columnname, cnum);
@@ -321,6 +404,75 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
   }
 }
 
+void MemAllocMultiLCInputListData(ProgramData *p, int lcindx) {
+  int i, j, k, Nc;
+  double ***dbl2ptr;
+  short ***short2ptr;
+  int ***int2ptr;
+  char ***char2ptr;
+  char ****string2ptr;
+  float ***float2ptr;
+  long ***long2ptr;
+  _CombineLCInfo *pclci;
+  
+  if(!p->combinelcs)
+    return;
+  pclci = p->combinelcinfo;
+  Nc = pclci->Ncombinelcs[lcindx];
+  for(i = 0; i < pclci->Nmultilcinputlistvals; i++) {
+    switch(pclci->multilcinputlistvals_datatype[i]) {
+    case VARTOOLS_TYPE_DOUBLE:
+      dbl2ptr = ((double ****) pclci->multilcinputlistvals)[i];
+      if((((*dbl2ptr)[lcindx]) = (double *) malloc(Nc * sizeof(double))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*dbl2ptr)[lcindx][k] = 0.;
+      break;
+    case VARTOOLS_TYPE_STRING:
+      string2ptr = ((char *****) pclci->multilcinputlistvals)[i];
+      if((((*string2ptr)[lcindx]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) {
+	if((((*string2ptr)[lcindx][k]) = (char *) malloc(MAXLEN)) == NULL)
+	  error(ERR_MEMALLOC);
+	(*string2ptr)[lcindx][k][0] = '\0';
+      }
+      break;
+    case VARTOOLS_TYPE_INT:
+      int2ptr = ((int ****) pclci->multilcinputlistvals)[i];
+      if((((*int2ptr)[lcindx]) = (int *) malloc(Nc * sizeof(int))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*int2ptr)[lcindx][k] = 0;
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      short2ptr = ((short ****) pclci->multilcinputlistvals)[i];
+      if((((*short2ptr)[lcindx]) = (short *) malloc(Nc * sizeof(short))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*short2ptr)[lcindx][k] = 0;
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      float2ptr = ((float ****) pclci->multilcinputlistvals)[i];
+      if((((*float2ptr)[lcindx]) = (float *) malloc(Nc * sizeof(float))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*float2ptr)[lcindx][k] = 0.;
+      break;
+    case VARTOOLS_TYPE_LONG:
+      long2ptr = ((long ****) pclci->multilcinputlistvals)[i];
+      if((((*long2ptr)[lcindx]) = (long *) malloc(Nc * sizeof(long))) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*long2ptr)[lcindx][k] = 0;
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      char2ptr = ((char ****) pclci->multilcinputlistvals)[i];
+      if((((*char2ptr)[lcindx]) = (char *) malloc(Nc)) == NULL)
+	error(ERR_MEMALLOC);
+      for(k=0; k < Nc; k++) (*char2ptr)[lcindx][k] = 0;
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+  }
+}
+
 void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
   _DataFromInputList *d;
   int i, j, k, Nc;
@@ -338,6 +490,14 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
   float ***float2ptr;
   long **longptr;
   long ***long2ptr;
+  _CombineLCInfo *pclci;
+  if(p->combinelcs) {
+    pclci = p->combinelcinfo;
+    if(Nlc > 0) {
+      if((pclci->Ncombinelcs = (int *) malloc(Nlc * sizeof(int))) == NULL)
+	error(ERR_MEMALLOC);
+    }
+  }
   for(i=0; i < p->NDataFromInputList; i++) {
     d = &(p->DataFromInputList[i]);
     Nc = d->Ncolumns;
@@ -388,6 +548,46 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
 	if(((*charptr) = (char *) malloc(Nlc)) == NULL)
 	  error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*charptr)[k] = 0;
+	break;
+      default:
+	error(ERR_BADTYPE);
+      }
+    } else if (Nc < 0) {
+      switch(d->datatype) {
+      case VARTOOLS_TYPE_DOUBLE:
+	dbl2ptr = (double ***) d->dataptr;
+	if(((*dbl2ptr) = (double **) malloc(Nlc * sizeof(double *))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_STRING:
+	string2ptr = (char ****) d->dataptr;
+	if(((*string2ptr) = (char ***) malloc(Nlc * sizeof(char **))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_INT:
+	int2ptr = (int ***) d->dataptr;
+	if(((*int2ptr) = (int **) malloc(Nlc * sizeof(int *))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_SHORT:
+	short2ptr = (short ***) d->dataptr;
+	if(((*short2ptr) = (short **) malloc(Nlc * sizeof(short *))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_FLOAT:
+	float2ptr = (float ***) d->dataptr;
+	if(((*float2ptr) = (float **) malloc(Nlc * sizeof(float *))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_LONG:
+	long2ptr = (long ***) d->dataptr;
+	if(((*long2ptr) = (long **) malloc(Nlc * sizeof(long *))) == NULL)
+	  error(ERR_MEMALLOC);
+	break;
+      case VARTOOLS_TYPE_CHAR:
+	char2ptr = (char ***) d->dataptr;
+	if(((*char2ptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
+	  error(ERR_MEMALLOC);
 	break;
       default:
 	error(ERR_BADTYPE);
@@ -476,6 +676,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
   }
 }
 
+
 void ParseLineToColumns(char *line, char **cols, int maxcols)
 {
   int j, i;
@@ -489,6 +690,21 @@ void ParseLineToColumns(char *line, char **cols, int maxcols)
     error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
 }
+
+void ParseLineToColumns_GrowStrings(char *line, char **cols, int *colstrlen, int maxcols)
+{
+  int j, i;
+  j = 0;
+  i = 0;
+  while(i < maxcols && line[j] != '\0' && line[j] != '\n') {
+    j += parseone_growstring(&line[j],(void *) (&(cols[i])), VARTOOLS_TYPE_STRING, &(colstrlen[i]));
+    i++;
+  }
+  if(i < maxcols) {
+    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+  }
+}
+
 
 void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 {
@@ -571,6 +787,12 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 		(*dblptr)[i] = 0.0;
 	      }
 	      break;
+	    case VARTOOLS_TYPE_STRING:
+ 		stringptr = (char ***) d->dataptr;
+		for(i=0; i < Nlcs; i += Nskip) {
+		  (*stringptr)[i][0] = '\0';
+		}
+		break;
 	    case VARTOOLS_TYPE_FLOAT:
 	      for(i=0; i < Nlcs; i += Nskip) {
 		floatptr = (float **) d->dataptr;
@@ -613,7 +835,7 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 	      case VARTOOLS_TYPE_STRING:
  		string2ptr = (char ****) d->dataptr;
 		for(i=0; i < Nlcs; i += Nskip) {
-		  sprintf(((*string2ptr)[i][u]),"");
+		  (*string2ptr)[i][u][0] = '\0';
 		}
 		break;
 	      case VARTOOLS_TYPE_INT:
@@ -658,11 +880,100 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
   return;
 }
 
+int DetermineNCombineLCs(ProgramData *p, char *incol)
+{
+  /***** split the incol string on the delimiter and count the number of 
+	 terms ****/
+  switch(p->combinelcinfo->combinelcs_delimtype) 
+    {
+    case VARTOOLS_LC_DELIMTYPE_CHAR:
+      return(CountColumns_delimchar(incol, p->combinelcinfo->combinelcs_delimchar));
+      break;
+    case VARTOOLS_LC_DELIMTYPE_STRING:
+      return(CountColumns_delimstring(incol, p->combinelcinfo->combinelcs_delimstring));
+      break;
+    default:
+      error(ERR_CODEERROR);
+      break;
+    }
+  return -1;
+}
+
+int ParseMultiLCInputListVal(ProgramData *p, int lcindx, char *incol, _DataFromInputList *d)
+{
+
+  double ***dbl2ptr;
+  int ***int2ptr;
+  short ***short2ptr;
+  char ***char2ptr;
+  char ****string2ptr;
+  float ***float2ptr;
+  long ***long2ptr;
+
+  int k, j, delj;
+
+  void *dataptr;
+
+  j = 0;
+  for(k=0; k < p->combinelcinfo->Ncombinelcs[lcindx]; k++) {
+    switch(d->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      dbl2ptr = (double ***) d->dataptr;
+      dataptr = (void *) (&((*dbl2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      string2ptr = (char ****) d->dataptr;
+      dataptr = (void *) (&((*string2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_INT:
+      int2ptr = (int ***) d->dataptr;
+      dataptr = (void *) (&((*int2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      short2ptr = (short ***) d->dataptr;
+      dataptr = (void *) (&((*short2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      float2ptr = (float ***) d->dataptr;
+      dataptr = (void *) (&((*float2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      long2ptr = (long ***) d->dataptr;
+      dataptr = (void *) (&((*long2ptr)[lcindx][k]));
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      char2ptr = (char ***) d->dataptr;
+      dataptr = (void *) (&((*char2ptr)[lcindx][k]));
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    switch(p->combinelcinfo->combinelcs_delimtype) {
+    case VARTOOLS_LC_DELIMTYPE_CHAR:
+      delj = parseonedelimchar(&(incol[j]), dataptr, d->datatype, p->combinelcinfo->combinelcs_delimchar);
+      break;
+    case VARTOOLS_LC_DELIMTYPE_STRING:
+      delj = parseonedelimstring(&(incol[j]), dataptr, d->datatype, p->combinelcinfo->combinelcs_delimstring);
+      break;
+    default:
+      error(ERR_CODEERROR);
+      break;
+    }
+    if(!delj)
+      return 1;
+    j += delj;
+  }
+  return 0;
+    
+}
+
+
 /* Parse the input list */
 void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 {
-  int Np, Nc, i, j, k, u, in_indx;
+  int Np, Nc, i, iii, j, k, u, in_indx;
   char **incols;
+  int *incolstrlen = NULL;
   _DataFromInputList *d;
 
   double **dblptr;
@@ -693,9 +1004,11 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
   if(Np <= 0)
     return;
 
-  if((incols = (char **) malloc(Np * sizeof(char *))) == NULL)
+  if((incols = (char **) malloc(Np * sizeof(char *))) == NULL ||
+     (incolstrlen = (int *) malloc(Np * sizeof(int))) == NULL)
     error(ERR_MEMALLOC);
   for(i = 0; i < Np; i++) {
+    incolstrlen[i] = MAXLEN;
     if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
       error(ERR_MEMALLOC);
   }
@@ -729,7 +1042,15 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
   }
 
   for(i=0, in_indx = 0; i < Nlcs; i += Nskip, in_indx += 1) {
-    ParseLineToColumns(inputlines[in_indx],incols,Np);
+    ParseLineToColumns_GrowStrings(inputlines[in_indx],incols,incolstrlen,Np);
+    if(p->combinelcs) {
+      p->combinelcinfo->Ncombinelcs[i] = DetermineNCombineLCs(p, incols[p->combinelcinfo->ncombinelc_coldetindx]);
+      for(iii=i; iii < i+Nskip; iii++) {
+	if(iii > i)
+	  p->combinelcinfo->Ncombinelcs[iii] = p->combinelcinfo->Ncombinelcs[i];
+	MemAllocMultiLCInputListData(p, iii);
+      }
+    }
     for(j = 0; j < p->NDataFromInputList; j++) {
       d = &(p->DataFromInputList[j]);
       Nc = d->Ncolumns;
@@ -768,6 +1089,14 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 	  break;
 	default:
 	  error(ERR_BADTYPE);
+	}
+      } else if (Nc < 0) {
+	/* This is a multilcinputlistval term */
+	if(d->incolumns[0] <= 0)
+	  continue;
+	k = d->incolumns[0] - 1;
+	if(ParseMultiLCInputListVal(p, i, incols[k], d)) {
+	  error2(ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL, inputlines[in_indx]);
 	}
       } else {
 	for(u = 0; u < Nc; u++) {
@@ -950,8 +1279,11 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
       }
   }*/
 
-  for(i = 0; i < Np; i++)
+  for(i = 0; i < Np; i++) {
     free(incols[i]);
+  }
+  if(incolstrlen != NULL)
+    free(incolstrlen);
   free(incols);
 
 }

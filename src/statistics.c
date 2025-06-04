@@ -271,6 +271,45 @@ DEF_MEDIAN(int)
 DEF_MEDIAN(long)
 DEF_MEDIAN(short)    
 
+
+double median_nanrej (int n, double *data)
+{
+  double temp;
+  double *data2;
+  int i, k;
+  if(n == 1) {
+    return(data[0]);
+  }
+  if((data2 = (double *) malloc(n * sizeof(double))) == NULL)
+    error(ERR_MEMALLOC);
+  for(i = 0, k=0; i < n; i++) {
+    if(!isnan(data[i])) {
+      data2[k] = data[i];
+      k++;
+    }
+  }
+  if(!k) {
+    free(data2);
+    return(sqrt(-1.0));
+  }
+  if(k == 1) {
+    temp = data2[0];
+    free(data2);
+    return(temp);
+  }
+  if(k % 2 == 0) {
+    temp = quickselect_double ((k/2),k,data2);
+    temp += quickselect_double ((k/2)+1,k,data2);
+    temp = temp/2.0;
+  }
+  else {
+    temp = quickselect_double ((k/2)+1,k,data2);
+  }
+  free(data2);
+  return(temp);
+}
+
+
 double median(int n, double *data)
 {
   return median_double(n, data);
@@ -384,6 +423,35 @@ double median_weight_nocopy(int n, double *data, double *err)
   return median_weight_nocopy_double(n, data, err);
 }
 
+
+double medmeddev_nanrej (int n, double *data)
+{
+  double medval1;
+  int i, j, k;
+  double *data2;
+  double temp;
+  if(n == 1)
+    return (double) 0.0;
+  if((data2 = (double *) malloc(n * sizeof(double))) == NULL)
+    error(ERR_MEMALLOC);
+  for(i = 0, k = 0; i < n; i++) {
+    if(!isnan(data[i])) {
+      data2[k] = data[i];
+      k++;
+    }
+  }
+  medval1 = median_nocopy_double (k,data2);
+  for(i=0;i<k;i++) {
+    data2[i] = data2[i] - medval1;
+    if(data2[i] < 0)
+      data2[i] = -data2[i];
+  }
+  temp = median_nocopy_double (k,data2);
+  free(data2);
+  return temp;
+}
+
+
 #define DEF_MEDMEDDEV(type) \
 type medmeddev_##type (int n, type *data) \
 { \
@@ -417,6 +485,16 @@ double medmeddev(int n, double *data)
 {
   return medmeddev_double(n, data);
 }
+
+double MAD_nanrej (int n, double *data)
+/* Compute the MAD statistic = 1.483*(median absolute deviation from \
+   the median). For a gaussian stddev = 1.483*medmeddev, hence the factor \
+   of 1.483 here. \
+*/
+{
+  return (double) (1.483*((double) medmeddev_nanrej (n, data)));
+}
+
 
 #define DEF_MAD(type) \
 type MAD_##type (int n, type *data) \
@@ -864,7 +942,7 @@ double getsum(int n, double *data) {
 
 void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 {
-  int i, j, k, Npct;
+  int i, j, k, Npct, Ntouse;
   double *tmpdata = NULL, *tmpweight = NULL;
   if(p->NJD[threadindex] <= 0) {
     for(i=0, k=0; i < s->Nvar; i++) {
@@ -881,63 +959,80 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
     if(s->vars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
       error(ERR_BADVARIABLETYPE_STATSCOMMAND);
     }
-    for(j=0; j < p->NJD[threadindex]; j++) {
-      tmpdata[j] = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
+    if(!s->usemask) {
+      for(j=0; j < p->NJD[threadindex]; j++) {
+	tmpdata[j] = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
+      }
+      Ntouse = p->NJD[threadindex];
+    } else {
+      Ntouse = 0;
+      for(j=0; j < p->NJD[threadindex]; j++) {
+	if(EvaluateVariable_Double(lcindex, threadindex, j, s->maskvar) > VARTOOLS_MASK_TINY) {
+	  tmpdata[Ntouse] = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
+	  Ntouse++;
+	}
+      }
+      if(!Ntouse) {
+	for(j=0; j < s->Nstats; j++, k++) {
+	  s->statsout[threadindex][k] = 0.0;
+	}
+	continue;
+      }
     }
     Npct = 0;
     for(j = 0; j < s->Nstats; j++, k++) {
       switch(s->statstocalc[j]) {
       case VARTOOLS_STATSTYPE_MEAN:
-	s->statsout[threadindex][k] = getmean(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = getmean(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_WEIGHTEDMEAN:
-	s->statsout[threadindex][k] = getweightedmean(p->NJD[threadindex], tmpdata, p->sig[threadindex]);
+	s->statsout[threadindex][k] = getweightedmean(Ntouse, tmpdata, p->sig[threadindex]);
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN:
-	s->statsout[threadindex][k] = median(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = median(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN_WEIGHT:
-	s->statsout[threadindex][k] = median_weight(p->NJD[threadindex], tmpdata, p->sig[threadindex]);
+	s->statsout[threadindex][k] = median_weight(Ntouse, tmpdata, p->sig[threadindex]);
 	break;
       case VARTOOLS_STATSTYPE_STDDEV:
-	s->statsout[threadindex][k] = stddev(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = stddev(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MEDDEV:
-	s->statsout[threadindex][k] = meddev(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = meddev(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MEDMEDDEV:
-	s->statsout[threadindex][k] = medmeddev(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = medmeddev(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MAD:
-	s->statsout[threadindex][k] = MAD(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = MAD(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_KURTOSIS:
-	s->statsout[threadindex][k] = kurtosis(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = kurtosis(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_SKEWNESS:
-	s->statsout[threadindex][k] = skewness(p->NJD[threadindex], tmpdata);
+	s->statsout[threadindex][k] = skewness(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_PERCENTILE:
-	s->statsout[threadindex][k] = percentile(p->NJD[threadindex], 
+	s->statsout[threadindex][k] = percentile(Ntouse, 
 							tmpdata,
 							s->pctval[Npct]);
 	Npct++;
 	break;
       case VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT:
-	s->statsout[threadindex][k] = percentile_weight(p->NJD[threadindex], 
+	s->statsout[threadindex][k] = percentile_weight(Ntouse, 
 							tmpdata,
 							       p->sig[threadindex],
 							s->pctval[Npct]);
 	Npct++;
 	break;
       case VARTOOLS_STATSTYPE_MAXIMUM:
-	s->statsout[threadindex][k] = getmaximum(p->NJD[threadindex],tmpdata);
+	s->statsout[threadindex][k] = getmaximum(Ntouse,tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MINIMUM:
-	s->statsout[threadindex][k] = getminimum(p->NJD[threadindex],tmpdata);
+	s->statsout[threadindex][k] = getminimum(Ntouse,tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_SUM:
-	s->statsout[threadindex][k] = getsum(p->NJD[threadindex],tmpdata);
+	s->statsout[threadindex][k] = getsum(Ntouse,tmpdata);
 	break;
       default:
 	error(ERR_CODEERROR);
@@ -958,6 +1053,10 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
     return 1;
   Nvar = 1;
   j = 0;
+
+  s->usemask = 0;
+  s->maskvarname = NULL;
+  s->maskvar = NULL;
   while(argv[i][j] != '\0') {
     if(argv[i][j] == ',')
       Nvar++;
@@ -1086,6 +1185,25 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
     i1 = i2+1;
     i2 = i2+1;
   }
+
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"maskpoints")) {
+      i++;
+      if(i >= argc) {
+	*iret = i; return 1;
+      }
+      s->usemask = 1;
+      if((s->maskvarname = (char *) malloc(strlen(argv[i])+1)) == NULL)
+	error(ERR_MEMALLOC);
+      sprintf(s->maskvarname,"%s",argv[i]);
+    }
+    else
+      i--;
+  }
+  else
+    i--;
+
 
   s->Nstats = Nstat;
 

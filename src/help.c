@@ -43,6 +43,23 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   int commandfound = 0;
   int i;
 
+#ifdef USECFITSIO
+
+  if(c == NULL || (!strcmp(c,"-addfitskeyword")))
+    {
+      printtostring(s, "-addfitskeyword\n");
+      printtostring(s, "\tkeyword\n");
+      printtostring(s, "\t[\"combinelc\" lcnumvar]\n");
+      printtostring(s,"\t<\"TDOUBLE\" | \"TINT\" | \"TLONG\" | \"TSTRING\">\n");
+      printtostring(s,"\t<\"fix\" val | \"var\" variable>\n");
+      printtostring(s,"\t[\"comment\" commentstring]\n");
+      printtostring(s,"\t[\"primary\" | \"extension\"]\n");
+      printtostring(s,"\t[\"append\" | \"update\"]\n");
+      commandfound = 1;
+    }
+
+#endif
+
   if(c == NULL || (!strncmp(c,"-addnoise",9) && strlen(c) == 9))
     {
       printtostring(s,
@@ -99,26 +116,44 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-alarm",6) && strlen(c) == 6))
     {
-      printtostring(s, "-alarm\n");
+      printtostring(s, "-alarm [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-aov",4) && strlen(c) == 4))
     {
       printtostring(s,
-		    "-aov [\"Nbin\" Nbin] minp maxp subsample finetune Npeaks operiodogram\n");
+		    "-aov [\"Nbin\" <\"var\" Nbinvar | \"expr\" Nbinexpr | Nbin>]\n");
       printtostring(s,
-		    "\t[outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"]\n");
+		    "\t<\"var\" minpvar | \"expr\" minpexpr | minp>\n");
+      printtostring(s,
+		    "\t<\"var\" maxpvar | \"expr\" maxpexpr | maxp>\n");
+      printtostring(s,
+		    "\t<\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>\n");
+      printtostring(s,
+		    "\t<\"var\" finetunevar | \"expr\" finetuneexpr | finetune>\n");
+      printtostring(s,
+		    "\tNpeaks operiodogram [outdir]\n");
+      printtostring(s,
+		    "\t[\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"]\n");
       printtostring(s,
 		    "\t[\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period\n");
       printtostring(s,
 		    "\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t| \"fixcolumn\" <colname | colnum>>]\n");
+      printtostring(s,
+		    "\t[\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-aov_harm",9) && strlen(c) == 9))
     {
-      printtostring(s,"-aov_harm Nharm minp maxp subsample finetune Npeaks operiodogram [outdir]\n");
+      printtostring(s,"-aov_harm\n");
+      printtostring(s,"\t<\"var\" Nharmvar | \"expr\" Nharmexpr | Nharm>\n");
+      printtostring(s,"\t<\"var\" minpvar | \"expr\" minpexpr | minp>\n");
+      printtostring(s,"\t<\"var\" maxpvar | \"expr\" maxpexpr | maxp>\n");
+      printtostring(s,"\t<\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>\n");
+      printtostring(s,"\t<\"var\" finetunevar | \"expr\" finetuneexpr | finetune>\n");
+      printtostring(s,"\tNpeaks operiodogram [outdir]\n");
       printtostring(s,
 		    "\t[\"whiten\"] [\"clip\" clip clipiter]\n");
       printtostring(s,
@@ -127,11 +162,13 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t| \"fixcolumn\" <colname | colnum>>]\n");
+      printtostring(s,
+		    "\t[\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-autocorrelation",16) && strlen(c) == 16))
     {
-      printtostring(s,"-autocorrelation start stop step outdir\n");
+      printtostring(s,"-autocorrelation start stop step outdir [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-binlc",6) && strlen(c) == 6))
@@ -139,23 +176,38 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-binlc <\"average\" | \"median\" | \"weightedaverage\">\n");
       printtostring(s,"\t<\"binsize\" binsize | \"nbins\" nbins>\n");
       printtostring(s,"\t[\"bincolumns\" var1[:stats1][,var2[:stats2],...]]\n");
+      printtostring(s,"\t[\"T0\"\n");
+      printtostring(s,"\t\t<\"fix\" T0val | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum> |\n");
+      printtostring(s,"\t\t \"expr\" expression>]\n");
       printtostring(s,"\t[\"firstbinshift\" firstbinshift]\n");
       printtostring(s,"\t<\"tcenter\" | \"taverage\" | \"tmedian\" | \"tnoshrink\" [\"bincolumnsonly\"]>\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
       
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-BLS",4) && strlen(c) == 4))
     {
-      printtostring(s,"-BLS < \"r\" rmin rmax | \"q\" qmin qmax\n");
-      printtostring(s,"\t\t| \"density\" rho minexpdurfrac maxexpdurfrac >\n");
-      printtostring(s,"\tminper maxper nfreq nbins\n");
+      printtostring(s,"-BLS\n");
+      printtostring(s,"\t<\"r\" <\"var\" rminvar | \"expr\" rminexpr | rmin>\n");
+      printtostring(s,"\t\t<\"var\" rmaxvar | \"expr\" rmaxexpr | rmax> | \n");
+      printtostring(s,"\t \"q\" <\"var\" qminvar | \"expr\" qminexpr | qmin>\n");
+      printtostring(s,"\t\t<\"var\" qmaxvar | \"expr\" qmaxexpr | qmax> | \n");
+      printtostring(s,"\t \"density\" <\"var\" rhovar | \"expr\" rhoexpr | rho>\n");
+      printtostring(s,"\t\t<\"var\" minexpdurfracvar | \"expr\" minexpdurfracexpr | minexpdurfrac>\n");
+      printtostring(s,"\t\t<\"var\" maxexpdurfracvar | \"expr\" maxexpdurfracexpr | maxexpdurfrac>>\n");
+      printtostring(s,"\t<\"var\" minpervar | \"expr\" minperexpr | minper>\n");
+      printtostring(s,"\t<\"var\" maxpervar | \"expr\" maxperexpr | maxper>\n");
+      printtostring(s,"\t<\"nf\" <\"var\" nfreqvar | \"expr\" nfreqexpr | nfreq> |\n");
+      printtostring(s,"\t \"df\" <\"var\" dfreqvar | \"expr\" dfreqexpr | dfreq> |\n");
+      printtostring(s,"\t \"optimal\" <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>>\n");
+      printtostring(s,"\t<\"var\" nbinsvar | \"expr\" nbinsexpr | nbins>\n");
       printtostring(s,"\ttimezone Npeak outperiodogram [outdir] omodel [model_outdir]\n");
       printtostring(s,"\tcorrectlc [\"extraparams\"] [\"fittrap\"] [\"nobinnedrms\"]\n");
       printtostring(s,"\t[\"ophcurve\" outdir phmin phmax phstep]\n");
       printtostring(s,"\t[\"ojdcurve\" outdir jdstep]\n");
       printtostring(s,"\t[\"stepP\" | \"steplogP\"]\n");
       printtostring(s,"\t[\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]]\n");
-      printtostring(s,"\t[\"reportharmonics\"]\n");
+      printtostring(s,"\t[\"reportharmonics\"] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-BLSFixPer",10) && strlen(c) == 10))
@@ -165,6 +217,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t\t| \"expr\" expr>\n");
       printtostring(s,"\t<\"r\" rmin rmax | \"q\" qmin qmax >\n");
       printtostring(s,"\tnbins timezone omodel [model_outdir] correctlc [\"fittrap\"]\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-BLSFixDurTc")))
@@ -182,12 +235,12 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\tNpeak outperiodogram [outdir] omodel [model_outdir]\n");
       printtostring(s,"\tcorrectlc [\"fittrap\"]\n");
       printtostring(s,"\t[\"ophcurve\" outdir phmin phmax phstep]\n");
-      printtostring(s,"\t[\"ojdcurve\" outdir jdstep]\n");
+      printtostring(s,"\t[\"ojdcurve\" outdir jdstep] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-BLSFixPerDurTc")))
     {
-      printtostring(s,"-BLSPerFixDurTc\n");
+      printtostring(s,"-BLSFixPerDurTc\n");
       printtostring(s,"\t<\"period\" <\"fix\" per | \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
       printtostring(s,"\t<\"duration\" <\"fix\" dur | \"fixcolumn\" <colname | colnum>\n");
@@ -201,12 +254,12 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\ttimezone omodel [model_outdir]\n");
       printtostring(s,"\tcorrectlc [\"fittrap\"]\n");
       printtostring(s,"\t[\"ophcurve\" outdir phmin phmax phstep]\n");
-      printtostring(s,"\t[\"ojdcurve\" outdir jdstep]\n");
+      printtostring(s,"\t[\"ojdcurve\" outdir jdstep] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-changeerror",12) && strlen(c) == 12))
     {
-      printtostring(s,"-changeerror\n");
+      printtostring(s,"-changeerror [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-changevariable")))
@@ -216,17 +269,17 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-chi2",5) && strlen(c) == 5))
     {
-      printtostring(s,"-chi2\n");
+      printtostring(s,"-chi2 [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-chi2bin",8) && strlen(c) == 8))
     {
-      printtostring(s,"-chi2bin Nbin bintime1...bintimeN\n");
+      printtostring(s,"-chi2bin Nbin bintime1...bintimeN [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-clip",5) && strlen(c) == 5))
     {
-      printtostring(s,"-clip sigclip iter [\"niter\" n] [\"median\"]\n");
+      printtostring(s,"-clip sigclip iter [\"niter\" n] [\"median\"] [\"markclip\" var [\"noinitmark\"]]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-converttime",12) && strlen(c) == 12))
@@ -265,7 +318,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     {
       printtostring(s,"-decorr correctlc zeropointterm subtractfirstterm Nglobalterms globalfile1\n");
       printtostring(s,"\torder1 ... Nlcterms lccolumn1 lcorder1 ... omodel\n");
-      printtostring(s,"\t[model_outdir]\n");
+      printtostring(s,"\t[model_outdir] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-dftclean",9) && strlen(c) == 9))
@@ -276,7 +329,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t[\"clean\" gain SNlimit [\"outcbeam\" cbeam_outdir]\n");
       printtostring(s,"\t[\"outcspec\" cspec_outdir]\n");
       printtostring(s,"\t[\"findcleanpeaks\" Npeaks [\"clip\" clip clipiter]]]\n");
-      printtostring(s,"\t[\"useampspec\"] [\"verboseout\"]\n");
+      printtostring(s,"\t[\"useampspec\"] [\"verboseout\"] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-difffluxtomag",14) && strlen(c) == 14))
@@ -286,7 +339,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19))
     {
-      printtostring(s,"-ensemblerescalesig sigclip\n");
+      printtostring(s,"-ensemblerescalesig sigclip [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-expr")))
@@ -386,7 +439,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-Jstet",6) && strlen(c) == 6))
     {
-      printtostring(s,"-Jstet timescale dates\n");
+      printtostring(s,"-Jstet timescale dates [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
@@ -409,12 +462,17 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t[\"correctlc\"]\n");
       printtostring(s,
 		    "\t[\"omodel\" model_outdir [\"format\" nameformat]]\n");
+      printtostring(s,
+		    "\t[\"fitmask\" maskvar]\n");
       commandfound=1;
     }
   if(c == NULL || (!strncmp(c,"-LS",3) && strlen(c) == 3))
     {
       printtostring(s,
-		    "-LS minp maxp subsample Npeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"]\n");
+		    "-LS <\"var\" minpvar | \"expr\" minpexpr | minp>\n");
+      printtostring(s,"\t<\"var\" maxpvar | \"expr\" maxpexpr | maxp>\n");
+      printtostring(s,"\t<\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>\n");
+      printtostring(s,"\tNpeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"]\n");
       printtostring(s,
 		    "\t[\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\"\n");
       printtostring(s,
@@ -422,7 +480,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t\t| \"fixcolumn\" <colname | colnum>>]\n");
       printtostring(s,
-		    "\t[\"bootstrap\" Nbootstrap]\n");
+		    "\t[\"bootstrap\" Nbootstrap] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18))
@@ -548,7 +606,8 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strncmp(c,"-o",2) && strlen(c) == 2))
     {
       printtostring(s,"-o <outdir | outname>\n");
-      printtostring(s,"\t[\"nameformat\" formatstring | \"namecommand\" command]\n");
+      printtostring(s,"\t[\"nameformat\" formatstring | \"namecommand\" command\n");
+      printtostring(s,"\t\t| \"namefromlist\" [\"column\" col]]\n");
       printtostring(s,"\t[\"columnformat\" formatstring] [\"delimiter\" delimchar]\n");
       printtostring(s,"\t[\"fits\"] [\"copyheader\"] [\"logcommandline\"]\n");
       printtostring(s,"\t[\"noclobber\"]\n");
@@ -566,6 +625,14 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t\t| \"list\" [\"column\" col] | \"fix\" T0>]\n");
       printtostring(s,
 		    "\t[\"phasevar\" var] [\"startphase\" startphase]\n");
+      commandfound = 1;
+    }
+  if(c == NULL || (!strcmp(c,"-print")))
+    {
+      printtostring(s,
+		    "-print var1[,var2,var3...] [\"columnnames\" col1[,col2,col3...]]\n");
+      printtostring(s,
+		    "\t[\"format\" fmt1[,fmt2,fmt3...]]\n");
       commandfound = 1;
     }
 #ifdef _HAVE_PYTHON
@@ -674,7 +741,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-rescalesig",11) && strlen(c) == 11))
     {
-      printtostring(s,"-rescalesig\n");
+      printtostring(s,"-rescalesig [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-restorelc",10) && strlen(c) == 10))
@@ -694,6 +761,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t  \"JDlist\" JDfilename | \n");
       printtostring(s,"\t  \"imagelist\" imagefilename | \n");
       printtostring(s,"\t  \"expr\" expression>\n");
+      printtostring(s,"\t[\"markrestrict\" markvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-restoretimes")))
@@ -703,12 +771,12 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-rms",4) && strlen(c) == 4))
     {
-      printtostring(s,"-rms\n");
+      printtostring(s,"-rms [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-rmsbin",7) && strlen(c) == 7))
     {
-      printtostring(s,"-rmsbin Nbin bintime1...bintimeN\n");
+      printtostring(s,"-rmsbin Nbin bintime1...bintimeN [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-savelc",7) && strlen(c) == 7))
@@ -724,6 +792,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t| \"list\" [\"column\" col] | \"fix\" Pharm> nharm nsubharm]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strcmp(c,"-sortlc")))
+    {
+      printtostring(s,"-sortlc [\"var\" varname] [\"reverse\"]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strncmp(c,"-Starspot",9) && strlen(c) == 9))
     {
       printtostring(s,"-Starspot\n");
@@ -736,7 +809,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || !strcmp(c,"-stats"))
     {
-      printtostring(s,"-stats var1,var2,... stats1,stats2,...\n");
+      printtostring(s,"-stats var1,var2,... stats1,stats2,... [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-SYSREM",7) && strlen(c) == 7))
@@ -753,6 +826,8 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t\t[\"use_lc_errors\" | \"weight_by_template_stddev\"]]\n");
       printtostring(s,"\tdates_file pixelsep [\"xycol\" xcol ycol]\n");
       printtostring(s,"\tcorrectlc ocoeff [coeff_outdir] omodel [model_outdir]\n");
+      printtostring(s,"\t[\"clip\" sigclipfactor [\"usemedian\"] [\"useMAD\"]]\n");
+      printtostring(s,"\t[\"fitmask\" maskvar] [\"outfitmask\" outmaskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-TFA_SR",7) && strlen(c) == 7))
@@ -766,6 +841,8 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t| \"signal\" filename\n");
       printtostring(s,"\t| \"harm\" Nharm Nsubharm [\"period\" <\"aov\" | \"ls\" \n");
       printtostring(s,"\t| \"bls\" | \"list\" [\"column\" col] | \"fix\" period>]>\n");
+      printtostring(s,"\t[\"clip\" sigclipfactor [\"usemedian\"] [\"useMAD\"]]\n");
+      printtostring(s,"\t[\"fitmask\" maskvar] [\"outfitmask\" outmaskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-wwz")))
@@ -781,6 +858,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 #endif
       printtostring(s," [\"format\" format]]\n");
       printtostring(s,"\t[\"outmaxtransform\" outdir [\"format\" format]]\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   printtostring(s,"\n");
@@ -821,7 +899,7 @@ void usage_common(OutText *s)
   printtostring(s, " [\"binary\"]");
 #endif
   printtostring(s, " [\"opencommand\" command]>\n");
-  printtostring(s, "\t[-header] [-headeronly] [-tab]\n");
+  printtostring(s, "\t[-header] [-headeronly] [-tab] [-columnsuffix suffix]\n");
   printtostring(s, "\t[-readformat Nskip [\"stringid\" colstringid] [\"inpututc\" format]\n");
   printtostring(s, "\t\tcol_time col_mag col_sig]\n");
   printtostring(s, "\t[-inputlcformat var1:col1[:type1[:fmt1][,var2:col2[:vtype2[:fmt2]],...]]\n");
@@ -921,12 +999,14 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"[\"binary\"] ");
 #endif
       printtostring(&s,"| -l lclist [\"column\" [col | \"all\"]]");
+      printtostring(&s," [\"combinelcs\" [\"delimiter\" delim] [\"lcnumvar\" varname]]");
 #ifdef _USEBINARY_LC
       printtostring(&s," [\"binary\"]");
 #endif
       printtostring(&s," [\"opencommand\" command]");
       printtostring(&s,">\n\n");
-      printtostring(&s,"Either provide an individual light curve, or a list of light curves. If lcname or lclist is \"-\" then input will be taken from stdin. Some commands can only be used with lists. The list should contain a single light curve filename per line, by default in the first column. You can change the column of the file-list by giving the \"column\" keyword and specifying the column number. If the word \"all\" is used for the column number, then every white-space-separated string in the input list will be taken to be the name of a light curve file. Use this option if inputing the list of light curves on a single line. Note that additional columns may be necessary to specify, for example, the periods to use for pre-whitening or any other values required by some commands. The column cannot be set to \"all\" if anything other than the light curve file names are to be read from the list.");
+      printtostring(&s,"Either provide an individual light curve, or a list of light curves. If lcname or lclist is \"-\" then input will be taken from stdin. Some commands can only be used with lists. The list should contain a single light curve filename per line, by default in the first column. You can change the column of the file-list by giving the \"column\" keyword and specifying the column number. If the word \"all\" is used for the column number, then every white-space-separated string in the input list will be taken to be the name of a light curve file. Use this option if inputing the list of light curves on a single line. Note that additional columns may be necessary to specify, for example, the periods to use for pre-whitening or any other values required by some commands. The column cannot be set to \"all\" if anything other than the light curve file names are to be read from the list.\n\n");
+      printtostring(&s,"When reading an input list, give the optional \"combinelcs\" keyword to read multiple light curve files into a single light curve within vartools. In this case the column in the input list giving the light curve names should, in each line, provide a comma-delimited list of light curve files to read-in and treat as a single light curve within vartools. Note that the light curve name that will be used within vartools for that line will be the name of the first file in the comma-delimited list. Use the \"delimiter\" keyword to change the delimiter, and the \"lcnumvar\" keyword to optionally specify the name of a variable that will store the input file index for each point in the combined light curve. Points from the first file will have an index value of 0, from the second will have an index value of 1 and so on. See the help for the -inlistvars option for associating other per-file values with the points in combined light curves.\n\n");
 #ifdef _USEBINARY_LC
       printtostring(&s," Give the optional \"binary\" keyword to either command after the filename if the input light curves are in Penev's binary format. Note that light curves in binary fits format will be identified by the suffix .fits appearing in the filename.");
 #endif
@@ -950,6 +1030,12 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-headeronly\n\n");
       printtostring(&s,"Use this option to output the one line header and then quit without processing any light curves.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || !strcmp(c,"-columnsuffix"))
+    {
+      printtostring(&s,"-columnsuffix suffix\n\n");
+      printtostring(&s,"Use this option to change the suffix that is appended to the output column headings for the next command that is called on the command-line. By default the command number is appended to the end of each column heading to ensure different column headings if the same command is called multiple times. The -columnsuffix option can be used to replace the command number with any string. If an empty string is supplied as the argument, then the suffix will be removed. Not that this option will only apply to the next command that is called, and needs to be called repeatedly to change the column suffix for subsequent commands. Also note that if the same command is called more than once with the same suffix, vartools will return an error indicating that a variable is defined more than once. All output column headings need to be unique, so a different suffix must be used for multiple calls to the same command.\n\n");
       commandfound = 1;
     }
   if(all == 1 || !strcmp(c,"-showinputlistformat"))
@@ -1015,8 +1101,8 @@ void help(char *c, ProgramData *p)
     }
   if(all == 1 || (!strcmp(c,"-inlistvars")))
     {
-      printtostring(&s, "-inlistvars var1:col1[:vtype1[:fmt1][,var2:col2[:vtyp2[:fmt2]],....]]\n");
-      printtostring(&s,"Use this option to read one or more variables from the input light curve list. Provide a comma-separated list of variables to read-in. Here \"var1\", \"var2\" etc are symbolic names for each variable, these can be any alphanumeric strings, the first character should not be a number. The special variable names \"t\", \"mag\", \"err\" and \"id\" are reserved for light curves themselves, and cannot be used here. Following the variable name, \"col1\", \"col2\", etc are the column numbers in the list file to read into the associated variables. If the column number is zero, then the variable will be created, but it will not be read-in from the list. Two additional optional control parameters are allowed. This includes the variable type (options are \"double\", \"float\", \"int\", \"long\", \"short\", \"string\", \"char\", or \"utc\"), and a scanf-type format string. The default type is \"double\". If the column number is set to 0, then one must specify the type, while the format will be used to indicate how to initialize the variable. In this case fmt should be an analytic expression which can include any previously defined variables as well as the special variable \"NF\" which is the integer record number of the line in the list file (0 for the first light curve, 1 for the second, etc.). See \"vartools -functionlist\" for a list of supported functions, constants and operators.\n\n");
+      printtostring(&s, "-inlistvars var1:col1[[:\"combinelc\"]:vtype1[:fmt1][,var2:col2[[:\"combinelc\"]:vtyp2[:fmt2]],....]]\n\n");
+      printtostring(&s,"Use this option to read one or more variables from the input light curve list. Provide a comma-separated list of variables to read-in. Here \"var1\", \"var2\" etc are symbolic names for each variable, these can be any alphanumeric strings, the first character should not be a number. The special variable names \"t\", \"mag\", \"err\" and \"id\" are reserved for light curves themselves, and cannot be used here.\n\nFollowing the variable name, \"col1\", \"col2\", etc are the column numbers in the list file to read into the associated variables. If the column number is zero, then the variable will be created, but it will not be read-in from the list.\n\nIf using the \"combinelcs\" option with the \"-l\" input method for vartools, you may optionally give the \"combinelc\" keyword following the column number to provide a different set of values for points in a light curve that come from different combined light curve files. In this case the value of the variable on each line in the list should be a comma-delimited list of terms, with the number of terms matching the number of input light curve files that are being combined for that line in the input list file. If the delimiter option was specified to the \"combinelcs\" option of \"-l\", then the same delimiter should be used here as well.\n\nTwo additional optional control parameters are allowed after the column number (and optional \"combinelc\" keyword). This includes the variable type (options are \"double\", \"float\", \"int\", \"long\", \"short\", \"string\", \"char\", or \"utc\"), and a scanf-type format string. The default type is \"double\". If the column number is set to 0, then one must specify the type, while the format will be used to indicate how to initialize the variable. In this case fmt should be an analytic expression which can include any previously defined variables as well as the special variable \"NF\" which is the integer record number of the line in the list file (0 for the first light curve, 1 for the second, etc.). See \"vartools -functionlist\" for a list of supported functions, constants and operators.\n\n");
       commandfound=1;
     }
   if(all == 1 || (!strncmp(c,"-readall",8) && strlen(c) == 8))
@@ -1151,6 +1237,22 @@ void help(char *c, ProgramData *p)
       printtostring(&s," Commands:\n\n");
       commandfound = 1;
     }
+#ifdef USECFITSIO
+  if(all == 1 || (!strcmp(c,"-addfitskeyword")))
+    {
+      listcommands_noexit("-addfitskeyword",p,&s);
+      printtostring(&s,"Add a keyword to the header of any subsequently output fits-format light curves. Parameters are as follows:\n\n");
+      printtostring(&s,"keyword - The header keyword to add.\n\n");
+      printtostring(&s,"\"combinelc\" lcnumvar - optionally add multiple keywords, one per value of the lcnumvar variable. In this case 'keyword' should be a format rule with instances of \"%%d\" replaced with the unique values of lcnumvar. If using the \"var\" option below, the value of that variable will be evaluated at the first instance in the light curve where lcnumvar takes on a new unique value. Use this option for example, to log the values of a combinelc variable specified with -inlistvars into a light curve header.\n\n");
+      printtostring(&s,"\"TDOUBLE\" | \"TINT\" | \"TLONG\" | \"TSTRING\" - The datatype to use for the keyword.\n\n");
+      printtostring(&s,"\"fix\" val - set the value to a fixed value set on the command-line for all light curves.\n\n");
+      printtostring(&s,"\"var\" variable - set the value to the contents of a variable.\n\n");
+      printtostring(&s,"\"comment\" commentstring - optionally include a comment string for this header keyword.\n\n");
+      printtostring(&s,"\"primary\" | \"extension\" - by default the keyword will be appended to the end of the primary header. Optionally put it at the end of the header for the table extension by using the \"extension\" option, or explicitly set it to the primary header by using the \"primary\" option.\n\n");
+      printtostring(&s,"\"append\" | \"update\" - by default, if the keyword already exists in the header, it will be updated. Optionally append the same keyword again if it already exists by using the \"append\" option, or set the \"update\" option to explicitly indicate this behavior.\n\n");
+      commandfound = 1;
+    }
+#endif
   if(all == 1 || (!strncmp(c,"-addnoise",9) && strlen(c) == 9))
     {
       listcommands_noexit("-addnoise",p,&s);
@@ -1172,55 +1274,55 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-alarm",6) && strlen(c) == 6))
     {
       listcommands_noexit("-alarm",p,&s);
-      printtostring(&s,"Calculate the alarm variability statistic for each light curve. Cite Tamuz, Mazeh, and North 2006, MNRAS, 367, 1521 if you use this tool.\n\n");
+      printtostring(&s,"Calculate the alarm variability statistic for each light curve. Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded. Cite Tamuz, Mazeh, and North 2006, MNRAS, 367, 1521 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-aov",4) && strlen(c) == 4))
     {
       listcommands_noexit("-aov",p,&s);
-      printtostring(&s,"Perform an AoV period search on the light curves using phase binning. Specify \"Nbin\" and a number to change the number of bins used from the default value of 8. minp and maxp are the minimum and maximum periods to search. The intial search will use a frequency resolution of subsample/T where T is the baseline of the light cruve. The peak periods will be refined using a resolution of finetune/T. The program will output the Npeaks highest peaks in the periodogram of the light curve. By default the program will output, for each peak, the period, the theta_aov statistic, the signal to noise ratio (theta_aov~-~<theta_aov>)/RMS(theta_aov), and the negative natural logarithm of the formal false alarm probability (this is calculated from the value of theta_aov using the Horne and Baliunas, 1986, ApJ, 302, 757 estimate for the bandwidth penality). operiodogram should be either 0 or 1. If it is set to 1 then the periodogram for each light curve will also be output to the directory outdir, with the suffix \".aov\". The first column in the output is the period, the second column is theta_aov. If the \"whiten\" keyword is given, then the light curve will be whitened at each peak period and the periodogram will be recomputed before searching for the next peak period. The average and RMS theta_aov used for each peak are computed on the whitened periodogram. The output spectrum will contain the Npeaks computed periodograms. Use the \"clip\" keyword to change the clipping parameters for calculating the average and RMS of the power spectrum when computing the SNR value of a peak. clip is the sigma-clipping factor, and clipiter is a flag that is 1 or 0 to toggle iterative clipping. By default iterative 5-sigma clipping is used. Use the keyword \"uselog\" to output the log(theta_aov) SNR instead of the standard statistics (this is the original behavior for this command), i.e. the statistic is (<-ln(theta_aov)>~-~ln(theta_aov))/RMS(-ln(theta_aov)) where the average and RMS are taken over the entire periodogram for a light curve, in this case the output will also include the average and RMS of -ln(theta_aov). Use the \"fixperiodSNR\" option to output the AoV statistic, SNR etc at a specified period. See the help for the \"-LS\" command for an explanation of the syntax. Cite Schwarzenberg-Czerny, A., 1989, MNRAS, 241, 153 and Devor, J., 2005, ApJ, 628, 411 if you use this tool. (The Devor citation is needed because this code is based on his implementation of AoV).\n\n");
+      printtostring(&s,"Perform an AoV period search on the light curves using phase binning. Specify \"Nbin\" and a number to change the number of bins used from the default value of 8. minp and maxp are the minimum and maximum periods to search. The intial search will use a frequency resolution of subsample/T where T is the baseline of the light cruve. The peak periods will be refined using a resolution of finetune/T. For Nbin, minp, maxp, subsample and finetune, optionally use the \"var\" or \"expr\" keyword to set the parameter to the value of a variable or an analytic expression, otherwise just give the value on the command-line to fix it for all light curves. The program will output the Npeaks highest peaks in the periodogram of the light curve. By default the program will output, for each peak, the period, the theta_aov statistic, the signal to noise ratio (theta_aov~-~<theta_aov>)/RMS(theta_aov), and the negative natural logarithm of the formal false alarm probability (this is calculated from the value of theta_aov using the Horne and Baliunas, 1986, ApJ, 302, 757 estimate for the bandwidth penality). operiodogram should be either 0 or 1. If it is set to 1 then the periodogram for each light curve will also be output to the directory outdir, with the suffix \".aov\". The first column in the output is the period, the second column is theta_aov. If the \"whiten\" keyword is given, then the light curve will be whitened at each peak period and the periodogram will be recomputed before searching for the next peak period. The average and RMS theta_aov used for each peak are computed on the whitened periodogram. The output spectrum will contain the Npeaks computed periodograms. Use the \"clip\" keyword to change the clipping parameters for calculating the average and RMS of the power spectrum when computing the SNR value of a peak. clip is the sigma-clipping factor, and clipiter is a flag that is 1 or 0 to toggle iterative clipping. By default iterative 5-sigma clipping is used. Use the keyword \"uselog\" to output the log(theta_aov) SNR instead of the standard statistics (this is the original behavior for this command), i.e. the statistic is (<-ln(theta_aov)>~-~ln(theta_aov))/RMS(-ln(theta_aov)) where the average and RMS are taken over the entire periodogram for a light curve, in this case the output will also include the average and RMS of -ln(theta_aov). Use the \"fixperiodSNR\" option to output the AoV statistic, SNR etc at a specified period. See the help for the \"-LS\" command for an explanation of the syntax.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the periodogram. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Schwarzenberg-Czerny, A., 1989, MNRAS, 241, 153 and Devor, J., 2005, ApJ, 628, 411 if you use this tool. (The Devor citation is needed because this code is based on his implementation of AoV).\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-aov_harm",9) && strlen(c) == 9))
     {
       listcommands_noexit("-aov_harm",p,&s);
-      printtostring(&s,"Perform an AoV period search on the light curves using a multi-harmonic model. Nharm is the number of harmonics to use. minp and maxp are the minimum and maximum periods to search. The initial search will use a frequency resolution of subsample/T where T is the baseline of the light cruve. The peak periods will be refined using a resolution of finetune/T. The program will output the Npeaks highest peaks in the periodogram of the light curve. The output for each peak includes the period, the theta_AoV statistic, the signal to noise ratio (theta_aov~-~<theta_aov>)/RMS(theta_aov), the false alarm probability (see the help for the \"-aov command\"), and the average and RMS of theta_aov. operiodogram should be either 0 or 1. If it is set to 1 then the periodogram for each light curve will also be output to the directory outdir, with the suffix \".aov_harm\". The first column in the output is the period, the second column is theta_aov. If the \"whiten\" keyword is given, then the light curve will be whitened at each peak period and the periodogram will be recomputed before searching for the next peak period. The average and RMS theta_aov output for each peak are computed on the whitened periodogram. The output spectrum will contain the Npeaks computed periodograms. Use the \"clip\" keyword to change the clipping parameters for calculating the average and RMS of the power spectrum when computing the SNR value of a peak. clip is the sigma-clipping factor, and clipiter is a flag that is 1 or 0 to toggle iterative clipping. By default iterative 5-sigma clipping is used. Use the \"fixperiodSNR\" option to output the AoV statistic, SNR etc at a specified period. See the help for the \"-LS\" command for an explanation of the syntax. Cite Schwarzenberg-Czerny, A., 1996, ApJ, 460, L107 if you use this tool.\n\n");
+      printtostring(&s,"Perform an AoV period search on the light curves using a multi-harmonic model. Nharm is the number of harmonics to use. minp and maxp are the minimum and maximum periods to search. The initial search will use a frequency resolution of subsample/T where T is the baseline of the light cruve. The peak periods will be refined using a resolution of finetune/T. For Nharm, minp, maxp, subsample and finetune, optionally use the \"var\" or \"expr\" keyword to set the parameter to the value of a variable or an analytic expression, otherwise just give the value on the command-line to fix it for all light curves. The program will output the Npeaks highest peaks in the periodogram of the light curve. The output for each peak includes the period, the theta_AoV statistic, the signal to noise ratio (theta_aov~-~<theta_aov>)/RMS(theta_aov), the false alarm probability (see the help for the \"-aov command\"), and the average and RMS of theta_aov. operiodogram should be either 0 or 1. If it is set to 1 then the periodogram for each light curve will also be output to the directory outdir, with the suffix \".aov_harm\". The first column in the output is the period, the second column is theta_aov. If the \"whiten\" keyword is given, then the light curve will be whitened at each peak period and the periodogram will be recomputed before searching for the next peak period. The average and RMS theta_aov output for each peak are computed on the whitened periodogram. The output spectrum will contain the Npeaks computed periodograms. Use the \"clip\" keyword to change the clipping parameters for calculating the average and RMS of the power spectrum when computing the SNR value of a peak. clip is the sigma-clipping factor, and clipiter is a flag that is 1 or 0 to toggle iterative clipping. By default iterative 5-sigma clipping is used. Use the \"fixperiodSNR\" option to output the AoV statistic, SNR etc at a specified period. See the help for the \"-LS\" command for an explanation of the syntax.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the periodogram. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Schwarzenberg-Czerny, A., 1996, ApJ, 460, L107 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-autocorrelation",16) && strlen(c) == 16))
     {
       listcommands_noexit("-autocorrelation",p,&s);
-      printtostring(&s,"Calculate the discrete auto-correlation function (Edelson and Krolik 1988, ApJ, 333, 646), these are written out to outdir/basename.autocorr, start, stop and step are the times in days for sampling the auto-correlation. Note that rather than using the variance of the light curve in the denominator, we use the formal uncertainty (we do not subtract the \"measurement error\" from the variance as done in the Edelson and Krolik formula since this could lead to imaginary numbers in the case where \"measurement errors\" are overestimated). If you wish to use the variance in the denominator rather than the formal uncertainty you should issue the -changeerror command before calling this routine. Note that due to binning, when the variance is used in the denominator the autocorrelation function may be smaller than 1 unless the time step used is less than the time difference between any consecutive measurements in the light curve.\n\n");
+      printtostring(&s,"Calculate the discrete auto-correlation function (Edelson and Krolik 1988, ApJ, 333, 646), these are written out to outdir/basename.autocorr, start, stop and step are the times in days for sampling the auto-correlation. Note that rather than using the variance of the light curve in the denominator, we use the formal uncertainty (we do not subtract the \"measurement error\" from the variance as done in the Edelson and Krolik formula since this could lead to imaginary numbers in the case where \"measurement errors\" are overestimated). If you wish to use the variance in the denominator rather than the formal uncertainty you should issue the -changeerror command before calling this routine. Note that due to binning, when the variance is used in the denominator the autocorrelation function may be smaller than 1 unless the time step used is less than the time difference between any consecutive measurements in the light curve. Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-binlc",6) && strlen(c) == 6))
     {
       listcommands_noexit("-binlc",p,&s);
-      printtostring(&s,"Bin the light curves in time (or phase if a -Phase command has already been issued). Use the \"average\" keyword to take the average of points in a bin, \"median\" to take the median of the points or \"weightedaverage\" to take the weighted average (for backward compatibility, you can also use the numbers 0, 1 or 2). One should specify either the binsize in units of the time coordinate (e.g. in phase if the light curves have been phased), or the number of bins to split the light curve time-span into. By default all other columns in the light curve will be binned in the same way, you can optionally change the binning type for some of the columns using the \"bincolumns\" keyword. If you do this, then the following string of the form var1[:stats][,var2[:stats2],...] is a comma separated list of variable names, with a statistics name appended to each variable following a \":\". The choices for statistics are the same as for the \"-stats\" command. By default the first bin begins at the initial time in the light curve (t0), if firstbinshift is specified, then this will be shifted by t0 - firstbinshift/binsize. If the \"tcenter\" keyword is given then the output time for each bin is the time at the center of the bin, if \"taverage\" is given then the time will be the average of the times of points that fall within the bin, if \"tmedian\" is given then the time will be the median of the times of points in the bin, and if \"tnoshrink\" is given then the size of the light curve will not be reduced by the binning, and instead all points in the light curve will be replaced by the binned value (for backward compatability, you can also use the numbers 0, 1, 2, or 3). If you only want to apply the binning to some of the columns in the light curve, but not all of them, you can give the \"tnoshrink\" keyword followed by \"bincolumnsonly\". In this case only the variables explicitely listed after \"bincolumns\" will be binned (this includes t, mag and err).\n\n");
+      printtostring(&s,"Bin the light curves in time (or phase if a -Phase command has already been issued). Use the \"average\" keyword to take the average of points in a bin, \"median\" to take the median of the points or \"weightedaverage\" to take the weighted average (for backward compatibility, you can also use the numbers 0, 1 or 2). One should specify either the binsize in units of the time coordinate (e.g. in phase if the light curves have been phased), or the number of bins to split the light curve time-span into. By default all other columns in the light curve will be binned in the same way, you can optionally change the binning type for some of the columns using the \"bincolumns\" keyword. If you do this, then the following string of the form var1[:stats][,var2[:stats2],...] is a comma separated list of variable names, with a statistics name appended to each variable following a \":\". The choices for statistics are the same as for the \"-stats\" command. By default the first bin begins at the initial time in the light curve (t0), if firstbinshift is specified, then this will be shifted by t0 - firstbinshift/binsize. Alternatively, if the \"T0\" keyword is used, then the user may specify the start of the first time bin for each light curve. The options here are \"fix\" to fix the parameter to a value given on the command-line, \"list\" to have the parameter read-in from the input light curve list (optionally giving the column number with the keyword \"column\", by default the next column in the list is used), \"fixcolumn\" to use a previously computed column from the output statistics file, or \"expr\" to set the value to an analytic expression which is evaluated for each light curve at the time this command is executed. Note that if the specified T0 is greater than the latest time in the light curve, the number of points in the resulting light curve is set to zero. If T0 is greater than the initial time in the light curve, but smaller than the final time in the light curve, than any observations with time less than T0 will be added to the first bin. If the \"tcenter\" keyword is given then the output time for each bin is the time at the center of the bin, if \"taverage\" is given then the time will be the average of the times of points that fall within the bin, if \"tmedian\" is given then the time will be the median of the times of points in the bin, and if \"tnoshrink\" is given then the size of the light curve will not be reduced by the binning, and instead all points in the light curve will be replaced by the binned value (for backward compatability, you can also use the numbers 0, 1, 2, or 3). If you only want to apply the binning to some of the columns in the light curve, but not all of them, you can give the \"tnoshrink\" keyword followed by \"bincolumnsonly\". In this case only the variables explicitely listed after \"bincolumns\" will be binned (this includes t, mag and err).\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to use in masking out points in the light curve from the calculation. Points with maskvar > 0 will be included in the binning, while others will be excluded. Note that if tnoshrink is given, then the binned values will still be calculated and reported at the masked-out times, but the masked points will not contribute themselves to the calculated binned values.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-BLS",4) && strlen(c) == 4))
     {
       listcommands_noexit("-BLS",p,&s);
-      printtostring(&s,"This command runs BLS on the light curves. You may set a fixed minimum and maximum q (fraction of orbit in transit) for the search, you can specify a minimum and maximum stellar radius to consider (in solar radii) in which case the qmin and qmax values are calculated for each trial period P as q~=~0.076~*~R**(2/3)~/~P**(2/3) (with P in days - this assumes R~=~M as an approximation for the lower main sequence), or you can specify a stellar density (in grams per cubic centimeter) and a minimum and maximum fraction of the expected transit duration (assuming a circular orbit) to consider. The minimum and maximum periods to search are given in days, nfreq is the number of trial frequencies (10000 is a decent number). nbins is the number of phase bins to break the light curve into (200 is a decent number). timezone is the number to add to the julian date to get the local date (-7 for arizona), this is used to determine which nights different observations come from and thus to determine the fraction of delta-chi2 that comes from a single night. Npeak is the number of peaks in the BLS spectrum to find and report. outperiodogram is a flag that is set to 1 to output the BLS period vs. SN spectrum. outdir is the output directory for the BLS spectrum if outperiodogram is set to 1, \".bls\" will be appended to the filename. omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".bls.model\" will be appended to the filename. correctlc is either 0 or 1, set to 1 it will subtract the transit model from the light curve before passing it to the next command. If the optional \"extraparams\" keyword is specified, then a number of additional parameters are computed and output which may be useful for selecting transit candidates and excluding various false positives. If the optional \"fittrap\" keyword is specified, the routine will fit a trapezoidal transit to each BLS peak. This allows a refined estimate of the transit time, duration and depth. In this case the output table will also include \"qingress\" which is the fraction of the transit duration covered by ingress, a value of 0 corresponds to a perfectly box-shaped transit, a value of 0.5 corresponds to a V-shaped transit. The optional keyword \"nobinnedrms\" adjusts the way in which the BLS_SN statistic is calculated. When \"nobinnedrms\" is given the procedure runs faster, but the SN will tend to be suppressed for high significance detections. If this option is given use another parameter (delta chi2 or signal to pink noise) for selecting transits rather than BLS_SN. Note that in some cases the default behavior will supress the signal at very high peaks (characterized by the periodogram going to zero in the center of a peak), to avoid this behavior use the \"nobinnedrms\" keyword. If the optional keyword \"ophcurve\" is given then a model phase curve will be output to a file in the directory outdir with suffix \".bls.phcurve\" with phases between phmin and phmax and a uniform step size of phstep. If the optional keyword \"ojdcurve\" is given then a model light curve will be output to a file in the directory outdir with suffix \".bls.jdcurve\" with times between the first and last times in the light curve with a uniform step size of jdstep. By default the BLS spectrum is sampled at uniform frequency steps. To sample it at uniform steps in period or log(period) using the \"stepP\" or \"steplogP\" keywords. Use the optional \"adjust-qmin-by-mindt\" keyword to adaptively set the minimum q value to the maximum of qmin or mindt*frequency where mindt is the minimum time difference between consecutive points in the light curve. If this keyword is given you may also use the \"reduce-nbins\" keyword to adaptively reduce the number of phase bins at each frequency such that there are no more than 2 bins to sample a transit of duration qmin. By default any peak in the spectrum at a frequency that is a lower order rational multiple of a frequency with a higher peak will not be reported. To report these harmonic frequencies use the \"reportharmonics\" keyword. Cite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool.\n\n");
+      printtostring(&s,"This command runs BLS on the light curves.\n\nYou may set a fixed minimum and maximum q (fraction of orbit in transit) for the search, you can specify a minimum and maximum stellar radius to consider (in solar radii) in which case the qmin and qmax values are calculated for each trial period P as q~=~0.076~*~R**(2/3)~/~P**(2/3) (with P in days - this assumes R~=~M as an approximation for the lower main sequence), or you can specify a stellar density (in grams per cubic centimeter) and a minimum and maximum fraction of the expected transit duration (assuming a circular orbit) to consider. For all of these parameters either give the value on the command-line that will be used for processing all light curves, give the \"var\" keyword followed by the name of a previously created variable that will hold the value to use for each light curve, or give the \"expr\" keyword to evaluate an analytical expression to determine the value to use for each light curve.\n\nThe minimum and maximum periods to search are given in days (again either give the values on the command line, or use the \"var\" or \"expr\" keywords to give a variable or expression to evaluate to determine the values).\n\nGive either the \"nf\" keyword, the \"df\" keyword, or the \"optimal\" keyword to specify the number of trial frequencies, the frequency step-size, or to use Ofir's optimal frequency spacing. For the optimal method the density option must be used, and the subsampling factor should be specified. Use the \"var\" or \"expr\" keywords to provide a variable or analytic expression that returns the value to use, or just give the parameter value on the command-line if fixing it for all light curves.\n\nnbins is the number of phase bins to break the light curve into. Either give the value on the command-line, or use the \"var\" or \"expr\" keywords to provide a variable or expression.\n\ntimezone is the number to add to the julian date to get the local date (-7 for arizona), this is used to determine which nights different observations come from and thus to determine the fraction of delta-chi2 that comes from a single night.\n\nNpeak is the number of peaks in the BLS spectrum to find and report.\n\noutperiodogram is a flag that is set to 1 to output the BLS period vs. SN spectrum. outdir is the output directory for the BLS spectrum if outperiodogram is set to 1, \".bls\" will be appended to the filename.\n\nomodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".bls.model\" will be appended to the filename.\n\ncorrectlc is either 0 or 1, set to 1 it will subtract the transit model from the light curve before passing it to the next command.\n\nIf the optional \"extraparams\" keyword is specified, then a number of additional parameters are computed and output which may be useful for selecting transit candidates and excluding various false positives.\n\nIf the optional \"fittrap\" keyword is specified, the routine will fit a trapezoidal transit to each BLS peak. This allows a refined estimate of the transit time, duration and depth. In this case the output table will also include \"qingress\" which is the fraction of the transit duration covered by ingress, a value of 0 corresponds to a perfectly box-shaped transit, a value of 0.5 corresponds to a V-shaped transit.\n\nThe optional keyword \"nobinnedrms\" adjusts the way in which the BLS_SN statistic is calculated. When \"nobinnedrms\" is given the procedure runs faster, but the SN will tend to be suppressed for high significance detections. If this option is given use another parameter (delta chi2 or signal to pink noise) for selecting transits rather than BLS_SN. Note that in some cases the default behavior will suppress the signal at very high peaks (characterized by the periodogram going to zero in the center of a peak), to avoid this behavior use the \"nobinnedrms\" keyword.\n\nIf the optional keyword \"ophcurve\" is given then a model phase curve will be output to a file in the directory outdir with suffix \".bls.phcurve\" with phases between phmin and phmax and a uniform step size of phstep.\n\nIf the optional keyword \"ojdcurve\" is given then a model light curve will be output to a file in the directory outdir with suffix \".bls.jdcurve\" with times between the first and last times in the light curve with a uniform step size of jdstep.\n\nBy default the BLS spectrum is sampled at uniform frequency steps. To sample it at uniform steps in period or log(period) using the \"stepP\" or \"steplogP\" keywords.\n\nUse the optional \"adjust-qmin-by-mindt\" keyword to adaptively set the minimum q value to the maximum of qmin or mindt*frequency where mindt is the minimum time difference between consecutive points in the light curve. If this keyword is given you may also use the \"reduce-nbins\" keyword to adaptively reduce the number of phase bins at each frequency such that there are no more than 2 bins to sample a transit of duration qmin.\n\nBy default any peak in the spectrum at a frequency that is a lower order rational multiple of a frequency with a higher peak will not be reported. To report these harmonic frequencies use the \"reportharmonics\" keyword.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the BLS spectrum. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded. If correctlc=1, then the BLS model will be subtracted from all points in the light curve, including those with maskvar <= 0. If omodel=1, the output model file will only include the model evaluated at points with maskvar > 0.\n\nCite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool. The reference for the optimal frequency sampling is Ofir, A. 2014, A&A, 561, A138.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-BLSFixPer",10) && strlen(c) == 10))
     {
       listcommands_noexit("-BLSFixPer",p,&s);
-      printtostring(&s,"This command runs BLS at a fixed period on the light curves - it searches merely for the most transit-like signal at the specified period. The period comes either from the last aov command, from the last ls command, is specified in the input-list (by default it will be taken from the next available column, use the \"column\" keyword to specify the column), is fixed to the value given on the command-line for all light curves, it can be set to the value in an output column from a previously executed command, or it can be set to the value of an analytic expression. Like BLS you can either specify a minimum and maximum stellar radius to consider, or a minimum and maximum q to consider. Similarly you must specify the number of bins to use and the timezone.  omodel is 1 to output the model light curve to model_outdir (with \".blsfixper.model\" appended to the end of the file name. correctlc is 1 to subtract the transit model from the light curve before passing it to the next command. \"fittrap\" is an optional keyword, which if specified, fits a trapezoidal transit after running the BLS scan. Cite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool.\n\n");
+      printtostring(&s,"This command runs BLS at a fixed period on the light curves - it searches merely for the most transit-like signal at the specified period. The period comes either from the last aov command, from the last ls command, is specified in the input-list (by default it will be taken from the next available column, use the \"column\" keyword to specify the column), is fixed to the value given on the command-line for all light curves, it can be set to the value in an output column from a previously executed command, or it can be set to the value of an analytic expression. Like BLS you can either specify a minimum and maximum stellar radius to consider, or a minimum and maximum q to consider. Similarly you must specify the number of bins to use and the timezone.  omodel is 1 to output the model light curve to model_outdir (with \".blsfixper.model\" appended to the end of the file name. correctlc is 1 to subtract the transit model from the light curve before passing it to the next command. \"fittrap\" is an optional keyword, which if specified, fits a trapezoidal transit after running the BLS scan.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the fixed period BLS. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded. If correctlc=1, then the BLS model will be subtracted from all points in the light curve, including those with maskvar <= 0. If omodel=1, the output model file will only include the model evaluated at points with maskvar > 0.\n\nCite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-BLSFixPerDurTc",10) && strlen(c) == 10))
     {
-      listcommands_noexit("-BLSFixPer",p,&s);
-      printtostring(&s,"This calculates some of the transit light curve statistics reported by BLS for a fixed period, transit duration and epoch. The period is either fixed to the value specified on the command line (using the \"period fix\" keywords), to the output of a previously executed command (using the \"period fixcolumn\" keywords), or it comes from the input list (using the \"list\" keyword; by default the next available column will be used, use the \"column\" keyword to instead specify the column). The transit duration, in the same units as the period, is similarly specified with the \"duration\" keyword, and an epoch of transit center is specified with the \"Tc\" keyword. By default the transit depth will be optimized. To specify that depth as well, use the \"fixdepth\" keyword. If the depth is specified, then the fractional ingress and egress duration (relative to half the total duration) can be specified with the \"qgress\" option. The timezone, used to determine the fraction of delta-chi2 that comes from a single night of observations, should then be specified. The parameter omodel is set to 1 to output a model light curve (give also the directory where the model should be output) or 0 not to. The parameter correctlc should be set to 1 to subtract the transit model from the light curve, or 0 to not. Use the \"fittrap\" keyword to fit a trapezoid transit model to the light curve instead of a box transit model. Use the \"ophcurve\" keyword, followed by the minimum and maximum phase, and the phase step, to output model a model phase curve to a file. Use the \"ojdcurve\" keyword, followed by the step-size in JD to output a model curve evaluated in time to a file. Cite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool.\n\n");
+      listcommands_noexit("-BLSFixPerDurTc",p,&s);
+      printtostring(&s,"This calculates some of the transit light curve statistics reported by BLS for a fixed period, transit duration and epoch. The period is either fixed to the value specified on the command line (using the \"period fix\" keywords), to the output of a previously executed command (using the \"period fixcolumn\" keywords), or it comes from the input list (using the \"list\" keyword; by default the next available column will be used, use the \"column\" keyword to instead specify the column). The transit duration, in the same units as the period, is similarly specified with the \"duration\" keyword, and an epoch of transit center is specified with the \"Tc\" keyword. By default the transit depth will be optimized. To specify that depth as well, use the \"fixdepth\" keyword. If the depth is specified, then the fractional ingress and egress duration (relative to half the total duration) can be specified with the \"qgress\" option. The timezone, used to determine the fraction of delta-chi2 that comes from a single night of observations, should then be specified. The parameter omodel is set to 1 to output a model light curve (give also the directory where the model should be output) or 0 not to. The parameter correctlc should be set to 1 to subtract the transit model from the light curve, or 0 to not. Use the \"fittrap\" keyword to fit a trapezoid transit model to the light curve instead of a box transit model. Use the \"ophcurve\" keyword, followed by the minimum and maximum phase, and the phase step, to output model a model phase curve to a file. Use the \"ojdcurve\" keyword, followed by the step-size in JD to output a model curve evaluated in time to a file.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the fixed BLS. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded. If correctlc=1, then the BLS model will be subtracted from all points in the light curve, including those with maskvar <= 0. If omodel=1, the output model file will only include the model evaluated at points with maskvar > 0.\n\nCite Kovacs, G., Zucker, S., Mazeh, T. 2002, A&A, 391, 369 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-changeerror",12) && strlen(c) == 12))  
     {
       listcommands_noexit("-changeerror",p,&s);
-      printtostring(&s,"Replace the formal errors in a light curve with the RMS of the light curve.\n\n");
+      printtostring(&s,"Replace the formal errors in a light curve with the RMS of the light curve.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the RMS calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-changevariable")))
@@ -1232,19 +1334,19 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-chi2",5) && strlen(c) == 5))
     {
       listcommands_noexit("-chi2",p,&s);
-      printtostring(&s,"Calculate chi2 per dof for the light curves. The output will include chi2 and the error weighted mean magnitude.\n\n");
+      printtostring(&s,"Calculate chi2 per dof for the light curves. The output will include chi2 and the error weighted mean magnitude.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-chi2bin",8) && strlen(c) == 8))
     {
       listcommands_noexit("-chi2bin",p,&s);
-      printtostring(&s,"Calculate chi2 per dof after applying a moving mean filter (each point in the light curve is replaced by the average of all points within a range centered on the point) to the light curves. (Note that the light curves passed to the next command are unchanged). Nbin filters are used (with Nbin resulting estimates of chi2 and the error weighted mean). The width of each filter is given by 2.0*bintime (bintime is given in minutes)\n\n");
+      printtostring(&s,"Calculate chi2 per dof after applying a moving mean filter (each point in the light curve is replaced by the average of all points within a range centered on the point) to the light curves. (Note that the light curves passed to the next command are unchanged). Nbin filters are used (with Nbin resulting estimates of chi2 and the error weighted mean). The width of each filter is given by 2.0*bintime (bintime is given in minutes)\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-clip",5) && strlen(c) == 5))
     {
       listcommands_noexit("-clip",p,&s);
-      printtostring(&s,"Sigma-clip the light curves using a clipping factor of sigclip. iter is a flag that is either 1 for iterative clipping (performed continuously until no further points are removed), or 0 to not do continuous iterative clipping. To clip for a fixed number of iterations give the \"niter\" keyword followed by the number of iterations to use. By default clipping is done with respect to the mean. To use the median instead provide the \"median\" keyword. The output table will include the number of points that were clipped. Note that points with errors <= 0 or NaN magnitude values will be clipped. If sigclip is <= 0, then sigma clipping is not performed, but points with errors <= 0 or NaN magnitude values will be clipped.\n\n");
+      printtostring(&s,"Sigma-clip the light curves using a clipping factor of sigclip. iter is a flag that is either 1 for iterative clipping (performed continuously until no further points are removed), or 0 to not do continuous iterative clipping. To clip for a fixed number of iterations give the \"niter\" keyword followed by the number of iterations to use. By default clipping is done with respect to the mean. To use the median instead provide the \"median\" keyword. The output table will include the number of points that were clipped. Note that points with errors <= 0 or NaN magnitude values will be clipped. If sigclip is <= 0, then sigma clipping is not performed, but points with errors <= 0 or NaN magnitude values will be clipped. By default clipped points will be removed from the light curve. If the \"markclip\" keyword is given, then the points will not be removed, but instead points that would not clipped will have var set to 1, while points that would be clipped will have var set to 0. By default the program will ignore any prior values that may be set in the var variable. If the \"noinitmark\" keyword is given after the variable name, then the input var values will be taken as an initial clipping mask, and only points with var = 1 will be considered in calculating additional points to clip.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-converttime",12) && strlen(c) == 12))
@@ -1262,13 +1364,13 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-decorr",7) && strlen(c) == 7))
     {
       listcommands_noexit("-decorr",p,&s);
-      printtostring(&s,"Decorrelate the light curves against specified signals. The signals are either global signals (e.g. the airmass) that are input in separate files (with the format: JD signal_value or the format: stringid signal_value if the -matchstringid option was set), or are light curve specific signals (e.g. the sub-pixel position) that are input as additional columns in the light curves. correctlc is a flag that is 0 or 1, if the value is 1 then the light curves passed to the next command will be decorrelated, if the value is 0 then resulting chi2 from decorrelation and the decorrelation coefficients will be output to the table, but the light curves themselves will not be decorrelated. zeropointterm is a flag that is 0 or 1, if the value is 1 then a zeropoint term is included in the decorrelation, if it is 0 then no such term is included. subtractfirstterm is a flag that is 0 or 1, if the value is 1 then the light curves are decorrelated against the signal minus the first signal value (this is useful if one is decorrelating against the JD, for example, in which case one would decorrelate against JD - JD0 where JD0 is the first JD in the light curve), if it is 0 then the light curves are decorrelated against the signal without subtracting the first term. Nglobalterms is the number of global files. globalfile1...globalfileN or the names of those files, order1...orderN are the orders of the polynomials used to decorrelate each signal (each must be greater than 0). Nlcterms is the number of light curve specific signals. The columns of these signals are given by lccolumn1...lccolumnN. The orders of the polynomials are given by lcorder1...lcorderN. omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".decorr.model\" will be appended to the filename.\n\n");
+      printtostring(&s,"Decorrelate the light curves against specified signals. The signals are either global signals (e.g. the airmass) that are input in separate files (with the format: JD signal_value or the format: stringid signal_value if the -matchstringid option was set), or are light curve specific signals (e.g. the sub-pixel position) that are input as additional columns in the light curves. correctlc is a flag that is 0 or 1, if the value is 1 then the light curves passed to the next command will be decorrelated, if the value is 0 then resulting chi2 from decorrelation and the decorrelation coefficients will be output to the table, but the light curves themselves will not be decorrelated. zeropointterm is a flag that is 0 or 1, if the value is 1 then a zeropoint term is included in the decorrelation, if it is 0 then no such term is included. subtractfirstterm is a flag that is 0 or 1, if the value is 1 then the light curves are decorrelated against the signal minus the first signal value (this is useful if one is decorrelating against the JD, for example, in which case one would decorrelate against JD - JD0 where JD0 is the first JD in the light curve), if it is 0 then the light curves are decorrelated against the signal without subtracting the first term. Nglobalterms is the number of global files. globalfile1...globalfileN or the names of those files, order1...orderN are the orders of the polynomials used to decorrelate each signal (each must be greater than 0). Nlcterms is the number of light curve specific signals. The columns of these signals are given by lccolumn1...lccolumnN. The orders of the polynomials are given by lcorder1...lcorderN. omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".decorr.model\" will be appended to the filename.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-dftclean",9) && strlen(c) == 9))
     {
       listcommands_noexit("-dftclean",p,&s);
-      printtostring(&s,"Compute the DFT power spectrum of the light curve and optionally apply the clean algorithm (Roberts et al. 1987) to it. nbeam is the number of points per 1/T frequency element to include in the power spectrum. Use \"maxfreq\" to set the maximum frequency to maxf. The default value for the maximum frequency is 1/(2*min_time_separation). Use \"outdspec\" to output the dirty power spectrum, the suffix \".dftclean.dspec\" will be appended to the name of the output file. Use \"finddirtypeaks\" to find the top Npeaks peaks in the dirty power spectrum. By default 5sigma iterative clipping is used in calculating the SNR of a peak. To change this use \"clip\" followed by the new sigma-clipping value and 1 to do iterative clipping or 0 to not do iterative clipping. Use \"outwfunc\" to output the window function, with the suffix \".dftclean.wfunc\". Use \"clean\" to apply the clean algorithm to the power spectrum. Please cite Roberts, D.H., Lehar, J., and Dreher, J.W. 1987, AJ, 93, 4 if you use this algorithm. To use clean you must specify the gain which is a value between 0.1 and 1 (with lower values giving slower convergence). The procedure will continue to clean the spectrum until the last peak is less than SNlimit times the noise. Use \"outcbeam\" to output the clean beam which is convolved with the deconvolved spectrum to produce the final clean power spectrum. The suffix for the clean beam file is \".dftclean.cbeam\". Use \"outcspec\" to output the clean power spectrum, the suffix is \".dftclean.cspec\". Finally use \"findcleanpeaks\" to find the top Npeaks peaks in the clean power spectrum. By default the SNR values output by one of the find commands will be determined on the power spectrum, and will be defined as (peak~-~ave)/std. To use the amplitude spectrum rather than the power spectrum give the option \"useampspec\". To output the average and standard deviation of the spectrum before and after clipping, in addition to the final SNR value, use the option \"verboseout\". This routine uses the FDFT algorithm by Kurtz 1985, MNRAS, 213, 773 to compute the DFT.\n\n");
+      printtostring(&s,"Compute the DFT power spectrum of the light curve and optionally apply the clean algorithm (Roberts et al. 1987) to it. nbeam is the number of points per 1/T frequency element to include in the power spectrum. Use \"maxfreq\" to set the maximum frequency to maxf. The default value for the maximum frequency is 1/(2*min_time_separation). Use \"outdspec\" to output the dirty power spectrum, the suffix \".dftclean.dspec\" will be appended to the name of the output file. Use \"finddirtypeaks\" to find the top Npeaks peaks in the dirty power spectrum. By default 5sigma iterative clipping is used in calculating the SNR of a peak. To change this use \"clip\" followed by the new sigma-clipping value and 1 to do iterative clipping or 0 to not do iterative clipping. Use \"outwfunc\" to output the window function, with the suffix \".dftclean.wfunc\". Use \"clean\" to apply the clean algorithm to the power spectrum. Please cite Roberts, D.H., Lehar, J., and Dreher, J.W. 1987, AJ, 93, 4 if you use this algorithm. To use clean you must specify the gain which is a value between 0.1 and 1 (with lower values giving slower convergence). The procedure will continue to clean the spectrum until the last peak is less than SNlimit times the noise. Use \"outcbeam\" to output the clean beam which is convolved with the deconvolved spectrum to produce the final clean power spectrum. The suffix for the clean beam file is \".dftclean.cbeam\". Use \"outcspec\" to output the clean power spectrum, the suffix is \".dftclean.cspec\". Finally use \"findcleanpeaks\" to find the top Npeaks peaks in the clean power spectrum. By default the SNR values output by one of the find commands will be determined on the power spectrum, and will be defined as (peak~-~ave)/std. To use the amplitude spectrum rather than the power spectrum give the option \"useampspec\". To output the average and standard deviation of the spectrum before and after clipping, in addition to the final SNR value, use the option \"verboseout\".\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the periodogram. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nThis routine uses the FDFT algorithm by Kurtz 1985, MNRAS, 213, 773 to compute the DFT.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-difffluxtomag",14) && strlen(c) == 14))
@@ -1280,7 +1382,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19))
     {
       listcommands_noexit("-ensemblerescalesig",p,&s);
-      printtostring(&s,"Transform the magnitude uncertainties by e_mag~-->~sqrt(a*e_mag*e_mag~+~b). The parameters 'a' and 'b' are determined by fitting a linear relation between (expected~rms)^2 and (chi2/dof)*(expected~rms)^2 for all light curves. The result of this transformation is that chi2 per dof is distributed about unity. Outliers in the distribution are clipped during the fitting using a clipping factor of sigclip. This routine requires a list of light curves. If this command is invoked, then all light curves will be read into memory. The output will include the average rescale factor for each light curve (taken to be sqrt(chi2_after/chi2_before). See also the -rescalesig command which does a sigma-rescaling on a light curve-by-light curve basis.\n\n");
+      printtostring(&s,"Transform the magnitude uncertainties by e_mag~-->~sqrt(a*e_mag*e_mag~+~b). The parameters 'a' and 'b' are determined by fitting a linear relation between (expected~rms)^2 and (chi2/dof)*(expected~rms)^2 for all light curves. The result of this transformation is that chi2 per dof is distributed about unity. Outliers in the distribution are clipped during the fitting using a clipping factor of sigclip. This routine requires a list of light curves. If this command is invoked, then all light curves will be read into memory. The output will include the average rescale factor for each light curve (taken to be sqrt(chi2_after/chi2_before).\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the chi2/dof and expected~rms. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nSee also the -rescalesig command which does a sigma-rescaling on a light curve-by-light curve basis.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-expr")))
@@ -1369,7 +1471,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-Jstet",6) && strlen(c) == 6))
     {
       listcommands_noexit("-Jstet",p,&s);
-      printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations. The dates file should contain JDs for all possible observations in the first columns - this is used to calculate the maximum possible weight. Note that the J statistic calculated here differs from Stetson's definition by including an extra factor of (sum(weights)/weight_max). Cite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
+      printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations. The dates file should contain JDs for all possible observations in the first columns - this is used to calculate the maximum possible weight. Note that the J statistic calculated here differs from Stetson's definition by including an extra factor of (sum(weights)/weight_max).\n\n Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
@@ -1381,14 +1483,14 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strcmp(c,"-linfit")))
     {
       listcommands_noexit("-linfit",p,&s);
-      printtostring(&s,"Fit a function that is linear in its free parameters to each light curve. \"function\" is the analytic function to fit (e.g. \'a*t^2+b*t+c\' for a quadratic function of time), paramlist is a comma-separated list of free parameters (e.g. 'a1,a2,a3' for the quadratic function). Note that the free parameters should have names that are not used by any vector variables (e.g. t, mag, err, or other variables defined by the -expr command or -inputlcformat option). Note that these variables may be used by other commands as well (e.g. on the right-hand-side of the -expr command). To store the best-fit model in a vector variable for use by later commands, give the \"modelvar\" keyword followed by the variable name. To redo the fit after rejecting outliers give the \"reject\" keyword followed by the sigma-clipping value to use for rejection. Use the \"useMAD\" keyword to measure the scatter about the fit with the MAD parameter rather than the default standard deviation. To iteratively reject outliers give the \"iter\" keyword. By default iterations will continue until no additional outliers are identified. To perform up to a fixed number of iterations give the \"fixednum\" keyword followed by the maximum number of iterations to allow. To subtract the best-fit model from the light curve give the \"correctlc\" keyword. To output the model to a file, give the \"omodel\" keyword followed by the directory. By default output files will have names of the form model_outdir/basefilename.linfit.model. Optionally give the \"format\" keyword and then a rule for specifying the name of the output model (see the \"nameformat\" option to the -o command).\n\n");
+      printtostring(&s,"Fit a function that is linear in its free parameters to each light curve. \"function\" is the analytic function to fit (e.g. \'a*t^2+b*t+c\' for a quadratic function of time), paramlist is a comma-separated list of free parameters (e.g. 'a1,a2,a3' for the quadratic function). Note that the free parameters should have names that are not used by any vector variables (e.g. t, mag, err, or other variables defined by the -expr command or -inputlcformat option). Note that these variables may be used by other commands as well (e.g. on the right-hand-side of the -expr command). To store the best-fit model in a vector variable for use by later commands, give the \"modelvar\" keyword followed by the variable name. To redo the fit after rejecting outliers give the \"reject\" keyword followed by the sigma-clipping value to use for rejection. Use the \"useMAD\" keyword to measure the scatter about the fit with the MAD parameter rather than the default standard deviation. To iteratively reject outliers give the \"iter\" keyword. By default iterations will continue until no additional outliers are identified. To perform up to a fixed number of iterations give the \"fixednum\" keyword followed by the maximum number of iterations to allow. To subtract the best-fit model from the light curve give the \"correctlc\" keyword. To output the model to a file, give the \"omodel\" keyword followed by the directory. By default output files will have names of the form model_outdir/basefilename.linfit.model. Optionally give the \"format\" keyword and then a rule for specifying the name of the output model (see the \"nameformat\" option to the -o command). Use the \"fitmask\" keyword to restrict the points that are included in the fit. Points with maskvar > 0 will be used, while points with maskvar = 0 will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-LS",3) && strlen(c) == 3))
     {
       listcommands_noexit("-LS",p,&s);
       printtostring(&s,
-"Perform a Generalized Lomb-Scargle (L-S) search of the light curves for periodic sinusoidal signals. The search is done over frequencies between fmin = 1/maxp to fmax = 1/minp, with a uniform frequency step-size of Delta f = subsample/T, where T is the time-span of the observations.\n\n");
+"Perform a Generalized Lomb-Scargle (L-S) search of the light curves for periodic sinusoidal signals. The search is done over frequencies between fmin = 1/maxp to fmax = 1/minp, with a uniform frequency step-size of Delta f = subsample/T, where T is the time-span of the observations. For each of these three parameters, either give the value to use on the command-line (which will then be used for all light curves), give the \"var\" keyword followed by a variable that stores the value to use for a given light curve, or give the \"expr\" keyword followed by an analytic expression that will be evaluated to determine the value.\n\n");
       printtostring(&s,
 "The program will find the Npeaks strongest peaks in the L-S periodogram. For each peak it will output the period found, log10(FAP) (the logarithm of the formal false alarm probability), and the spectroscopic signal to noise ratio (SNR) for the peaks (SNR = (LS - <LS>)/RMS(LS); where for the Generalized L-S we use the statistic LS=(chi_0^2 - chi(freq)^2)/chi_0^2 where chi_0^2 is chi^2 about the weighted mean and chi(freq)^2 is chi^2 about the best-fit sinusoidal signal with frequency freq; for the non-Generalized case, LS is the traditional normalized L-S statistic).\n\n");
       printtostring(&s,
@@ -1403,6 +1505,8 @@ void help(char *c, ProgramData *p)
 "If the \"fixperiodSNR\" keyword is given, then log10(FAP) and the SNR will be given for a specific period as well as for the peaks. This period can either be from the most recent issued -aov or -aov_harm command (keyword \"aov\"), from the most recent -LS command (keyword \"ls\"), from the most recent -Injectharm command (keyword \"injectharm\"), it can be fixed to a particular value for all light curves (keyword \"fix\"), it can be specified as an additional column in the input list (keyword \"list\"; by default the next available column is assumed, use the \"column\" keyword to specify the column), or it can be set to an arbitrary previously computed statistic (using the \"fixcolumn\" option together with the name or number of the output column as seen with the -header or -numbercolumns options).\n\n");
       printtostring(&s,
 		    "By default the formal false alarm probability is calculated using analytic expressions assuming Gaussian white noise and an empirical scaling for the number of independent frequencies searched. Give the keyword \"bootstrap\" to instead perform a bootstrap simulation to estimate the false alarm probability. The keyword should be followed by an integer giving the number of bootstrap simulations to perform. This simulated bootstrap light curves use the actual times of observation but take each flux/magnitude to be equal to an observed magnitude drawn at random (with replacement) from the light curve. Note that this procedure yields the false alarm probability assuming white noise, but not assuming Gaussian noise. The effect of sampling is also accounted for. When some of the simulations yield higher power peaks in their periodograms than the measured signal the reported false alarm probability will equal the fraction of simulations with higher power. In cases where none of the simulations have power exceeding the observed power the false alarm probability will be extrapolated based on a fit to the simulated distribution. As a result there may be a discontinuity in the relation between power and reported false alarm probability.\n\n");
+      printtostring(&s,
+"Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the periodogram. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       printtostring(&s,
 "Cite Zechmeister and K\\\"urster 2009, A&A, 496, 577, and Press, W.H., Teukolsky, S.A., Vetterling, W.T. & Flannery, B.P. 1992, Numerical Recipes in C, 2nd ed. (New York: Cambridge University Press) if you use this tool (we use an appropriately modified version of the fasper algorithm from Numerical Recipes to calculate the periodogram). If you compute the traditional L-S periodogram rather than the default Generalized one, then the references are Lomb, N.R. 1976, A&SS, 39, 447, Scargle, J.D. 1982, ApJ, 263, 835, Press, W.H. & Rybicki, G.B. 1989, ApJ, 338, 277, and Press, W.H., Teukolsky, S.A., Vetterling, W.T. & Flannery, B.P. 1992, Numerical Recipes in C, 2nd ed. (New York: Cambridge University Press).\n\n");
       commandfound = 1;
@@ -1452,13 +1556,19 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-o",p,&s);
 
-      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve. You can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%b replaced with $inname stripped of any final extension, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/2.lc\" to \"./directory/file2.lc00002.txt\". As another example, if the first line in the file \"inlist\" is \"tmp/2.tmp.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat %b.txt\" would result in copying the file \"tmp/2.tmp.lc\" to \"./directory/2.tmp.txt\". Alternatively you can use the \"namecommand\" keyword to execute a shell command (e.g., sed or awk) to determine the name of the output light curve. Here the command 'echo $fulllcname $outdir $lcnum' will be piped into the command given by the user after the \"namecommand\" keyword, and the name of the light curve will be set to the output of the resulting process. Here $fulllcname is the full name of the input light curve file as read in from the input list, outdir is the output directory specified for this -o command, and lcnum is the light curve number. In the prior example where the second line the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory namecommand 'gawk '\"'\"'{n = split($1,s1,\"/\"); split(s1[n],s2,\".\"); print $2\"/\"s2[1]\".\"$3\".txt\";}'\"'\"''\" would copy the file \"tmp/2.lc\" to \"./directory/2.2.txt\". If a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring or \"namecommand\" option and command will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. Give the keyword \"copyheader\" to copy the primary header from the input light curve (if it was a fits format light curve) to the output fits light curve. Give the keyword \"logcommandline\" to log the vartools command line to the file header. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
+      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve.\n\nYou can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%b replaced with $inname stripped of any final extension, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/2.lc\" to \"./directory/file2.lc00002.txt\". As another example, if the first line in the file \"inlist\" is \"tmp/2.tmp.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat %b.txt\" would result in copying the file \"tmp/2.tmp.lc\" to \"./directory/2.tmp.txt\".\n\nAlternatively you can use the \"namecommand\" keyword to execute a shell command (e.g., sed or awk) to determine the name of the output light curve. Here the command 'echo $fulllcname $outdir $lcnum' will be piped into the command given by the user after the \"namecommand\" keyword, and the name of the light curve will be set to the output of the resulting process. Here $fulllcname is the full name of the input light curve file as read in from the input list, outdir is the output directory specified for this -o command, and lcnum is the light curve number. In the prior example where the second line the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory namecommand 'gawk '\"'\"'{n = split($1,s1,\"/\"); split(s1[n],s2,\".\"); print $2\"/\"s2[1]\".\"$3\".txt\";}'\"'\"''\" would copy the file \"tmp/2.lc\" to \"./directory/2.2.txt\".\n\nThe \"namefromlist\" option can be used to indicate that each output filename should be read from the input light curve list file. The outdir will be prepended to each filename. By default this will be taken from the next unused column in the list. Give the \"column\" keyword, followed by the column number, to specify the column to use.\n\nIf a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring, \"namecommand\" option and command, or the \"namefromlist\" option will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header. Additionally a colon can optionally be used after the units, and the text after that colon will be included in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section as an additional description of the column. An additional optional colon after the description can be used to specify an alternative \"units\" value for the column to add in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. Give the keyword \"copyheader\" to copy the primary header from the input light curve (if it was a fits format light curve) to the output fits light curve. Give the keyword \"logcommandline\" to log the vartools command line to the file header. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
       commandfound = 1;
     }
   if(all == 1 || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))
     {
       listcommands_noexit("-Phase",p,&s);
       printtostring(&s,"Replace the time variable of a light curve with its phase and sort the light curve by the phase. The period for phasing is either taken from the last aov command, the last ls command, the last BLS command, is set to an arbitrary previously computed statistic by giving the name or number of the output column as seen with the -header or -numbercolumns options (the \"fixcolumn\" option), is specified in the list (in this case the list must be used), or is fixed to the value P specified on the command line. The user may optionally specify a reference time for phase = 0 (T0) by giving \"T0\" followed either by \"bls\" and the phase to assign the time of mid-transit found from the last bls command, by \"fixcolumn\" and the name or number of a previously computed statistic, by \"list\" (in which case the value to use for each light curve is given in the input list), or by \"fix\" and the T0 value to use for all processed light curves. By default t0 is the initial time in the light curve. If the \"phasevar\" keyword is used, then the phases will be stored in the variable var, rather than overwriting the times. The optional \"startphase\" keyword may be used to change the range of phases (by default they run from 0 to 1, using this keyword will cause them to run from startphase to startphase+1).\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || !strcmp(c,"-print"))
+    {
+      listcommands_noexit("-print",p,&s);
+      printtostring(&s,"Print the value of a variable to the output table. Provide a comma-delimited list of previously defined variables to print. Note that this command will output one value per light curve, so if the variable is a light curve column-type variable (i.e., it is a vector of length equal to that of the light curve) only the value at the initial time will be output in the table.\n\nBy default the output table will have column names of the form Print_${varname}_${varnum}_${commandnum} where ${varname} is the name of the variable, ${varnum} is the number of the variable (starting from zero) in the list of variables that is provided to the -print command, and ${commandnum} is the usual command number appended to the end of every column name. Use the \"columnnames\" option, followed by a comma-delimited list of strings to change the column name in the output table for each variable. The term \"_${commandnum}\" will still be appended to the end of the name, unless the -columnsuffix option is used before calling this command.\n\nUse the \"format\" option, followed by a list of printf-style format codes, to specify the format of the output value in the table.\n\n");
       commandfound = 1;
     }
 #ifdef _HAVE_PYTHON
@@ -1489,7 +1599,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-rescalesig",11) && strlen(c) == 11))
     {
       listcommands_noexit("-rescalesig",p,&s);
-      printtostring(&s,"Rescale the magnitude uncertainties of each light curve so that Chi2 per dof is equal to 1 for every light curve. The rescale factor for each light curve will be included in the output table.\n\n");
+      printtostring(&s,"Rescale the magnitude uncertainties of each light curve so that Chi2 per dof is equal to 1 for every light curve. The rescale factor for each light curve will be included in the output table.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the chi2/dof. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-restorelc",10) && strlen(c) == 10))
@@ -1502,31 +1612,37 @@ void help(char *c, ProgramData *p)
   if(all == 1 || !strcmp(c,"-restricttimes"))
     {
       listcommands_noexit("-restricttimes",p,&s);
-      printtostring(&s,"This command is used to filter observations from the light curves based on the time values. If the optional keyword \"exclude\" is given, then specified times will be removed from the light curve(s), otherwise non-specified times will be removed. The times to include or exclude can be done either by specifying a range of times (keyword \"JDrange\" or \"JDrangebylc\"), by providing a list of times (\"JDlist\"), or by providing a list of string IDs (\"imagelist\"). If \"JDrange\" is used then the same range of times is set for all light curves. If \"JDrangebylc\" is used, then the user may specify a different minJD and/or maxJD for each light curve. The options here are \"fix\" to fix the parameter to a value given on the command-line, \"list\" to have the parameter read-in from the input light curve list (optionally giving the column number with the keyword \"column\", by default the next column in the list is used), \"fixcolumn\" to use a previously computed column from the output statistics file, or \"expr\" to set the value to an analytic expression which is evaluated for each light curve at the time this command is executed. If \"JDlist\" is used then the user should supply a file which contains a list of JDs in the first column. By default points with times not given in this file will be removed from all light curves, but if the \"exclude\" option is given, then the times in the file will be removed from the light curves. If \"imagelist\" is used then the user should supply a file which contains a list of string-IDs (image names) in the first column to use in selecting points from the light curves. If \"expr\" is used then the user should supply an analytic expression to be evaluated for each point in the light curve. Only points evaluating to a value greater than zero will be included (or excluded if the \"exclude\" keyword is used).  For example giving the command \"-restricttimes expr '(mag>9.0)&&(mag<9.5)'\" would restrict the light curve to only points in the range 9.0 < mag < 9.5, filtering out all other points.\n\n");
+      printtostring(&s,"This command is used to filter observations from the light curves based on the time values. If the optional keyword \"exclude\" is given, then specified times will be removed from the light curve(s), otherwise non-specified times will be removed. The times to include or exclude can be done either by specifying a range of times (keyword \"JDrange\" or \"JDrangebylc\"), by providing a list of times (\"JDlist\"), or by providing a list of string IDs (\"imagelist\"). If \"JDrange\" is used then the same range of times is set for all light curves. If \"JDrangebylc\" is used, then the user may specify a different minJD and/or maxJD for each light curve. The options here are \"fix\" to fix the parameter to a value given on the command-line, \"list\" to have the parameter read-in from the input light curve list (optionally giving the column number with the keyword \"column\", by default the next column in the list is used), \"fixcolumn\" to use a previously computed column from the output statistics file, or \"expr\" to set the value to an analytic expression which is evaluated for each light curve at the time this command is executed. If \"JDlist\" is used then the user should supply a file which contains a list of JDs in the first column. By default points with times not given in this file will be removed from all light curves, but if the \"exclude\" option is given, then the times in the file will be removed from the light curves. If \"imagelist\" is used then the user should supply a file which contains a list of string-IDs (image names) in the first column to use in selecting points from the light curves. If \"expr\" is used then the user should supply an analytic expression to be evaluated for each point in the light curve. Only points evaluating to a value greater than zero will be included (or excluded if the \"exclude\" keyword is used).  For example giving the command \"-restricttimes expr '(mag>9.0)&&(mag<9.5)'\" would restrict the light curve to only points in the range 9.0 < mag < 9.5, filtering out all other points.\n\nBy default this command will remove points from the light curve. If the \"markrestrict\" keyword is given, then the points will not be removed, but instead points that would have been removed will have markvar set to 0, while points that would be kept will have markvar set to 1. By default the program will ignore any prior values that may be set in the markvar variable. If the \"noinitmark\" keyword is given after the variable name, then the input var values will be taken as an initial clipping mask, and the command will only set var = 0 for any additional points that would be removed from the light curve. Note that the \"-restoretimes\" command cannot be used with a \"-restricttimes\" command for which the \"markrestrict\" keyword is given.\n\n");
       commandfound = 1;
     }
   if(all == 1 || !strcmp(c,"-restoretimes"))
     {
       listcommands_noexit("-restoretimes",p,&s);
-      printtostring(&s,"Restore the observations in the light curve that were filtered out through a prior -restricttimes command. The value for prior_restricttimes_command should be set to the number of the -restricttimes command that you want to restore the times from, where prior_restricttimes_command=1 for the first -restricttimes command given on the command line, =2 for the second -restricttimes command, etc. The restored points are appended to the current light curve, and the light curve is then sorted by time. You can use the -restricttimes and -restoretimes commands to apply modifications to isolated portions of the light curve.\n\n");
+      printtostring(&s,"Restore the observations in the light curve that were filtered out through a prior -restricttimes command. The value for prior_restricttimes_command should be set to the number of the -restricttimes command that you want to restore the times from, where prior_restricttimes_command=1 for the first -restricttimes command given on the command line, =2 for the second -restricttimes command, etc. The restored points are appended to the current light curve, and the light curve is then sorted by time. You can use the -restricttimes and -restoretimes commands to apply modifications to isolated portions of the light curve. Note that the \"-restoretimes\" command cannot be used with a \"-restricttimes\" command for which the \"markrestrict\" keyword is given.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-rms",4) && strlen(c) == 4))
     {
       listcommands_noexit("-rms",p,&s);
-      printtostring(&s,"Calculate the rms of the light curves. The output will include RMS, the mean magnitude, the expected RMS and the number of points in the light curve\n\n");
+      printtostring(&s,"Calculate the rms of the light curves. The output will include RMS, the mean magnitude, the expected RMS and the number of points in the light curve.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-rmsbin",7) && strlen(c) == 7))
     {
       listcommands_noexit("-rmsbin",p,&s);
-      printtostring(&s,"Similar to chi2bin, this calculates RMS after applying a moving mean filter.\n\n");
+      printtostring(&s,"Similar to chi2bin, this calculates RMS after applying a moving mean filter.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-savelc",7) && strlen(c) == 7))
     {
       listcommands_noexit("-savelc",p,&s);
       printtostring(&s,"This command can be used in conjunction with the -restorelc command to save a light curve and later restore it to this state. For example, suppose you want to try running TFA followed by LS on the light curve using 3 different template lists. A command string of the form: \"... -savelc -TFA trendlist1 ... -LS ... -restorelc 1 -TFA trendlist2 ... -LS ... -restorelc 1 -TFA trendlist3 ... -LS ...\" would accomplish this as each time \"-restorelc 1\" is called the light curve is restored to its form at the first -savelc command.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || !strcmp(c,"-sortlc"))
+    {
+      listcommands_noexit("-sortlc",p,&s);
+      printtostring(&s,"Sort the light curve. By default it will be sorted by time. Use the \"var\" keyword to specify a different variable to use for sorting. To sort the light curve in reverse, use the \"reverse\" keyword. Note that some commands require the light curve to be sorted by time. If any such command is called after calling -sortlc, the light curve will be re-sorted by time at the start of that subsequent command.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-SoftenedTransit",16) && strlen(c) == 16))
@@ -1560,6 +1676,7 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"\tmax - maximum value, equivalent to pct100.\n");
       printtostring(&s,"\tmin - minimum value, equivalent to pct0.\n");
       printtostring(&s,"\tsum - sum of all elements in the vector.\n\n");
+      printtostring(&s,"Use the \"maskpoints\" keyword to provide a variable that indicates which points in the light curve to compute statistics for. Statistics will only be computed for points with maskvar > 0.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-SYSREM",7) && strlen(c) == 7))
@@ -1571,13 +1688,13 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-TFA",4) && strlen(c) == 4))
     {
       listcommands_noexit("-TFA",p,&s);
-      printtostring(&s,"Run the Trend Filtering Algorithm on the light curves.\n\nThe trendlist is a file containing a list of light curves to be used as trends, it has the format: trendname trendx trendy, where trendname is the file name and trendx and trendy are the coordinates of the trend star. The trend light curves can either be white-space delimited ASCII text files, or they can be binary fits tables. You can optionally specify the readformat for the light curves in the trendlist, by default Nskip is 0, jdcol is 1 and magcol is 2. If the trend light curves are in binary fits format you can optionally give the column names (given by the TTYPE keywords in the fits table header) rather than the column numbers for jdcol and/or magcol. Note that if -matchstringid is set then the JDs of the trend light curves are not read-in and instead jdcol corresponds to the column storing the string-ids for point matching between light curves.\n\nUse the optional \"trend_coeff_priors\" keyword to provide a file containing a list of Gaussian priors to apply to the trend coefficients that are optimized by the TFA algorithm. The file should be in white-space-delimited ASCII text format, with three columns: trendname prior_mean_value prior_standard_deviation. The trendname should be the same as it appears for the template in trendlist, while the prior_mean_value and prior_standard_deviation are the Gaussian mean and standard deviations of the prior to assume for that coefficient. Not all trends need to appear in the trend_coeff_prior_file, those not appearing will not have a prior imposed. By default vartools assumes uniform weighting for all points in a light curve which leads to much faster processing when applied to a large collection of light curves. This assumption poses a challenge for handling trend priors. By default all light curve points will be assigned unit weight, while the trend coefficient prior values will have weight 1.0/prior_standard_deviation. If the optional \"use_lc_errors\" keyword is given, then individual light curve points will be weighted by 1.0/err[i] where err[i] is the input light curve uncertainty at time i. This is the correct way to handle the weighting, but leads to much slower processing when applied to large numbers of light curves. If the optional \"weight_by_template_stddev\" keyword is given, then the light curve points will be weighted by 1.0/ave_template_stddev where ave_template_stddev is the average standard deviation of the trend vectors. The processing will not be slowed down in this case, but it only makes sense if the average trend standard deviation is comparable to the uncertainty in the light curve being processed.\n\ndates_file is a file giving all the dates in the second column, the unique string-ids are read-in from the first column if the -matchstringid option is used (it is the same format as the dates file for the ISIS image subtraction program where the first column is the filename and the second is JD).\n\nTrend stars within pixelsep of the light curve in question will not be used in detrending the light curve. To you this routine you need an input light curve list, the x and y positions of each light curve must be given as columns in the list. By default these are the next available columns, use the \"xycol\" keyword to specify the columns.\n\ncorrectlc is a flag that is 0 or 1 indicating whether the light curves passed to the next command should have the tfa applied.\n\nocoeff is a flag to denote whether or not to output the list of coefficients for each trend for a given light curve, if set to 1 then they will be output to coeff_outdir with \".tfa.coeff\" appended to the end of the filename.\n\nomodel is a flag set to 1 or zero that can be used to output the tfa model for the light curve, the output directory is then given in model_outdir, the suffix \".tfa.model\" will be appended to the filename.\n\nIf you use this routine be sure to cite Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557\n\n");
+      printtostring(&s,"Run the Trend Filtering Algorithm on the light curves.\n\nThe trendlist is a file containing a list of light curves to be used as trends, it has the format: trendname trendx trendy, where trendname is the file name and trendx and trendy are the coordinates of the trend star. The trend light curves can either be white-space delimited ASCII text files, or they can be binary fits tables. You can optionally specify the readformat for the light curves in the trendlist, by default Nskip is 0, jdcol is 1 and magcol is 2. If the trend light curves are in binary fits format you can optionally give the column names (given by the TTYPE keywords in the fits table header) rather than the column numbers for jdcol and/or magcol. Note that if -matchstringid is set then the JDs of the trend light curves are not read-in and instead jdcol corresponds to the column storing the string-ids for point matching between light curves.\n\nUse the optional \"trend_coeff_priors\" keyword to provide a file containing a list of Gaussian priors to apply to the trend coefficients that are optimized by the TFA algorithm. The file should be in white-space-delimited ASCII text format, with three columns: trendname prior_mean_value prior_standard_deviation. The trendname should be the same as it appears for the template in trendlist, while the prior_mean_value and prior_standard_deviation are the Gaussian mean and standard deviations of the prior to assume for that coefficient. Not all trends need to appear in the trend_coeff_prior_file, those not appearing will not have a prior imposed. By default vartools assumes uniform weighting for all points in a light curve which leads to much faster processing when applied to a large collection of light curves. This assumption poses a challenge for handling trend priors. By default all light curve points will be assigned unit weight, while the trend coefficient prior values will have weight 1.0/prior_standard_deviation. If the optional \"use_lc_errors\" keyword is given, then individual light curve points will be weighted by 1.0/err[i] where err[i] is the input light curve uncertainty at time i. This is the correct way to handle the weighting, but leads to much slower processing when applied to large numbers of light curves. If the optional \"weight_by_template_stddev\" keyword is given, then the light curve points will be weighted by 1.0/ave_template_stddev where ave_template_stddev is the average standard deviation of the trend vectors. The processing will not be slowed down in this case, but it only makes sense if the average trend standard deviation is comparable to the uncertainty in the light curve being processed.\n\ndates_file is a file giving all the dates in the second column, the unique string-ids are read-in from the first column if the -matchstringid option is used (it is the same format as the dates file for the ISIS image subtraction program where the first column is the filename and the second is JD).\n\nTrend stars within pixelsep of the light curve in question will not be used in detrending the light curve. To you this routine you need an input light curve list, the x and y positions of each light curve must be given as columns in the list. By default these are the next available columns, use the \"xycol\" keyword to specify the columns.\n\ncorrectlc is a flag that is 0 or 1 indicating whether the light curves passed to the next command should have the tfa applied.\n\nocoeff is a flag to denote whether or not to output the list of coefficients for each trend for a given light curve, if set to 1 then they will be output to coeff_outdir with \".tfa.coeff\" appended to the end of the filename.\n\nomodel is a flag set to 1 or zero that can be used to output the tfa model for the light curve, the output directory is then given in model_outdir, the suffix \".tfa.model\" will be appended to the filename.\n\nBy default the TFA process will filter 5 sigma outliers from each light curve before fitting the trend coefficients (the trend model is still evaluated and subtracted from the light curve at these points). To change the clipping value use the \"clip\" keyword followed by the clipping level. Use the \"usemedian\" and/or \"useMAD\" to use the median and/or MAD statistics for the clipping. To exclude a specific set of points from the trend coefficient fit (while still evaluating the model for those points) use the \"fitmask\" keyword, and supply a vector that is set to 1 for points to include in the fit, and 0 for points to exclude. Use the \"outfitmask\" keyword to return, in the specified variable, flags indicating whether points were included or not included in the TFA fit. The variable will be set to 1 for points that are included in the fit, and 0 for those that are not included.\n\nIf you use this routine be sure to cite Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-TFA_SR",7) && strlen(c) == 7))
     {
       listcommands_noexit("-TFA_SR",p,&s);
-      printtostring(&s,"Run the Trend Filtering Algorithm in signal reconstruction mode on the light curves (i.e. iteratively filter the light curve and fit a simple signal to the light curve). In addition to the parameters used by the -TFA command, this command allows for simulataneously decorrelating the light curve against additional light curve specific signals. This is useful, for example, if one wishes to do EPD (external parameter decorrelation) and TFA on a high-amplitude variable star. To do this, specify \"decorr\", the iterativeflag is 1 if the decorrelation and the TFA will be done iteratively (this is faster) or 0 if they will be done simultaneously (more correct, but slower). The Nlcterms, lccolumn and lcorder terms are the same as for the -decorr command. Any global signals to decorrelate against should just be included in the TFA trendlist. Other parameters that are different from the -TFA command include: \"dotfafirst\" is a flag that is 0 or 1, if the flag is 1 then TFA will be applied to the input light curve first and the signal will then be determined on the residual in each iteration, if it is 0 then the signal is determined and subtracted from the light curve and TFA is applied to the residual in each iteration. The iterations will stop once the fractional change in the RMS is less than \"tfathresh\" or if the number of iterations reaches \"maxiter\". The model signal is either taken to be the mean value of the binned light curve (specify \"bins\" and then the number of bins to use), it is a fixed signal form read in from a file (specify \"signal\" and then a filename), or it is a Fourier series that is simultaneously fit to the light curve with TFA (specify \"harm\"). If binning is used, then you can specify \"period\" to make the binning phase-binning, and then specify where the period should be read from. If \"list\" is used then the period is read from the input light curve list (by default it is taken from the next available column, use the \"column\" keyword to specify the column), if \"fix\" is used then the period is fixed to the specified period value for all light curves. If \"signal\" is used, then the filename will be a file containing a list of signal files, one file for each light curve, with each signal file containing the signal in the second column. The quantity a*signal + b is fit to the light curve, where a and b are free parameters. If \"harm\" is used, then the signal will be a Fourier series that is fit simultaneously to the light curve with TFA. In this case there is no TFA iteration. Nharm is the number of harmonics in addition to the fundamental to include in the fourier series, Nsubharm is the number of subharmonics. If \"period\" is specified then period for the fourier series will be taken from the specified source. If \"period\" is not specified then the period for the Fourier series will be set to the time-span of the observations. If you use this routine be sure to cite Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557\n\n");
+      printtostring(&s,"Run the Trend Filtering Algorithm in signal reconstruction mode on the light curves (i.e. iteratively filter the light curve and fit a simple signal to the light curve). In addition to the parameters used by the -TFA command, this command allows for simulataneously decorrelating the light curve against additional light curve specific signals. This is useful, for example, if one wishes to do EPD (external parameter decorrelation) and TFA on a high-amplitude variable star. To do this, specify \"decorr\", the iterativeflag is 1 if the decorrelation and the TFA will be done iteratively (this is faster) or 0 if they will be done simultaneously (more correct, but slower). The Nlcterms, lccolumn and lcorder terms are the same as for the -decorr command. Any global signals to decorrelate against should just be included in the TFA trendlist. Other parameters that are different from the -TFA command include: \"dotfafirst\" is a flag that is 0 or 1, if the flag is 1 then TFA will be applied to the input light curve first and the signal will then be determined on the residual in each iteration, if it is 0 then the signal is determined and subtracted from the light curve and TFA is applied to the residual in each iteration. The iterations will stop once the fractional change in the RMS is less than \"tfathresh\" or if the number of iterations reaches \"maxiter\". The model signal is either taken to be the mean value of the binned light curve (specify \"bins\" and then the number of bins to use), it is a fixed signal form read in from a file (specify \"signal\" and then a filename), or it is a Fourier series that is simultaneously fit to the light curve with TFA (specify \"harm\"). If binning is used, then you can specify \"period\" to make the binning phase-binning, and then specify where the period should be read from. If \"list\" is used then the period is read from the input light curve list (by default it is taken from the next available column, use the \"column\" keyword to specify the column), if \"fix\" is used then the period is fixed to the specified period value for all light curves. If \"signal\" is used, then the filename will be a file containing a list of signal files, one file for each light curve, with each signal file containing the signal in the second column. The quantity a*signal + b is fit to the light curve, where a and b are free parameters. If \"harm\" is used, then the signal will be a Fourier series that is fit simultaneously to the light curve with TFA. In this case there is no TFA iteration. Nharm is the number of harmonics in addition to the fundamental to include in the fourier series, Nsubharm is the number of subharmonics. If \"period\" is specified then period for the fourier series will be taken from the specified source. If \"period\" is not specified then the period for the Fourier series will be set to the time-span of the observations.\n\nBy default the TFA-SR process will filter 5 sigma outliers from each light curve before fitting the trend coefficients (the trend model is still evaluated and subtracted from the light curve at these points). To change the clipping value use the \"clip\" keyword followed by the clipping level. Use the \"usemedian\" and/or \"useMAD\" to use the median and/or MAD statistics for the clipping. To exclude a specific set of points from the trend coefficient fit (while still evaluating the model for those points) use the \"fitmask\" keyword, and supply a vector that is set to 1 for points to include in the fit, and 0 for points to exclude. Use the \"outfitmask\" keyword to return, in the specified variable, flags indicating whether points were included or not included in the TFA fit. The variable will be set to 1 for points that are included in the fit, and 0 for those that are not included.\n\nIf you use this routine be sure to cite Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557\n\n");
       commandfound = 1;
     }
   if(all || (!strcmp(c,"-wwz")))
@@ -1588,7 +1705,7 @@ void help(char *c, ProgramData *p)
       printtostring(&s," You may output these as multi-extension fits image files by giving the \"fits\" keyword.");
 #endif
       printtostring(&s," If you give the \"pm3d\" keyword then a blank line will be included after each Time-step scan. The output data file is then in the format expected by the gnuplot pm3d plotting style.");
-      printtostring(&s," By default these will be output to files named outdir/lcname.wwz, where lcname is the basename of the input light curve file. You can optionally modify the naming convention using the \"format\" keyword (see the \"nameformat\" option to the -o command for syntax). To output the transform that maximizes Z over frequencies as a function of time-shift, give the \"outmaxtransform\" keyword followed by the directory to output these to. By default these will be output to files named outdir/lcname.mwwz. You can optionally modify the naming convention using the \"format\" keyword. If you use this routine cite Foster, 1996, AJ, 112, 1709.\n\n");
+      printtostring(&s," By default these will be output to files named outdir/lcname.wwz, where lcname is the basename of the input light curve file. You can optionally modify the naming convention using the \"format\" keyword (see the \"nameformat\" option to the -o command for syntax). To output the transform that maximizes Z over frequencies as a function of time-shift, give the \"outmaxtransform\" keyword followed by the directory to output these to. By default these will be output to files named outdir/lcname.mwwz. You can optionally modify the naming convention using the \"format\" keyword.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nIf you use this routine cite Foster, 1996, AJ, 112, 1709.\n\n");
       commandfound = 1;
     }
   if(s.s != NULL)

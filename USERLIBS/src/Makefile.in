@@ -151,6 +151,12 @@ ftuneven_la_OBJECTS = $(am_ftuneven_la_OBJECTS)
 ftuneven_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(ftuneven_la_LDFLAGS) $(LDFLAGS) -o $@
+hatpiflag_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
+am_hatpiflag_la_OBJECTS = hatpiflag.lo
+hatpiflag_la_OBJECTS = $(am_hatpiflag_la_OBJECTS)
+hatpiflag_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(hatpiflag_la_LDFLAGS) $(LDFLAGS) -o $@
 am__DEPENDENCIES_1 =
 jktebop_la_DEPENDENCIES = libjktebop.la \
 	$(abs_top_srcdir)/src/libvartools.la $(am__DEPENDENCIES_1)
@@ -192,6 +198,12 @@ splinedetrend_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_CFLAGS) $(CFLAGS) $(splinedetrend_la_LDFLAGS) $(LDFLAGS) \
 	-o $@
 @HAVE_GSL_TRUE@am_splinedetrend_la_rpath = -rpath $(userlibsdir)
+stitch_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
+am_stitch_la_OBJECTS = stitch.lo
+stitch_la_OBJECTS = $(am_stitch_la_OBJECTS)
+stitch_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(stitch_la_LDFLAGS) $(LDFLAGS) -o $@
 transitbisec_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
 am_transitbisec_la_OBJECTS = transitbisec.lo
 transitbisec_la_OBJECTS = $(am_transitbisec_la_OBJECTS)
@@ -216,11 +228,11 @@ depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/fastchi2_la-fastchi2.Plo \
 	./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo \
-	./$(DEPDIR)/ftuneven.Plo ./$(DEPDIR)/jktebop.Plo \
-	./$(DEPDIR)/macula_c.Plo ./$(DEPDIR)/magadd.Plo \
-	./$(DEPDIR)/medlc.Plo \
+	./$(DEPDIR)/ftuneven.Plo ./$(DEPDIR)/hatpiflag.Plo \
+	./$(DEPDIR)/jktebop.Plo ./$(DEPDIR)/macula_c.Plo \
+	./$(DEPDIR)/magadd.Plo ./$(DEPDIR)/medlc.Plo \
 	./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo \
-	./$(DEPDIR)/transitbisec.Plo
+	./$(DEPDIR)/stitch.Plo ./$(DEPDIR)/transitbisec.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -271,16 +283,18 @@ am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
 SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
-	$(jktebop_la_SOURCES) $(nodist_EXTRA_jktebop_la_SOURCES) \
-	$(libjktebop_la_SOURCES) $(libmacula_la_SOURCES) \
-	$(macula_la_SOURCES) $(nodist_EXTRA_macula_la_SOURCES) \
-	$(magadd_la_SOURCES) $(medlc_la_SOURCES) \
-	$(splinedetrend_la_SOURCES) $(transitbisec_la_SOURCES)
-DIST_SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
-	$(jktebop_la_SOURCES) $(libjktebop_la_SOURCES) \
+	$(hatpiflag_la_SOURCES) $(jktebop_la_SOURCES) \
+	$(nodist_EXTRA_jktebop_la_SOURCES) $(libjktebop_la_SOURCES) \
 	$(libmacula_la_SOURCES) $(macula_la_SOURCES) \
-	$(magadd_la_SOURCES) $(medlc_la_SOURCES) \
-	$(splinedetrend_la_SOURCES) $(transitbisec_la_SOURCES)
+	$(nodist_EXTRA_macula_la_SOURCES) $(magadd_la_SOURCES) \
+	$(medlc_la_SOURCES) $(splinedetrend_la_SOURCES) \
+	$(stitch_la_SOURCES) $(transitbisec_la_SOURCES)
+DIST_SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
+	$(hatpiflag_la_SOURCES) $(jktebop_la_SOURCES) \
+	$(libjktebop_la_SOURCES) $(libmacula_la_SOURCES) \
+	$(macula_la_SOURCES) $(magadd_la_SOURCES) $(medlc_la_SOURCES) \
+	$(splinedetrend_la_SOURCES) $(stitch_la_SOURCES) \
+	$(transitbisec_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -477,7 +491,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 userlibsdir = $(USERLIBSDIR)
 userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la \
-	medlc.la ftuneven.la $(am__append_1)
+	medlc.la ftuneven.la hatpiflag.la stitch.la $(am__append_1)
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
 ftuneven_la_SOURCES = ftuneven.c ftuneven.h 
 ftuneven_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
@@ -502,6 +516,12 @@ splinedetrend_la_SOURCES = splinedetrend.c splinedetrend.h
 splinedetrend_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la $(GSL_LIBS)
 splinedetrend_la_CPPFLAGS = $(GSL_CFLAGS)
 splinedetrend_la_LDFLAGS = -module
+hatpiflag_la_SOURCES = hatpiflag.c hatpiflag.h
+hatpiflag_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+hatpiflag_la_LDFLAGS = -module
+stitch_la_SOURCES = stitch.c stitch.h
+stitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+stitch_la_LDFLAGS = -module
 libmacula_la_SOURCES = macula.f90
 libmacula_la_LIBADD = $(FLIBS)
 nodist_EXTRA_macula_la_SOURCES = dummy2.f90
@@ -586,6 +606,9 @@ fastchi2.la: $(fastchi2_la_OBJECTS) $(fastchi2_la_DEPENDENCIES) $(EXTRA_fastchi2
 ftuneven.la: $(ftuneven_la_OBJECTS) $(ftuneven_la_DEPENDENCIES) $(EXTRA_ftuneven_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(ftuneven_la_LINK) -rpath $(userlibsdir) $(ftuneven_la_OBJECTS) $(ftuneven_la_LIBADD) $(LIBS)
 
+hatpiflag.la: $(hatpiflag_la_OBJECTS) $(hatpiflag_la_DEPENDENCIES) $(EXTRA_hatpiflag_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(hatpiflag_la_LINK) -rpath $(userlibsdir) $(hatpiflag_la_OBJECTS) $(hatpiflag_la_LIBADD) $(LIBS)
+
 jktebop.la: $(jktebop_la_OBJECTS) $(jktebop_la_DEPENDENCIES) $(EXTRA_jktebop_la_DEPENDENCIES) 
 	$(AM_V_F77LD)$(jktebop_la_LINK) -rpath $(userlibsdir) $(jktebop_la_OBJECTS) $(jktebop_la_LIBADD) $(LIBS)
 
@@ -607,6 +630,9 @@ medlc.la: $(medlc_la_OBJECTS) $(medlc_la_DEPENDENCIES) $(EXTRA_medlc_la_DEPENDEN
 splinedetrend.la: $(splinedetrend_la_OBJECTS) $(splinedetrend_la_DEPENDENCIES) $(EXTRA_splinedetrend_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(splinedetrend_la_LINK) $(am_splinedetrend_la_rpath) $(splinedetrend_la_OBJECTS) $(splinedetrend_la_LIBADD) $(LIBS)
 
+stitch.la: $(stitch_la_OBJECTS) $(stitch_la_DEPENDENCIES) $(EXTRA_stitch_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(stitch_la_LINK) -rpath $(userlibsdir) $(stitch_la_OBJECTS) $(stitch_la_LIBADD) $(LIBS)
+
 transitbisec.la: $(transitbisec_la_OBJECTS) $(transitbisec_la_DEPENDENCIES) $(EXTRA_transitbisec_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(transitbisec_la_LINK) -rpath $(userlibsdir) $(transitbisec_la_OBJECTS) $(transitbisec_la_LIBADD) $(LIBS)
 
@@ -619,11 +645,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fastchi2_la-fastchi2.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ftuneven.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hatpiflag.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jktebop.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/macula_c.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/magadd.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/medlc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stitch.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/transitbisec.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -832,11 +860,13 @@ distclean: distclean-am
 		-rm -f ./$(DEPDIR)/fastchi2_la-fastchi2.Plo
 	-rm -f ./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo
 	-rm -f ./$(DEPDIR)/ftuneven.Plo
+	-rm -f ./$(DEPDIR)/hatpiflag.Plo
 	-rm -f ./$(DEPDIR)/jktebop.Plo
 	-rm -f ./$(DEPDIR)/macula_c.Plo
 	-rm -f ./$(DEPDIR)/magadd.Plo
 	-rm -f ./$(DEPDIR)/medlc.Plo
 	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
+	-rm -f ./$(DEPDIR)/stitch.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -886,11 +916,13 @@ maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/fastchi2_la-fastchi2.Plo
 	-rm -f ./$(DEPDIR)/fastchi2_la-fastchi2_lib.Plo
 	-rm -f ./$(DEPDIR)/ftuneven.Plo
+	-rm -f ./$(DEPDIR)/hatpiflag.Plo
 	-rm -f ./$(DEPDIR)/jktebop.Plo
 	-rm -f ./$(DEPDIR)/macula_c.Plo
 	-rm -f ./$(DEPDIR)/magadd.Plo
 	-rm -f ./$(DEPDIR)/medlc.Plo
 	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
+	-rm -f ./$(DEPDIR)/stitch.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

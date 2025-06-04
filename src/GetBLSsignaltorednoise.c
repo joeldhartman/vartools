@@ -150,7 +150,7 @@ void redwhitenoise(int N, double *t, double *mag, double *sig, double timespan, 
   int ngood, ngoodbin;
   
   rmsval = getweightedrms(N, t, mag, sig, &aveval, &rmsthy, &ngood);
-  rmsbinval = binnedrms(N, t, mag, sig, timespan, &binaveval, &rmsbinthy, &ngoodbin);
+  rmsbinval = binnedrms(N, t, mag, sig, timespan, &binaveval, &rmsbinthy, &ngoodbin, 0, NULL, 0, 0);
   
   expectedbinrms = rmsval * rmsbinthy / rmsthy;
   

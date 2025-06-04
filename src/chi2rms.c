@@ -39,41 +39,12 @@
 /* Routines to compute chi2 and rms for the program vartools by J. Hartman */
 
 /* Function to calculate binned-chi^2 for a light curve */
-int findX(double *x, double xval, int i1, int N)
-{
-  int u;
-  if(x[i1] >= xval)
-    return(i1);
-  if(x[N-1] < xval)
-    return(N);
-  while(1)
-    {
-      u = (N+i1)/2;
-      if(u == N || u == i1)
-	return(u);
-      if(x[u] >= xval)
-	{
-	  if(x[u-1] < xval)
-	    return(u);
-	  N = u;
-	}
-      if(x[u] <= xval)
-	{
-	  if(u == N-1)
-	    return(N);
-	  if(x[u+1] >= xval)
-	    return(u+1);
-	  i1 = u;
-	}
-    }
-}
-
-
-double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, double *aveval, int *ngood)
+double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, double *aveval, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int i, jmin, jmax, jminold, jmaxold, foundgood;
   double avesum1, avesum2, mindt, maxdt, chi2val, v;
   double *sumval1, *sumval2, *sumval3, *binmag, *binsig, ave;
+  int *nval;
 
   *aveval = -1.;
 
@@ -84,37 +55,84 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 	 (sumval2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sumval3 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (binmag = (double *) malloc(N * sizeof(double))) == NULL ||
-	 (binsig = (double *) malloc(N * sizeof(double))) == NULL)
+	 (binsig = (double *) malloc(N * sizeof(double))) == NULL ||
+	 (nval = (int *) malloc(N * sizeof(int))) == NULL)
 	{
 	  fprintf(stderr,"Memory Allocation Error\n");
 	  exit(2);
 	}
 
       /* First get the average binned magnitude */
-
-      if(!isnan(mag[0]) && sig[0] > 0.)
-	{
-	  (*ngood)++;
-	  sumval1[0] = mag[0] / (sig[0] * sig[0]);
-	  sumval2[0] = 1. / (sig[0] * sig[0]);
-	  sumval3[0] = sig[0] * sig[0];
-	}
-      else
-	{
-	  sumval1[0] = 0.;
-	  sumval2[0] = 0.;
-	  sumval3[0] = 0.;
-	}
-      for(i=1;i<N;i++)
-	{
-	  if(!isnan(mag[i]) && sig[i] > 0.)
-	    {
-	      (*ngood)++;
-	      sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
-	      sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
-	      sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
-	    }
-	}
+      
+      if(!usemask) {
+	if(!isnan(mag[0]) && sig[0] > 0)
+	  {
+	    (*ngood)++;
+	    sumval1[0] = mag[0] / (sig[0] * sig[0]);
+	    sumval2[0] = 1. / (sig[0] * sig[0]);
+	    sumval3[0] = sig[0] * sig[0];
+	    nval[0] = 0;
+	  }
+	else
+	  {
+	    sumval1[0] = 0.;
+	    sumval2[0] = 0.;
+	    sumval3[0] = 0.;
+	    nval[0] = 0;
+	  }
+	for(i=1;i<N;i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0.)
+	      {
+		(*ngood)++;
+		sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
+		sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
+		sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
+		nval[i] = nval[i-1]+1;
+	      }
+	    else
+	      {
+		sumval1[i] = sumval1[i-1];
+		sumval2[i] = sumval2[i-1];
+		sumval3[i] = sumval3[i-1];
+		nval[i] = nval[i-1];
+	      }
+	  }
+      } else {
+	if(!isnan(mag[0]) && sig[0] > 0. && EvaluateVariable_Double(lcindex, threadindex, 0, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    (*ngood)++;
+	    sumval1[0] = mag[0] / (sig[0] * sig[0]);
+	    sumval2[0] = 1. / (sig[0] * sig[0]);
+	    sumval3[0] = sig[0] * sig[0];
+	    nval[0] = 0;
+	  }
+	else
+	  {
+	    sumval1[0] = 0.;
+	    sumval2[0] = 0.;
+	    sumval3[0] = 0.;
+	    nval[0] = 0;
+	  }
+	for(i=1;i<N;i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		(*ngood)++;
+		sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
+		sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
+		sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
+		nval[i] = nval[i-1]+1;
+	      }
+	    else
+	      {
+		sumval1[i] = sumval1[i-1];
+		sumval2[i] = sumval2[i-1];
+		sumval3[i] = sumval3[i-1];
+		nval[i] = nval[i-1];
+	      }
+	  }
+      }
 
       /* Go through the list find the minimum and maximum times to include via bisection and compute the binned average magnitude and error */
       foundgood = 0;
@@ -138,7 +156,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 	      if((v = sumval2[jmax] - sumval2[jmin-1]) > 0)
 		{
 		  binmag[i] = (sumval1[jmax] - sumval1[jmin-1]) / v;
-		  binsig[i] = sqrt((sumval3[jmax] - sumval3[jmin-1]) / ((double) (jmax - jmin + 1) * (jmax - jmin + 1)));
+		  binsig[i] = sqrt((sumval3[jmax] - sumval3[jmin-1]) / ((double) (nval[jmax] - nval[jmin] + 1) * (nval[jmax] - nval[jmin] + 1)));
 		}
 	      else
 		{
@@ -149,7 +167,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 	  else if(jmin == 0 && sumval2[jmax] > 0.)
 	    {
 	      binmag[i] = sumval1[jmax] / sumval2[jmax];
-	      binsig[i] = sqrt(sumval3[jmax] / ((double) (jmax + 1) * (jmax + 1)));
+	      binsig[i] = sqrt(sumval3[jmax] / ((double) (nval[jmax] + 1) * (nval[jmax] + 1)));
 	    }
 	  else
 	    {
@@ -192,6 +210,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
       free(sumval3);
       free(binmag);
       free(binsig);
+      free(nval);
     }
   else
     {
@@ -203,7 +222,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 }
 
 /* Function to calculate un-binned chi2 for a light curve */
-double chi2(int N, double *t, double *mag, double *sig, double *aveval, int *ngood)
+double chi2(int N, double *t, double *mag, double *sig, double *aveval, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   double avesum1, avesum2, ave, chi2val, v;
   int i;
@@ -213,30 +232,56 @@ double chi2(int N, double *t, double *mag, double *sig, double *aveval, int *ngo
     {
       avesum1 = 0.;
       avesum2 = 0.;
-      for(i=0; i<N; i++)
-	{
-	  if(!isnan(mag[i]) && sig[i] > 0.)
-	    {
-	      (*ngood)++;
-	      v = sig[i] * sig[i];
-	      avesum1 += mag[i] / v;
-	      avesum2 += 1. / v;
-	    }
-	}
+      if(!usemask) {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0.)
+	      {
+		(*ngood)++;
+		v = sig[i] * sig[i];
+		avesum1 += mag[i] / v;
+		avesum2 += 1. / v;
+	      }
+	  }
+      } else {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		(*ngood)++;
+		v = sig[i] * sig[i];
+		avesum1 += mag[i] / v;
+		avesum2 += 1. / v;
+	      }
+	  }
+      }
       if(avesum2 > 0.)
 	{
 	  ave = (avesum1 / avesum2);
 	  *aveval = ave;
 	  chi2val = 0.;
-	  for(i=0; i<N; i++)
-	    {
-	      if(!isnan(mag[i]) && sig[i] > 0.)
-		{
-		  v = (mag[i] - ave);
-		  v = v * v;
-		  chi2val += v / (sig[i] * sig[i]);
-		}
-	    }
+	  if(!usemask) {
+	    for(i=0; i<N; i++)
+	      {
+		if(!isnan(mag[i]) && sig[i] > 0.)
+		  {
+		    v = (mag[i] - ave);
+		    v = v * v;
+		    chi2val += v / (sig[i] * sig[i]);
+		  }
+	      }
+	  }
+	  else {
+	    for(i=0; i<N; i++)
+	      {
+		if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+		  {
+		    v = (mag[i] - ave);
+		    v = v * v;
+		    chi2val += v / (sig[i] * sig[i]);
+		  }
+	      }
+	  }
 	}
       else
 	chi2val = -1.;
@@ -247,11 +292,12 @@ double chi2(int N, double *t, double *mag, double *sig, double *aveval, int *ngo
 }
 
 /* Function to calculate binned-rms for a light curve */
-double binnedrms(int N, double *t, double *mag, double *sig, double bintime, double *aveval, double *rmsthy, int *ngood)
+double binnedrms(int N, double *t, double *mag, double *sig, double bintime, double *aveval, double *rmsthy, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int i, n, jmin, jmax, jminold, jmaxold, foundgood;
   double avesum1, avesum2, avesum3, mindt, maxdt, rmsval, v;
   double *sumval1, *sumval2, *sumval3, *binmag, *binsig, ave;
+  int *nval;
 
   *aveval = -1.;
   if(N > 0)
@@ -260,7 +306,8 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 	 (sumval2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sumval3 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (binmag = (double *) malloc(N * sizeof(double))) == NULL ||
-	 (binsig = (double *) malloc(N * sizeof(double))) == NULL)
+	 (binsig = (double *) malloc(N * sizeof(double))) == NULL ||
+	 (nval = (int *) malloc(N * sizeof(int))) == NULL)
 	{
 	  fprintf(stderr,"Memory Allocation Error\n");
 	  exit(2);
@@ -268,27 +315,72 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 
       /* First get the average binned magnitude */
 
-      if(!isnan(mag[0]) && sig[0] > 0.)
-	{
-	  sumval1[0] = mag[0] / (sig[0] * sig[0]);
-	  sumval2[0] = 1. / (sig[0] * sig[0]);
-	  sumval3[0] = sig[0] * sig[0];
-	}
-      else
-	{
-	  sumval1[0] = 0.;
-	  sumval2[0] = 0.;
-	  sumval3[0] = 0.;
-	}
-      for(i=1;i<N;i++)
-	{
-	  if(!isnan(mag[i]) && sig[i] > 0.)
-	    {
-	      sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
-	      sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
-	      sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
+      if(!usemask) {
+	
+	if(!isnan(mag[0]) && sig[0] > 0.)
+	  {
+	    sumval1[0] = mag[0] / (sig[0] * sig[0]);
+	    sumval2[0] = 1. / (sig[0] * sig[0]);
+	    sumval3[0] = sig[0] * sig[0];
+	    nval[0] = 0;
+	  }
+	else
+	  {
+	    sumval1[0] = 0.;
+	    sumval2[0] = 0.;
+	    sumval3[0] = 0.;
+	    nval[0] = 0;
+	  }
+	for(i=1;i<N;i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0.)
+	      {
+		sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
+		sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
+		sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
+		nval[i] = nval[i-1] + 1;
+	      }
+	    else {
+	      sumval1[i] = sumval1[i-1];
+	      sumval2[i] = sumval2[i-1];
+	      sumval3[i] = sumval3[i-1];
+	      nval[i] = nval[i-1];
 	    }
-	}
+	  }
+      } else {
+
+	if(!isnan(mag[0]) && sig[0] > 0. && EvaluateVariable_Double(lcindex, threadindex, 0, maskvar) > VARTOOLS_MASK_TINY)
+	  {
+	    sumval1[0] = mag[0] / (sig[0] * sig[0]);
+	    sumval2[0] = 1. / (sig[0] * sig[0]);
+	    sumval3[0] = sig[0] * sig[0];
+	    nval[0] = 0;
+	  }
+	else
+	  {
+	    sumval1[0] = 0.;
+	    sumval2[0] = 0.;
+	    sumval3[0] = 0.;
+	    nval[0] = 0;
+	  }
+	for(i=1;i<N;i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		sumval1[i] = sumval1[i-1] + (mag[i] / (sig[i] * sig[i]));
+		sumval2[i] = sumval2[i-1] + (1. / (sig[i]*sig[i]) );
+		sumval3[i] = sumval3[i-1] + (sig[i] * sig[i]);
+		nval[i] = nval[i-1] + 1;
+	      }
+	    else
+	      {
+		sumval1[i] = sumval1[i-1];
+		sumval2[i] = sumval2[i-1];
+		sumval3[i] = sumval3[i-1];
+		nval[i] = nval[i-1];
+	      }
+	  }
+      }
 
       /* Go through the list find the minimum and maximum times to include via bisection and compute the binned average magnitude and error */
       foundgood = 0;
@@ -312,7 +404,7 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 	      if((v = sumval2[jmax] - sumval2[jmin-1]) > 0)
 		{
 		  binmag[i] = (sumval1[jmax] - sumval1[jmin-1]) / v;
-		  binsig[i] = sqrt((sumval3[jmax] - sumval3[jmin-1]) / ((double) (jmax - jmin + 1) * (jmax - jmin + 1)));
+		  binsig[i] = sqrt((sumval3[jmax] - sumval3[jmin-1]) / ((double) (nval[jmax] - nval[jmin] + 1) * (nval[jmax] - nval[jmin] + 1)));
 		}
 	      else
 		{
@@ -323,7 +415,7 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 	  else if(jmin == 0 && sumval2[jmax] > 0.)
 	    {
 	      binmag[i] = sumval1[jmax] / sumval2[jmax];
-	      binsig[i] = sqrt(sumval3[jmax] / ((double) (jmax + 1)*(jmax + 1)));
+	      binsig[i] = sqrt(sumval3[jmax] / ((double) (nval[jmax] + 1)*(nval[jmax] + 1)));
 	    }
 	  else
 	    {
@@ -364,6 +456,7 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
       free(sumval3);
       free(binmag);
       free(binsig);
+      free(nval);
     }
   else
     {
@@ -376,7 +469,7 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 }
 
 /* Function to calculate un-binned rms for a light curve */
-double rms(int N, double *t, double *mag, double *sig, double *aveval, double *rmsthy, int *ngood)
+double rms(int N, double *t, double *mag, double *sig, double *aveval, double *rmsthy, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   double avesum1, avesum2, avesum3, ave, rmsval, n;
   int i;
@@ -387,16 +480,29 @@ double rms(int N, double *t, double *mag, double *sig, double *aveval, double *r
       avesum2 = 0.;
       avesum3 = 0.;
       n = 0;
-      for(i=0; i<N; i++)
-	{
-	  if(!isnan(mag[i]) && sig[i] > 0.)
-	    {
-	      avesum1 += mag[i];
-	      avesum2 += mag[i]*mag[i];
-	      avesum3 += sig[i]*sig[i];
-	      n++;
-	    }
-	}
+      if(!usemask) {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0.)
+	      {
+		avesum1 += mag[i];
+		avesum2 += mag[i]*mag[i];
+		avesum3 += sig[i]*sig[i];
+		n++;
+	      }
+	  }
+      } else {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		avesum1 += mag[i];
+		avesum2 += mag[i]*mag[i];
+		avesum3 += sig[i]*sig[i];
+		n++;
+	      }
+	  }
+      }
       if(n > 0.)
 	{
 	  ave = (avesum1 / (double) n);
@@ -422,7 +528,7 @@ double rms(int N, double *t, double *mag, double *sig, double *aveval, double *r
 }
 
 
-double changeerror(int N, double *t, double *mag, double *sig, double *aveval, int *ngood)
+double changeerror(int N, double *t, double *mag, double *sig, double *aveval, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   double avesum1, avesum2, avesum3, ave, rmsval, n;
   int i;
@@ -433,16 +539,29 @@ double changeerror(int N, double *t, double *mag, double *sig, double *aveval, i
       avesum2 = 0.;
       avesum3 = 0.;
       n = 0;
-      for(i=0; i<N; i++)
-	{
-	  if(!isnan(mag[i]) && sig[i] > 0.)
-	    {
-	      avesum1 += mag[i];
-	      avesum2 += mag[i]*mag[i];
-	      avesum3 += sig[i]*sig[i];
-	      n++;
-	    }
-	}
+      if(!usemask) {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0.)
+	      {
+		avesum1 += mag[i];
+		avesum2 += mag[i]*mag[i];
+		avesum3 += sig[i]*sig[i];
+		n++;
+	      }
+	  }
+      } else {
+	for(i=0; i<N; i++)
+	  {
+	    if(!isnan(mag[i]) && sig[i] > 0. && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY)
+	      {
+		avesum1 += mag[i];
+		avesum2 += mag[i]*mag[i];
+		avesum3 += sig[i]*sig[i];
+		n++;
+	      }
+	  }
+      }
       if(n > 0.)
 	{
 	  ave = (avesum1 / (double) n);

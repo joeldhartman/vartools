@@ -420,17 +420,10 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
     *mz_out = NULL, *mfreq_out = NULL, *mpow_out = NULL, *mamp_out = NULL, 
     *mcon_out = NULL, *mneff_out = NULL;
   int Nf, Ntau, Nterms;
+  double *t_mask = NULL;
+  double *mag_mask = NULL;
 
-  NJD = p->NJD[threadid];
-  t = p->t[threadid];
-  mag = p->mag[threadid];
-
-  cterm = c->cterm;
-  maxfreq = c->maxfreq;
-  FreqSampFact = c->freq_sample_factor;
-  T = (t[NJD-1] - t[0]);
-  
-  if(NJD <= 1) {
+  if(p->NJD[threadid] <= 1) {
     c->max_z[threadid] = 0.;
     c->max_freq[threadid] = 0.;
     c->max_pow[threadid] = 0.;
@@ -446,6 +439,52 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
     c->med_con[threadid] = 0.;
     return;
   }
+
+
+  if(!c->usemask) {
+    NJD = p->NJD[threadid];
+    t = p->t[threadid];
+    mag = p->mag[threadid];
+  } else {
+    if((t_mask = (double *) malloc(p->NJD[threadid]*sizeof(double))) == NULL ||
+       (mag_mask = (double *) malloc(p->NJD[threadid]*sizeof(double))) == NULL)
+      error(ERR_MEMALLOC);
+    NJD = 0;
+    for(i=0; i < p->NJD[threadid]; i++) {
+      if(!isnan(p->mag[threadid][i]) && EvaluateVariable_Double(lcid, threadid, i, c->maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[NJD] = p->t[threadid][i];
+	mag_mask[NJD] = p->mag[threadid][i];
+	NJD++;
+      }
+    }
+    t = t_mask;
+    mag = mag_mask;
+    if(NJD <= 1) {
+      c->max_z[threadid] = 0.;
+      c->max_freq[threadid] = 0.;
+      c->max_pow[threadid] = 0.;
+      c->max_amp[threadid] = 0.;
+      c->max_neff[threadid] = 0.;
+      c->max_tau[threadid] = 0.;
+      c->max_con[threadid] = 0.;
+      c->med_z[threadid] = 0.;
+      c->med_freq[threadid] = 0.;
+      c->med_pow[threadid] = 0.;
+      c->med_amp[threadid] = 0.;
+      c->med_neff[threadid] = 0.;
+      c->med_con[threadid] = 0.;
+      if(t_mask != NULL) free(t_mask);
+      if(mag_mask != NULL) free(mag_mask);
+      return;
+    }
+  }
+      
+
+  cterm = c->cterm;
+  maxfreq = c->maxfreq;
+  FreqSampFact = c->freq_sample_factor;
+  T = (t[NJD-1] - t[0]);
+  
 
   delmin = -1.0;
 
@@ -508,6 +547,8 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
     c->med_amp[threadid] = 0.;
     c->med_neff[threadid] = 0.;
     c->med_con[threadid] = 0.;
+    if(t_mask != NULL) free(t_mask);
+    if(mag_mask != NULL) free(mag_mask);
     return;
   }
 
@@ -634,13 +675,15 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
     free(mcon_out);
   if(mneff_out != NULL)
     free(mneff_out);
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
 
   return;
 
 }
 
 int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
-		    _WWZ *c)
+		    _WWZ *c, Command *cs)
 {
   int i;
 
@@ -842,6 +885,20 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
     } else
       i--;
   } else
+    i--;
+
+  c->usemask = 0;
+  c->maskvar = NULL;
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"maskpoints")) {
+      c->usemask = 1;
+      i++;
+      if(i >= argc) {*iret = i; return 1;}
+      parse_setparam_existingvariable(cs, argv[i], &(c->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+    } else
+      i--;
+  } else 
     i--;
 
   RegisterScalarData(p, (void *)(&(c->max_z)), VARTOOLS_TYPE_DOUBLE, 0);

@@ -179,8 +179,11 @@
 #define CNUM_R 56
 #define CNUM_MATCHCOMMAND 57
 #define CNUM_BLSFIXPERDURTC 58
+#define CNUM_ADDFITSKEYWORD 59
+#define CNUM_SORTLC 60
+#define CNUM_PRINT 61
 
-#define TOT_CNUMS 58
+#define TOT_CNUMS 61
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -276,6 +279,8 @@
 #define VARTOOLS_BINLC_TIMETYPE_MEDIAN 2
 #define VARTOOLS_BINLC_TIMETYPE_NOSHRINK 3
 
+
+
 #ifndef _OUTTEXTSTRUCTDEFINE
 #include "OutText.h"
 #endif
@@ -286,6 +291,10 @@ typedef struct {
   int iter;
   int niter;
   int usemedian;
+  int markclip;
+  char *clipvarname;
+  _Variable *clipvar;
+  int noinitmark;
 } _Clip;
 
 typedef struct {
@@ -295,17 +304,23 @@ typedef struct {
   double erssigclip;
   double *chi2_old;
   double *chi2_new;
+  int usemask;
+  _Variable *maskvar;
 } _Ensemblerescalesig;
 
 typedef struct {
   double *rescalefactor;
   double *chi2_old;
   double *chi2_new;
+  int usemask;
+  _Variable *maskvar;
 } _Rescalesig;
 
 typedef struct {
   double *chi2val;
   double *wtave;
+  int usemask;
+  _Variable *maskvar;
 } _Chi2_NoBin;
 
 typedef struct {
@@ -313,6 +328,8 @@ typedef struct {
   double *bintimes;
   double **chi2binvals;
   double **wtavebin;
+  int usemask;
+  _Variable *maskvar;
 } _Chi2_Bin;
 
 typedef struct {
@@ -320,6 +337,8 @@ typedef struct {
   double *ave;
   double *rmsthy;
   int *ngood;
+  int usemask;
+  _Variable *maskvar;
 } _RMS_NoBin;
 
 typedef struct {
@@ -327,6 +346,8 @@ typedef struct {
   double *bintimes;
   double **rmsbinvals;
   double **rmsthybin;
+  int usemask;
+  _Variable *maskvar;
 } _RMS_Bin;
 
 typedef struct {
@@ -336,10 +357,14 @@ typedef struct {
   double *lst;
   double wkmax;
   char datesname[MAXLEN];
+  int usemask;
+  _Variable *maskvar;
 } _Jstet;
 
 typedef struct {
   double *alarmvals;
+  int usemask;
+  _Variable *maskvar;
 } _Alarm;
 
 typedef struct {
@@ -349,13 +374,31 @@ typedef struct {
   double errsize;
   char outdir[MAXLEN];
   char suffix[10];
+  int usemask;
+  _Variable *maskvar;
 } _Autocorr;
 
 typedef struct {
   double minp;
+  double *minp_vals;
+  int minp_source;
+  _Variable *minp_var;
+  _Expression *minp_expr;
   double maxp;
+  double *maxp_vals;
+  int maxp_source;
+  _Variable *maxp_var;
+  _Expression *maxp_expr;
   double subsample;
+  double *subsample_vals;
+  int subsample_source;
+  _Variable *subsample_var;
+  _Expression *subsample_expr;
   double finetune;
+  double *finetune_vals;
+  int finetune_source;
+  _Variable *finetune_var;
+  _Expression *finetune_expr;
   int Npeaks;
   double *aveaov;
   double *rmsaov;
@@ -367,6 +410,10 @@ typedef struct {
   double clip;
   int clipiter;
   int Nbin;
+  int Nbin_source;
+  int *Nbin_vals;
+  _Variable *Nbin_var;
+  _Expression *Nbin_expr;
   int operiodogram;
   char outdir[MAXLEN];
   char suffix[5];
@@ -382,13 +429,31 @@ typedef struct {
   double *fixperiodSNR_peakSNR;
   double *fixperiodSNR_peakFAP;
   OutColumn *fixperiodSNR_linkedcolumn;
+  int usemask;
+  _Variable *maskvar;
 } _Aov;
 
 typedef struct {
   double minp;
+  double *minp_vals;
+  int minp_source;
+  _Variable *minp_var;
+  _Expression *minp_expr;
   double maxp;
+  double *maxp_vals;
+  int maxp_source;
+  _Variable *maxp_var;
+  _Expression *maxp_expr;
   double subsample;
+  double *subsample_vals;
+  int subsample_source;
+  _Variable *subsample_var;
+  _Expression *subsample_expr;
   double finetune;
+  double *finetune_vals;
+  int finetune_source;
+  _Variable *finetune_var;
+  _Expression *finetune_expr;
   int Npeaks;
   double *aveaov;
   double *rmsaov;
@@ -398,6 +463,10 @@ typedef struct {
   double **peakFAP;
   int **peakNharm;
   int Nharm;
+  int *Nharm_vals;
+  int Nharm_source;
+  _Variable *Nharm_var;
+  _Expression *Nharm_expr;
   int operiodogram;
   char outdir[MAXLEN];
   char suffix[10];
@@ -415,12 +484,26 @@ typedef struct {
   double *fixperiodSNR_peakSNR;
   double *fixperiodSNR_peakFAP;
   OutColumn *fixperiodSNR_linkedcolumn;
+  int usemask;
+  _Variable *maskvar;
 } _AovHarm;
 
 typedef struct {
   double minp;
+  double *minp_vals;
+  _Variable *minp_var;
+  _Expression *minp_expr;
+  int minp_source;
   double maxp;
+  double *maxp_vals;
+  _Variable *maxp_var;
+  _Expression *maxp_expr;
+  int maxp_source;
   double subsample;
+  double *subsample_vals;
+  _Variable *subsample_var;
+  _Expression *subsample_expr;
+  int subsample_source;
   int Npeaks;
   double **peakperiods;
   double **peakvalues;
@@ -444,6 +527,8 @@ typedef struct {
   int use_orig_ls;
   int dobootstrapfap;
   int Nbootstrap;
+  int usemask;
+  _Variable *maskvar;
 } _Ls;
 
 typedef struct {
@@ -474,6 +559,8 @@ typedef struct {
   int omodel;
   char modeloutdir[MAXLEN];
   char modelsuffix[14];
+  int usemask;
+  _Variable *maskvar;
 } _Decorr;
 
 typedef struct {
@@ -511,6 +598,8 @@ typedef struct {
   double **peakpows_clean;
   double **SNR_dirty;
   double **SNR_clean;
+  int usemask;
+  _Variable *maskvar;
 } _Dftclean;
 
 typedef struct {
@@ -655,18 +744,41 @@ typedef struct {
 
 typedef struct {
   double **u, **v, *fmin, df, qmin, qmax, rmin, rmax, rho;
+  double minexpdurfrac, maxexpdurfrac;
   double **bper, **bt0, **bpow, **sde, **snval, **depth, **qtran;
   double **chisqrplus, *chisqrminus, *bperpos, *meanmagval, **fraconenight, **rednoise, **whitenoise, **sigtopink, **qingress, **OOTmag;
   int **nt, **Nt, **Nbefore, **Nafter;
   double **i1_ph, **i2_ph;
-  int nf, *nf2, nbins, Npeak, **i1, **i2, operiodogram;
+  int nf, *nf2, nbins, Npeak, **i1, **i2, operiodogram, isdf_specified;
   int *sizeuv, rflag;
 #ifdef PARALLEL
   double **p;
+  int *sizepvec;
 #else
   double *p;
+  int sizepvec;
 #endif
   double minper, maxper, timezone;
+  int minper_source, maxper_source, nbins_source;
+  _Expression *minper_expr, *maxper_expr, *nbins_expr;
+  _Variable *minper_var, *maxper_var, *nbins_var;
+  double *minper_val, *maxper_val;
+  int *nbins_val;
+  double *df_val;
+  int *nf_val;
+  int rmin_source, rmax_source, qmin_source, qmax_source, rho_source;
+  int df_source, nf_source, subsample_source;
+  int minexpdurfrac_source, maxexpdurfrac_source;
+  _Expression *rmin_expr, *rmax_expr, *qmin_expr, *qmax_expr, *rho_expr;
+  _Expression *minexpdurfrac_expr, *maxexpdurfrac_expr;
+  _Expression *df_expr, *nf_expr;
+  _Expression *subsample_expr;
+  _Variable *rmin_var, *rmax_var, *qmin_var, *qmax_var, *rho_var;
+  _Variable *minexpdurfrac_var, *maxexpdurfrac_var;
+  _Variable *df_var, *nf_var;
+  _Variable *subsample_var;
+  double *rmin_val, *rmax_val, *rho_val, *minexpdurfrac_val, *maxexpdurfrac_val,
+    *qmin_val, *qmax_val, *subsample_val, subsample, *A_val;
   char outdir[MAXLEN], suffix[6];
   int omodel;
   char modeloutdir[MAXLEN];
@@ -698,6 +810,8 @@ typedef struct {
   double **sigtopink_sec, **deltachi2transit_sec, **binsignaltonoise_sec;
   double **phaseoffset_sec, **harmmean, **harmA, **harmB, **fundA, **fundB, **harmamp;
   double **harmdeltachi2;
+  int usemask;
+  _Variable *maskvar;
 } _Bls;
 
 typedef struct {
@@ -721,6 +835,8 @@ typedef struct {
   int correctlc;
   int fittrap;
   OutColumn *linkedcolumn;
+  int usemask;
+  _Variable *maskvar;
 } _BlsFixPer;
 
 typedef struct {
@@ -766,6 +882,8 @@ typedef struct {
   double jdstep;
   int correctlc;
   int fittrap;
+  int usemask;
+  _Variable *maskvar;
 } _BlsFixDurTc;
 
 typedef struct {
@@ -806,6 +924,8 @@ typedef struct {
   double jdstep;
   int correctlc;
   int fittrap;
+  int usemask;
+  _Variable *maskvar;
 } _BlsFixPerDurTc;
 
 
@@ -837,6 +957,14 @@ typedef struct {
   _Variable **binvars;
   char *binvarstring;
   int only_bin_columns;
+  int usemask;
+  _Variable *maskvar;
+  int T0source;
+  double t0fixval;
+  OutColumn *t0_linkedcolumn;
+  double *t0listval;
+  char *t0exprstring;
+  _Expression *t0expr;
 } _Binlc;
 
 typedef struct {
@@ -933,6 +1061,14 @@ typedef struct {
   char trend_prior_list_name[MAXLEN];
   int jdcol_isfromheader, magcol_isfromheader;
   char jdcol_headername[MAXLEN], magcol_headername[MAXLEN];
+  int clippingusemedian;
+  int clippinguseMAD;
+  int usefitmask;
+  char *fitmaskvarname;
+  _Variable *fitmaskvar;
+  char *outputfitmask;
+  char *outputfitmaskvarname;
+  _Variable *outputfitmaskvar;
 } _TFA;
 
 typedef struct {
@@ -955,6 +1091,14 @@ typedef struct {
   double ***lcdecorr_terms_in;
   int jdcol_isfromheader, magcol_isfromheader;
   char jdcol_headername[MAXLEN], magcol_headername[MAXLEN];
+  int clippingusemedian;
+  int clippinguseMAD;
+  int usefitmask;
+  char *fitmaskvarname;
+  _Variable *fitmaskvar;
+  char *outputfitmask;
+  char *outputfitmaskvarname;
+  _Variable *outputfitmaskvar;
 } _TFA_SR;
 
 typedef struct {
@@ -982,12 +1126,18 @@ typedef struct {
   char sepchar;
   int useoutnamecommand;
   char *outnamecommand;
+  char **descriptions;
+  char **units;
+  int namefrominlist;
+  char **inputlistoutnames;
 } _Outputlcs;
 
 typedef struct {
   double *rmsval;
   double *ave;
   int *ngood;
+  int usemask;
+  _Variable *maskvar;
 } _Changeerror;
 
 #define VARTOOLS_CHANGEVAR_TIME 0
@@ -1224,6 +1374,9 @@ typedef struct {
   int rejiterate;
   int rejfixnum;
   int rejiternum;
+  int usemask;
+  char *maskvarname;
+  _Variable *maskvar;
 } _Linfit;
 
 typedef struct {
@@ -1311,6 +1464,9 @@ typedef struct {
   double **mcmc_statsout;
 
   _Expression **mcmc_chain_stats_expressions;
+  int usemask;
+  char *maskvarname;
+  _Variable *maskvar;
 } _Nonlinfit;
 
 #include "userlib.h"
@@ -1333,10 +1489,13 @@ typedef struct {
   _Expression *evalexpression;
   void (*initialize_usertype_ptr)(int, void *, void *);
   void *extra_user_data;
+  _Variable **existingvariable;
+  int expectedvectortype;
 } _UserDataPointer;
 
 typedef struct {
-  _UserLib *lib;
+  /*_UserLib *lib;*/
+  int libnum;
   void *userdata;
 
   int Nfix;
@@ -1368,6 +1527,9 @@ typedef struct {
   int Nstatstot;
   double **statsout;
   double *pctval;
+  int usemask;
+  char *maskvarname;
+  _Variable *maskvar;
 } _Stats;
 
 typedef struct {
@@ -1422,6 +1584,10 @@ typedef struct {
   _Expression *restrictexpr;
   _Savelc *s;
   int saveexcludedpoints;
+  int markrestrict;
+  char *markvarname;
+  _Variable *markvar;
+  int noinitmark;
 } _RestrictTimes;
 
 typedef struct {
@@ -1461,6 +1627,8 @@ typedef struct {
   double *med_amp;
   double *med_neff;
   double *med_con;
+  int usemask;
+  _Variable *maskvar;
 } _WWZ;
 
 typedef struct {
@@ -1566,23 +1734,6 @@ typedef struct {
   int bspline_nbreaks_extrap;
   int bspline_order_extrap;
 } _Resample;
-
-typedef struct {
-  int isvarlist;
-  char *varliststring;
-  _Variable **variables;
-  int Nvar;
-  int groupmethod;
-  char **sourceID_inlist;
-  int sourceID_N_split_substr;
-  int *sourceID_split_substr;
-  char **sourceID_splitstr;
-  int *sourceID_split_leftright;
-  int *sourceID_substr_startpos;
-  int *sourceID_substr_length;
-
-  int mergemethod;
-} _Stitch;
 
 typedef struct {
   int filtertype;
@@ -1791,9 +1942,47 @@ typedef struct {
 } _MatchCommand;
 
 typedef struct {
+  char *keyname;
+  int dtype;
+  int keyval_source;
+  double dbl_fixval;
+  int int_fixval;
+  long long_fixval;
+  char *string_fixval;
+  _Variable *keyval_var;
+  char *comment_string;
+  int hdutouse;
+  int updateexisting;
+  int combinelckeyword;
+  _Variable *lcnumvar;
+} _AddFitsKeyword;
+
+typedef struct {
+  int issortvar;
+  char *sortvarname;
+  _Variable *sortvar;
+  int isreverse;
+  int sortdtype;
+} _SortLC;
+
+typedef struct {
+  int Nvars;
+  _Variable **vars;
+  char **varnames;
+  int iscolname;
+  char **colnames;
+  int isformat;
+  char **formatstrings;
+  void **dataptr;
+  int *colindx;
+} _PrintCommand;
+
+
+typedef struct {
   int cnum;
   int require_sort;
   int require_distinct;
+  char *command_outcolumn_suffix;
   _Clip *Clip;
   _Ensemblerescalesig *Ensemblerescalesig;
   _Rescalesig *Rescalesig;
@@ -1850,14 +2039,23 @@ typedef struct {
   _WWZ *WWZ;
   _CopyLC *CopyLC;
   _Resample *Resample;
-  _Stitch *Stitch;
   _HarmonicFilter *HarmonicFilter;
   _PythonCommand *PythonCommand;
   _RCommand *RCommand;
   _FFT *FFT;
   _MatchCommand *MatchCommand;
+  _AddFitsKeyword *AddFitsKeyword;
+  _SortLC *SortLC;
+  _PrintCommand *PrintCommand;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;
   _Expression ***setparam_EvalExpressions;
+
+  int N_prior_vars;
+  char *prior_var_datatypes;
+  char *prior_var_vectortypes;
+  char **prior_var_names;
+  _Variable ***prior_vars;
+  OutColumn **prior_var_linkedcolumns;
 } Command;

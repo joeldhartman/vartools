@@ -181,7 +181,7 @@ void getclippedavestddev_blsfixdurtc(int n, double *pow, double *ave_out, double
 }
 
 
-int eeblsfixdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep)
+int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
 
   double dum1, dum2;
@@ -207,6 +207,54 @@ int eeblsfixdurtc(int n, double *t, double *x, double *e, double *u, double *v, 
 
   int nb;
   int in1, in2;
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      for(j=0;j<Npeak;j++)
+	{
+	  bper[j] = -1.;
+          bt0[j] = -1.;
+	  snval[j] = -1.;
+	  bpow[j] = -1.;
+	  qtran[j] = -1.;
+	  depth[j] = -1.;
+	  sde[j] = -1.;
+	  chisqrplus[j] = 999999.;
+      	  fraconenight[j] = -1.;
+	}
+      *bperpos = -1.;
+      *chisqrminus = 999999.;
+      *meanmagval = -1.;
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+    }
+  }
 
   /***********************************************************/
 
@@ -429,6 +477,9 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -548,6 +599,9 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
   //fprintf(stderr,"Error Running BLS - no frequencies survive clipping!\n");
@@ -655,6 +709,9 @@ the periodogram, and then search it for peaks    *
       free(binned_sr_ave_minus);
       free(binned_sr_sig_minus);
       free(p_minus);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -812,6 +869,12 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+      }
       for(i=0;i<n;i++)
 	{
 	  ph = (t[i] - inputT0)*f0;
@@ -844,11 +907,15 @@ the periodogram, and then search it for peaks    *
   free(binned_sr_sig_minus);
   free(p_minus);
 
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
+
   return(0);
 }
 
 
-int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputper, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, double *depth, double *qtran, double *chisqrplus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep)
+int eeblsfixperdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputper, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, double *depth, double *qtran, double *chisqrplus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
 
   double dum1, dum2;
@@ -876,6 +943,53 @@ int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *
 
   int nb;
   int in1, in2;
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      *depth = -1.0;
+      *chisqrplus = -1.0;
+      *meanmagval = -1.0;
+      *fraconenight = -1.0;
+      *nt = -1;
+      *Nt = -1;
+      *Nbefore = -1;
+      *Nafter = -1;
+      *rednoise = -1.0;
+      *whitenoise = -1.0;
+      *sigtopink = -1.0;
+      *qingress = -1.0;
+      *OOTmag = -1.0;
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+      return(1);
+    }
+  }
 
   /***********************************************************/
 
@@ -965,6 +1079,9 @@ int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *
     *qingress = -1.0;
     *OOTmag = -1.0;
     free(weight);
+    if(t_mask != NULL) free(t_mask);
+    if(x_mask != NULL) free(x_mask);
+    if(e_mask != NULL) free(e_mask);
     return 1;
   }
     
@@ -1130,6 +1247,12 @@ int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *
       f0 = 1./inputper;
       phb1 = (*qingress)*(*qtran);
       phb2 = (*qtran) - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+      }
       for(i=0;i<n;i++)
 	{
 	  ph = (t[i] - inputT0)*f0;
@@ -1151,5 +1274,8 @@ int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *
 
   free(weight);
 
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
   return(0);
 }

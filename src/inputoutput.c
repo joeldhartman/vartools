@@ -177,7 +177,9 @@ int skipone(char *line)
 int parseone(char *line, void *val, int vartype)
 {
   int i = 0, j = 0;
-  char line2[MAXLEN];
+  char *line2 = NULL;
+  if((line2 = (char *) malloc((strlen(line)+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
   while(line[i] == ' ' || line[i] == '\t')
     i++;
   while(line[i] != ' ' && line[i] != '\t' && line[i] != '\n' && line[i] != '\0')
@@ -195,20 +197,125 @@ int parseone(char *line, void *val, int vartype)
     case VARTOOLS_TYPE_STRING:
       sprintf((char *) val, "%s", line2);
       break;
+    case VARTOOLS_TYPE_INT:
+      *((int *) val) = atoi(line2);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      *((short *) val) = (short) atoi(line2);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      *((float *) val) = (float) atof(line2);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      *((long *) val) = atol(line2);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      *((char *) val) = line2[0];
+      break;
     default:
       error(ERR_BADTYPE);
       break;
     }
   while(line[i] == ' ' || line[i] == '\t')
     i++;
+  if(line2 != NULL) free(line2);
   return(i);
 }
+
+/* This function parses one column of a string and returns the index for the start of the next column */
+int parseone_growstring(char *line, void *val, int vartype, int *colstrlen)
+{
+  int i = 0, j = 0;
+  char *line2 = NULL;
+  if((line2 = (char *) malloc((strlen(line)+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  while(line[i] == ' ' || line[i] == '\t')
+    i++;
+  while(line[i] != ' ' && line[i] != '\t' && line[i] != '\n' && line[i] != '\0')
+    {
+      line2[j] = line[i];
+      i++;
+      j++;
+    }
+  line2[j] = '\0';
+  switch(vartype)
+    {
+    case VARTOOLS_TYPE_DOUBLE:
+      *((double *) val) = atof(line2);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      if(strlen(line2) >= *(colstrlen)) {
+	if(!(*colstrlen)) {
+	  *colstrlen = strlen(line2) + 1;
+	  if((*((char **) val) = (char *) malloc((*colstrlen)*sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
+	} else {
+	  *colstrlen = strlen(line2) + 1;
+	  if((*((char **) val) = (char *) realloc(*((char **) val), (*colstrlen)*sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+      }
+      sprintf(*((char **) val), "%s", line2);
+      break;
+    case VARTOOLS_TYPE_INT:
+      *((int *) val) = atoi(line2);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      *((short *) val) = (short) atoi(line2);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      *((float *) val) = (float) atof(line2);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      *((long *) val) = atol(line2);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      *((char *) val) = line2[0];
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+  while(line[i] == ' ' || line[i] == '\t')
+    i++;
+  if(line2 != NULL) free(line2);
+  return(i);
+}
+
+
+/* This function skips one column of a string and returns the index for the start of the next column, splitting on the specified delimiter string */
+int skiponedelimstring(char *line, char *delim)
+{
+  int i = 0, k, test;
+  while(line[i] != '\n' && line[i] != '\0')
+    {
+      if(line[i] == delim[0]) {
+	test = 1;
+	k = 1;
+	while(delim[k] != '\0' ? (line[i+k] != '\n' && line[i+k] != '\0' ? line[i+k] == delim[k] : 0 ) : 0) k++;
+	if(delim[k] != '\0') { test = 0; }
+      } else {
+	test = 0;
+      }
+      if(test) {
+	i = i + k;
+	break;
+      }
+      else {
+	i++;
+      }
+    }
+  return(i);
+}
+
 
 /* This function parses one column of a string and returns the index for the start of the next column */
 int parseonedelimstring(char *line, void *val, int vartype, char *delim)
 {
   int i = 0, j = 0, k, test;
-  char line2[MAXLEN];
+  char *line2 = NULL;
+  if((line2 = (char *) malloc((strlen(line)+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
   while(line[i] != '\n' && line[i] != '\0')
     {
       if(line[i] == delim[0]) {
@@ -236,20 +343,56 @@ int parseonedelimstring(char *line, void *val, int vartype, char *delim)
       *((double *) val) = atof(line2);
       break;
     case VARTOOLS_TYPE_STRING:
-      sprintf((char *) val, "%s", line2);
+      sprintf(*((char **) val), "%s", line2);
+      break;
+    case VARTOOLS_TYPE_INT:
+      *((int *) val) = atoi(line2);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      *((short *) val) = (short) atoi(line2);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      *((float *) val) = (float) atof(line2);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      *((long *) val) = atol(line2);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      *((char *) val) = line2[0];
       break;
     default:
       error(ERR_BADTYPE);
       break;
     }
+  if(line2 != NULL) free(line2);
   return(i);
 }
+
+/* This function skips one column of a string and returns the index for the start of the next column, splitting on the specified delimiter character */
+int skiponedelimchar(char *line, char delim)
+{
+  int i = 0, k, test;
+  while(line[i] != '\n' && line[i] != '\0')
+    {
+      if(line[i] == delim) {
+	i++;
+	break;
+      }
+      else {
+	i++;
+      }
+    }
+  return(i);
+}
+
 
 /* This function parses one column of a string and returns the index for the start of the next column */
 int parseonedelimchar(char *line, void *val, int vartype, char delim)
 {
   int i = 0, j = 0, k, test;
-  char line2[MAXLEN];
+  char *line2 = NULL;
+  if((line2 = (char *) malloc((strlen(line)+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
   while(line[i] != '\n' && line[i] != '\0')
     {
       if(line[i] == delim) {
@@ -269,12 +412,28 @@ int parseonedelimchar(char *line, void *val, int vartype, char delim)
       *((double *) val) = atof(line2);
       break;
     case VARTOOLS_TYPE_STRING:
-      sprintf((char *) val, "%s", line2);
+      sprintf(*((char **) val), "%s", line2);
+      break;
+    case VARTOOLS_TYPE_INT:
+      *((int *) val) = atoi(line2);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      *((short *) val) = (short) atoi(line2);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      *((float *) val) = (float) atof(line2);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      *((long *) val) = atol(line2);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      *((char *) val) = line2[0];
       break;
     default:
       error(ERR_BADTYPE);
       break;
     }
+  if(line2 != NULL) free(line2);
   return(i);
 }
 
@@ -691,7 +850,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 			   char *outname,
 			   int usecolumnformat, int Nvars, 
 			   _Variable **variables,
-			   char **formats, int noclobber, int copyheaderfrominput, int logcommandline)
+			   char **formats, int noclobber, int copyheaderfrominput, int logcommandline, char **description, char **units)
 {
   int status = 0, status2 = 0, tfields, idx, strlenval;
   long nrows;
@@ -707,6 +866,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   char *outchar_vec = NULL;
   char **outstring_vec = NULL;
   char tryout[MAXLEN];
+  char commentpar[MAXLEN];
   char *fmt;
   double nulldbl;
   float nullflt;
@@ -747,6 +907,8 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
     fits_copy_header(input_header_file,outfile,&status);
     fits_close_file(input_header_file,&status2);
   }
+  
+
 
   if(logcommandline) {
     fits_write_history(outfile, p->cmdline, &status);
@@ -776,9 +938,9 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
     sprintf(tform[0],"D");
     sprintf(tform[1],"D");
     sprintf(tform[2],"D");
-    sprintf(tunit[0],"day");
-    sprintf(tunit[1],"magnitudes");
-    sprintf(tunit[2],"magnitudes");
+    sprintf(tunit[0],"d");
+    sprintf(tunit[1],"mag");
+    sprintf(tunit[2],"mag");
   }
   else {
     for(j=0; j < Nvars; j++) {
@@ -806,10 +968,10 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	}
       case VARTOOLS_TYPE_LONG:
 	if(sizeof(long) == 8) {
-	  sprintf(tform[j],"J");
+	  sprintf(tform[j],"K");
 	  break;
 	} else if(sizeof(long) == 4) {
-	  sprintf(tform[j],"K");
+	  sprintf(tform[j],"J");
 	  break;
 	} else if(sizeof(long) == 2) {
 	  sprintf(tform[j],"I");
@@ -819,16 +981,16 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	}
       case VARTOOLS_TYPE_SHORT:
 	if(sizeof(short) == 1) {
-	  sprintf(tform[j],"J");
+	  sprintf(tform[j],"B");
 	  break;
 	} else if(sizeof(short) == 2) {
-	  sprintf(tform[j],"K");
-	  break;
-	} else if(sizeof(short) == 4) {
 	  sprintf(tform[j],"I");
 	  break;
+	} else if(sizeof(short) == 4) {
+	  sprintf(tform[j],"J");
+	  break;
 	} else if(sizeof(short) == 8) {
-	  sprintf(tform[j],"S");
+	  sprintf(tform[j],"K");
 	  break;
 	} else {
 	  error(ERR_BADTYPE);
@@ -872,10 +1034,10 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
       }
       else {
 	if(variables[j] == p->tvar) {
-	  sprintf(tunit[j],"days");
+	  sprintf(tunit[j],"d");
 	}
 	else if(variables[j] == p->magvar || variables[j] == p->sigvar) {
-	  sprintf(tunit[j],"magnitudes");
+	  sprintf(tunit[j],"mag");
 	}
 	else {
 	  sprintf(tunit[j],"unknown");
@@ -886,10 +1048,82 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   nrows = (long) p->NJD[threadid];
   fits_create_tbl(outfile, BINARY_TBL, nrows, tfields, ttype, tform,
 		  tunit, NULL, &status);
+
   if(status){
     fits_report_error(stderr, status);
     error(ERR_FITSERROR);
   }
+
+  if(description != NULL) {
+    for(j=0; j < Nvars; j++) {
+      if(description[j][0] != '\0') break;
+    }
+    if(j < Nvars) {
+      sprintf(commentpar, "--BEGIN-ASTROPY-SERIALIZED-COLUMNS--");
+      fits_write_comment(outfile, commentpar, &status);
+      if(status){
+	fits_report_error(stderr, status);
+	error(ERR_FITSERROR);
+      }
+      sprintf(commentpar, "datatype:");
+      fits_write_comment(outfile, commentpar, &status);
+      if(status){
+	fits_report_error(stderr, status);
+	error(ERR_FITSERROR);
+      }
+      for(j=0; j < Nvars; j++) {
+	sprintf(commentpar, "- name: %.*s", strlen(ttype[j]), ttype[j]);
+	fits_write_comment(outfile, commentpar, &status);
+	if(status){
+	  fits_report_error(stderr, status);
+	  error(ERR_FITSERROR);
+	}
+	if(units != NULL && units[j][0] != '\0') {
+	  sprintf(commentpar, "  unit: %.*s", strlen(units[j]), units[j]);
+	  fits_write_comment(outfile, commentpar, &status);
+	  if(status){
+	    fits_report_error(stderr, status);
+	    error(ERR_FITSERROR);
+	  }
+	}
+/*	else if(formats != NULL && formats[j][0] != '\0') {
+	  sprintf(commentpar, "  unit: %.*s", strlen(formats[j]), formats[j]);
+	  fits_write_comment(outfile, commentpar, &status);
+	  if(status){
+	    fits_report_error(stderr, status);
+	    error(ERR_FITSERROR);
+	  }
+	}*/
+	if(description != NULL && description[j][0] != '\0') {
+	  sprintf(commentpar, "  description: %.*s", 55, description[j]);
+	  fits_write_comment(outfile, commentpar, &status);
+	  if(status){
+	    fits_report_error(stderr, status);
+	    error(ERR_FITSERROR);
+	  }
+	}
+      }
+      sprintf(commentpar, "meta:");
+      fits_write_comment(outfile, commentpar, &status);
+      if(status){
+	fits_report_error(stderr, status);
+	error(ERR_FITSERROR);
+      }
+      sprintf(commentpar, "  __serialized_columns__: {}");
+      fits_write_comment(outfile, commentpar, &status);
+      if(status){
+	fits_report_error(stderr, status);
+	error(ERR_FITSERROR);
+      }
+      sprintf(commentpar, "--END-ASTROPY-SERIALIZED-COLUMNS--");
+      fits_write_comment(outfile, commentpar, &status);
+      if(status){
+	fits_report_error(stderr, status);
+	error(ERR_FITSERROR);
+      }
+    }
+  }
+
   if(!usecolumnformat) {
     t = p->t[threadid];
     mag = p->mag[threadid];
@@ -1226,6 +1460,78 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
       }
     }
   }
+
+  if(p->fits_header_adds != NULL) {
+    int (*fitskeyfunctocall)(fitsfile *, int, char *, ...);
+    void *fitskeyvalptr;
+    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
+      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 0)
+	continue;
+      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
+	fitskeyfunctocall = &(fits_update_key);
+      } else {
+	fitskeyfunctocall = &(fits_write_key);
+      }
+      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
+      case TDOUBLE:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
+	break;
+      case TINT:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
+	break;
+      case TLONG:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
+	break;
+      case TSTRING:
+	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
+	break;
+      default:
+	error(ERR_CODEERROR);
+	break;
+      }
+      fitskeyfunctocall(outfile,
+			p->fits_header_adds[threadid].hdrterms[i].datatype, 
+			p->fits_header_adds[threadid].hdrterms[i].keyname, 
+			fitskeyvalptr,
+			p->fits_header_adds[threadid].hdrterms[i].comment,
+			&status);
+    }
+
+    fits_movabs_hdu(outfile, 1, NULL, &status2);
+    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
+      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 1)
+	continue;
+      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
+	fitskeyfunctocall = &(fits_update_key);
+      } else {
+	fitskeyfunctocall = &(fits_write_key);
+      }
+      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
+      case TDOUBLE:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
+	break;
+      case TINT:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
+	break;
+      case TLONG:
+	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
+	break;
+      case TSTRING:
+	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
+	break;
+      default:
+	error(ERR_CODEERROR);
+	break;
+      }
+      fitskeyfunctocall(outfile,
+			p->fits_header_adds[threadid].hdrterms[i].datatype, 
+			p->fits_header_adds[threadid].hdrterms[i].keyname, 
+			fitskeyvalptr,
+			p->fits_header_adds[threadid].hdrterms[i].comment,
+			&status);
+    }
+  }
+
 
   fits_close_file(outfile,&status);
   if(status) {
@@ -1566,6 +1872,9 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	GetOutputFilenameFromCommand(outname, p->lcnames[lcid], c->outdir,
 				     lcid+1, c->outnamecommand);
       }
+      else if(c->namefrominlist) {
+	sprintf(outname,"%s/%s",c->outdir,c->inputlistoutnames[lcid]);
+      }
       else {
 	i1 = 0;
 	i2 = 0;
@@ -1667,13 +1976,13 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
 				c->Nvar, c->variables, c->printfformats,
 				c->noclobber, c->copyheaderfrominput,
-				c->logcommandline);
+				c->logcommandline, c->descriptions, c->units);
 	} else {
 	  sprintf(outname,"%s.fits",outname);
 	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
 				c->Nvar, c->variables, c->printfformats,
 				c->noclobber, c->copyheaderfrominput,
-				c->logcommandline);
+				c->logcommandline, c->descriptions, c->units);
 	}
       }
       else
@@ -1687,10 +1996,10 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	/* Check if the name has .fits at the end, if not, append it */
 	i4 = strlen(c->outdir);
 	if(i4 > 5 ? !strcmp(&(c->outdir[i4-5]),".fits") : 0) {
-	  write_fits_lightcurve(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline);
+	  write_fits_lightcurve(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline,c->descriptions,c->units);
 	} else {
 	  sprintf(outname,"%s.fits",c->outdir);
-	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline);
+	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline,c->descriptions,c->units);
 	}
       }
       else
@@ -1737,7 +2046,7 @@ double readdates(char *datesname,double Jstet_time)
   while(gnu_getline(&line,&line_size,dates) >= 0)
     if(line[0] != '#')
       {
-	sscanf(line,"%lf ",&JD[Njd]);
+	sscanf(line,"%lf ",&(JD[Njd]));
 	Njd++;
       }
   fclose(dates);
@@ -1797,4 +2106,417 @@ void Switchtobasename(ProgramData *p, int lc)
     }
 }
 
+void vAdd_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keyname,
+					char *comment, int hdutouse,
+					int updateexisting,
+					int dtype, va_list varlist)
+{
+  int int_val;
+  long long_val;
+  double dbl_val;
+  char *string_val;
+  int i;
+
+#ifdef USECFITSIO
+  switch(dtype) {
+  case VARTOOLS_TYPE_DOUBLE:
+    dbl_val = va_arg(varlist,double);
+    break;
+  case VARTOOLS_TYPE_INT:
+    int_val = va_arg(varlist,int);
+    break;
+  case VARTOOLS_TYPE_LONG:
+    long_val = va_arg(varlist,long);
+    break;
+  case VARTOOLS_TYPE_STRING:
+    string_val = va_arg(varlist,char *);
+    break;
+  default:
+    error(ERR_CODEERROR);
+    break;
+  }
+  if(p->fits_header_adds == NULL) {
+    error(ERR_CODEERROR);
+  }
+  if((p->fits_header_adds[lcnum].N_added_keywords + 1) > p->fits_header_adds[lcnum].size_added_keywords_vec) {
+    if(!p->fits_header_adds[lcnum].size_added_keywords_vec) {
+      p->fits_header_adds[lcnum].size_added_keywords_vec = p->fits_header_adds[lcnum].N_added_keywords + 1;
+      if((p->fits_header_adds[lcnum].hdrterms = (_vartools_header_entry *) malloc(p->fits_header_adds[lcnum].size_added_keywords_vec*sizeof(_vartools_header_entry))) == NULL)
+	error(ERR_MEMALLOC);
+      for(i=0; i < p->fits_header_adds[lcnum].size_added_keywords_vec; i++) {
+	p->fits_header_adds[lcnum].hdrterms[i].datatype = -1;
+	p->fits_header_adds[lcnum].hdrterms[i].keyname = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].dbl_val = 0.0;
+	p->fits_header_adds[lcnum].hdrterms[i].int_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].long_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].string_val = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].comment = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].comment_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].updateexisting = 1;
+      }
+    } else {
+      if((p->fits_header_adds[lcnum].hdrterms = (_vartools_header_entry *) realloc(p->fits_header_adds[lcnum].hdrterms, (p->fits_header_adds[lcnum].N_added_keywords + 1)*sizeof(_vartools_header_entry))) == NULL)
+	error(ERR_MEMALLOC);
+      for(i=p->fits_header_adds[lcnum].size_added_keywords_vec; i < p->fits_header_adds[lcnum].N_added_keywords + 1; i++) {
+	p->fits_header_adds[lcnum].hdrterms[i].datatype = -1;
+	p->fits_header_adds[lcnum].hdrterms[i].keyname = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].dbl_val = 0.0;
+	p->fits_header_adds[lcnum].hdrterms[i].int_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].long_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].string_val = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].comment = NULL;
+	p->fits_header_adds[lcnum].hdrterms[i].comment_veclen = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].updateexisting = 1;
+      }
+      p->fits_header_adds[lcnum].size_added_keywords_vec = p->fits_header_adds[lcnum].N_added_keywords + 1;
+    }
+  }
+  i = p->fits_header_adds[lcnum].N_added_keywords;
+  p->fits_header_adds[lcnum].hdrterms[i].hdutouse = hdutouse;
+  p->fits_header_adds[lcnum].hdrterms[i].updateexisting = updateexisting;
+  switch(dtype) {
+  case VARTOOLS_TYPE_DOUBLE:
+    p->fits_header_adds[lcnum].hdrterms[i].datatype = TDOUBLE;
+    p->fits_header_adds[lcnum].hdrterms[i].dbl_val = dbl_val;
+    break;
+  case VARTOOLS_TYPE_INT:
+    p->fits_header_adds[lcnum].hdrterms[i].datatype = TINT;
+    p->fits_header_adds[lcnum].hdrterms[i].int_val = int_val;
+    break;
+  case VARTOOLS_TYPE_LONG:
+    p->fits_header_adds[lcnum].hdrterms[i].datatype = TLONG;
+    p->fits_header_adds[lcnum].hdrterms[i].int_val = long_val;
+    break;
+  case VARTOOLS_TYPE_STRING:
+    p->fits_header_adds[lcnum].hdrterms[i].datatype = TSTRING;
+    if(strlen(string_val)+1 > p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen) {
+      if(!p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen) {
+	p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen = strlen(string_val)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].string_val = (char *) malloc(p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      } else {
+	p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen = strlen(string_val)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].string_val = (char *) realloc(p->fits_header_adds[lcnum].hdrterms[i].string_val, p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    }
+    sprintf(p->fits_header_adds[lcnum].hdrterms[i].string_val,"%s",string_val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+    break;
+  }
+  
+  if(keyname != NULL) {
+    if(strlen(keyname)+1 > p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen) {
+      if(!p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen) {
+	p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen = strlen(keyname)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].keyname = (char *) malloc(p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      } else {
+	p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen = strlen(keyname)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].keyname = (char *) realloc(p->fits_header_adds[lcnum].hdrterms[i].keyname, p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    }
+    sprintf(p->fits_header_adds[lcnum].hdrterms[i].keyname,"%s",keyname);
+  }
+
+  if(comment != NULL) {
+    if(strlen(comment)+1 > p->fits_header_adds[lcnum].hdrterms[i].comment_veclen) {
+      if(!p->fits_header_adds[lcnum].hdrterms[i].comment_veclen) {
+	p->fits_header_adds[lcnum].hdrterms[i].comment_veclen = strlen(comment)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].comment = (char *) malloc(p->fits_header_adds[lcnum].hdrterms[i].comment_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      } else {
+	p->fits_header_adds[lcnum].hdrterms[i].comment_veclen = strlen(comment)+1;
+	if((p->fits_header_adds[lcnum].hdrterms[i].comment = (char *) realloc(p->fits_header_adds[lcnum].hdrterms[i].comment, p->fits_header_adds[lcnum].hdrterms[i].comment_veclen*sizeof(char))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    }
+    sprintf(p->fits_header_adds[lcnum].hdrterms[i].comment,"%s",comment);
+  }
+
+  p->fits_header_adds[lcnum].N_added_keywords++;
+
+#else
+  return;
+#endif
+
+}
+
+void Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keyname,
+					char *comment, int hdutouse,
+					int updateexisting,
+					int dtype, ...)
+{
+  va_list varlist;
+  va_start(varlist, dtype);
+  vAdd_Keyword_To_OutputLC_FitsHeader(p, lcnum, keyname, comment, hdutouse,
+				      updateexisting, dtype, varlist);
+  va_end(varlist);
+  return;
+}
+
+void Run_AddFitsKeyword_Command(ProgramData *p, _AddFitsKeyword *addfitskeyword,
+				int lcnum, int lc_name_num) 
+{
+  char tmpstring[MAXLEN];
+  if(addfitskeyword->combinelckeyword) {
+    char tmpstring_keyname[9];
+    int Nlcgroup, i, i1, i3;
+    int *tmpindx = NULL;
+    int *tmpindx2 = NULL;
+    if(p->NJD[lcnum] <= 0) return;
+    if((tmpindx = (int *) malloc(p->NJD[lcnum]*sizeof(int))) == NULL ||
+       (tmpindx2 = (int *) malloc(p->NJD[lcnum]*sizeof(int))) == NULL)
+      error(ERR_MEMALLOC);
+    for(i=0; i < p->NJD[lcnum]; i++) {
+      tmpindx[i] = EvaluateVariable_Int(lc_name_num, 
+					lcnum, i,
+					addfitskeyword->lcnumvar);
+      tmpindx2[i] = i;
+    }
+    sort_generic(p->NJD[lcnum], 0, tmpindx2, 1, VARTOOLS_TYPE_INT, 
+		 (void *) tmpindx, 1);
+    for(i=0; i < p->NJD[lcnum]; i++) {
+      if(i == 0 || (i > 0 && (tmpindx[tmpindx2[i]] != tmpindx[tmpindx2[i-1]]))) {
+	i1=0;
+	i3=0;
+	while(i1 < 8 && addfitskeyword->keyname[i3] != '\0') {
+	  if(addfitskeyword->keyname[i3] != '%') {
+	    tmpstring_keyname[i1] = addfitskeyword->keyname[i3];
+	    i1++;
+	    tmpstring_keyname[i1] = '\0';
+	    i3++;
+	  } else {
+	    i3++;
+	    if(addfitskeyword->keyname[i3] == 'd') {
+	      i3++;
+	      snprintf(&(tmpstring_keyname[i1]), (9-i1), "%d", tmpindx[tmpindx2[i]]);
+	      i1 = strlen(tmpstring_keyname);
+	      tmpstring_keyname[i1] = '\0';
+	    } else if(addfitskeyword->keyname[i3] == '%') {
+	      tmpstring_keyname[i1] = '%';
+	      i1++;
+	      tmpstring_keyname[i1] = '\0';
+	      i3++;
+	    }
+	    else
+	      error(ERR_INVALIDKEYNAMEFORMAT);
+	  }
+	}
+	if(addfitskeyword->keyval_source == VARTOOLS_SOURCE_FIXED) {
+	  switch(addfitskeyword->dtype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       addfitskeyword->dbl_fixval);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       addfitskeyword->int_fixval);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       addfitskeyword->long_fixval);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       addfitskeyword->string_fixval);
+	    break;
+	  default:
+	    error(ERR_CODEERROR);
+	    break;
+	  }
+	}
+	else if(addfitskeyword->keyval_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	  switch(addfitskeyword->dtype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       EvaluateVariable_Double(lc_name_num,
+								       lcnum, tmpindx2[i],
+								       addfitskeyword->keyval_var));
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       EvaluateVariable_Int(lc_name_num, 
+								    lcnum, tmpindx2[i],
+								    addfitskeyword->keyval_var));
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       EvaluateVariable_Long(lc_name_num, 
+								     lcnum, tmpindx2[i],
+								     addfitskeyword->keyval_var));
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    EvaluateVariable_String(lc_name_num, lcnum, tmpindx2[i],
+				    addfitskeyword->keyval_var, tmpstring);
+	    Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, tmpstring_keyname,
+					       addfitskeyword->comment_string,
+					       addfitskeyword->hdutouse,
+					       addfitskeyword->updateexisting,
+					       addfitskeyword->dtype,
+					       tmpstring);
+	    break;
+	  default:
+	    error(ERR_CODEERROR);
+	    break;
+	  }
+	}
+      }
+    }
+    if(tmpindx != NULL) free(tmpindx);
+    if(tmpindx2 != NULL) free(tmpindx2);
+  } else {
+    if(addfitskeyword->keyval_source == VARTOOLS_SOURCE_FIXED) {
+      switch(addfitskeyword->dtype) {
+      case VARTOOLS_TYPE_DOUBLE:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   addfitskeyword->dbl_fixval);
+	break;
+      case VARTOOLS_TYPE_INT:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   addfitskeyword->int_fixval);
+	break;
+      case VARTOOLS_TYPE_LONG:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   addfitskeyword->long_fixval);
+	break;
+      case VARTOOLS_TYPE_STRING:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   addfitskeyword->string_fixval);
+	break;
+      default:
+	error(ERR_CODEERROR);
+	break;
+      }
+    }
+    else if(addfitskeyword->keyval_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+      switch(addfitskeyword->dtype) {
+      case VARTOOLS_TYPE_DOUBLE:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   EvaluateVariable_Double(lc_name_num,
+								   lcnum, 0,
+								   addfitskeyword->keyval_var));
+	break;
+      case VARTOOLS_TYPE_INT:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   EvaluateVariable_Int(lc_name_num, 
+								lcnum, 0,
+								addfitskeyword->keyval_var));
+	break;
+      case VARTOOLS_TYPE_LONG:
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   EvaluateVariable_Long(lc_name_num, 
+								 lcnum, 0,
+								 addfitskeyword->keyval_var));
+	  break;
+      case VARTOOLS_TYPE_STRING:
+	EvaluateVariable_String(lc_name_num, lcnum, 0,
+				addfitskeyword->keyval_var, tmpstring);
+	Add_Keyword_To_OutputLC_FitsHeader(p, lcnum, addfitskeyword->keyname,
+					   addfitskeyword->comment_string,
+					   addfitskeyword->hdutouse,
+					   addfitskeyword->updateexisting,
+					   addfitskeyword->dtype,
+					   tmpstring);
+	break;
+      default:
+	error(ERR_CODEERROR);
+	break;
+      }
+    }
+  }
+}
+
+
+void Reset_outlc_fitsheader_additions(ProgramData *p, int lcnum)
+{
+  if(p->fits_header_adds != NULL) {
+    if(p->fits_header_adds[lcnum].N_added_keywords > 0) {
+      int i;
+      for(i = 0; i < p->fits_header_adds[lcnum].N_added_keywords; i++) {
+	p->fits_header_adds[lcnum].hdrterms[i].datatype = -1;
+	if(p->fits_header_adds[lcnum].hdrterms[i].keyname_veclen > 0)
+	  p->fits_header_adds[lcnum].hdrterms[i].keyname[0] = '\0';
+	p->fits_header_adds[lcnum].hdrterms[i].dbl_val = 0.0;
+	p->fits_header_adds[lcnum].hdrterms[i].int_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].long_val = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].hdrterms[i].updateexisting = 1;
+	if(p->fits_header_adds[lcnum].hdrterms[i].string_val_veclen > 0)
+	  p->fits_header_adds[lcnum].hdrterms[i].string_val[0] = '\0';
+	if(p->fits_header_adds[lcnum].hdrterms[i].comment_veclen > 0)
+	  p->fits_header_adds[lcnum].hdrterms[i].comment[0] = '\0';
+      }
+      p->fits_header_adds[lcnum].N_added_keywords = 0;
+    }
+  }
+}
+
+	
+	
 

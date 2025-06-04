@@ -784,30 +784,49 @@ int RestrictTimes_JDrange_apply(int N, double *t,
 				int lc, ProgramData *p,
 				_RestrictTimes *c,
 				double JDmin, double JDmax,
-				char exclude)
+				char exclude, int markrestrict,
+				_Variable *markvar, int noinitmark)
 {
   int i, j, test;
-  if(c->saveexcludedpoints)
-    RestrictTimes_InitStoreTimes(c, p, lc);
-  j = 0;
-  for(i=0; i < N; i++) {
-    test = t[i] >= JDmin && t[i] <= JDmax;
-    if((test && !exclude) || (!test && exclude)) {
-      if(i != j) {
-	sigclip_copyterms(i,j,p,lc);
+  double *markvardat = NULL;
+  if(markrestrict) {
+    markvardat = (*((double ***) markvar->dataptr))[lc];
+    if(!noinitmark) {
+      for(i = 0; i < N; i++) {
+	markvardat[i] = 1.0;
       }
-      j++;
-    } else if(c->saveexcludedpoints) {
-      RestrictTimes_StoreTime(c, p, lc, i);
     }
+    
+    for(i=0; i < N; i++) {
+      test = t[i] >= JDmin && t[i] <= JDmax;
+      if(!((test && !exclude) || (!test && exclude))) {
+	markvardat[i] = 0.0;
+      }
+    }
+  } else {
+
+    if(c->saveexcludedpoints)
+      RestrictTimes_InitStoreTimes(c, p, lc);
+    j = 0;
+    for(i=0; i < N; i++) {
+      test = t[i] >= JDmin && t[i] <= JDmax;
+      if((test && !exclude) || (!test && exclude)) {
+	if(i != j) {
+	  sigclip_copyterms(i,j,p,lc);
+	}
+	j++;
+      } else if(c->saveexcludedpoints) {
+	RestrictTimes_StoreTime(c, p, lc, i);
+      }
+    }
+    p->NJD[lc] = j;
+    if(p->readimagestring)
+      {
+	for(i=0;i<p->NJD[lc];i++)
+	  p->stringid_idx[lc][i] = i;
+	mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
+      }
   }
-  p->NJD[lc] = j;
-  if(p->readimagestring)
-    {
-      for(i=0;i<p->NJD[lc];i++)
-	p->stringid_idx[lc][i] = i;
-      mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
-    }
 }
 
 /* Apply the JDlist restriction to a light curve; we will use the
@@ -817,31 +836,51 @@ int RestrictTimes_JDlist_apply(int N, double *t,
 			       int lc, ProgramData *p,
 			       _RestrictTimes *c,
 			       double *JDlist, int Nlist,
-			       char exclude)
+			       char exclude, int markrestrict,
+				_Variable *markvar, int noinitmark)
 {
   int i, j, k, test;
-  if(c->saveexcludedpoints)
-    RestrictTimes_InitStoreTimes(c, p, lc);
-  j = 0;
-  k = 0;
-  for(i=0; i < N; i++) {
-    while((k < Nlist ? (t[i] > JDlist[k] + p->JDTOL) : 0))
-      k++;
-    test = k < Nlist ? (t[i] < JDlist[k] + p->JDTOL && t[i] > JDlist[k] - p->JDTOL) : 0;
-    if((!exclude && test) || (exclude && !test)){
-      sigclip_copyterms(i,j,p,lc);
-      j++;
-    } else if(c->saveexcludedpoints) {
-      RestrictTimes_StoreTime(c, p, lc, i);
+  double *markvardat = NULL;
+  if(markrestrict) {
+    markvardat = (*((double ***) markvar->dataptr))[lc];
+    if(!noinitmark) {
+      for(i = 0; i < N; i++) {
+	markvardat[i] = 1.0;
+      }
     }
+    k = 0;
+    for(i=0; i < N; i++) {
+      while((k < Nlist ? (t[i] > JDlist[k] + p->JDTOL) : 0))
+	k++;
+      test = k < Nlist ? (t[i] < JDlist[k] + p->JDTOL && t[i] > JDlist[k] - p->JDTOL) : 0;
+      if(!((!exclude && test) || (exclude && !test))){
+	markvardat[i] = 0.0;
+      }
+    }
+  } else {
+    if(c->saveexcludedpoints)
+      RestrictTimes_InitStoreTimes(c, p, lc);
+    j = 0;
+    k = 0;
+    for(i=0; i < N; i++) {
+      while((k < Nlist ? (t[i] > JDlist[k] + p->JDTOL) : 0))
+	k++;
+      test = k < Nlist ? (t[i] < JDlist[k] + p->JDTOL && t[i] > JDlist[k] - p->JDTOL) : 0;
+      if((!exclude && test) || (exclude && !test)){
+	sigclip_copyterms(i,j,p,lc);
+	j++;
+      } else if(c->saveexcludedpoints) {
+	RestrictTimes_StoreTime(c, p, lc, i);
+      }
+    }
+    p->NJD[lc] = j;
+    if(p->readimagestring)
+      {
+	for(i=0;i<p->NJD[lc];i++)
+	  p->stringid_idx[lc][i] = i;
+	mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
+      }
   }
-  p->NJD[lc] = j;
-  if(p->readimagestring)
-    {
-      for(i=0;i<p->NJD[lc];i++)
-	p->stringid_idx[lc][i] = i;
-      mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
-    }
 }
 
 /* Apply the imagelist restriction to a light curve; we will use the
@@ -851,69 +890,115 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
 				  int lc, ProgramData *p,
 				   _RestrictTimes *c,
 				  char **imagelist, int *imagelist_indx, 
-				  int Nlist, char exclude)
+				  int Nlist, char exclude, int markrestrict,
+				_Variable *markvar, int noinitmark)
 {
   int i, j, k, test;
-  int *good;
-  if(c->saveexcludedpoints)
-    RestrictTimes_InitStoreTimes(c, p, lc);
-  j = 0;
-  k = 0;
-  if(N <= 0)
-    return;
-  if((good = (int *) malloc(N * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
-  for(i=0; i < N; i++) {
-    while((k < Nlist ? (strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]]) > 0) : 0))
-      k++;
-    test = k < Nlist ? (!strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]])) : 0;
-    if((!exclude && test) || (exclude && !test)) {
-      /* Record the index of selected points */
-      good[j] = stringID_indx[i];
-      j++;
-    } else if(c->saveexcludedpoints) {
-      RestrictTimes_StoreTime(c, p, lc, i);
+  int *good = NULL;
+  double *markvardat = NULL;
+  if(markrestrict) {
+    markvardat = (*((double ***) markvar->dataptr))[lc];
+    if(!noinitmark) {
+      for(i = 0; i < N; i++) {
+	markvardat[i] = 1.0;
+      }
     }
-  }
-  /* Sort the index and then copy out only those elements that have
-     been selected */
-  mysort1int(j, good);
-  p->NJD[lc] = j;
-  for(i=0; i < j; i++) {
-    sigclip_copyterms(good[i],i,p,lc);
-  }
-  if(p->readimagestring)
-    {
-      for(i=0;i<p->NJD[lc];i++)
-	p->stringid_idx[lc][i] = i;
-      mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
+    k = 0;
+    if(N <= 0)
+      return;
+    if((good = (int *) malloc(N * sizeof(int))) == NULL)
+      error(ERR_MEMALLOC);
+    for(i=0; i < N; i++) {
+      while((k < Nlist ? (strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]]) > 0) : 0))
+	k++;
+      test = k < Nlist ? (!strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]])) : 0;
+      if(!((!exclude && test) || (exclude && !test))) {
+	/* Record the index of selected points */
+	markvardat[i] = 0.0;
+      }
     }
-  free(good);
+  } else {
+    if(c->saveexcludedpoints)
+      RestrictTimes_InitStoreTimes(c, p, lc);
+    j = 0;
+    k = 0;
+    if(N <= 0)
+      return;
+    if((good = (int *) malloc(N * sizeof(int))) == NULL)
+      error(ERR_MEMALLOC);
+    for(i=0; i < N; i++) {
+      while((k < Nlist ? (strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]]) > 0) : 0))
+	k++;
+      test = k < Nlist ? (!strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]])) : 0;
+      if((!exclude && test) || (exclude && !test)) {
+	/* Record the index of selected points */
+	good[j] = stringID_indx[i];
+	j++;
+      } else if(c->saveexcludedpoints) {
+	RestrictTimes_StoreTime(c, p, lc, i);
+      }
+    }
+    /* Sort the index and then copy out only those elements that have
+       been selected */
+    mysort1int(j, good);
+    p->NJD[lc] = j;
+    for(i=0; i < j; i++) {
+      sigclip_copyterms(good[i],i,p,lc);
+    }
+    if(p->readimagestring)
+      {
+	for(i=0;i<p->NJD[lc];i++)
+	  p->stringid_idx[lc][i] = i;
+	mysortstringint(p->NJD[lc],MAXIDSTRINGLENGTH, p->stringid[lc], p->stringid_idx[lc]);
+      }
+  }
+  if(good != NULL)
+    free(good);
 }
 
-void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, int threadindex, int lcindex) {
+void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, 
+			      int threadindex, int lcindex, 
+			      int markrestrict,
+			      _Variable *markvar, int noinitmark) {
   int i, j, Ntest, test;
   double testdbl;
-  if(c->saveexcludedpoints)
-    RestrictTimes_InitStoreTimes(c, p, threadindex);
-  j = 0;
-  Ntest = p->NJD[threadindex];
-  for(i=0; i < Ntest; i++) {
-    testdbl = EvaluateExpression(lcindex, threadindex, i, c->restrictexpr);
-    if(((testdbl > 0) && !c->exclude) || ((testdbl <= 0) &&  c->exclude)) {
-      if(i != j) {
-	sigclip_copyterms(i,j,p,threadindex);
+  double *markvardat = NULL;
+  if(markrestrict) {
+    markvardat = (*((double ***) markvar->dataptr))[lcindex];
+    Ntest = p->NJD[threadindex];
+    if(!noinitmark) {
+      for(i = 0; i < Ntest; i++) {
+	markvardat[i] = 1.0;
       }
-      j++;
-    } else if(c->saveexcludedpoints) {
-      RestrictTimes_StoreTime(c, p, threadindex, i);
     }
+    for(i=0; i < Ntest; i++) {
+      testdbl = EvaluateExpression(lcindex, threadindex, i, c->restrictexpr);
+      if(!(((testdbl > 0) && !c->exclude) || ((testdbl <= 0) &&  c->exclude))) {
+	markvardat[i] = 0.0;
+      }
+    }
+  } else {
+    if(c->saveexcludedpoints)
+      RestrictTimes_InitStoreTimes(c, p, threadindex);
+    j = 0;
+    Ntest = p->NJD[threadindex];
+    for(i=0; i < Ntest; i++) {
+      testdbl = EvaluateExpression(lcindex, threadindex, i, c->restrictexpr);
+      if(((testdbl > 0) && !c->exclude) || ((testdbl <= 0) &&  c->exclude)) {
+	if(i != j) {
+	  sigclip_copyterms(i,j,p,threadindex);
+	}
+	j++;
+      } else if(c->saveexcludedpoints) {
+	RestrictTimes_StoreTime(c, p, threadindex, i);
+      }
+    }
+    p->NJD[threadindex] = j;
+    if(p->readimagestring)
+      {
+	for(i=0;i<p->NJD[threadindex];i++)
+	  p->stringid_idx[threadindex][i] = i;
+	mysortstringint(p->NJD[threadindex],MAXIDSTRINGLENGTH, p->stringid[threadindex], p->stringid_idx[threadindex]);
+      }
   }
-  p->NJD[threadindex] = j;
-  if(p->readimagestring)
-    {
-      for(i=0;i<p->NJD[threadindex];i++)
-	p->stringid_idx[threadindex][i] = i;
-      mysortstringint(p->NJD[threadindex],MAXIDSTRINGLENGTH, p->stringid[threadindex], p->stringid_idx[threadindex]);
-    }
 }

@@ -50,8 +50,16 @@ void increaseNcommands(ProgramData *p, Command **c)
 	(*c)[i].require_sort = 0;
 	(*c)[i].require_distinct = 0;
 	(*c)[i].N_setparam_expr = 0;
+	(*c)[i].N_prior_vars = 0;
+	(*c)[i].prior_var_datatypes = NULL;
+	(*c)[i].prior_var_vectortypes = NULL;
+	(*c)[i].prior_var_names = NULL;
+	(*c)[i].prior_vars = NULL;
       }
     }
+  (*c)[(p->Ncommands-1)].command_outcolumn_suffix = p->next_command_outcolumn_suffix;
+  p->next_command_outcolumn_suffix = NULL;
+      
 }
 
 void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr)
@@ -66,10 +74,34 @@ void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr)
       error(ERR_MEMALLOC);
   }
   c->setparam_EvalExpressions[c->N_setparam_expr] = exprptr;
-  if((c->setparam_EvalExprStrings[c->N_setparam_expr] = malloc(sizeof(exprstr)+1)) == NULL)
+  if((c->setparam_EvalExprStrings[c->N_setparam_expr] = malloc(strlen(exprstr)+1)) == NULL)
     error(ERR_MEMALLOC);
   sprintf(c->setparam_EvalExprStrings[c->N_setparam_expr],"%s",exprstr);
   c->N_setparam_expr += 1;
+}
+
+void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varptr, char vectortype, char datatype)
+{
+  if(c->N_prior_vars == 0) {
+    if((c->prior_var_datatypes = (char *) malloc(sizeof(char))) == NULL ||
+       (c->prior_var_vectortypes = (char *) malloc(sizeof(char))) == NULL ||
+       (c->prior_var_names = (char **) malloc(sizeof(char *))) == NULL ||
+       (c->prior_vars = (_Variable ***) malloc(sizeof(_Variable **))) == NULL)
+      error(ERR_MEMALLOC);
+  } else {
+    if((c->prior_var_datatypes = (char *) realloc(c->prior_var_datatypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
+       (c->prior_var_vectortypes = (char *) realloc(c->prior_var_vectortypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
+       (c->prior_var_names = (char **) realloc(c->prior_var_names, (c->N_prior_vars + 1)*sizeof(char *))) == NULL ||
+       (c->prior_vars = (_Variable ***) realloc(c->prior_vars, (c->N_prior_vars + 1)*sizeof(_Variable **))) == NULL)
+      error(ERR_MEMALLOC);
+  }
+  if((c->prior_var_names[c->N_prior_vars] = (char *) malloc((strlen(varname)+1)*sizeof(char))) == NULL)
+    error(ERR_MEMALLOC);
+  sprintf(c->prior_var_names[c->N_prior_vars],"%s",varname);
+  c->prior_var_vectortypes[c->N_prior_vars] = vectortype;
+  c->prior_var_datatypes[c->N_prior_vars] = datatype;
+  c->prior_vars[c->N_prior_vars] = varptr;
+  c->N_prior_vars = c->N_prior_vars + 1;
 }
 
 #define DEFAULTSIZEKILLHARMTERMS 100
@@ -105,6 +137,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   p->NJD = NULL;
   p->lcnames = NULL;
   p->is_inputlc_fits = NULL;
+  p->fits_header_adds = NULL;
   p->stringid = NULL;
   p->stringid_idx = NULL;
 
@@ -130,11 +163,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if((p->lcnames = (char **) malloc(p->Nlcs * sizeof(char *))) == NULL ||
 	     (p->NJD = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
 	     (p->is_inputlc_fits = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
+	     (p->fits_header_adds = (_vartools_outlcfits_header_additions *) malloc(p->Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL ||
 	     (p->skipfaillc = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
 	    error(ERR_MEMALLOC);
 	  for(j=0;j<p->Nlcs;j++)
 	    {
 	      p->is_inputlc_fits[j] = 0;
+	      p->fits_header_adds[j].N_added_keywords = 0;
+	      p->fits_header_adds[j].size_added_keywords_vec = 0;
+	      p->fits_header_adds[j].hdrterms = NULL;
 	      p->skipfaillc[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
 		error(ERR_MEMALLOC);
@@ -217,11 +254,101 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
-	  RegisterDataFromInputList(p, 
-				    (void *)(&p->lcnames), 
-				    VARTOOLS_TYPE_STRING,
-				    0, -1, 0, 0, NULL,
-				    k, "LC_Name");
+	  p->combinelcs = 0;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"combinelcs"))
+		{
+		  p->combinelcs = 1;
+		  if(p->combinelcinfo == NULL) {
+		    p->combinelcinfo = (_CombineLCInfo *) malloc(sizeof(_CombineLCInfo));
+		    p->combinelcinfo->combinelcs_delimtype = VARTOOLS_LC_DELIMTYPE_CHAR;
+		    p->combinelcinfo->combinelcs_delimchar = ',';
+		    p->combinelcinfo->combinelcs_delimstring = NULL;
+		    p->combinelcinfo->lcnumvarname = NULL;
+		    p->combinelcinfo->lcnumvar = NULL;
+		    p->combinelcinfo->Ncombinelcs = NULL;
+		    p->combinelcinfo->multilcinputlistvals = NULL;
+		    p->combinelcinfo->Nmultilcinputlistvals = 0;
+		    p->combinelcinfo->multilcinputlistvals_datatype = NULL;
+		    p->combinelcinfo->combinelcnames = NULL;
+		  }
+		  i++;
+		  if(i < argc) {
+		    if(!strcmp(argv[i],"delimiter")) {
+		      i++;
+		      if(i >= argc)
+			help(argv[iterm],p);
+		      if(strlen(argv[i]) == 1) {
+			p->combinelcinfo->combinelcs_delimtype = VARTOOLS_LC_DELIMTYPE_CHAR;
+			p->combinelcinfo->combinelcs_delimchar = argv[i][0];
+		      } else {
+			p->combinelcinfo->combinelcs_delimtype = VARTOOLS_LC_DELIMTYPE_STRING;
+			p->combinelcinfo->combinelcs_delimstring = malloc(strlen(argv[i])+1);
+			sprintf(p->combinelcinfo->combinelcs_delimstring,"%s",argv[i]);
+		      }
+		    }
+		    else
+		      i--;
+		  }
+		  else
+		    i--;
+		  i++;
+		  if(i < argc)
+		    {
+		      p->combinelcinfo->lcnumvarname = NULL;
+		      if(!strcmp(argv[i],"lcnumvar"))
+			{
+			  i++;
+			  if(i >= argc)
+			    help(iterm,i);
+			  if((p->combinelcinfo->lcnumvarname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+			    error(ERR_MEMALLOC);
+			  sprintf(p->combinelcinfo->lcnumvarname,"%s",argv[i]);
+			  p->combinelcinfo->lcnumvar = CreateVariable(p, 
+								      p->combinelcinfo->lcnumvarname,
+						       VARTOOLS_TYPE_INT,
+						       VARTOOLS_VECTORTYPE_LC,
+						       NULL);
+			  RegisterDataFromLightCurve(p,
+						     p->combinelcinfo->lcnumvar->dataptr,
+						     VARTOOLS_TYPE_INT,
+						     0, 0, -1, 0, 0, NULL, 
+						     p->combinelcinfo->lcnumvar, -1,
+						     p->combinelcinfo->lcnumvarname);
+			}
+		      else
+			i--;
+		    }
+		  else
+		    i--;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+
+	  if(!p->combinelcs) {
+	    RegisterDataFromInputList(p, 
+				      (void *)(&p->lcnames), 
+				      VARTOOLS_TYPE_STRING,
+				      0, -1, 0, 0, NULL,
+				      k, "LC_Name");
+	  } else {
+	    RegisterDataFromInputList(p, 
+				      (void *)(&p->lcnames), 
+				      VARTOOLS_TYPE_STRING,
+				      0, -1, 0, 0, NULL,
+				      -1, "LC_Name");
+	    RegisterDataFromInputList(p, 
+				      (void *)(&p->combinelcinfo->combinelcnames), 
+				      VARTOOLS_TYPE_STRING,
+				      -1, -1, 0, 0, NULL,
+				      k, "LC_Name");
+	    p->combinelcinfo->ncombinelc_coldetindx = k-1;
+	  }
 	  RegisterDataFromInputList(p, 
 				    (void *)(&p->is_inputlc_fits), 
 				    VARTOOLS_TYPE_INT,
@@ -543,7 +670,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -clip clipfactor iter ["niter" num] ["median"] : light curve clipping */
+      /* -clip clipfactor iter ["niter" num] ["median"] ["markclip" var ["noinitmark"]]: light curve clipping */
       else if(!strncmp(argv[i],"-clip",5) && strlen(argv[i]) == 5)
 	{
 	  iterm = i;
@@ -554,6 +681,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 
 	  c[cn].Clip->niter = 0;
 	  c[cn].Clip->usemedian = 0;
+	  c[cn].Clip->markclip = 0;
+	  c[cn].Clip->noinitmark = 0;
 
 	  i++;
 	  if(i < argc)
@@ -593,10 +722,38 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    i--;
 
+	  c[cn].Clip->clipvarname = NULL;
+	  c[cn].Clip->clipvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"markclip")) {
+	      c[cn].Clip->markclip = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].Clip->clipvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].Clip->clipvarname,"%s",argv[i]);
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"noinitmark")) {
+		  c[cn].Clip->noinitmark = 1;
+		} else
+		  i--;
+	      }
+	      else
+		i--;
+
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
-      /* -rescalesig : simple sigma rescaling */
+      /* -rescalesig ["maskpoints" maskvar]: simple sigma rescaling */
       else if(!strncmp(argv[i],"-rescalesig",11) && strlen(argv[i]) == 11)
 	{
 	  iterm = i;
@@ -604,10 +761,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_RESCALESIG;
 	  if((c[cn].Rescalesig = (_Rescalesig *) malloc(sizeof(_Rescalesig))) == NULL)
 	    error(ERR_MEMALLOC);
+	  c[cn].Rescalesig->usemask = 0;
+	  c[cn].Rescalesig->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Rescalesig->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Rescalesig->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -ensemblerescalesig erssigclip : ensemble sigma rescaling */
+      /* -ensemblerescalesig erssigclip ["maskpoints" maskvar]: ensemble sigma rescaling */
       else if(!strncmp(argv[i],"-ensemblerescalesig",19) && strlen(argv[i]) == 19)
 	{
 	  iterm = i;
@@ -621,10 +792,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    c[cn].Ensemblerescalesig->erssigclip = atof(argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
+	  c[cn].Ensemblerescalesig->usemask = 0;
+	  c[cn].Ensemblerescalesig->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Ensemblerescalesig->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ensemblerescalesig->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -decorr Nglobalterms globalfile1 order1 ... Nlcterms lccolumn1 lcorder1 ... */
+      /* -decorr Nglobalterms globalfile1 order1 ... Nlcterms lccolumn1 lcorder1 ... ["maskpoints" maskvar] */
       else if(!strncmp(argv[i],"-decorr",7) && strlen(argv[i]) == 7)
 	{
 	  iterm = i;
@@ -738,10 +923,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		listcommands(argv[iterm],p);
 	      sprintf(c[cn].Decorr->modelsuffix,".decorr.model");
 	    }
+	  c[cn].Decorr->usemask = 0;
+	  c[cn].Decorr->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Decorr->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Decorr->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /*-dftclean nbeam [\"maxfreq\" maxf] [\"outdspec\" dspec_outdir] [\"finddirtypeaks\" Npeaks [\"clip\" clip clipiter]] [\"outwfunc\" wfunc_outdir] [\"clean\" gain SNlimit [\"outcbeam\" cbeam_outdir] [\"outcspec\" cspec_outdir] [\"findcleanpeaks\" Npeaks [\"clip\" clip clipiter]]] [\"useampspec\"] [\"verboseout\"] */
+      /*-dftclean nbeam [\"maxfreq\" maxf] [\"outdspec\" dspec_outdir] [\"finddirtypeaks\" Npeaks [\"clip\" clip clipiter]] [\"outwfunc\" wfunc_outdir] [\"clean\" gain SNlimit [\"outcbeam\" cbeam_outdir] [\"outcspec\" cspec_outdir] [\"findcleanpeaks\" Npeaks [\"clip\" clip clipiter]]] [\"useampspec\"] [\"verboseout\"] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-dftclean",9) && strlen(argv[i]) == 9)
 	{
 	  iterm = i;
@@ -760,11 +959,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Dftclean->maxfreq = -1.;
 	  c[cn].Dftclean->outdspec = 0;
 	  c[cn].Dftclean->finddirtypeaks = 0;
+	  c[cn].Dftclean->Npeaks_dirty = 0;
 	  c[cn].Dftclean->outwspec = 0;
 	  c[cn].Dftclean->runclean = 0;
 	  c[cn].Dftclean->outcbeam = 0;
 	  c[cn].Dftclean->outcspec = 0;
 	  c[cn].Dftclean->findcleanpeaks = 0;
+	  c[cn].Dftclean->Npeaks_clean = 0;
 	  c[cn].Dftclean->useampspec = 0;
 	  c[cn].Dftclean->verboseout = 0;
 	  i++;
@@ -990,10 +1191,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    i--;
 		  
+	  c[cn].Dftclean->usemask = 0;
+	  c[cn].Dftclean->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Dftclean->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Dftclean->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
+
 	  cn++;
 	}
       
-      /* -chi2 : Calculate un-binned chi2 */
+      /* -chi2 ["maskpoints" maskvar]: Calculate un-binned chi2 */
       else if(!strncmp(argv[i],"-chi2",5) && strlen(argv[i]) == 5)
 	{
 	  iterm = i;
@@ -1001,10 +1217,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_CHI2_NOBIN;
 	  if((c[cn].Chi2_NoBin = (_Chi2_NoBin *) malloc(sizeof(_Chi2_NoBin))) == NULL)
 	    error(ERR_MEMALLOC);
+	  c[cn].Chi2_NoBin->usemask = 0;
+	  c[cn].Chi2_NoBin->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Chi2_NoBin->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Chi2_NoBin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
       
-      /* -chi2bin Nbin bin1 ... binn : Calculate chi2 in a moving mean filter */
+      /* -chi2bin Nbin bin1 ... binn ["maskpoints" maskvar] : Calculate chi2 in a moving mean filter */
       else if(!strncmp(argv[i],"-chi2bin",8) && strlen(argv[i]) == 8)
 	{
 	  iterm = i;
@@ -1028,10 +1258,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		listcommands(argv[iterm],p);
 	    }
+	  c[cn].Chi2_Bin->usemask = 0;
+	  c[cn].Chi2_Bin->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Chi2_Bin->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Chi2_Bin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -changeerror : Replace the formal errors in a light curve with the light curve RMS */
+      /* -changeerror ["maskpoints" maskvar]: Replace the formal errors in a light curve with the light curve RMS */
       else if(!strncmp(argv[i],"-changeerror",12) && strlen(argv[i]) == 12)
 	{
 	  iterm = i;
@@ -1039,6 +1283,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_CHANGEERROR;
 	  if((c[cn].Changeerror = (_Changeerror *) malloc(sizeof(_Changeerror))) == NULL)
 	    error(ERR_MEMALLOC);
+	  c[cn].Changeerror->usemask = 0;
+	  c[cn].Changeerror->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Changeerror->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Changeerror->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
@@ -1211,6 +1469,138 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -print var1[,var2,var3....] ["columnnames" col1[,col2,col3...]] ["format" fmt1[,fmt2,fmt3...]]*/
+      else if(!strcmp(argv[i],"-print"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 0;
+	  c[cn].require_distinct = 0;
+	  c[cn].cnum = CNUM_PRINT;
+	  if((c[cn].PrintCommand = (_PrintCommand *) malloc(sizeof(_PrintCommand))) == NULL)
+	    error(ERR_MEMALLOC);
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  l = 0;
+	  c[cn].PrintCommand->iscolname = 0;
+	  c[cn].PrintCommand->isformat = 0;
+	  c[cn].PrintCommand->varnames = NULL;
+	  c[cn].PrintCommand->formatstrings = NULL;
+	  c[cn].PrintCommand->Nvars = 1;
+	  while(argv[i][l] != '\0') {
+	    if(argv[i][l] == ',')
+	      c[cn].PrintCommand->Nvars += 1;
+	    l++;
+	  }
+	  if((c[cn].PrintCommand->varnames = (char **) malloc(c[cn].PrintCommand->Nvars*sizeof(char *))) == NULL ||
+	     (c[cn].PrintCommand->vars = (_Variable **) malloc(c[cn].PrintCommand->Nvars*sizeof(_Variable *))) == NULL ||
+	     (c[cn].PrintCommand->dataptr = (void **) malloc(c[cn].PrintCommand->Nvars*sizeof(void *))) == NULL ||
+	     (c[cn].PrintCommand->colindx = (int *) malloc(c[cn].PrintCommand->Nvars*sizeof(int))) == NULL)
+	    error(ERR_MEMALLOC);
+	  k = 0;
+	  m = 0;
+	  for(l = 0; l < c[cn].PrintCommand->Nvars; l++) {
+	    c[cn].PrintCommand->colindx[l] = -1;
+	    while(argv[i][k] != '\0' && argv[i][k] != ',') {
+	      k++;
+	    }
+	    if((c[cn].PrintCommand->varnames[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
+	      error(ERR_MEMALLOC);
+	    for(j=m; j < k; j++) {
+	      c[cn].PrintCommand->varnames[l][j-m] = argv[i][j];
+	    }
+	    c[cn].PrintCommand->varnames[l][j-m] = '\0';
+	    parse_setparam_existingvariable(&(c[cn]), c[cn].PrintCommand->varnames[l], &(c[cn].PrintCommand->vars[l]), VARTOOLS_VECTORTYPE_ANY, VARTOOLS_TYPE_ANY);
+	    m = k+1;
+	    k = k+1;
+	  }
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"columnnames")) {
+	      c[cn].PrintCommand->iscolname = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      m = 1;
+	      l = 0;
+	      while(argv[i][l] != '\0') {
+		if(argv[i][l] == ',')
+		  m += 1;
+		l++;
+	      }
+	      if(m != c[cn].PrintCommand->Nvars)
+		error(ERR_PRINTNUMVARSNOTMATCH);
+	      if((c[cn].PrintCommand->colnames = (char **) malloc(c[cn].PrintCommand->Nvars*sizeof(char *))) == NULL)
+		error(ERR_MEMALLOC);
+
+	      k = 0;
+	      m = 0;
+	      for(l = 0; l < c[cn].PrintCommand->Nvars; l++) {
+		while(argv[i][k] != '\0' && argv[i][k] != ',') {
+		  k++;
+		}
+		if((c[cn].PrintCommand->colnames[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
+		  error(ERR_MEMALLOC);
+		for(j=m; j < k; j++) {
+		  c[cn].PrintCommand->colnames[l][j-m] = argv[i][j];
+		}
+		c[cn].PrintCommand->colnames[l][j-m] = '\0';
+		m = k+1;
+		k = k+1;
+	      }
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"format")) {
+	      c[cn].PrintCommand->isformat = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      m = 1;
+	      l = 0;
+	      while(argv[i][l] != '\0') {
+		if(argv[i][l] == ',')
+		  m += 1;
+		l++;
+	      }
+	      if(m != c[cn].PrintCommand->Nvars)
+		error(ERR_PRINTNUMVARSNOTMATCH);
+	      if((c[cn].PrintCommand->formatstrings = (char **) malloc(c[cn].PrintCommand->Nvars*sizeof(char *))) == NULL)
+		error(ERR_MEMALLOC);
+
+	      k = 0;
+	      m = 0;
+	      for(l = 0; l < c[cn].PrintCommand->Nvars; l++) {
+		while(argv[i][k] != '\0' && argv[i][k] != ',') {
+		  k++;
+		}
+		if((c[cn].PrintCommand->formatstrings[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
+		  error(ERR_MEMALLOC);
+		for(j=m; j < k; j++) {
+		  c[cn].PrintCommand->formatstrings[l][j-m] = argv[i][j];
+		}
+		c[cn].PrintCommand->formatstrings[l][j-m] = '\0';
+		m = k+1;
+		k = k+1;
+	      }
+	    }
+	    else
+	      i--;
+	  }
+	  else
+	    i--;
+
+	  cn++;
+	}
+
       /* -resample <"nearest" | 
                     "linear"  |
                     "spline"  ["left" yp1] ["right" ypn] |
@@ -1266,6 +1656,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
                          "JDlist" JDfilename |
                          "imagelist" imagefilename |
                          "expr" eval_expression>
+                         ["markrestrict" markvar]
       */
       else if(!strcmp(argv[i],"-restricttimes"))
 	{
@@ -1433,6 +1824,35 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    listcommands(argv[iterm],p);
+	  c[cn].RestrictTimes->markrestrict = 0;
+	  c[cn].RestrictTimes->markvarname = NULL;
+	  c[cn].RestrictTimes->markvar = NULL;
+	  c[cn].RestrictTimes->noinitmark = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"markrestrict")) {
+	      c[cn].RestrictTimes->markrestrict = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].RestrictTimes->markvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].RestrictTimes->markvarname,"%s",argv[i]);
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"noinitmark")) {
+		  c[cn].RestrictTimes->noinitmark = 1;
+		} else
+		  i--;
+	      }
+	      else
+		i--;
+
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
 	  cn++;
 	}
 
@@ -1455,6 +1875,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  if(c[l].cnum == CNUM_RESTRICTTIMES)
 		    m++;
 		  if(m == c[cn].RestoreTimes->restrictnum) {
+		    if(c[l].RestrictTimes->markrestrict) {
+		      error(ERR_RESTORETIMES_MARKRESTRICT);
+		    }
 		    c[cn].RestoreTimes->RestrictTimes = c[l].RestrictTimes;
 		    c[l].RestrictTimes->saveexcludedpoints = 1;
 		    break;
@@ -1468,7 +1891,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
       }
       
-      /* -rms : Calculate un-binned rms */
+      /* -rms ["maskpoints" maskvar] : Calculate un-binned rms */
       else if(!strncmp(argv[i],"-rms",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -1476,10 +1899,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_RMS_NOBIN;
 	  if((c[cn].RMS_NoBin = (_RMS_NoBin *) malloc(sizeof(_RMS_NoBin))) == NULL)
 	    error(ERR_MEMALLOC);
+	  c[cn].RMS_NoBin->usemask = 0;
+	  c[cn].RMS_NoBin->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].RMS_NoBin->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].RMS_NoBin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
+	      
 	  cn++;
 	}
 
-      /* -rmsbin Nbin bintime1 ... bintimen : Calculate rms after applying a moving mean filter */
+      /* -rmsbin Nbin bintime1 ... bintimen [\"maskpoints\" maskvar] : Calculate rms after applying a moving mean filter */
       else if(!strncmp(argv[i],"-rmsbin",7) && strlen(argv[i]) == 7)
 	{
 	  iterm = i;
@@ -1502,10 +1940,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		listcommands(argv[iterm],p);
 	    }
+	  c[cn].RMS_Bin->usemask = 0;
+	  c[cn].RMS_Bin->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].RMS_Bin->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].RMS_Bin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -Jstet Jstet_time dates */
+      /* -Jstet Jstet_time dates [\"maskpoints\" maskvar]*/
       else if(!strncmp(argv[i],"-Jstet",6) && strlen(argv[i]) == 6)
 	{
 	  iterm = i;
@@ -1525,8 +1977,162 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    sprintf(c[cn].Jstet->datesname,"%s",argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
+	  c[cn].Jstet->usemask = 0;
+	  c[cn].Jstet->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Jstet->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Jstet->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
+
+#ifdef USECFITSIO
+      /* -addfitskeyword keyword ["combinelc" lcnumvar] <"TDOUBLE" | "TINT" | "TLONG" | "TSTRING"> <"fix" val | "var" variable> ["comment" commentstring] [\"primary\" | \"extension\"] [\"append\" | \"update\"] */
+      else if(!strcmp(argv[i],"-addfitskeyword"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_ADDFITSKEYWORD;
+	  if((c[cn].AddFitsKeyword = (_AddFitsKeyword *) malloc(sizeof(_AddFitsKeyword))) == NULL)
+	    error(ERR_MEMALLOC);
+	  
+	  c[cn].AddFitsKeyword->comment_string = NULL;
+	  c[cn].AddFitsKeyword->string_fixval = NULL;
+	  c[cn].AddFitsKeyword->keyval_var = NULL;
+	  c[cn].AddFitsKeyword->keyname = NULL;
+	  c[cn].AddFitsKeyword->hdutouse = 0;
+	  c[cn].AddFitsKeyword->updateexisting = 1;
+	  c[cn].AddFitsKeyword->combinelckeyword = 0;
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if((c[cn].AddFitsKeyword->keyname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+	    error(ERR_MEMALLOC);
+	  sprintf(c[cn].AddFitsKeyword->keyname,"%s", argv[i]);
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"combinelc")) {
+	      c[cn].AddFitsKeyword->combinelckeyword = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->lcnumvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_INT);
+	    } else 
+	      i--;
+	  } else
+	    i--;
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"TDOUBLE")) {
+	    c[cn].AddFitsKeyword->dtype = VARTOOLS_TYPE_DOUBLE;
+	  }
+	  else if(!strcmp(argv[i],"TINT")) {
+	    c[cn].AddFitsKeyword->dtype = VARTOOLS_TYPE_INT;
+	  }
+	  else if(!strcmp(argv[i],"TLONG")) {
+	    c[cn].AddFitsKeyword->dtype = VARTOOLS_TYPE_LONG;
+	  }
+	  else if(!strcmp(argv[i],"TSTRING")) {
+	    c[cn].AddFitsKeyword->dtype = VARTOOLS_TYPE_STRING;
+	  }
+	  else
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"fix")) {
+	    c[cn].AddFitsKeyword->keyval_source = VARTOOLS_SOURCE_FIXED;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    switch(c[cn].AddFitsKeyword->dtype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      c[cn].AddFitsKeyword->dbl_fixval = atof(argv[i]);
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      c[cn].AddFitsKeyword->int_fixval = atoi(argv[i]);
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      c[cn].AddFitsKeyword->long_fixval = atol(argv[i]);
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      if((c[cn].AddFitsKeyword->string_fixval = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].AddFitsKeyword->string_fixval,"%s",argv[i]);
+	      break;
+	    default:
+	      error(ERR_CODEERROR);
+	      break;
+	    }
+	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].AddFitsKeyword->keyval_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    switch(c[cn].AddFitsKeyword->dtype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->keyval_var), (c[cn].AddFitsKeyword->combinelckeyword ? VARTOOLS_VECTORTYPE_LC : VARTOOLS_VECTORTYPE_INLIST), VARTOOLS_TYPE_DOUBLE);
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->keyval_var), (c[cn].AddFitsKeyword->combinelckeyword ? VARTOOLS_VECTORTYPE_LC : VARTOOLS_VECTORTYPE_INLIST), VARTOOLS_TYPE_INT);
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->keyval_var), (c[cn].AddFitsKeyword->combinelckeyword ? VARTOOLS_VECTORTYPE_LC : VARTOOLS_VECTORTYPE_INLIST), VARTOOLS_TYPE_LONG);
+	      break;
+	    case VARTOOLS_TYPE_STRING:
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->keyval_var), (c[cn].AddFitsKeyword->combinelckeyword ? VARTOOLS_VECTORTYPE_LC : VARTOOLS_VECTORTYPE_INLIST), VARTOOLS_TYPE_STRING);
+	      break;
+	    default:
+	      error(ERR_CODEERROR);
+	      break;
+	    }
+	  } else {
+	    listcommands(argv[iterm],p);
+	  }
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"comment")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].AddFitsKeyword->comment_string = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].AddFitsKeyword->comment_string,"%s",argv[i]);
+	    }
+	    else
+	      i--;
+	  } else
+	    i--;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"primary")) {
+	      c[cn].AddFitsKeyword->hdutouse = 0;
+	    }
+	    else if(!strcmp(argv[i],"extension")) {
+	      c[cn].AddFitsKeyword->hdutouse = 1;
+	    }
+	    else
+	      i--;
+	  } else
+	    i--;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"append")) {
+	      c[cn].AddFitsKeyword->updateexisting = 0;
+	    }
+	    else if(!strcmp(argv[i],"update")) {
+	      c[cn].AddFitsKeyword->updateexisting = 1;
+	    }
+	    else
+	      i--;
+	  } else
+	    i--;
+	  cn++;
+	}
+#endif
 
       /* -addnoise <"gamma" <"fix" val | "list">> <"sig_red" <"fix" val | "list">> <"sig_white <"fix" val | "list">> */
       else if(!strncmp(argv[i],"-addnoise",9) && strlen(argv[i]) == 9)
@@ -2277,7 +2883,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -alarm */
+      /* -alarm [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-alarm",6) && strlen(argv[i]) == 6)
 	{
 	  iterm = i;
@@ -2287,10 +2893,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_ALARM;
 	  if((c[cn].Alarm = (_Alarm *) malloc(sizeof(_Alarm))) == NULL)
 	    error(ERR_MEMALLOC);
+	  c[cn].Alarm->usemask = 0;
+	  c[cn].Alarm->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Alarm->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Alarm->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
       
-      /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] */
+      /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -2303,42 +2923,131 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i < argc)
 	    {
-	      if(!strncmp(argv[i],"Nbin",4) && strlen(argv[i]) == 4)
+	      if(!strcmp(argv[i],"Nbin"))
 		{
 		  i++;
-		  if(i < argc)
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Aov->Nbin_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->Nbin_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Aov->Nbin_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Aov->Nbin_expr));
+		  }
+		  else {
+		    c[cn].Aov->Nbin_source = VARTOOLS_SOURCE_FIXED;
 		    c[cn].Aov->Nbin = atoi(argv[i]);
-		  else
-		    listcommands(argv[iterm],p);
-		  i++;
-		  if(i < argc)
-		    c[cn].Aov->minp = atof(argv[i]);
-		  else
-		    listcommands(argv[iterm],p);
+		  }
 		}
 	      else
 		{
+		  c[cn].Aov->Nbin_source = VARTOOLS_SOURCE_FIXED;
 		  c[cn].Aov->Nbin = 0;
-		  c[cn].Aov->minp = atof(argv[i]);
+		  i--;
 		}
+
+
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"var")) {
+		c[cn].Aov->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->minp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      }
+	      else if(!strcmp(argv[i],"expr")) {
+		c[cn].Aov->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Aov->minp_expr));
+	      }
+	      else {
+		c[cn].Aov->minp_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Aov->minp = atof(argv[i]);
+	      }
 	    }
 	  else
 	    listcommands(argv[iterm],p);
+
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Aov->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->maxp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Aov->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Aov->maxp_expr));
+	  }
+	  else {
+	    c[cn].Aov->maxp_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Aov->maxp = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Aov->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->subsample_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Aov->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Aov->subsample_expr));
+	  }
+	  else {
+	    c[cn].Aov->subsample_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Aov->subsample = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
+
 	  i++;
-	  if(i < argc)
-	    c[cn].Aov->finetune = atof(argv[i]);
-	  else
+	  if(i >= argc)
 	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Aov->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->finetune_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Aov->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Aov->finetune_expr));
+	  }
+	  else {
+	    c[cn].Aov->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Aov->finetune = atof(argv[i]);
+	  }
+
 	  i++;
 	  if(i < argc)
 	    c[cn].Aov->Npeaks = atoi(argv[i]);
@@ -2518,10 +3227,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  c[cn].Aov->usemask = 0;
+	  c[cn].Aov->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Aov->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -aov_harm Nharm minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] */
+      /* -aov_harm <\"var\" Nharmvar | \"expr\" Nharmexpr | Nharm> <\"var\" minpvar | \"expr\" minpexpr | minp> <\"var\" maxpvar | \"expr\" maxpexpr | maxp> <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample> <\"var\" finetunevar | \"expr\" finetuneexpr | finetune> Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov_harm",9) && strlen(argv[i]) == 9)
 	{
 	  iterm = i;
@@ -2531,31 +3254,120 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_HARMAOV;
 	  if((c[cn].AovHarm = (_AovHarm *) malloc(sizeof(_AovHarm))) == NULL)
 	    error(ERR_MEMALLOC);
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].AovHarm->Nharm_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->Nharm_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].AovHarm->Nharm_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AovHarm->Nharm_expr));
+	  }
+	  else {
+	    c[cn].AovHarm->Nharm_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].AovHarm->Nharm = atoi(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].AovHarm->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->minp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].AovHarm->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AovHarm->minp_expr));
+	  }
+	  else {
+	    c[cn].AovHarm->minp_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].AovHarm->minp = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].AovHarm->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->maxp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].AovHarm->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AovHarm->maxp_expr));
+	  }
+	  else {
+	    c[cn].AovHarm->maxp_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].AovHarm->maxp = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].AovHarm->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->subsample_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].AovHarm->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AovHarm->subsample_expr));
+	  }
+	  else {
+	    c[cn].AovHarm->subsample_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].AovHarm->subsample = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
+
 	  i++;
-	  if(i < argc)
-	    c[cn].AovHarm->finetune = atof(argv[i]);
-	  else
+	  if(i >= argc)
 	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].AovHarm->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->finetune_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].AovHarm->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AovHarm->finetune_expr));
+	  }
+	  else {
+	    c[cn].AovHarm->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].AovHarm->finetune = atof(argv[i]);
+	  }
+
 	  i++;
 	  if(i < argc)
 	    c[cn].AovHarm->Npeaks = atoi(argv[i]);
@@ -2723,10 +3535,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  c[cn].AovHarm->usemask = 0;
+	  c[cn].AovHarm->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].AovHarm->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AovHarm->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -autocorrelation start stop step match-tolerance outdir */
+      /* -autocorrelation start stop step match-tolerance outdir [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-autocorrelation",16) && strlen(argv[i]) == 16)
 	{
 	  iterm = i;
@@ -2756,6 +3582,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    listcommands(argv[iterm],p);
 	  sprintf(c[cn].Autocorr->suffix,".autocorr");
+	  c[cn].Autocorr->usemask = 0;
+	  c[cn].Autocorr->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Autocorr->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Autocorr->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
       
@@ -3545,7 +4385,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	}
 
 
-      /* -linfit function paramlist [\"modelvar\" varname] [\"correctlc\"] [\"omodel\" model_outdir]" */
+      /* -linfit function paramlist [\"modelvar\" varname] [\"correctlc\"] [\"omodel\" model_outdir] [\"fitmask\" maskvar]" */
       else if(!strcmp(argv[i],"-linfit"))
 	{
 	  iterm = i;
@@ -3591,7 +4431,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -LS minp maxp subsample Npeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" ["column" col] | \"fixcolumn\" <colname | colnum>>] [\"bootstrap\" Nbootstrap]*/
+      /* -LS <\"var\" minpvar | \"expr\" minpexpr | minp> <\"var\" maxpvar | \"expr\" maxpexpr | maxp> <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample> Npeaks operiodogram [outdir] [\"noGLS\"] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" ["column" col] | \"fixcolumn\" <colname | colnum>>] [\"bootstrap\" Nbootstrap] ["maskpoints" maskvar]*/
       else if(!strncmp(argv[i],"-LS",3) && strlen(argv[i]) == 3)
 	{
 	  iterm = i;
@@ -3601,21 +4441,74 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_LS;
 	  if((c[cn].Ls = (_Ls *) malloc(sizeof(_Ls))) == NULL)
 	    error(ERR_MEMALLOC);
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Ls->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ls->minp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Ls->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ls->minp_expr));
+	  }
+	  else {
+	    c[cn].Ls->minp_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Ls->minp = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Ls->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ls->maxp_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Ls->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ls->maxp_expr));
+	  }
+	  else {
+	    c[cn].Ls->maxp_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Ls->maxp = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
 	  i++;
-	  if(i < argc)
-	    c[cn].Ls->subsample = atof(argv[i]);
-	  else
+	  if(i >= argc)
 	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Ls->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ls->subsample_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Ls->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ls->subsample_expr));
+	  }
+	  else {
+	    c[cn].Ls->subsample_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ls->subsample = atof(argv[i]);
+	  }
+
 	  i++;
 	  if(i < argc)
 	    c[cn].Ls->Npeaks = atoi(argv[i]);
@@ -3822,6 +4715,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    {
 	      i--;
 	    }
+	  c[cn].Ls->usemask = 0;
+	  c[cn].Ls->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Ls->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ls->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
@@ -3962,6 +4869,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->noclobber = 0;
 	  c[cn].Outputlcs->useoutnamecommand = 0;
 	  c[cn].Outputlcs->outnamecommand = NULL;
+	  c[cn].Outputlcs->descriptions = NULL;
+	  c[cn].Outputlcs->namefrominlist = 0;
+	  c[cn].Outputlcs->inputlistoutnames = NULL;
 	  i++;
 	  if(i < argc)
 	    {
@@ -3984,6 +4894,28 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  }
 		  else
 		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"namefromlist"))
+		{
+		  c[cn].Outputlcs->namefrominlist = 1;
+		  k = 0;
+		  i++;
+		  if(i < argc) {
+		    if(!strcmp(argv[i],"column")) {
+		      i++;
+		      if(i < argc) {
+			k = atoi(argv[i]);
+		      }
+		      else
+			listcommands(argv[iterm],p);
+		    }
+		    else i--;
+		  } else i--;
+		  RegisterDataFromInputList(p,
+					    (void *)(&(c[cn].Outputlcs->inputlistoutnames)),
+					    VARTOOLS_TYPE_STRING,
+					    0, cn, 0, 0, NULL, k,
+					    "OUTPUTLCS_OUTFILENAME");
 		}
 	      else
 		i--;
@@ -5721,7 +6653,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	} 
 
-      /* -stats var1,var2,... stats1,stats2,... */
+      /* -stats var1,var2,... stats1,stats2,... [\"maskpoints\" maskvar] */
       else if(!strcmp(argv[i],"-stats"))
 	{
 	  iterm = i;
@@ -5773,7 +6705,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	}
 #endif
 
-      /* -BLS < \"r\" rmin rmax | \"q\" qmin qmax | \"density\" rho min_expected_duration_frac max_expected_duration_frac > minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"extraparams\"] [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"]*/
+      /* -BLS < \"r\" <\"var\" rminvar | \"expr\" rminexpr | rmin> <\"var\" rmaxvar | \"expr\" rmaxexpr | rmax> | \"q\" <\"var\" qminvar | \"expr\" qminexpr | qmin> <\"var\" qmaxvar | \"expr\" qmaxexpr | qmax> | \"density\" <\"var\" rhovar | \"expr\" rhoexpr | rho> <\"var\" min_expected_duration_frac_var | \"expr\" min_expected_duration_frac_expr | min_expected_duration_frac> <\"var\" max_expected_duration_frac_var | \"expr\" max_expected_duration_frac_expr | max_expected_duration_frac> > <\"var\" minpervar | \"expr\" minperexpr | minper> <\"var\" maxpervar | \"expr\" maxperexpr | maxper> <\"nf\" <\"var\" nfreqvar | \"expr\" nfreqexpr | nfreq> | \"df\" <\"var\" dfvar | \"expr\" dfexpr | df> | \"optimal\" <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>> <\"var\" nbinsvar | \"expr\" nbinsexpr | nbins> timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"extraparams\"] [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"stepP\" | \"steplogP\"] [\"adjust-qmin-by-mindt\" [\"reduce-nbins\"]] [\"reportharmonics\"] [\"maskpoints\" maskvar]*/
       else if(!strncmp(argv[i],"-BLS",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -5790,35 +6722,168 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		{
 		  c[cn].Bls->rflag = 1;
 		  i++;
-		  if(i < argc)
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->rmin_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->rmin_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->rmin_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->rmin_expr));
+		  }
+		  else {
+		    c[cn].Bls->rmin_source = VARTOOLS_SOURCE_FIXED;
 		    c[cn].Bls->rmin = atof(argv[i]);
-		  else
-		    listcommands(argv[iterm],p);
+		  }
+
 		  i++;
-		  if(i < argc)
-		    c[cn].Bls->rmax = atof(argv[i]);
-		  else
+		  if(i >= argc)
 		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->rmax_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->rmax_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->rmax_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->rmax_expr));
+		  }
+		  else {
+		    c[cn].Bls->rmax_source = VARTOOLS_SOURCE_FIXED;
+		    c[cn].Bls->rmax = atof(argv[i]);
+		  }
 		}
       	      else if(!strncmp(argv[i],"q",1) && strlen(argv[i]) == 1)
 		{
 		  c[cn].Bls->rflag = 0;
 		  i++;
-		  if(i < argc)
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->qmin_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->qmin_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->qmin_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->qmin_expr));
+		  }
+		  else {
+		    c[cn].Bls->qmin_source = VARTOOLS_SOURCE_FIXED;
 		    c[cn].Bls->qmin = atof(argv[i]);
-		  else
-		    listcommands(argv[iterm],p);
+		  }
+
 		  i++;
-		  if(i < argc)
-		    c[cn].Bls->qmax = atof(argv[i]);
-		  else
+		  if(i >= argc)
 		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->qmax_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->qmax_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->qmax_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->qmax_expr));
+		  }
+		  else {
+		    c[cn].Bls->qmax_source = VARTOOLS_SOURCE_FIXED;
+		    c[cn].Bls->qmax = atof(argv[i]);
+		  }
 		}
 	      else if(!strcmp(argv[i],"density"))
 		{
-		  c[cn].Bls->rflag = 1;
+		  c[cn].Bls->rflag = 2;
+		  
 		  i++;
-		  if(i < argc)
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->rho_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->rho_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->rho_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->rho_expr));
+		  }
+		  else {
+		    c[cn].Bls->rho_source = VARTOOLS_SOURCE_FIXED;
+		    c[cn].Bls->rho = atof(argv[i]);
+		  }
+
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->minexpdurfrac_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->minexpdurfrac_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->minexpdurfrac_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->minexpdurfrac_expr));
+		  }
+		  else {
+		    c[cn].Bls->minexpdurfrac_source = VARTOOLS_SOURCE_FIXED;
+		    c[cn].Bls->minexpdurfrac = atof(argv[i]);
+		  }
+		  
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  if(!strcmp(argv[i],"var")) {
+		    c[cn].Bls->maxexpdurfrac_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->maxexpdurfrac_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].Bls->maxexpdurfrac_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->maxexpdurfrac_expr));
+		  }
+		  else {
+		    c[cn].Bls->maxexpdurfrac_source = VARTOOLS_SOURCE_FIXED;
+		    c[cn].Bls->maxexpdurfrac = atof(argv[i]);
+		  }
+
+
+		  /*if(i < argc)
 		    c[cn].Bls->rho = atof(argv[i]);
 		  else
 		    listcommands(argv[iterm],p);
@@ -5831,36 +6896,168 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  if(i < argc)
 		    c[cn].Bls->rmax = pow(((0.0848203*atof(argv[i])*pow(c[cn].Bls->rho,(-1.0/3.0)))/0.076),1.5);
 		  else
-		    listcommands(argv[iterm],p);
+		  listcommands(argv[iterm],p);*/
 		}
 	      else
 		listcommands(argv[iterm],p);
 	    }
+	  else
+	    listcommands(argv[iterm],p);
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Bls->minper_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->minper_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Bls->minper_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->minper_expr));
+	  }
+	  else {
+	    c[cn].Bls->minper_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Bls->minper = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
 	  i++;
-	  if(i < argc)
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Bls->maxper_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->maxper_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Bls->maxper_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->maxper_expr));
+	  }
+	  else {
+	    c[cn].Bls->maxper_source = VARTOOLS_SOURCE_FIXED;
 	    c[cn].Bls->maxper = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
+	  }
+
 	  i++;
-	  if(i < argc)
-	    c[cn].Bls->nf = atoi(argv[i]);
-	  else
+	  if(i >= argc)
 	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"df")) {
+	    c[cn].Bls->isdf_specified = 1;
+
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"var")) {
+	      c[cn].Bls->df_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->df_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	    }
+	    else if(!strcmp(argv[i],"expr")) {
+	      c[cn].Bls->df_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->df_expr));
+	    }
+	    else {
+	      c[cn].Bls->df_source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].Bls->df = atof(argv[i]);
+	    }
+	  }
+	  else if(!strcmp(argv[i],"optimal")) {
+	    c[cn].Bls->isdf_specified = 2;
+	    if(c[cn].Bls->rflag != 2) {
+	      error(ERR_BLS_OPTIMAL_MUSTUSEDENSITY);
+	    }
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"var")) {
+	      c[cn].Bls->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->subsample_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	    }
+	    else if(!strcmp(argv[i],"expr")) {
+	      c[cn].Bls->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->subsample_expr));
+	    }
+	    else {
+	      c[cn].Bls->subsample_source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].Bls->subsample = atof(argv[i]);
+	    }
+	  } else {
+	    c[cn].Bls->isdf_specified = 0;
+	    if(!strcmp(argv[i],"nf")) {
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	    }
+	    if(!strcmp(argv[i],"var")) {
+	      c[cn].Bls->nf_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->nf_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	    }
+	    else if(!strcmp(argv[i],"expr")) {
+	      c[cn].Bls->nf_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->nf_expr));
+	    }
+	    else {
+	      c[cn].Bls->nf_source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].Bls->nf = atoi(argv[i]);
+	    }
+	  }
+
 #ifndef PARALLEL
-	  if((c[cn].Bls->p = (double *) malloc((c[cn].Bls->nf+1)*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	  c[cn].Bls->p = NULL;
+	  c[cn].Bls->sizepvec = 0;
+/*	  if((c[cn].Bls->p = (double *) malloc((c[cn].Bls->nf+1)*sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);*/
 #endif
-	  c[cn].Bls->df = ((1./c[cn].Bls->minper) - (1./c[cn].Bls->maxper)) / (c[cn].Bls->nf - 1);
+	  /*c[cn].Bls->df = ((1./c[cn].Bls->minper) - (1./c[cn].Bls->maxper)) / (c[cn].Bls->nf - 1);*/
 	  i++;
-	  if(i < argc)
-	    c[cn].Bls->nbins = atoi(argv[i]);
-	  else
+	  if(i >= argc)
 	    listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"var")) {
+	    c[cn].Bls->nbins_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->nbins_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].Bls->nbins_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Bls->nbins_expr));
+	  }
+	  else {
+	    c[cn].Bls->nbins_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Bls->nbins = atoi(argv[i]);
+	  }
+
 	  i++;
 	  if(i < argc)
 	    c[cn].Bls->timezone = atof(argv[i]);
@@ -6040,10 +7237,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  c[cn].Bls->usemask = 0;
+	  c[cn].Bls->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Bls->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Bls->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -BLSFixPer <\"aov\" | \"ls\" | \"list\" [\"column\" col] | \"fix\" period | \"fixcolumn\" <colname | colnum> | \"expr\" expr> <\"r\" rmin rmax | \"q\" qmin qmax > nbins timezone omodel [model_outdir] correctlc [\"fittrap\"] */
+      /* -BLSFixPer <\"aov\" | \"ls\" | \"list\" [\"column\" col] | \"fix\" period | \"fixcolumn\" <colname | colnum> | \"expr\" expr> <\"r\" rmin rmax | \"q\" qmin qmax > nbins timezone omodel [model_outdir] correctlc [\"fittrap\"] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-BLSFixPer",10) && strlen(argv[i]) == 10)
 	{
 	  iterm = i;
@@ -6215,10 +7426,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  c[cn].BlsFixPer->usemask = 0;
+	  c[cn].BlsFixPer->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].BlsFixPer->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPer->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 
-      /* -BLSFixDurTc <\"duration\" < \"fix\" dur | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"Tc\" < \"fix\" tcval | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> [ \"fixdepth\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] [ \"qgress\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col]] ] minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] */
+      /* -BLSFixDurTc <\"duration\" < \"fix\" dur | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"Tc\" < \"fix\" tcval | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> [ \"fixdepth\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] [ \"qgress\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col]] ] minper maxper nfreq nbins timezone Npeak outperiodogram [outdir] omodel [modeloutdir] correctlc [\"fittrap\"] [\"nobinnedrms\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"maskpoints\" maskvar] */
 
       else if(!strcmp(argv[i],"-BLSFixDurTc"))
 	{
@@ -6542,6 +7767,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  c[cn].BlsFixDurTc->usemask = 0;
+	  c[cn].BlsFixDurTc->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].BlsFixDurTc->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
       else if(!strncmp(argv[i],"-BLSFixPer",10) && strlen(argv[i]) == 10)
@@ -6700,7 +7939,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -BLSFixPerDurTc <\"period\" <\"fix\" per | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"duration\" < \"fix\" dur | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"Tc\" < \"fix\" tcval | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> [ \"fixdepth\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] [ \"qgress\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col]] ] timezone omodel [modeloutdir] correctlc [\"fittrap\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] */
+      /* -BLSFixPerDurTc <\"period\" <\"fix\" per | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"duration\" < \"fix\" dur | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> <\"Tc\" < \"fix\" tcval | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] >> [ \"fixdepth\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col] [ \"qgress\" <\"fix\" depth | \"fixcolumn\" < colname | colnum > | \"list\" [\"column\" col]] ] timezone omodel [modeloutdir] correctlc [\"fittrap\"] [\"ophcurve\" phmin phmax phstep] [\"ojdcurve\" jdstep] [\"maskpoints\" maskvar] */
 
       else if(!strcmp(argv[i],"-BLSFixPerDurTc"))
 	{
@@ -7028,6 +8267,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i--;
 	  }
 	  else
+	    i--;
+	  c[cn].BlsFixPerDurTc->usemask = 0;
+	  c[cn].BlsFixPerDurTc->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].BlsFixPerDurTc->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
 	    i--;
 	  cn++;
 	}
@@ -8259,7 +9512,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -TFA trendlist [\"readformat\" Nskip jdcol magcol] [\"trend_coeff_priors\" trend_coeff_prior_file [\"use_lc_errors\" | \"weight_by_template_stddev\"]] dates_file pixelsep [\"xycol\" xcol ycol] correctlc ocoeff [coeff_outdir] omodel [model_outdir] */
+      /* -TFA trendlist [\"readformat\" Nskip jdcol magcol] [\"trend_coeff_priors\" trend_coeff_prior_file [\"use_lc_errors\" | \"weight_by_template_stddev\"]] dates_file pixelsep [\"xycol\" xcol ycol] correctlc ocoeff [coeff_outdir] omodel [model_outdir] [\"clip\" sigclipfactor [\"usemedian\"] [\"useMAD\"]] [\"fitmask\" maskvar] [\"outfitmask\" outmaskvar]*/
       else if(!strncmp(argv[i],"-TFA",4) && strlen(argv[i]) == 4)
 	{
 	  iterm = i;
@@ -8281,6 +9534,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA->use_trend_coeff_priors = 0;
 	  c[cn].TFA->use_lc_errors = 0;
 	  c[cn].TFA->weight_by_template_stddev = 0;
+	  c[cn].TFA->clipping = VARTOOLS_TFA_DEFAULT_CLIPPING_VALUE;
+	  c[cn].TFA->clippingusemedian = 0;
+	  c[cn].TFA->clippinguseMAD = 0;
+	  c[cn].TFA->usefitmask = 0;
+	  c[cn].TFA->fitmaskvarname = NULL;
+	  c[cn].TFA->fitmaskvar = NULL;
+	  c[cn].TFA->outputfitmask = 0;
+	  c[cn].TFA->outputfitmaskvarname = NULL;
+	  c[cn].TFA->outputfitmaskvar = NULL;
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -8408,10 +9670,74 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		listcommands(argv[iterm],p);
 	      sprintf(c[cn].TFA->model_suffix,".tfa.model");
 	    }
+
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"clip")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA->clipping = atof(argv[i]);
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA->clippingusemedian = 1;
+		}
+		else
+		  i--;
+	      } else
+		i--;
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"useMAD")) {
+		  c[cn].TFA->clippinguseMAD = 1;
+		}
+		else
+		  i--;
+	      } else
+		i--;
+	    }
+	    else
+	      i--;
+	  } else
+	    i--;
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"fitmask")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].TFA->fitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].TFA->fitmaskvarname,"%s",argv[i]);
+	      c[cn].TFA->usefitmask = 1;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"outfitmask")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].TFA->outputfitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].TFA->outputfitmaskvarname,"%s",argv[i]);
+	      c[cn].TFA->outputfitmask = 1;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
-      /* -TFA_SR trendlist [\"readformat\" Nskip jdcol magcol] dates_file [\"decorr\" iterativeflag Nlcterms lccolumn1 lcorder1 ...] pixelsep [\"xycol\" colx coly] correctlc ocoeff [coeff_outdir] omodel [model_outdir] dotfafirst tfathresh maxiter <\"bin\" nbins [\"period\" <\"aov\" | \"ls\" | \"bls\" | \"list\" | \"fix\" period>] | \"signal\" filename | \"harm\" Nharm Nsubharm [\"period\" <\"aov\" | \"ls\" | \"bls\" | \"list\" | \"fix\" period>]> */
+      /* -TFA_SR trendlist [\"readformat\" Nskip jdcol magcol] dates_file [\"decorr\" iterativeflag Nlcterms lccolumn1 lcorder1 ...] pixelsep [\"xycol\" colx coly] correctlc ocoeff [coeff_outdir] omodel [model_outdir] dotfafirst tfathresh maxiter <\"bin\" nbins [\"period\" <\"aov\" | \"ls\" | \"bls\" | \"list\" | \"fix\" period>] | \"signal\" filename | \"harm\" Nharm Nsubharm [\"period\" <\"aov\" | \"ls\" | \"bls\" | \"list\" | \"fix\" period>]> [\"clip\" sigclipfactor [\"usemedian\"] [\"useMAD\"]] [\"fitmask\" maskvar] [\"outfitmask\" outmaskvar]*/
       else if(!strncmp(argv[i],"-TFA_SR",7) && strlen(argv[i]) == 7)
 	{
 	  iterm = i;
@@ -8430,6 +9756,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA_SR->magcol_trend = 2;
 	  c[cn].TFA_SR->jdcol_isfromheader = 0;
 	  c[cn].TFA_SR->magcol_isfromheader = 0;
+	  c[cn].TFA_SR->clipping = VARTOOLS_TFA_DEFAULT_CLIPPING_VALUE;
+	  c[cn].TFA_SR->clippingusemedian = 0;
+	  c[cn].TFA_SR->clippinguseMAD = 0;
+	  c[cn].TFA_SR->usefitmask = 0;
+	  c[cn].TFA_SR->fitmaskvarname = NULL;
+	  c[cn].TFA_SR->fitmaskvar = NULL;
+
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -8815,11 +10148,73 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    listcommands(argv[iterm],p);
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"clip")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA_SR->clipping = atof(argv[i]);
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA_SR->clippingusemedian = 1;
+		}
+		else
+		  i--;
+	      } else
+		i--;
+
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"useMAD")) {
+		  c[cn].TFA_SR->clippinguseMAD = 1;
+		}
+		else
+		  i--;
+	      } else
+		i--;
+	    }
+	    else
+	      i--;
+	  } else
+	    i--;
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"fitmask")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].TFA_SR->fitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].TFA_SR->fitmaskvarname,"%s",argv[i]);
+	      c[cn].TFA_SR->usefitmask = 1;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
 	    
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"outfitmask")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if((c[cn].TFA_SR->outputfitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].TFA_SR->outputfitmaskvarname,"%s",argv[i]);
+	      c[cn].TFA_SR->outputfitmask = 1;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
-      /* -binlc combinetype <\"binsize\" binsize | \"nbins\" nbins> [\"bincolumns\" var1[:stats1][,var2[:stats2],...]] [\"firstbinshift\" firstbinshift] <\"tcenter\" | \"taverage\" | \"tmedian\" | \"tnoshrink\" \"bincolumnsonly\">*/
+      /* -binlc combinetype <\"binsize\" binsize | \"nbins\" nbins> [\"bincolumns\" var1[:stats1][,var2[:stats2],...]] [\"T0\" <\"fix\" T0 | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum> | \"expr\" expression>] [\"firstbinshift\" firstbinshift] <\"tcenter\" | \"taverage\" | \"tmedian\" | \"tnoshrink\" \"bincolumnsonly\"> ["maskpoints" maskvar]*/
       else if(!strncmp(argv[i],"-binlc",6) && strlen(argv[i]) == 6)
 	{
 	  iterm = i;
@@ -8890,6 +10285,73 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      listcommands(argv[iterm],p);
 	  } else 
 	    i--;
+
+	  c[cn].Binlc->T0source = -1;
+	  i++;
+	  if(i >= argc)
+	    i--;
+	  else {
+	    if(!strcmp(argv[i],"T0")) {
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"fix"))
+		{
+		  c[cn].Binlc->T0source = PERTYPE_FIX;
+		  i++;
+		  if(i < argc)
+		    {
+		      c[cn].Binlc->t0fixval = atof(argv[i]);
+		    }
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"fixcolumn"))
+		{
+		  c[cn].Binlc->T0source = PERTYPE_FIXCOLUMN;
+		  i++;
+		  if(i < argc)
+		    increaselinkedcols(p, &(c[cn].Binlc->t0_linkedcolumn), argv[i], cn);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"list"))
+		{
+		  c[cn].Binlc->T0source = PERTYPE_SPECIFIED;
+		  k = 0;
+		  i++;
+		  if(i < argc) {
+		    if(!strcmp(argv[i],"column")) {
+		      i++;
+		      if(i < argc)
+			k = atoi(argv[i]);
+		      else
+			listcommands(argv[iterm],p);
+		    } else i--;
+		  } else i--;
+		  RegisterDataFromInputList(p,
+					    (void *) (&(c[cn].Binlc->t0listval)),
+					    VARTOOLS_TYPE_DOUBLE,
+					    0, cn, 0, 0, NULL, k,
+					    "BINLC_T0");
+		}
+	      else if(!strcmp(argv[i],"expr"))
+		{
+		  c[cn].Binlc->T0source = PERTYPE_EXPR;
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+/*		  if((c[cn].Binlc->t0expr = (_Expression *) malloc(sizeof(_Expression))) == NULL)
+		    error(ERR_MEMALLOC);*/
+		  if((c[cn].Binlc->t0exprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+		    error(ERR_MEMALLOC);
+		  sprintf(c[cn].Binlc->t0exprstring,"%s",argv[i]);
+		}
+	    }
+	    else
+	      i--;
+	  }
+
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -8940,6 +10402,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(c[cn].Binlc->tflag < VARTOOLS_BINLC_TIMETYPE_CENTER || 
 	     c[cn].Binlc->tflag > VARTOOLS_BINLC_TIMETYPE_NOSHRINK)
 	    listcommands(argv[iterm],p);
+	  c[cn].Binlc->usemask = 0;
+	  c[cn].Binlc->maskvar = NULL;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"maskpoints")) {
+	      c[cn].Binlc->usemask = 1;
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Binlc->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    } else
+	      i--;
+	  } else 
+	    i--;
 	  cn++;
 	}
 	    
@@ -9006,7 +10482,43 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 	    
-      /* -wwz <\"maxfreq\" <\"auto\" | maxfreq>> <\"freqsamp\" freqsamp> <\"tau0\" <\"auto\" | tau0>> <\"tau1\" <\"auto\" | tau1>> <\"dtau\" <\"auto\" | dtau>> [\"c\" cval] [\"outfulltransform\" outdir [\"fits\"] [\"format\" format]] [\"outmaxtransform\" outdir [\"format\" format]] */
+      /* -sortlc [\"var\" varname] [\"reverse\"] */
+      else if(!strcmp(argv[i],"-sortlc"))
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_SORTLC;
+	  if((c[cn].SortLC = (_SortLC *) malloc(sizeof(_SortLC))) == NULL)
+	    error(ERR_MEMALLOC);
+	  c[cn].SortLC->issortvar = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"var")) {
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	      c[cn].SortLC->issortvar = 1;
+	      if((c[cn].SortLC->sortvarname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(c[cn].SortLC->sortvarname,"%s",argv[i]);
+	    } else
+	      i--;
+	  } else
+	    i--;
+	  c[cn].SortLC->isreverse = 0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"reverse")) {
+	      c[cn].SortLC->isreverse = 1;
+	    } else
+	      i--;
+	  } else
+	    i--;
+
+	  cn++;
+	}
+
+      /* -wwz <\"maxfreq\" <\"auto\" | maxfreq>> <\"freqsamp\" freqsamp> <\"tau0\" <\"auto\" | tau0>> <\"tau1\" <\"auto\" | tau1>> <\"dtau\" <\"auto\" | dtau>> [\"c\" cval] [\"outfulltransform\" outdir [\"fits\"] [\"format\" format]] [\"outmaxtransform\" outdir [\"format\" format]] [\"maskpoints\" maskvar] */
       else if(!strcmp(argv[i],"-wwz"))
 	{
 	  iterm = i;
@@ -9014,7 +10526,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_WWZ;
 	  if((c[cn].WWZ = (_WWZ *) malloc(sizeof(_WWZ))) == NULL)
 	    error(ERR_MEMALLOC);
-	  if(ParseWWZCommand(&i, argc, argv, p, c[cn].WWZ))
+	  if(ParseWWZCommand(&i, argc, argv, p, c[cn].WWZ, &(c[cn])))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
@@ -9393,7 +10905,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	}
       
-      /* -inlistvars var1:col1[:vtype1[:fmt1][,var2:col2[:vtyp2[:fmt2]],....]] */
+      /* -inlistvars var1:col1[[:\"combinelc\"]:vtype1[:fmt1][,var2:col2[[:\"combinelc\"]:vtyp2[:fmt2]],....]] */
      else if(!strcmp(argv[i],"-inlistvars"))
 	{
 	  if(p->inlistvars == 1) {
@@ -9505,6 +11017,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       else if(!strncmp(argv[i],"-matchstringid",14) && strlen(argv[i]) == 14)
 	{
 	  p->matchstringid = 1;
+	}
+
+      /* -columnsuffix suffixstring */
+      else if(!strcmp(argv[i],"-columnsuffix"))
+	{
+	  iterm = i;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(p->next_command_outcolumn_suffix != NULL) {
+		free(p->next_command_outcolumn_suffix);
+		p->next_command_outcolumn_suffix = NULL;
+	      }
+	      if((p->next_command_outcolumn_suffix = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
+		error(ERR_MEMALLOC);
+	      sprintf(p->next_command_outcolumn_suffix,"%s",argv[i]);
+	    }
+	  else
+	    help(argv[iterm],p);
 	}
 
       /* -nobuffer */
@@ -9735,6 +11266,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   /* Make sure that -readall flag is not set if there are any -copylc commands */
   if(p->readallflag && p->Ncopycommands > 0)
     error(ERR_READALL_ANDCOPYLC);
+
+  if(!p->combinelcs && p->combinelcinfo != NULL)
+    error(ERR_COMBINELCINLISTVARS_NOTINLIST);
 
   /* If we don't have a list, make sure that there aren't any commands that require a list */
   if(p->fileflag && !p->headeronly && !p->inputlistformat 

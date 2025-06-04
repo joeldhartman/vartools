@@ -64,6 +64,8 @@ int CheckExpressionForLCVector(_Expression *expression)
     return 0;
   else if(expression->operatortype == VARTOOLS_OPERATORTYPE_NOT)
     return 0;
+  else if(expression->operatortype == VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT)
+    return 0;
 
   switch(expression->op2type) {
   case VARTOOLS_OPERANDTYPE_CONSTANT:
@@ -133,6 +135,42 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 
   /* Look for -expr, -linfit, -nonlinfit, -if, -elif or -else commands and set up their expressions */
   for(i=0; i < p->Ncommands; i++) {
+
+    /* Match up any existing variables that are needed as input by the
+       command */
+    for(j=0; j < c[i].N_prior_vars; j++) {
+      *(c[i].prior_vars[j]) = 
+	FindExistingVariable(c[i].prior_var_names[j], p);
+      if(*(c[i].prior_vars[j]) == NULL) {
+	error2(ERR_UNDEFINEDVARIABLE, c[i].prior_var_names[j]);
+      }
+      if(c[i].prior_var_vectortypes[j] != VARTOOLS_VECTORTYPE_ANY) {
+	if((*(c[i].prior_vars[j]))->vectortype != c[i].prior_var_vectortypes[j]) {
+	  if(c[i].prior_var_vectortypes[j] == VARTOOLS_VECTORTYPE_PERSTARDATA) {
+	    if((*(c[i].prior_vars[j]))->vectortype == VARTOOLS_VECTORTYPE_LC)
+	      error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
+	  } else
+	    error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
+	}
+      }
+      if(c[i].prior_var_datatypes[j] == VARTOOLS_TYPE_ANY)
+	 c[i].prior_var_datatypes[j] = (*(c[i].prior_vars[j]))->datatype;
+      if((*(c[i].prior_vars[j]))->datatype != c[i].prior_var_datatypes[j]) {
+	if(c[i].prior_var_datatypes[j] == VARTOOLS_TYPE_NUMERIC) {
+	  if((*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_DOUBLE &&
+	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_INT &&
+	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_FLOAT &&
+	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_LONG &&
+	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_CONVERTJD &&
+	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_SHORT) {
+	    error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
+	  }
+	} else {
+	  error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
+	}
+      }
+    }
+      
     if(c[i].cnum == CNUM_EXPRESSION) {
       /* Check if a new variable is being defined here */
       test = 0;
@@ -186,6 +224,16 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	}
       }
     }
+    else if(c[i].cnum == CNUM_PRINT) {
+      for(j = 0; j < c[i].PrintCommand->Nvars; j++) {
+	if(c[i].PrintCommand->colindx[j] >= 0) {
+	  p->outcolumns[c[i].PrintCommand->colindx[j]].type = c[i].PrintCommand->vars[j]->datatype;
+	  if(!c[i].PrintCommand->isformat) {
+	    AdjustPrintCommandOutColumnFormat(p, c, i, j);
+	  }
+	}
+      }
+    }
     else if(c[i].cnum == CNUM_LINFIT) {
       InitLinfit(p, c[i].Linfit, i);
       SetupLinfitExpression(p, c[i].Linfit);
@@ -214,15 +262,47 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       else if(c[i].RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_EXPR) {
 	c[i].RestrictTimes->restrictexpr = ParseExpression(c[i].RestrictTimes->restrictexprstring, p);
       }
+      if(c[i].RestrictTimes->markrestrict) {
+	CheckCreateCommandOutputLCVariable(c[i].RestrictTimes->markvarname,&(c[i].RestrictTimes->markvar),p);
+      }
     }
     else if(c[i].cnum == CNUM_PHASE) {
       CheckCreateCommandOutputLCVariable(c[i].Phase->phasevarname,&(c[i].Phase->phasevar),p);
+    }
+    else if(c[i].cnum == CNUM_CLIP) {
+      CheckCreateCommandOutputLCVariable(c[i].Clip->clipvarname,&(c[i].Clip->clipvar),p);
+    }
+    else if(c[i].cnum == CNUM_TFA) {
+      CheckCreateCommandOutputLCVariable(c[i].TFA->fitmaskvarname,&(c[i].TFA->fitmaskvar),p);
+      CheckCreateCommandOutputLCVariable(c[i].TFA->outputfitmaskvarname,&(c[i].TFA->outputfitmaskvar),p);
+    }
+    else if(c[i].cnum == CNUM_TFA_SR) {
+      CheckCreateCommandOutputLCVariable(c[i].TFA_SR->fitmaskvarname,&(c[i].TFA_SR->fitmaskvar),p);
     }
     else if(c[i].cnum == CNUM_MANDELAGOLTRANSIT) {
       CheckCreateCommandOutputLCVariable(c[i].MandelAgolTransit->modelvarname,&(c[i].MandelAgolTransit->modelvar),p);
     }
     else if(c[i].cnum == CNUM_MATCHCOMMAND) {
       SetupMatchCommandVariables(c[i].MatchCommand,p);
+    }
+    else if(c[i].cnum == CNUM_SORTLC) {
+      if(c[i].SortLC->issortvar) {
+	test = 0;
+	for(j=0; j < p->NDefinedVariables; j++) {
+	  if(!strcmp(p->DefinedVariables[j]->varname,
+		     c[i].SortLC->sortvarname)) {
+	    test = 1;
+	    c[i].SortLC->sortvar = p->DefinedVariables[j];
+	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
+	      error(ERR_INVALIDVARIABLEFORSORTLC);
+	    }
+	    c[i].SortLC->sortdtype = p->DefinedVariables[j]->datatype;
+	  }
+	}
+	if(!test) {
+	  error2(ERR_UNDEFINEDVARIABLE, c[i].SortLC->sortvarname);
+	}
+      }
     }
 #ifdef _HAVE_GSL
     else if(c[i].cnum == CNUM_FFT) {
@@ -334,6 +414,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  error2(ERR_UNDEFINEDVARIABLE,c[i].Stats->varnames[k]);
 	}
       }
+      CheckCreateCommandOutputLCVariable(c[i].Stats->maskvarname,&(c[i].Stats->maskvar),p);
     }
     else if(c[i].cnum == CNUM_RESTORELC) {
       if(c[i].Restorelc->ispartialrestore) {
@@ -389,6 +470,9 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     }
 #endif
     else if(c[i].cnum == CNUM_BINLC) {
+      if(c[i].Binlc->T0source == PERTYPE_EXPR) {
+	c[i].Binlc->t0expr = ParseExpression(c[i].Binlc->t0exprstring, p);
+      }
       for(k = 0; k < c[i].Binlc->Nvar; k++) {
 	for(j=0; j < p->NDefinedVariables; j++) {
 	  if(!strcmp(c[i].Binlc->binvarnames[k],
@@ -757,45 +841,71 @@ void ParseOutputColumnFormat(_Outputlcs *o)
   /* This function takes a string given with the \"columnformat\" keyword to
      the -o command, and parses it into variable names and printf format
      strings */
-  int i, j, k, invarname, informat;
+  int i, j, k, invarname, informat, indescrip, inunit;
   char copystring[MAXLEN];
   o->Nvar = 0;
   j = 0;
   i = 0;
   invarname = 1;
   informat = 0;
+  indescrip = 0;
+  inunit = 0;
   do {
     if(o->columnformat[i] == ',' || o->columnformat[i] == ':' ||
        o->columnformat[i] == '\0') {
       copystring[j] = '\0';
-      if((o->columnformat[i] == ':' && informat == 1) || !j) {
+      if((o->columnformat[i] == ':' && inunit == 1) || !j) {
 	error2(ERR_BADCOLUMNFORMATSTRING,o->columnformat);
       }
       if(invarname == 1) {
 	if(!o->Nvar) {
 	  if((o->variables = (_Variable **) malloc(sizeof(_Variable *))) == NULL ||
 	     (o->printfformats = (char **) malloc(sizeof(char *))) == NULL ||
-	     (o->varnames = (char **) malloc(sizeof(char *))) == NULL) {
+	     (o->varnames = (char **) malloc(sizeof(char *))) == NULL ||
+	     (o->descriptions = (char **) malloc(sizeof(char *))) == NULL ||
+	     (o->units = (char **) malloc(sizeof(char *))) == NULL) {
 	    error(ERR_MEMALLOC);
 	  }
 	} else {
 	  if((o->variables = (_Variable **) realloc(o->variables, (o->Nvar + 1)*sizeof(_Variable *))) == NULL ||
 	     (o->printfformats = (char **) realloc(o->printfformats, (o->Nvar + 1)*sizeof(char *))) == NULL ||
-	     (o->varnames = (char **) realloc(o->varnames, (o->Nvar + 1)*sizeof(char *))) == NULL)
+	     (o->varnames = (char **) realloc(o->varnames, (o->Nvar + 1)*sizeof(char *))) == NULL ||
+	     (o->descriptions = (char **) realloc(o->descriptions, (o->Nvar + 1)*sizeof(char *))) == NULL ||
+	     (o->units = (char **) realloc(o->units, (o->Nvar + 1)*sizeof(char *))) == NULL)
 	    error(ERR_MEMALLOC);
 	}
 	if((o->printfformats[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
-	   (o->varnames[o->Nvar] = (char *) malloc(MAXLEN)) == NULL)
+	   (o->varnames[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
+	   (o->descriptions[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
+	   (o->units[o->Nvar] = (char *) malloc(MAXLEN)) == NULL)
 	  error(ERR_MEMALLOC);
 	o->printfformats[o->Nvar][0] = '\0';
+	o->descriptions[o->Nvar][0] = '\0';
+	o->units[o->Nvar][0] = '\0';
 	sprintf(o->varnames[o->Nvar],"%s",copystring);
 	if(o->columnformat[i] == ':') {
-	  informat = 1; invarname = 0;
+	  informat = 1; invarname = 0; indescrip = 0, inunit = 0;
 	}
       }
       else {
-	sprintf(o->printfformats[o->Nvar],"%s",copystring);
-	informat = 0; invarname = 1;
+	if(informat) {
+	  sprintf(o->printfformats[o->Nvar],"%s",copystring);
+	  if(o->columnformat[i] == ':') {
+	    informat = 0; invarname = 0; indescrip = 1; inunit = 0;
+	  } else {
+	    informat = 0; invarname = 1; indescrip = 0; inunit = 0;
+	  }
+	} else if(indescrip) {
+	  sprintf(o->descriptions[o->Nvar],"%s",copystring);
+	  if(o->columnformat[i] == ':') {
+	    informat = 0; invarname = 0; indescrip = 0; inunit = 1;
+	  } else {
+	    informat = 0; invarname = 1; indescrip = 0; inunit = 0;
+	  }
+	} else {
+	  sprintf(o->units[o->Nvar],"%s",copystring);
+	  informat = 0; invarname = 1; indescrip = 0; inunit = 0;
+	}
       }
       j = 0;
       if(o->columnformat[i] == ',' || o->columnformat[i] == '\0')
@@ -1234,6 +1344,8 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
     return (int) (round(val1));
   else if(expression->operatortype == VARTOOLS_OPERATORTYPE_NOT)
     return !((int) (round(val1)));
+  else if(expression->operatortype == VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT)
+    return ~((int) (round(val1)));
 
   switch(expression->op2type) {
   case VARTOOLS_OPERANDTYPE_CONSTANT:
@@ -1306,11 +1418,19 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
     break;
   case VARTOOLS_OPERATORTYPE_NOT:
     error(ERR_CODEERROR);
+  case VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT:
+    error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_AND:
     return ((int) (val1 && val2));
     break;
+  case VARTOOLS_OPERATORTYPE_BITWISEAND:
+    return ((int) (((int) val1) & ((int) val2)));
+    break;
   case VARTOOLS_OPERATORTYPE_OR:
     return ((int) (val1 || val2));
+    break;
+  case VARTOOLS_OPERATORTYPE_BITWISEOR:
+    return ((int) (((int) val1) | ((int) val2)));
     break;
   default:
     error(ERR_CODEERROR);
@@ -1359,6 +1479,8 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
     return val1;
   else if(expression->operatortype == VARTOOLS_OPERATORTYPE_NOT)
     return ((double) (!val1));
+  else if(expression->operatortype == VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT)
+    return ((double) (~((int)val1)));
 
   switch(expression->op2type) {
   case VARTOOLS_OPERANDTYPE_CONSTANT:
@@ -1431,11 +1553,19 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
     break;
   case VARTOOLS_OPERATORTYPE_NOT:
     error(ERR_CODEERROR);
+  case VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT:
+    error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_AND:
     return ((double) (val1 && val2));
     break;
+  case VARTOOLS_OPERATORTYPE_BITWISEAND:
+    return ((double) (((int) val1) & ((int) val2)));
+    break;
   case VARTOOLS_OPERATORTYPE_OR:
     return ((double) (val1 || val2));
+    break;
+  case VARTOOLS_OPERATORTYPE_BITWISEOR:
+    return ((double) (((int) val1) | ((int) val2)));
     break;
   default:
     error(ERR_CODEERROR);
@@ -1564,6 +1694,128 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
     error(ERR_CODEERROR);
   }
 }
+
+void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable *var, int val)
+{
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      *((double *) var->dataptr) = (double) val;
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      *((float *) var->dataptr) = (float) val;
+      break;
+    case VARTOOLS_TYPE_INT:
+      *((int *) var->dataptr) = val;
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      *((short *) var->dataptr) = (short) val;
+      break;
+    case VARTOOLS_TYPE_LONG:
+      *((long *) var->dataptr) = (long) val;
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      (*((double **) var->dataptr))[threadindex] = (double) val;
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      (*((float **) var->dataptr))[threadindex] = (float) val;
+      break;
+    case VARTOOLS_TYPE_INT:
+      (*((int **) var->dataptr))[threadindex] = val;
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      (*((short **) var->dataptr))[threadindex] = (short) val;
+      break;
+    case VARTOOLS_TYPE_LONG:
+      (*((long **) var->dataptr))[threadindex] = (long) val;
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      (*((double **) var->dataptr))[lcindex] = (double) val;
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      (*((float **) var->dataptr))[lcindex] = (float) val;
+      break;
+    case VARTOOLS_TYPE_INT:
+      (*((int **) var->dataptr))[lcindex] = val;
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      (*((short **) var->dataptr))[lcindex] = (short) val;
+      break;
+    case VARTOOLS_TYPE_LONG:
+      (*((long **) var->dataptr))[lcindex] = (long) val;
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      (*((double ***) var->dataptr))[threadindex][jdindex] = (double) val;
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      (*((float ***) var->dataptr))[threadindex][jdindex] = (float) val;
+      break;
+    case VARTOOLS_TYPE_INT:
+      (*((int ***) var->dataptr))[threadindex][jdindex] = val;
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      (*((short ***) var->dataptr))[threadindex][jdindex] = (short) val;
+      break;
+    case VARTOOLS_TYPE_LONG:
+      (*((long ***) var->dataptr))[threadindex][jdindex] = (long) val;
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    setoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_INT, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+}
+
 
 double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Variable *var)
 {
@@ -1714,6 +1966,916 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
     error(ERR_CODEERROR);
   }
   return val;
+}
+
+float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variable *var)
+{
+  float val;
+  int veclength;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (float) (*((double *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (float) (*((float *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (float) (*((int *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (float) (*((short *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (float) (*((long *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return val;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (float) ((*((double **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (float) ((*((float **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (float) ((*((int **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (float) ((*((short **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (float) ((*((long **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (float) ((*((double **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (float) ((*((float **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (float) ((*((int **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (float) ((*((short **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (float) ((*((long **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (float) (*((double ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (float) (*((float ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (float) (*((int ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (float) (*((short ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (float) (*((long ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_FLOAT, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return val;
+}
+
+int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *var)
+{
+  int val;
+  int veclength;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (int) (*((double *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (int) (*((float *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (*((int *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (int) (*((short *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (int) (*((long *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return val;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (int) ((*((double **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (int) ((*((float **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = ((*((int **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (int) ((*((short **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (int) ((*((long **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (int) ((*((double **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (int) ((*((float **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = ((*((int **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (int) ((*((short **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (int) ((*((long **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (int) (*((double ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (int) (*((float ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (*((int ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (int) (*((short ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (int) (*((long ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_INT, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return val;
+}
+
+short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variable *var)
+{
+  short val;
+  int veclength;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (short) (*((double *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (short) (*((float *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (short) (*((int *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (short) (*((short *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (short) (*((long *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return val;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (short) ((*((double **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (short) ((*((float **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (short) ((*((int **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (short) ((*((short **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (short) ((*((long **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (short) ((*((double **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (short) ((*((float **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (short) ((*((int **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (short) ((*((short **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (short) ((*((long **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (short) (*((double ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (short) (*((float ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (short) (*((int ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (short) (*((short ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (short) (*((long ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_SHORT, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return val;
+}
+
+
+long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable *var)
+{
+  long val;
+  int veclength;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (long) (*((double *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (long) (*((float *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (long) (*((int *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (long) (*((short *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (*((long *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return val;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (long) ((*((double **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (long) ((*((float **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (long) ((*((int **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (long) ((*((short **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = ((*((long **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (long) ((*((double **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (long) ((*((float **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (long) ((*((int **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (long) ((*((short **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = ((*((long **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (long) (*((double ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (long) (*((float ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (long) (*((int ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (long) (*((short ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (*((long ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_STRING:
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_LONG, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return val;
+}
+
+char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable *var)
+{
+  char val;
+  int veclength;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (char) (*((double *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (char) (*((float *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (char) (*((int *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (char) (*((short *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (char) (*((long *) var->dataptr));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      val = (char) ((*((char **) var->dataptr))[0]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      val = (char) (*((char *) var->dataptr));
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return val;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (char) ((*((double **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (char) ((*((float **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (char) ((*((int **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (char) ((*((short **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (char) ((*((long **) var->dataptr))[threadindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      val = (char) ((*((char ***) var->dataptr))[threadindex][0]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      val = (char) ((*((char **) var->dataptr))[threadindex]);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (char) ((*((double **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (char) ((*((float **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (char) ((*((int **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (char) ((*((short **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (char) ((*((long **) var->dataptr))[lcindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      val = (char) ((*((char ***) var->dataptr))[lcindex][0]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      val = (char) ((*((char **) var->dataptr))[lcindex]);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      val = (char) (*((double ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      val = (char) (*((float ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_INT:
+      val = (char) (*((int ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      val = (char) (*((short ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_LONG:
+      val = (char) (*((long ***) var->dataptr))[threadindex][jdindex];
+      break;
+    case VARTOOLS_TYPE_STRING:
+      val = (char) ((*((char ****) var->dataptr))[threadindex][jdindex][0]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      val = (char) (*((char ***) var->dataptr))[threadindex][jdindex];
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val = 0.0;
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val = 0.0;
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_CHAR, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return val;
+}
+
+
+void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variable *var, char *val)
+{
+  int veclength;
+  if(val == NULL) return;
+  switch(var->vectortype) {
+  case VARTOOLS_VECTORTYPE_CONSTANT:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      sprintf(val,"%.17g", (double) (*((double *) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      sprintf(val,"%.8g", (double) (*((float *) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_INT:
+      sprintf(val,"%16d", (int) (*((int *) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      sprintf(val, "%8d", (int) (*((short *) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      sprintf(val, "%32d", (long) (*((long *) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf(val, "%s", (*((char **) var->dataptr)));
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      sprintf(val, "%c", (*((char *) var->dataptr)));
+      break;
+    default:
+      error(ERR_BADTYPE);
+      break;
+    }
+    return;
+    break;
+  case VARTOOLS_VECTORTYPE_SCALAR:
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      sprintf(val, "%.17g", (double) ((*((double **) var->dataptr))[threadindex]));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      sprintf(val, "%.8g", (double) ((*((float **) var->dataptr))[threadindex]));
+      break;
+    case VARTOOLS_TYPE_INT:
+      sprintf(val, "%16d", (int) ((*((int **) var->dataptr))[threadindex]));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      sprintf(val, "%8d", (int) ((*((short **) var->dataptr))[threadindex]));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      sprintf(val, "%32d", (long) ((*((long **) var->dataptr))[threadindex]));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf(val, "%s", (char *) ((*((char ***) var->dataptr))[threadindex]));
+      error(ERR_BADTYPE);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      sprintf(val, "%c", (char) ((*((char **) var->dataptr))[threadindex]));
+      error(ERR_BADTYPE);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_INLIST:
+    if(lcindex < 0) {
+      val[0] = '\0';
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(lcindex >= veclength) {
+      val[0] = '\0';
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      sprintf(val, "%.17g", (double) ((*((double **) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      sprintf(val, "%.8g", (double) ((*((float **) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_INT:
+      sprintf(val, "%16d", (int) ((*((int **) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      sprintf(val, "%8d", (int) ((*((short **) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_LONG:
+      sprintf(val, "%32d", (long) ((*((long **) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf(val, "%s", (char *) ((*((char ***) var->dataptr))[lcindex]));
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      sprintf(val, "%c", (char) ((*((char **) var->dataptr))[lcindex]));
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_LC:
+    if(jdindex < 0) {
+      val[0] = '\0';
+      break;
+    }
+    veclength = (*((int **) var->vectorlengthptr))[threadindex];
+    if(jdindex >= veclength) {
+      val[0] = '\0';
+      break;
+    }
+    switch(var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      sprintf(val, "%.17g", (double) (*((double ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      sprintf(val, "%.8g", (double) (*((float ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_INT:
+      sprintf(val, "%16d", (int) (*((int ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      sprintf(val, "%8d", (int) (*((short ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      sprintf(val, "%32d", (long) (*((long ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_STRING:
+      sprintf(val, "%s", (char *) (*((char ****) var->dataptr))[threadindex][jdindex]);
+      break;
+    case VARTOOLS_TYPE_CHAR:
+      sprintf(val, "%c", (char) (*((char ***) var->dataptr))[threadindex][jdindex]);
+      break;
+    default:
+      error(ERR_BADTYPE);
+    }
+    break;
+  case VARTOOLS_VECTORTYPE_OUTCOLUMN:
+    if(threadindex < 0) {
+      val[0] = '\0';
+      break;
+    }
+    veclength = *((int *) var->vectorlengthptr);
+    if(threadindex >= veclength) {
+      val[0] = '\0';
+      break;
+    }
+    getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_STRING, &val);
+    break;
+  default:
+    error(ERR_CODEERROR);
+  }
+  return;
 }
 
 double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call) {
@@ -2010,11 +3172,13 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
       if(numeterms > 0) {
 	/* Decimal cannot appear in an exponent, and decimal shouldn't
            appear in function or variable names */
+	if(term2 != NULL) free(term2);
 	return 0;
       }
       if(ndec > 1) {
 	/* Can't have more than one decimal in a number, and decimal
            shouldn't appear in function or variable names */
+	if(term2 != NULL) free(term2);
 	return 0;
       }
     } 
@@ -2031,7 +3195,9 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
       } else {
 	if(term[i+1] != '+' && term[i+1] != '-') {test = 0; break;}
 	if(term[i+2] == '\0') {test = 0; break;}
-	if(term[i+2] < '0' || term[i+2] > '9') {return 0;}
+	if(term[i+2] < '0' || term[i+2] > '9') {
+	  if(term2 != NULL) free(term2); 
+	  return 0;}
 	i = i + 2;
       }
     }
@@ -2045,14 +3211,17 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
   }
   if(test) {
     *constval = atof(term);
+    if(term2 != NULL) free(term2);
     return 2;
   }
 
   /* Check if term is NR or NF */
   if(!strcmp(term,"NR")) {
+    if(term2 != NULL) free(term2);
     return 5;
   }
   if(!strcmp(term,"NF")) {
+    if(term2 != NULL) free(term2);
     return 6;
   }
 
@@ -2114,6 +3283,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	for(j=0; j < strlen(term2); j++) {
 	  if(term2[j] == '|' || term2[j] == '&' ||
 	     term2[j] == '!' || term2[j] == '=' ||
+	     term2[j] == '~' ||
 	     term2[j] == '<' || term2[j] == '>' ||
 	     term2[j] == '+' || term2[j] == '-' ||
 	     term2[j] == '*' || term2[j] == '/' ||
@@ -2352,6 +3522,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	  for(j=0; j < strlen(term2); j++) {
 	    if(term2[j] == '|' || term2[j] == '&' ||
 	       term2[j] == '!' || term2[j] == '=' ||
+	       term2[j] == '~' ||
 	       term2[j] == '<' || term2[j] == '>' ||
 	       term2[j] == '+' || term2[j] == '-' ||
 	       term2[j] == '*' || term2[j] == '/' ||
@@ -2377,24 +3548,33 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
        term[i] == '%' || term[i] == '^' || term[i] == '>' ||
        (term[i] == '=' && term[i+1] == '=') || term[i] == '<' || 
        term[i] == '!' ||
+       term[i] == '~' ||
+       (term[i] == '&') ||
+       (term[i] == '|') ||
        (term[i] == '&' && term[i+1] == '&') || 
-       (term[i] == '|' && term[i+1] == '|'))
+       (term[i] == '|' && term[i+1] == '|')) {
+      if(term2 != NULL) free(term2);
       return 4;
+    }
     i++;
   }
 
   /* Check for parentheses without a string in front */
-  if(term[0] == '(' && term[i-1] == ')')
+  if(term[0] == '(' && term[i-1] == ')') {
+    if(term2 != NULL) free(term2);
     return 4;
+  }
   
 
   /* Check if term is the name of a special constant */
   if(!strcmp(term,"pi")) {
     *constval = M_PI;
+    if(term2 != NULL) free(term2);
     return 2;
   }
   else if(!strcmp(term,"e")) {
     *constval = M_E;
+    if(term2 != NULL) free(term2);
     return 2;
   }
   
@@ -2402,11 +3582,13 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
   for(i=0; i < p->NDefinedVariables; i++) {
     if(!strcmp(term,p->DefinedVariables[i]->varname)) {
       *varptr = p->DefinedVariables[i];
+      if(term2 != NULL) free(term2);
       return 3;
     }
   }
 
   /* term doesn't match any of the checks */
+  if(term2 != NULL) free(term2);
   return 0;
 
 }
@@ -2897,6 +4079,28 @@ _Expression* ParseExpression(char *term, ProgramData *p){
   if(Nparen != 0 || Nbracket != 0)
     error2(ERR_ANALYTICPARSE, term);
 
+  /* Check for | */
+  Nparen = 0;
+  Nbracket = 0;
+  i = 0;
+  while(term[i] != '\0') {
+    if(term[i] == '(') Nparen++;
+    else if(term[i] == ')') Nparen--;
+    else if(term[i] == '[') Nbracket++;
+    else if(term[i] == ']') Nbracket--;
+    else if(term[i] == '|' && term[i+1] != '|' && Nparen == 0 && Nbracket == 0) {
+      if(!i) {
+	error2(ERR_ANALYTICPARSE, term);
+      }
+      retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_BITWISEOR, i, sizeterm, p);
+      return retval;
+    }
+    i++;
+  }
+  if(Nparen != 0 || Nbracket != 0)
+    error2(ERR_ANALYTICPARSE, term);
+
+
   /* Check for && */
   Nparen = 0;
   Nbracket = 0;
@@ -2911,6 +4115,25 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 	error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_AND, i, sizeterm, p);
+      return retval;
+    }
+    i++;
+  }
+
+  /* Check for & */
+  Nparen = 0;
+  Nbracket = 0;
+  i = 0;
+  while(term[i] != '\0') {
+    if(term[i] == '(') Nparen++;
+    else if(term[i] == ')') Nparen--;
+    else if(term[i] == '[') Nbracket++;
+    else if(term[i] == ']') Nbracket--;
+    else if(term[i] == '&' && term[i+1] != '&' && Nparen == 0 && Nbracket == 0) {
+      if(!i) {
+	error2(ERR_ANALYTICPARSE, term);
+      }
+      retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_BITWISEAND, i, sizeterm, p);
       return retval;
     }
     i++;
@@ -2936,7 +4159,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
       if(!i) {
 	error2(ERR_ANALYTICPARSE, term);
       }
-      retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_NOTEQUAL, i, sizeterm, p);
+      retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_ISEQUAL, i, sizeterm, p);
       return retval;
     }
     i++;
@@ -3011,7 +4234,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 	  k1 = i-2;
 	  if(k1 < 0) checknonnum = 1;
 	  else {
-	    while(k1 >= 0 ? (term[k1] != '+' && term[k1] != '-' && term[k1] != '!' && term[k1] != '*' && term[k1] != '/' && term[k1] != '|' && term[k1] != '&' && term[k1] != '^' && term[k1] != '%' && term[k1] != ')' && term[k1] != '(' && term[k1] != '=' && term[k1] != '>' && term[k1] != '<') : 0) {
+	    while(k1 >= 0 ? (term[k1] != '+' && term[k1] != '-' && term[k1] != '!' && term[k1] != '~' && term[k1] != '*' && term[k1] != '/' && term[k1] != '|' && term[k1] != '&' && term[k1] != '^' && term[k1] != '%' && term[k1] != ')' && term[k1] != '(' && term[k1] != '=' && term[k1] != '>' && term[k1] != '<') : 0) {
 	      if(!(term[k1] == '.' || (term[k1] >= '0' && term[k1] <= '9'))) {
 		checknonnum = 1;
 		break;
@@ -3040,7 +4263,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 	  k1 = i-2;
 	  if(k1 < 0) checknonnum = 1;
 	  else {
-	    while(k1 >= 0 ? (term[k1] != '+' && term[k1] != '-' && term[k1] != '!' && term[k1] != '*' && term[k1] != '/' && term[k1] != '|' && term[k1] != '&' && term[k1] != '^' && term[k1] != '%' && term[k1] != ')' && term[k1] != '(' && term[k1] != '=' && term[k1] != '>' && term[k1] != '<') : 0) {
+	    while(k1 >= 0 ? (term[k1] != '+' && term[k1] != '-' && term[k1] != '!' && term[k1] != '~' && term[k1] != '*' && term[k1] != '/' && term[k1] != '|' && term[k1] != '&' && term[k1] != '^' && term[k1] != '%' && term[k1] != ')' && term[k1] != '(' && term[k1] != '=' && term[k1] != '>' && term[k1] != '<') : 0) {
 	      if(!(term[k1] == '.' || (term[k1] >= '0' && term[k1] <= '9'))) {
 		checknonnum = 1;
 		break;
@@ -3099,6 +4322,13 @@ _Expression* ParseExpression(char *term, ProgramData *p){
   if(term[0] == '!')
     {
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_NOT, 0, sizeterm, p);
+      return retval;
+    }
+
+  /* Check for ~, only values leading an expression should be allowed. */
+  if(term[0] == '~')
+    {
+      retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT, 0, sizeterm, p);
       return retval;
     }
 
@@ -3269,6 +4499,9 @@ void PrintVartoolsFunctionList(ProgramData *p)
   printtostring(&s,"a&&b\t\t- Logical \"and\" comparison\n\n");
   printtostring(&s,"a||b\t\t- Logical \"or\" comparison\n\n");
   printtostring(&s,"!a\t\t- Logical \"not\"\n\n");
+  printtostring(&s,"~a\t\t- Bitwise \"complement\"\n\n");
+  printtostring(&s,"a&b\t\t- Bitwise \"and\" comparison\n\n");
+  printtostring(&s,"a!b\t\t- Bitwise \"inclusive or\" comparison\n\n");
 
   printtostring(&s,"Indexing Arrays:\n\n");
   printtostring(&s,"----------------\n\n");
@@ -3381,6 +4614,18 @@ char * GenerateInternalVariableName(ProgramData *p) {
   sprintf(ret,"InT_vAr_%d", p->NInternalVars);
   p->NInternalVars += 1;
   return ret;
+}
+
+_Variable * FindExistingVariable(char *varname, ProgramData *p) {
+  int j;
+  _Variable *v;
+  for(j = 0; j < p->NDefinedVariables; j++) {
+    v = p->DefinedVariables[j];
+    if(!strcmp(varname, v->varname)) {
+      return v;
+    }
+  }
+  return NULL;
 }
 
 void CheckCreateCommandOutputLCVariable(char *varname, _Variable **omodelvar, ProgramData *p) {

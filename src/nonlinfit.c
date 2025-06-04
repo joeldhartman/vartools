@@ -288,6 +288,10 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
   int i, ibest;
   int NJD;
   double *t, *mag, *err;
+  double *t_mask = NULL, *mag_mask = NULL, *err_mask = NULL;
+  int NJD_mask;
+  int NJD_touse;
+  double *t_touse, *mag_touse, *err_touse;
 
   int amoeba_val;
   int nfunkeval;
@@ -301,6 +305,35 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
   t = p->t[threadid];
   mag = p->mag[threadid];
   err = p->sig[threadid];
+
+  if(c->usemask) {
+    if(NJD > 0) {
+      if((t_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
+	 (mag_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
+	 (err_mask = (double *) malloc(NJD * sizeof(double))) == NULL) {
+	error(ERR_MEMALLOC);
+      }
+    }
+    NJD_mask = 0;
+    for(i = 0; i < NJD; i++) {
+      if(!isnan(mag[i]) && err[i] > 0. && EvaluateVariable_Double(lcid, threadid, i, c->maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[NJD_mask] = t[i];
+	mag_mask[NJD_mask] = mag[i];
+	err_mask[NJD_mask] = err[i];
+	NJD_mask++;
+      }
+    }
+    t_touse = t_mask;
+    mag_touse = mag_mask;
+    err_touse = err_mask;
+    NJD_touse = NJD_mask;
+  } else {
+    t_touse = t;
+    mag_touse = mag;
+    err_touse = err;
+    NJD_touse = NJD;
+  }
+
 
   /* Initialize the correlation parameters */
   if(c->use_covar) {
@@ -337,12 +370,12 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
     incrementparameters_foramoeba(&Nparam, &Ntovary, &simplex, &ia, 1, initval, errval);
   }
   /* Set the initial chi2 values */
-  amoeba_initializesimplexchi2(Nparam, Ntovary, simplex, &chi2vals, &EvaluateChi2NonLinFit, NJD, t, mag, err, (void *) (&s));
+  amoeba_initializesimplexchi2(Nparam, Ntovary, simplex, &chi2vals, &EvaluateChi2NonLinFit, NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   /* Run the fit */
   amoeba_val = amoeba(simplex, chi2vals, ia, Nparam, c->amoeba_tol,
 		      &EvaluateChi2NonLinFit, &nfunkeval, c->amoeba_maxsteps,
-		      NJD, t, mag, err, (void *) (&s));
+		      NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   if(c->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
     if(amoeba_val) {
@@ -380,8 +413,8 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
 	  Nonlinfit_GetAmoeba_Uncertainties(c->param_outvals[threadid], i, 
 					    Nparam,
 					    c->chi2out[threadid], errval,
-					    NJD, t, mag,
-					    err, (void *) (&s));
+					    NJD_touse, t_touse, mag_touse,
+					    err_touse, (void *) (&s));
       }
     } else {
       for(i=0; i < c->Nparams; i++) {
@@ -392,7 +425,11 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
 	  
 
   amoeba_cleanup(&Nparam, &Ntovary, &simplex, &ia, &chi2vals);
-   
+  
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(err_mask != NULL) free(err_mask);
+
 }
 
 double Nonlinfit_GetAmoeba_Uncertainties(double *param, int paramindx, int Nparam, double chi20, double errval, int NJD, double *t, double *mag, double *err, void *userparam) {
@@ -570,6 +607,9 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
   int omodel_store, correctlc_store;
   double **auxil_params = NULL;
   OutText str;
+  int NJD_touse, NJD_mask;
+  double *t_mask = NULL, *mag_mask = NULL, *err_mask = NULL;
+  double *t_touse, *mag_touse, *err_touse;
   str.s = NULL;
   str.space = 0;
   str.len_s = 0;
@@ -593,6 +633,34 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
   t = p->t[threadid];
   mag = p->mag[threadid];
   err = p->sig[threadid];
+
+  if(c->usemask) {
+    if(NJD > 0) {
+      if((t_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
+	 (mag_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
+	 (err_mask = (double *) malloc(NJD * sizeof(double))) == NULL) {
+	error(ERR_MEMALLOC);
+      }
+    }
+    NJD_mask = 0;
+    for(i = 0; i < NJD; i++) {
+      if(!isnan(mag[i]) && err[i] > 0. && EvaluateVariable_Double(lcid, threadid, i, c->maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[NJD_mask] = t[i];
+	mag_mask[NJD_mask] = mag[i];
+	err_mask[NJD_mask] = err[i];
+	NJD_mask++;
+      }
+    }
+    t_touse = t_mask;
+    mag_touse = mag_mask;
+    err_touse = err_mask;
+    NJD_touse = NJD_mask;
+  } else {
+    t_touse = t;
+    mag_touse = mag;
+    err_touse = err;
+    NJD_touse = NJD;
+  }
 
   /* Initialize the correlation parameters */
   if(c->use_covar) {
@@ -690,7 +758,7 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
   MCMC_initialize_chain(chain, c->mcmc_eps, maxmemperchain, c->mcmc_outchains,
 			outfilename, outheader, c->mcmc_outchains_print_every,
 			Nauxil, auxil_params, &EvaluateChi2NonLinFit, 
-			NJD, t, mag, err, (void *) (&s));
+			NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   /* Run the MCMC procedure */
   MCMC_DifferentialEvolution_RunMCMC(c->mcmc_Naccept, c->mcmc_Nlinkstotal, 
@@ -716,6 +784,10 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
 
   /* Clean up */
   MCMC_CleanUp(&chain);
+
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(err_mask != NULL) free(err_mask);
    
 }
 
@@ -831,9 +903,18 @@ double EvaluateChi2NonLinFit_Final(double *param, int Nvar, int NJD, double *t, 
 	  if(f->c->correctlc) {
 	    mag[j] -= model;
 	  }
-	  chi2out += term*term;
-	  if(f->c->errorstring != NULL) {
-	    chi2out += (2.0*log(err));
+	  if(!f->c->usemask) {
+	    chi2out += term*term;
+	    if(f->c->errorstring != NULL) {
+	      chi2out += (2.0*log(err));
+	    }
+	  } else {
+	    if(EvaluateVariable_Double(f->lcid, f->threadid, j, f->c->maskvar) > VARTOOLS_MASK_TINY) {
+	      chi2out += term*term;
+	      if(f->c->errorstring != NULL) {
+		chi2out += (2.0*log(err));
+	      }
+	    }
 	  }
 	}
       }
@@ -864,7 +945,13 @@ double EvaluateChi2NonLinFit_Final(double *param, int Nvar, int NJD, double *t, 
 	  if(f->c->correctlc) {
 	    mag[j] -= model_vec[Ngood];
 	  }
-	  Ngood++;
+	  if(!f->c->usemask) {
+	    Ngood++;
+	  } else {
+	    if(EvaluateVariable_Double(f->lcid, f->threadid, j, f->c->maskvar) > VARTOOLS_MASK_TINY) {
+	      Ngood++;
+	    }
+	  }
 	}
       }
       Corr_amp_val = EvaluateVariable_Double(f->lcid, f->threadid, 0, f->c->Corr_amp_var);
@@ -1363,6 +1450,9 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->outfilename_format = NULL;
   c->mcmc_outchains_format = NULL;
 
+  c->usemask = 0;
+  c->maskvarname = NULL;
+  c->maskvar = NULL;
 
   if((c->functionstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
     error(ERR_MEMALLOC);
@@ -1717,6 +1807,25 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i--;
   } else
     i--;
+
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"fitmask")) {
+      c->usemask = 1;
+      i++;
+      if(i >= argc) {
+	*iret = i; return 1;
+      }
+      if((c->maskvarname = (char *) malloc(strlen(argv[i]+1))) == NULL)
+	error(ERR_MEMALLOC);
+      sprintf(c->maskvarname,"%s",argv[i]);
+    }
+    else
+      i--;
+  }
+  else
+    i--;
+  
 
   if(c->uselinfit && c->use_covar) {
     error2(ERR_INVALID_PARAMETERVALUE,"-nonlinfit, you cannot use both linear optimization and a non-diagonal covariance matrix at the same time.\n");

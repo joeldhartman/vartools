@@ -356,7 +356,7 @@ int binlc_parsevarstring(_Binlc *c) {
   return(0);
 }
 
-void binlc(ProgramData *p, _Binlc *c, int lcnum)
+void binlc(ProgramData *p, _Binlc *c, int lcnum, int lclistnum)
 {
   /* N, t, mag and sig define the input light curve, the output binned light curve is stored in these variables as well.
 
@@ -366,7 +366,13 @@ medflag - 0 means average bin, 1 means median bin, 2 means weighted average bin
 
 binsize_Nbins_flag - 0 means that the binsize (in units of time) is specified, 1 means the number of bins is specified.
 
-firstbinflag - 0 means that the first bin starts at t[0], 1 means the first bin starts at t[0] - firstbin/binsize
+firstbinflag - 0 means that the first bin starts at t[0], 1 means the first bin starts at t[0] - firstbin/binsize; This is only relevant if T0source = -1
+
+T0source - -1 means that firstbinflag settings apply (bin starts at t[0] or t[0] - firstbin/binsize);
+           PERTYPE_FIXCOLUMN - it comes from a previously computed output column
+           PERTYPE_FIX - it is specified on the command line
+           PERTYPE_SPECIFIED - it comes from the input list
+           PERTYPE_EXPR - it is computed from an analytic expression
 
 tflag - 0 means the output time for each bin is the time at the center of the bin, 1 means to take the average of the times of points that fall within the bin, 2 means to take the median.
   */
@@ -392,7 +398,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
   float ***bin_floatptr = NULL, ****bin_float2ptr = NULL;
   long ***bin_longptr = NULL, ****bin_long2ptr = NULL;
 
-  double t0, t1, var1, var2;
+  double t0, t1, var1, var2, t0lc;
   int binnum, Nc;   
 
   double ***dblptr;
@@ -423,6 +429,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
   _DataFromLightCurve *d;
 
   int medflag, binsize_Nbins_flag, Nbins, firstbinflag, tflag;
+  int T0source;
   double binsize, firstbin;
   int default_stats_type;
   int indx2;
@@ -436,6 +443,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
   tflag = c->tflag;
   binsize = c->binsize;
   firstbin = c->firstbin;
+  T0source = c->T0source;
 
   switch(medflag) {
   case VARTOOLS_BINLC_BINTYPE_AVERAGE:
@@ -465,26 +473,56 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
     return;
 
   /* First determine the number of bins that we need to allocate memory for */
-  t0 = t[0];
   t1 = t[n - 1];  
+  t0lc = t[0];
 
-  if(t1 < t0)
-    error(ERR_UNSORTEDLIGHTCURVE);
+  if(T0source == -1) {
+    
+    t0 = t0lc;
+    if(t1 < t0)
+      error(ERR_UNSORTEDLIGHTCURVE);
 
-  if(binsize_Nbins_flag)
-    {
-      binsize = (t1 - t0)/(double) Nbins;
-    }
-  else
-    {
-      Nbins = ceil((t1 - t0)/binsize);
-    }
+    if(binsize_Nbins_flag)
+      {
+	binsize = (t1 - t0)/(double) Nbins;
+      }
+    else
+      {
+	Nbins = ceil((t1 - t0)/binsize);
+      }
   
-  /* adjust the initial time if needed */
-  if(firstbinflag)
-    {
-      t0 = t0 - firstbin/binsize;
+    /* adjust the initial time if needed */
+    if(firstbinflag)
+      {
+	t0 = t0 - firstbin/binsize;
+      }
+  } else {
+    if(T0source == PERTYPE_FIXCOLUMN) {
+      getoutcolumnvalue(c->t0_linkedcolumn, lcnum, lclistnum, VARTOOLS_TYPE_DOUBLE, &t0);
+    } else if(T0source == PERTYPE_FIX) {
+      t0 = c->t0fixval;
+    } else if(T0source == PERTYPE_SPECIFIED) {
+      t0 = c->t0listval[lclistnum];
+    } else if(T0source == PERTYPE_EXPR) {
+      t0 = EvaluateExpression(lclistnum, lcnum, 0, c->t0expr);
     }
+    if(t1 < t0) {
+      *N = 0;
+      return;
+    }
+
+    if(binsize_Nbins_flag)
+      {
+	binsize = (t1 - t0)/(double) Nbins;
+      }
+    else
+      {
+	if(t0 < t0lc - binsize) {
+	  t0 = t0 + binsize*floor((t0lc - t0)/binsize);
+	}
+	Nbins = ceil((t1 - t0)/binsize);
+      }
+  }
 
   /* Only run if Nbins > 0 */
   if(Nbins <= 0) {
@@ -803,87 +841,173 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 	nbin[i] = 0;
       
       /* Sort the data into the bin vectors */
-      for(i=0; i<n; i++)
-	{
-	  binnum = floor((t[i] - t0)/binsize);
-	  if(binnum >= Nbins)
-	    binnum = Nbins - 1;
-	  if(binnum < 0)
-	    binnum = 0;
-	  
-	  j = nbin[binnum];
-	  bin_mag[binnum][j] = mag[i];
-	  bin_time[binnum][j] = t[i];
-	  bin_sig[binnum][j] = sig[i];
-	  if(!j) {
-	    startindx[binnum] = i;
-	  }
-	  if(otherdata) {
-	    for(k=0;k<Nptr[0];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[0][k]]);
-	      dblptr = (double ***) d->dataptr;
-	      bin_dblptr[k][binnum][j] = (*dblptr)[lcnum][i];
+      if(!c->usemask) {
+	/* We are not masking any points to fill into the bins */
+	for(i=0; i<n; i++)
+	  {
+	    binnum = floor((t[i] - t0)/binsize);
+	    if(binnum >= Nbins)
+	      binnum = Nbins - 1;
+	    if(binnum < 0)
+	      binnum = 0;
+	    
+	    j = nbin[binnum];
+	    bin_mag[binnum][j] = mag[i];
+	    bin_time[binnum][j] = t[i];
+	    bin_sig[binnum][j] = sig[i];
+	    if(!j) {
+	      startindx[binnum] = i;
 	    }
-	    for(k=0;k<Nptr[1];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[1][k]]);
-	      dbl2ptr = (double ****) d->dataptr;
-	      for(u=0; u < d->Ncolumns; u++) {
-		bin_dbl2ptr[k][u][binnum][j] = (*dbl2ptr)[lcnum][u][i];
+	    if(otherdata) {
+	      for(k=0;k<Nptr[0];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[0][k]]);
+		dblptr = (double ***) d->dataptr;
+		bin_dblptr[k][binnum][j] = (*dblptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[1];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[1][k]]);
+		dbl2ptr = (double ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_dbl2ptr[k][u][binnum][j] = (*dbl2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[2];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[2][k]]);
+		shortptr = (short ***) d->dataptr;
+		bin_shortptr[k][binnum][j] = (*shortptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[3];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[3][k]]);
+		short2ptr = (short ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_short2ptr[k][u][binnum][j] = (*short2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[4];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[4][k]]);
+		intptr = (int ***) d->dataptr;
+		bin_intptr[k][binnum][j] = (*intptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[5];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[5][k]]);
+		int2ptr = (int ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_int2ptr[k][u][binnum][j] = (*int2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[10];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[10][k]]);
+		floatptr = (float ***) d->dataptr;
+		bin_floatptr[k][binnum][j] = (*floatptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[11];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[11][k]]);
+		float2ptr = (float ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_float2ptr[k][u][binnum][j] = (*float2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[12];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[12][k]]);
+		longptr = (long ***) d->dataptr;
+		bin_longptr[k][binnum][j] = (*longptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[13];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[13][k]]);
+		long2ptr = (long ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_long2ptr[k][u][binnum][j] = (*long2ptr)[lcnum][u][i];
+		}
 	      }
 	    }
-	    for(k=0;k<Nptr[2];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[2][k]]);
-	      shortptr = (short ***) d->dataptr;
-	      bin_shortptr[k][binnum][j] = (*shortptr)[lcnum][i];
-	    }
-	    for(k=0;k<Nptr[3];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[3][k]]);
-	      short2ptr = (short ****) d->dataptr;
-	      for(u=0; u < d->Ncolumns; u++) {
-		bin_short2ptr[k][u][binnum][j] = (*short2ptr)[lcnum][u][i];
-	      }
-	    }
-	    for(k=0;k<Nptr[4];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[4][k]]);
-	      intptr = (int ***) d->dataptr;
-	      bin_intptr[k][binnum][j] = (*intptr)[lcnum][i];
-	    }
-	    for(k=0;k<Nptr[5];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[5][k]]);
-	      int2ptr = (int ****) d->dataptr;
-	      for(u=0; u < d->Ncolumns; u++) {
-		bin_int2ptr[k][u][binnum][j] = (*int2ptr)[lcnum][u][i];
-	      }
-	    }
-	    for(k=0;k<Nptr[10];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[10][k]]);
-	      floatptr = (float ***) d->dataptr;
-	      bin_floatptr[k][binnum][j] = (*floatptr)[lcnum][i];
-	    }
-	    for(k=0;k<Nptr[11];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[11][k]]);
-	      float2ptr = (float ****) d->dataptr;
-	      for(u=0; u < d->Ncolumns; u++) {
-		bin_float2ptr[k][u][binnum][j] = (*float2ptr)[lcnum][u][i];
-	      }
-	    }
-	    for(k=0;k<Nptr[12];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[12][k]]);
-	      longptr = (long ***) d->dataptr;
-	      bin_longptr[k][binnum][j] = (*longptr)[lcnum][i];
-	    }
-	    for(k=0;k<Nptr[13];k++) {
-	      d = &(p->DataFromLightCurve[ptrindx[13][k]]);
-	      long2ptr = (long ****) d->dataptr;
-	      for(u=0; u < d->Ncolumns; u++) {
-		bin_long2ptr[k][u][binnum][j] = (*long2ptr)[lcnum][u][i];
-	      }
-	    }
-	  }
-	  
 	      
-	  nbin[binnum]++;
-	}
+	    nbin[binnum]++;
+	  }
+      } else {
+	/* We are masking points to fill into the bins */
+	for(i=0; i<n; i++)
+	  {
+	    if(EvaluateVariable_Double(lclistnum, lcnum, i, c->maskvar) <= VARTOOLS_MASK_TINY)
+	      continue;
+	    binnum = floor((t[i] - t0)/binsize);
+	    if(binnum >= Nbins)
+	      binnum = Nbins - 1;
+	    if(binnum < 0)
+	      binnum = 0;
+	    
+	    j = nbin[binnum];
+	    bin_mag[binnum][j] = mag[i];
+	    bin_time[binnum][j] = t[i];
+	    bin_sig[binnum][j] = sig[i];
+	    if(!j) {
+	      startindx[binnum] = i;
+	    }
+	    if(otherdata) {
+	      for(k=0;k<Nptr[0];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[0][k]]);
+		dblptr = (double ***) d->dataptr;
+		bin_dblptr[k][binnum][j] = (*dblptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[1];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[1][k]]);
+		dbl2ptr = (double ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_dbl2ptr[k][u][binnum][j] = (*dbl2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[2];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[2][k]]);
+		shortptr = (short ***) d->dataptr;
+		bin_shortptr[k][binnum][j] = (*shortptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[3];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[3][k]]);
+		short2ptr = (short ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_short2ptr[k][u][binnum][j] = (*short2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[4];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[4][k]]);
+		intptr = (int ***) d->dataptr;
+		bin_intptr[k][binnum][j] = (*intptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[5];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[5][k]]);
+		int2ptr = (int ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_int2ptr[k][u][binnum][j] = (*int2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[10];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[10][k]]);
+		floatptr = (float ***) d->dataptr;
+		bin_floatptr[k][binnum][j] = (*floatptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[11];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[11][k]]);
+		float2ptr = (float ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_float2ptr[k][u][binnum][j] = (*float2ptr)[lcnum][u][i];
+		}
+	      }
+	      for(k=0;k<Nptr[12];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[12][k]]);
+		longptr = (long ***) d->dataptr;
+		bin_longptr[k][binnum][j] = (*longptr)[lcnum][i];
+	      }
+	      for(k=0;k<Nptr[13];k++) {
+		d = &(p->DataFromLightCurve[ptrindx[13][k]]);
+		long2ptr = (long ****) d->dataptr;
+		for(u=0; u < d->Ncolumns; u++) {
+		  bin_long2ptr[k][u][binnum][j] = (*long2ptr)[lcnum][u][i];
+		}
+	      }
+	    }
+	      
+	    nbin[binnum]++;
+	  }
+      }
       
       /* Now fill out the new light curve */
       for(i=0, j=0; i < Nbins; i++)

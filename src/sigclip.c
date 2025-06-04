@@ -185,24 +185,53 @@ void sigclip_copyterms(int i,int j,ProgramData *p,int lc)
 
 
 /* Function that performs sigma clipping on a light curve and returns the reduced size of the light curve */
-int sigclip (int size, double *t, double *mag, double *sig, double *ave, double *stddev, double *rmsthy, int *ngood, double clip, int iter, int lc, ProgramData *p, int niter, int usemedian)
+int sigclip (int size, double *t, double *mag, double *sig, double *ave, double *stddev, double *rmsthy, int *ngood, double clip, int iter, int lc, ProgramData *p, int niter, int usemedian, int markclip, _Variable *clipvar, int noinitmark)
 {
   int i, j, k, clipped, nclipped, lastnclipped;
   double avein, stddevin;
   double *magcpy = NULL;
+  double *clipvardat = NULL;
   int sizemagcpy = 0;
+
+  if(markclip) {
+    clipvardat = (*((double ***) clipvar->dataptr))[lc];
+    if(!noinitmark) {
+      for(i=0; i < size; i++) {
+	if(sig[i] > 0. && !isnan(mag[i])) {
+	  clipvardat[i] = 1;
+	} else {
+	  clipvardat[i] = 0;
+	}
+      }
+    } else {
+      for(i=0; i < size; i++) {
+	if(sig[i] <= 0. || isnan(mag[i])) {
+	  clipvardat[i] = 0;
+	}
+      }
+    }
+  }
 
   nclipped = 0;
   if(size > 0 && clip > 0)
     {
       avein = 0.;
       *ngood = 0;
-      for(i=0 ; i<size; i++)
-	if(sig[i] > 0. && !isnan(mag[i]))
-	  {
+      if(markclip) {
+	for(i=0; i <size; i++) {
+	  if(clipvardat[i]) {
 	    avein += mag[i];
 	    (*ngood)++;
 	  }
+	}
+      } else {
+	for(i=0 ; i<size; i++)
+	  if(sig[i] > 0. && !isnan(mag[i]))
+	    {
+	      avein += mag[i];
+	      (*ngood)++;
+	    }
+      }
       if((*ngood) > 0)
 	{
 	  if(usemedian) {
@@ -219,10 +248,19 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 		  error(ERR_MEMALLOC);
 		sizemagcpy = *ngood;
 	      }
-	      for(i=0, k=0; i < size; i++) {
-		if(sig[i] > 0. && !isnan(mag[i])) {
-		  magcpy[k] = mag[i];
-		  k++;
+	      if(markclip) {
+		for(i=0, k=0; i < size; i++) {
+		  if(clipvardat[i]) {
+		    magcpy[k] = mag[i];
+		    k++;
+		  }
+		}
+	      } else {
+		for(i=0, k=0; i < size; i++) {
+		  if(sig[i] > 0. && !isnan(mag[i])) {
+		    magcpy[k] = mag[i];
+		    k++;
+		  }
 		}
 	      }
 	      avein = median(k, magcpy);
@@ -231,9 +269,17 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 	    avein /= (double) (*ngood);
 	  }
 	  stddevin = 0.;
-	  for(i = 0; i < size; i++)
-	    if(sig[i] > 0. && !isnan(mag[i]))
-	      stddevin += SQR(mag[i] - avein);
+	  if(markclip) {
+	    for(i = 0; i < size; i++) {
+	      if(clipvardat[i]) {
+		stddevin += SQR(mag[i] - avein);
+	      }
+	    }
+	  } else {
+	    for(i = 0; i < size; i++)
+	      if(sig[i] > 0. && !isnan(mag[i]))
+		stddevin += SQR(mag[i] - avein);
+	  }
 	  stddevin = sqrt(stddevin / ((double) (*ngood)));
 
 
@@ -247,32 +293,64 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 	      clipped = 0;
 	      *ngood = 0;
 	      nclipped = 0;
-	      for(i=0;i<size;i++)
-		{
-		  if(isnan(mag[i]) || sig[i] <= 0. || (!isnan(mag[i]) && (fabs(mag[i] - (*ave)) > ((*stddev) * clip) || sig[i] <= 0.)))
+	      if(markclip) {
+		for(i=0;i<size;i++)
+		  {
+		    if(!clipvardat[i]) {
+		      nclipped++;
+		    }
+		    else if(clipvardat[i] && (fabs(mag[i] - (*ave)) > ((*stddev) * clip)))
 		    {
 		      nclipped++;
-		      mag[i] = sqrt(-1);
+		      clipvardat[i] = 0;
 		    }
 		  else
 		    (*ngood)++;
 		}
+	      } else {
+		for(i=0;i<size;i++)
+		  {
+		    if(isnan(mag[i]) || sig[i] <= 0. || (!isnan(mag[i]) && (fabs(mag[i] - (*ave)) > ((*stddev) * clip) || sig[i] <= 0.)))
+		      {
+			nclipped++;
+			mag[i] = sqrt(-1);
+		      }
+		    else
+		      (*ngood)++;
+		  }
+	      }
 
 	      if((*ngood) > 0)
 		{
 		  i = 0;
-		  while(isnan(mag[i]) || sig[i] <= 0.)
-		    i++;
+		  if(markclip) {
+		    while(!clipvardat[i])
+		      i++;
+		  } else {
+		    while(isnan(mag[i]) || sig[i] <= 0.)
+		      i++;
+		  }
 		  *ave = mag[i];
 		  *rmsthy = sig[i]*sig[i];
-		  for(i = i + 1; i < size ; i++)
-		    {
-		      if(!isnan(mag[i]) && sig[i] > 0.)
-			{
-			  *ave += mag[i];
-			  *rmsthy += sig[i]*sig[i];
-			}
-		    }
+		  if(markclip) {
+		    for(i = i + 1; i < size ; i++)
+		      {
+			if(clipvardat[i])
+			  {
+			    *ave += mag[i];
+			    *rmsthy += sig[i]*sig[i];
+			  }
+		      }
+		  } else {
+		    for(i = i + 1; i < size ; i++)
+		      {
+			if(!isnan(mag[i]) && sig[i] > 0.)
+			  {
+			    *ave += mag[i];
+			    *rmsthy += sig[i]*sig[i];
+			  }
+		      }
+		  }
 		  *rmsthy = sqrt((*rmsthy) / (*ngood));
 		  if(usemedian) {
 		    if(*ngood == size) {
@@ -288,10 +366,19 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 			  error(ERR_MEMALLOC);
 			sizemagcpy = *ngood;
 		      }
-		      for(i=0, k=0; i < size; i++) {
-			if(sig[i] > 0. && !isnan(mag[i])) {
-			  magcpy[k] = mag[i];
-			  k++;
+		      if(markclip) {
+			for(i=0, k=0; i < size; i++) {
+			  if(clipvardat[i]) {
+			    magcpy[k] = mag[i];
+			    k++;
+			  }
+			}
+		      } else {
+			for(i=0, k=0; i < size; i++) {
+			  if(sig[i] > 0. && !isnan(mag[i])) {
+			    magcpy[k] = mag[i];
+			    k++;
+			  }
 			}
 		      }
 		      *ave = median(k, magcpy);
@@ -300,16 +387,31 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 		    *ave /= (*ngood);
 		  }
 		  i = 0;
-		  while(isnan(mag[i]) || sig[i] <= 0.)
-		    i++;
+		  if(markclip) {
+		    while(!clipvardat[i])
+		      i++;
+		  } else {
+		    while(isnan(mag[i]) || sig[i] <= 0.)
+		      i++;
+		  }
 		  *stddev = SQR(mag[i] - *ave);
-		  for ( i = i + 1; i < size; i++)
-		    {
-		      if(!isnan(mag[i]) && sig[i] > 0.)
-			{
-			  *stddev += SQR(mag[i] - *ave);
-			}
-		    }
+		  if(markclip) {
+		    for ( i = i + 1; i < size; i++)
+		      {
+			if(clipvardat[i])
+			  {
+			    *stddev += SQR(mag[i] - *ave);
+			  }
+		      }
+		  } else {
+		    for ( i = i + 1; i < size; i++)
+		      {
+			if(!isnan(mag[i]) && sig[i] > 0.)
+			  {
+			    *stddev += SQR(mag[i] - *ave);
+			  }
+		      }
+		  }
 		  *stddev = sqrt((*stddev) / (*ngood));
 		}
 	      else
@@ -334,7 +436,7 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 	  *rmsthy = -1.;
 	}
     }
-  else if(size > 0) {
+  else if(size > 0 && !markclip) {
     nclipped = 0;
     avein = 0.;
     *ngood = 0;
@@ -397,7 +499,7 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
       *stddev = -1.;
     }
   /* Now remove the isnan points from the light curve */
-  if(nclipped)
+  if(nclipped && !markclip)
     {
       j = 0;
       for(i=0;i<size;i++)

@@ -133,7 +133,7 @@ c========================================================================
 c
 */
 
-int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout)
+int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double *y = NULL;
   double *ibi = NULL;
@@ -151,6 +151,63 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile2;
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      *bpow = -1.;
+      *depth = -1.;
+      *bt0 = -1;
+      *in1 = -1;
+      *in2 = -1;
+      *in1_ph = -1.;
+      *in2_ph = -1.;
+      *qtran = -1.;
+      *chisqrplus = -1.;
+      *chisqrminus = -1.;
+      *meanmagval = -1.;
+      *fraconenight = -1.;
+      *qingress = -1.;
+      *nt = 0;
+      *Nt = 0;
+      *Nbefore = 0;
+      *Nafter = 0;
+      *OOTmag = -1.;
+      *rednoise = -1.;
+      *whitenoise = -1.;
+      *sigtopink = -1.;
+      if(y != NULL) free(y);
+      if(ibi != NULL) free(ibi);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+      return(1);
+    }
+  }
 
   nbmax = 2*nb;
 
@@ -238,8 +295,20 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
       *chisqrminus = -1.;
       *meanmagval = -1.;
       *fraconenight = -1.;
+      *qingress = -1.;
+      *nt = 0;
+      *Nt = 0;
+      *Nbefore = 0;
+      *Nafter = 0;
+      *OOTmag = -1.;
+      *rednoise = -1.;
+      *whitenoise = -1.;
+      *sigtopink = -1.;
       if(y != NULL) free(y);
       if(ibi != NULL) free(ibi);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return(1);
     }
 
@@ -422,6 +491,16 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 
       phb1 = (*qingress)*(*qtran);
       phb2 = (*qtran) - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+	for(i=0;i<n;i++)
+	  {
+	    u[i]=t[i]-t1;
+	  }
+      }
       for(i=0;i<n;i++)
 	{
 	  ph = (u[i] - (*in1_ph)*period[0])*f0;
@@ -445,13 +524,16 @@ int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, in
 
   if(y != NULL) free(y);
   if(ibi != NULL) free(ibi);
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
   return(0);
 }
 
 /* This version adjusts the qmin and qmax according the period using a specified rmin and rmax, it assumes that for P in days and R in solar radii that q is given by:
 q = 0.076 * R**(2/3) / P**(2/3)
 */
-int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout)
+int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double *y = NULL;
   double *ibi = NULL;
@@ -470,6 +552,63 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile2;
   double srsum = 0.0;
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      *bpow = -1.;
+      *depth = -1.;
+      *bt0 = -1;
+      *in1 = -1;
+      *in2 = -1;
+      *in1_ph = -1.;
+      *in2_ph = -1.;
+      *qtran = -1.;
+      *chisqrplus = -1.;
+      *chisqrminus = -1.;
+      *meanmagval = -1.;
+      *fraconenight = -1.;
+      *qingress = -1.;
+      *nt = 0;
+      *Nt = 0;
+      *Nbefore = 0;
+      *Nafter = 0;
+      *OOTmag = -1.;
+      *rednoise = -1.;
+      *whitenoise = -1.;
+      *sigtopink = -1.;
+      if(y != NULL) free(y);
+      if(ibi != NULL) free(ibi);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+      return(1);
+    }
+  }
 
   nbmax = 2*nb;
 
@@ -563,8 +702,20 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
       *chisqrminus = -1.;
       *meanmagval = -1.;
       *fraconenight = -1.;
+      *qingress = -1.;
+      *nt = 0;
+      *Nt = 0;
+      *Nbefore = 0;
+      *Nafter = 0;
+      *OOTmag = -1.;
+      *rednoise = -1.;
+      *whitenoise = -1.;
+      *sigtopink = -1.;
       if(y != NULL) free(y);
       if(ibi != NULL) free(ibi);
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return(1);
     }
 
@@ -744,6 +895,16 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
 
       phb1 = (*qingress)*(*qtran);
       phb2 = (*qtran) - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+	for(i=0;i<n;i++)
+	  {
+	    u[i]=t[i]-t1;
+	  }
+      }
       for(i=0;i<n;i++)
 	{
 	  ph = (u[i] - (*in1_ph)*period[0])*f0;
@@ -767,6 +928,9 @@ int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v
 
   if(y != NULL) free(y);
   if(ibi != NULL) free(ibi);
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
   return(0);
 }
 

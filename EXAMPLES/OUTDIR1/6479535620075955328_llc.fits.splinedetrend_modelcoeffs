@@ -1,0 +1,68 @@
+#Model Coefficients for group 0
+#Domain of group:
+# 2458325.3285766519 <= t <= 2458338.5160248424
+# 738.41949699999998 <= x <= 738.45187799999997
+# 18.555378399999999 <= y <= 18.599752599999999
+# -79.791025777777776 <= temp <= -79.561523000000022
+#Coefficient values:
+9.7277985338596338 # constant term
+0.61746227758526073 # Basis spline 0 for variable t
+0.61184920647966545 # Basis spline 1 for variable t
+0.60792208115654045 # Basis spline 2 for variable t
+0.60955078768173043 # Basis spline 3 for variable t
+0.60949531188426498 # Basis spline 4 for variable t
+0.60902747345136254 # Basis spline 5 for variable t
+0.6113196072556385 # Basis spline 6 for variable t
+0.60575172925418663 # Basis spline 7 for variable t
+0.60825057086651291 # Basis spline 8 for variable t
+0.60060632961320415 # Basis spline 9 for variable t
+0.60680836459279308 # Basis spline 10 for variable t
+0.60538111004231032 # Basis spline 11 for variable t
+0.60688843971991613 # Basis spline 12 for variable t
+0.60486769311828747 # Basis spline 13 for variable t
+0.60831561930208355 # Basis spline 14 for variable t
+0.6043019318557239 # Basis spline 15 for variable t
+0.00050226826672990915 # polynomial term (((x)-738.41949699999998)/0.03238099999998667)^1
+-0.0058221911051440679 # polynomial term (((y)-18.555378399999999)/0.04437420000000003)^1
+0.0091836862298610988 # polynomial term (((temp)--79.791025777777776)/0.22950277777775341)^1
+
+#Model Coefficients for group 1
+#Domain of group:
+# 2458339.6826749775 <= t <= 2458346.9950263547
+# 738.38619800000004 <= x <= 738.44779400000004
+# 18.5951901 <= y <= 18.668769000000001
+# -80.339045624999997 <= temp <= -79.303631576923081
+#Coefficient values:
+9.3505055212536217 # constant term
+0.98550472076370732 # Basis spline 0 for variable t
+0.96742846528549342 # Basis spline 1 for variable t
+0.93896749122070111 # Basis spline 2 for variable t
+0.92425792857743105 # Basis spline 3 for variable t
+0.92128604814342363 # Basis spline 4 for variable t
+0.92413234267957689 # Basis spline 5 for variable t
+0.92223862841749749 # Basis spline 6 for variable t
+0.92106975462207763 # Basis spline 7 for variable t
+0.92302214295235374 # Basis spline 8 for variable t
+0.92259799858430946 # Basis spline 9 for variable t
+-0.002031501685966686 # polynomial term (((x)-738.38619800000004)/0.061596000000008644)^1
+-0.0027700179655203924 # polynomial term (((y)-18.5951901)/0.073578900000001113)^1
+0.059497021709333797 # polynomial term (((temp)--80.339045624999997)/1.0354140480769161)^1
+
+#Model Coefficients for group 2
+#Domain of group:
+# 2458349.5157911987 <= t <= 2458353.1615098328
+# 738.38045799999998 <= x <= 738.39380000000006
+# 18.615163500000001 <= y <= 18.6380157
+# -79.315462640000007 <= temp <= -79.26680566666667
+#Coefficient values:
+8.8571360599556428 # constant term
+1.4764636049616484 # Basis spline 0 for variable t
+1.4748875225730593 # Basis spline 1 for variable t
+1.4768789068058994 # Basis spline 2 for variable t
+1.4760206804406013 # Basis spline 3 for variable t
+1.475977569075932 # Basis spline 4 for variable t
+1.4769077760985057 # Basis spline 5 for variable t
+-0.00094519755324167648 # polynomial term (((x)-738.38045799999998)/0.013342000000079679)^1
+-0.0020276510332168374 # polynomial term (((y)-18.615163500000001)/0.022852199999999101)^1
+-0.0027988779424403809 # polynomial term (((temp)--79.315462640000007)/0.04865697333333685)^1
+

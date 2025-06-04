@@ -32,6 +32,27 @@ void example(char *c, ProgramData *p)
   s.len_s = 0;
   s.Nchar_cur_line = 0;
 
+#ifdef USECFITSIO
+  if(!strcmp(c,"-addfitskeyword"))
+    {
+      printtostring(&s,
+		    "\necho EXAMPLES/1 HELLO | \\\n");
+      printtostring(&s,
+		    "vartools -l - -inlistvars x:2:string \\\n");
+      printtostring(&s,
+		    "\t-addfitskeyword \"TMPKEY\" TSTRING \\\n");
+      printtostring(&s,
+		    "\t\tvar x \\\n");
+      printtostring(&s,
+		    "\t\tcomment \"a comment\" \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/ nameformat \"%%s.tmpout.fits\" fits\n\n");
+      printtostring(&s,
+		    "Copy the ASCII text light curve stored in the file EXAMPLES/1 to a fits-format light curve that will be in the file EXAMPLES/1.tmpout.fits. Add a keyword to the primary header. The name of the keyword will be \"TMPKEY\", it will be a string, and will take its value from the input-list variable x (which will evaluate to \"HELLO\" in this case). The comment \"a comment\" will be included in the output header.\n\n");
+      commandfound = 1;
+    }
+#endif
+
   if(!strncmp(c,"-addnoise",9) && strlen(c) == 9)
     {
 #ifdef _HAVE_GSL
@@ -178,6 +199,44 @@ void example(char *c, ProgramData *p)
 		    "\t-rms\n\n");
       printtostring(&s,
 		    "Fit a Box-shape transit to the light curve EXAMPLES/3.transit at the period of 2.12345 days. Allow for fractional transit durations between 0.01 and 0.1, and use 200 phase-bins. Set the time-zone to 0 (this only affects the BLSFixPer_fraconenight statistic. Do not output the model, but subtract the best-fit model from the light curve before passing it on to the next command (in this example, that is the final -rms command). The fittrap option causes the procedure to fit a trapezoid-shaped transit. The calls to -rms before and after -BLSFixPer show how subtracting the BLS model reduces the scatter of the light curve.\n");
+      commandfound=1;
+    }
+  if(!strcmp(c,"-BLSFixDurTc"))
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3.transit -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-BLSFixDurTc duration fix 0.076996297 \\\n");
+      printtostring(&s,
+                    "\t\tTc fix 53727.29676321477 0.1 20. 100000 \\\n");
+      printtostring(&s,
+		    "\t\t0 1 0 0 1 fittrap \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Run a BLS search on the light curve EXAMPLES/3.transit fixing the duration of the transit to 0.076996297 and the transit epoch to 53727.29676321477. Allow for periods between 0.1 and 20. days, using 100000 frequency steps. Set the time-zone to 0 (this only affects the BLSFixPer_fraconenight statistic. Do not output the BLS periodogram or the model, but subtract the best-fit model from the light curve before passing it on to the next command (in this example, that is the final -rms command). The fittrap option causes the procedure to fit a trapezoid-shaped transit. The calls to -rms before and after -BLSFixDurTc show how subtracting the BLS model reduces the scatter of the light curve.\n");
+      commandfound=1;
+    }
+  if(!strcmp(c,"-BLSFixPerDurTc"))
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3.transit -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-BLSFixPerDurTc period fix 2.12345 \\\n");
+      printtostring(&s,
+		    "\t\tduration fix 0.076996297 \\\n");
+      printtostring(&s,
+                    "\t\tTc fix 53727.29676321477 \\\n");
+      printtostring(&s,
+		    "\t\t0 0 1 fittrap \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Fit a Box-shape transit to the light curve EXAMPLES/3.transit at the period of 2.12345 days, and fixing the duration to 0.076996297 days, and the transit epoch to 53727.29676321477. Set the time-zone to 0 (this only affects the BLSFixPer_fraconenight statistic. Do not output the model, but subtract the best-fit model from the light curve before passing it on to the next command (in this example, that is the final -rms command). The fittrap option causes the procedure to fit a trapezoid-shaped transit. The calls to -rms before and after -BLSFixPerDurTc show how subtracting the BLS model reduces the scatter of the light curve.\n");
       commandfound=1;
     }
   if(!strncmp(c,"-changeerror",12) && strlen(c) == 12)
@@ -679,7 +738,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\nvartools -l EXAMPLES/lc_list -header \\\n");
       printtostring(&s,
-		    "\t-Jstet 0.5 EXAMPLES/dates_tfa\n\n");
+		    "\t-Jstet 0.5 EXAMPLES/dates_Jstet\n\n");
       printtostring(&s,
 		    "Calculate Stetson's J statistic for the light curves in the list EXAMPLES/lc_list. Use 0.5 days to distinguish between \"near\" and \"far\" observations.\n");
       commandfound=1;
@@ -919,6 +978,26 @@ void example(char *c, ProgramData *p)
 		    "\t-o EXAMPLES/OUTDIR1/3.phasebin.txt\n\n");
       printtostring(&s,
 		    "Example illustrating the use of the -Phase command. We apply -BLS to identify a transit signal in the light curve EXAMPLES/3.transit. We then phase the light curve taking the period from bls, and the time of zero phase from bls. We set the phase of mid-transit to 0.0, and store the phases to the variable ph, rather than overwriting the times. We use the \"startphase -0.5\" term to have the phases run from -0.5 to 0.5, rather than from 0 to 1. We output the result to EXAMPLES/OUTDIR1/3.phase.txt using the \"columnformat\" keyword to include the phases in the fourth column of the output. We then use the \"-changevariable\" command to switch the time variable to \"ph\", and then median-bin the phased light curve using 200 phase bins, and output the result to EXAMPLES/OUTDIR1/3.phasebin.txt.\n");
+      commandfound=1;
+    }
+  if(!strcmp(c,"-print"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\ncat EXAMPLES/lc_list_tfa_sr_* | \\\n");
+      printtostring(&s,
+		    "vartools -l - \\\n");
+      printtostring(&s,
+		    "\t-inlistvars name:1:string,x:2,y:3 -rms \\\n");
+      printtostring(&s,
+		    "\t-print name,x,y,RMS_0,mag format %%20s,%%.2f,%%.2f,%%.3f,%%.3f \\\n");
+      printtostring(&s,
+		    "\t-header\n\n");
+      printtostring(&s,
+		    "Print the values of five variables to the output ASCII table. The variables to be print are the light curve file name (read in as the first column in the list), the x and y coordinates (read in as the second and third columns, respectively), the value of the RMS_0 output column parameter (one of the results from the -rms command), and the first term in the mag vector read in from each light curve. Since mag is a light curve column vector, this command will only print the first value of mag in the light curve.\n");
       commandfound=1;
     }
 #ifdef _HAVE_PYTHON

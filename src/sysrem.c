@@ -1043,14 +1043,14 @@ void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double *
     order[j] = 1;
   for(k=0;k<numlc;k++)
     {
-      docorr(mag[k], sig[k], numjd, Nsysrem_total, decorr, order, Avector, A_errvector, mag_ave[k], 1);
+      docorr(mag[k], sig[k], numjd, Nsysrem_total, decorr, order, Avector, A_errvector, mag_ave[k], 1, 0, NULL, 0, 0);
       for(j=0;j<numjd;j++)
 	mag_out[j] = mag[k][j];
       mag_ave[k] = Avector[0];
       if(matchstringid)
-	magcorr((void *) (Sysrem->stringid), VARTOOLS_TYPE_STRING, mag_out, sig[k], numjd, Nsysrem_total, decorr, order, Avector, &outchi2val, &mag_ave[k], mag_ave[k], 0, NULL, 1);
+	magcorr((void *) (Sysrem->stringid), VARTOOLS_TYPE_STRING, mag_out, sig[k], numjd, Nsysrem_total, decorr, order, Avector, &outchi2val, &mag_ave[k], mag_ave[k], 0, NULL, 1, 0, NULL, 0, 0);
       else
-	magcorr((void *) JD, VARTOOLS_TYPE_DOUBLE, mag_out, sig[k], numjd, Nsysrem_total, decorr, order, Avector, &outchi2val, &mag_ave[k], mag_ave[k], 0, NULL, 1);
+	magcorr((void *) JD, VARTOOLS_TYPE_DOUBLE, mag_out, sig[k], numjd, Nsysrem_total, decorr, order, Avector, &outchi2val, &mag_ave[k], mag_ave[k], 0, NULL, 1, 0, NULL, 0, 0);
       for(j=0;j<Nsysrem_total;j++)
 	final_colors[j][k] = Avector[j+1];
 

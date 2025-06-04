@@ -227,6 +227,25 @@ void error(int errflag)
     case ERR_CANNOTUSE_ALLCOLUMNS_INLIST:
       fprintf(stderr,"Error: the column for the input light curve list cannot be set to \"all\" when additional data beyond the names of the input light curves needs to be read from this list.\n");
       exit(ERR_CANNOTUSE_ALLCOLUMNS_INLIST);
+    case ERR_RESTORETIMES_MARKRESTRICT:
+      fprintf(stderr,"Cannot use -restoretimes with a -restricttimes command for which the markrestrict option was used.\n");
+      exit(ERR_RESTORETIMES_MARKRESTRICT);
+    case ERR_COMBINELCINLISTVARS_NOTINLIST:
+      fprintf(stderr,"Error: the \"combinelc\" term is used in the call to -inlistvars, but not as an option to -l. If using it in -inlistvars, then a light curve list must be read-in, with the \"combinelc\" option given to -l.\n");
+      exit(ERR_COMBINELCINLISTVARS_NOTINLIST);
+      break;
+    case ERR_INVALIDVARIABLEFORSORTLC:
+      fprintf(stderr,"Error: using a variable of the wrong type in the command -sortlc.\n");
+      exit(ERR_INVALIDVARIABLEFORSORTLC);
+    case ERR_INVALIDKEYNAMEFORMAT:
+      fprintf(stderr,"Error: invalid format for the keyword in the -addfitskeyword command.\n");
+      exit(ERR_INVALIDKEYNAMEFORMAT);
+    case ERR_PRINTNUMVARSNOTMATCH:
+      fprintf(stderr,"Error: the number of variables in the -print command does not match the number of column names provided.\n");
+      exit(ERR_PRINTNUMVARSNOTMATCH);
+    case ERR_BLS_OPTIMAL_MUSTUSEDENSITY:
+      fprintf(stderr,"Error: to use the optimal frequency spacing with -BLS, the density option must be used for determining the transit duration.\n");
+      exit(ERR_BLS_OPTIMAL_MUSTUSEDENSITY);
     default:
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
@@ -433,6 +452,18 @@ void error2(int errflag, char *s)
     case ERR_OUTPUTFILENAMECOMMAND:
       fprintf(stderr,"Error generating the name for the output light curve. The shell command being executed is:\n\n\t%s\n\n", s);
       exit(ERR_OUTPUTFILENAMECOMMAND);
+      break;
+    case ERR_BADVECTORTYPE:
+      fprintf(stderr,"Error - the variable \"%s\" is being used with conflicting vector types.\n",s);
+      exit(ERR_BADVECTORTYPE);
+      break;
+    case ERR_BADDATATYPE:
+      fprintf(stderr,"Error - the variable \"%s\" is being used with conflicting data types.\n",s);
+      exit(ERR_BADDATATYPE);
+      break;
+    case ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL:
+      fprintf(stderr,"Error parsing the following line from the input list file:\n\n\"%s\"\n\nOne of the columns that should hold a list of values to associate with different light curves to be combined does not have enough terms given the number of light curves specified.\n",s);
+      exit(ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL);
       break;
     default:
       fprintf(stderr,"Error - Unspecified Error\n");

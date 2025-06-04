@@ -38,9 +38,15 @@ void example(char *, ProgramData *);
 void help(char *, ProgramData *p);
 void usage(char *);
 int parseone(char *, void *, int);
+int parseone_growstring(char *, void *, int, int *);
 int parseonedelimstring(char *, void *, int, char *);
 int parseonedelimchar(char *, void *, int, char);
 int skipone(char *);
+int skiponedelimstring(char *, char *);
+int skiponedelimchar(char *, char);
+int CountColumns_whitespace(char *line);
+int CountColumns_delimstring(char *line, char *delim);
+int CountColumns_delimchar(char *line, char delim);
 void increaseNcommands(ProgramData *p, Command **c);
 void dotab(FILE *,int);
 void printheader(int, Command *, int, int);
@@ -50,14 +56,16 @@ void error(int);
 void error2(int, char *);
 void parsecommandline(int, char **, ProgramData *, Command **);
 int ReadAllLightCurves(ProgramData *, Command *);
-int ReadSingleLightCurve(ProgramData *, Command *, int, int);
+int ReadSingleLightCurve(ProgramData *, Command *, int, int, int);
+int ReadCombineLightCurve(ProgramData *, Command *, int, int);
 int findX(double *, double, int, int);
+int findX_string(char **, int *, char *, int, int);
 void difffluxtomag(double *t, double *mag, double *sig, int N, double mag_star, double mag_constant1, double offset);
 void fluxtomag(double *t, double *mag, double *sig, int N, double mag_constant1, double offset);
-double binnedchi2(int, double *, double *, double *, double, double *, int *);
-double chi2(int, double *, double *, double *, double *, int *);
-double binnedrms(int, double *, double *, double *, double, double *, double *, int *);
-double rms(int, double *, double *, double *, double *, double *, int *);
+double binnedchi2(int, double *, double *, double *, double, double *, int *, int, _Variable *, int, int);
+double chi2(int, double *, double *, double *, double *, int *, int, _Variable *, int, int);
+double binnedrms(int, double *, double *, double *, double, double *, double *, int *, int, _Variable *, int, int);
+double rms(int, double *, double *, double *, double *, double *, int *, int, _Variable *, int, int);
 void ProcessCommandSingle(ProgramData *, Command *, int, int, int);
 void ProcessCommandAll(ProgramData *, Command *, int);
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname, 
@@ -68,7 +76,7 @@ void DetermineColumns(ProgramData *, Command *);
 void Filldecorr_matrix(ProgramData *, Command *, int);
 void ReadDatesFiles(ProgramData *, Command *);
 void Switchtobasename(ProgramData *, int);
-double doalarm(int, double *, double *);
+double doalarm(int, double *, double *, int, int, int, _Variable *);
 void normalize(int, double *, double *, double *, double *, double *);
 //double TestPeriod(int, double *, double *, double, int, _HistType *h);
 double TestPeriod_aov_harm(int N, double *t, double *m, double *sig, int Nharm, double testperiod, double *m_noave, double *t_nostart, double *weight, double lcvariance, int *Nharm_used);
@@ -76,15 +84,15 @@ void aov_harm(int N, double *t, double *m, double *sig, int Nharm, int Nfreq, do
 //void AOVPeriodogram(int, double *, double *, int, double *, double *, int, _HistType *h);
 int isDifferentPeriods(double, double, double);
 int isDifferentPeriodsDontCheckHarmonics(double, double, double);
-void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP);
-void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP);
+void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 void ludcmp(long double **, int, int *, long double *);
 void lubksb(long double **, int, int *, long double *);
-void docorr(double *, double *, int, int, double **, int *, double *, double *, double, int);
-void magcorr(void *,int,double *, double *, int, int, double **, int *, double *, double *, double *, double,int,char *, int);
-void magcorr_chi2only(double *,double *, double *, int, int, double **, int *, double *, double *, double *, double, int, char *, int);
+void docorr(double *, double *, int, int, double **, int *, double *, double *, double, int, int, _Variable *, int, int);
+void magcorr(void *,int,double *, double *, int, int, double **, int *, double *, double *, double *, double,int,char *, int, int, _Variable *, int, int);
+void magcorr_chi2only(double *,double *, double *, int, int, double **, int *, double *, double *, double *, double, int, char *, int, int, _Variable *, int, int);
 void w_ave(int, double *, double *, double *, double *);
-void getJstet(int, double, double, double *, double *, double *, double *, double *, double *, double *);
+void getJstet(int, double, double, double *, double *, double *, double *, double *, double *, double *, int, int, int, _Variable *);
 void dokillharms(int, double *, double *, double *, int, double *, int, int, double **, double **, double **, double **, double *, double *, double *,int,char *, double *, int, int, double);
 void doinjectharm(int, double *, double *, double *, int, int, _Injectharm *, char *);
 void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcreal, _Injecttransit *c, char *modeloutname);
@@ -94,7 +102,7 @@ int spread(double, double *, int, double, int);
 void realft(double *, int, int);
 void four1(double *, int, int);
 void avevar(double *, int, double *, double *);
-void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap);
+void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap, int usemask, _Variable *maskvar, int lcindex, int threadindex);
 void mysort4(int, double *, double *, double *, double *);
 void mysort4_rev(int, double *, double *, double *, double *);
 void mysort4ptrint(int, int*, void***, int *, int *);
@@ -116,7 +124,7 @@ long double mean(int, double *, double *);
 long double mean1(int, double *);
 long double mean2(int, double *, double *, double *);
 int purge_bad(int *, double *, double *, double *, double, double, double, int);
-int sigclip(int, double *, double *, double *, double *, double *, double *, int *, double, int, int, ProgramData *, int, int);
+int sigclip(int, double *, double *, double *, double *, double *, double *, int *, double, int, int, ProgramData *, int, int, int, _Variable *, int);
 void sigclip_copyterms(int i,int j,ProgramData *p,int lc);
 double chisqstarspot(double *, int, int, double *, double *, double *, void *);
 int amoeba(double **, double *, int *, int, double, double (*funk)(double *, int, int, double *, double *, double *, void *), int *, int, int, double *, double *, double *, void *);
@@ -128,8 +136,8 @@ double getfrac_onenight(int n,double *t,double *u, double *v,double *err,double 
 double getclippedsrave(int n, double *sr);
 double getclippedstddev(int n, double *pow);
 double subtract_binnedrms(int N, double *mag, double bintime, double *aveval, int *ngood, double *binmag, double *binsig);
-int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum);
-int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum);
+int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum, int lclistnum, int usemask, _Variable *maskvar, int isoptimal, double Aval);
 void phaselc(int N, double *t, double *mag, double *sig, double period, int is_T0_given, double T0, char *phasevarname, _Variable *phasevar, int threadid, double startphase);
 void softened_transit_(int N, double *t, double *mag, double P, double T0, double eta, double c, double delta, double mconst, int Nlin_coeffs, double *lin_coeffs, double **Design_Matrix);
 void softened_transit(double *t, double *a_, double *yfit, double **dyda, int ma, int N, int Nlin_coeffs, double *lin_coeffs, double **Design_Matrix, double *y, double *sig, int *varylin_coeffs, void *userparams);
@@ -144,8 +152,8 @@ void covsrt(double **covar, int ma, int *ia, int mfit);
 int gaussj(double **a, int n, double **b, int m);
 void svdcmp(double **a, int m, int n, double *w, double **v);
 void svbksb(double **u, double *w, double **v, int m, int n, double *b, double *x);
-int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout);
-int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout);
+int eeblsfixper(int n, double *t, double *x, double *e, double *u, double *v, int nb, double qmi, double qma, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+int eeblsfixper_rad(int n, double *t, double *x, double *e, double *u, double *v, int nb, double rmin, double rmax, double *period, double *bt0, double *bpow, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, double *srsumout, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 double ls_oneperiod(double *x, double *y, int n, double period);
 double gls_oneperiod(double *x, double *y, double *err, int n, double period);
 void getlsampthresh(int N, double *t, double *mag, double *sig, double period, int harm_specsigfile, FILE *signalfile, int Nsubharm, int Nharm, double minPer, double thresh, double *ampthresh_scale, double *amp, int use_orig_ls);
@@ -157,8 +165,8 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **mag_in, double **sig_in, char **lcnames, int matchstringid, char ***stringid, int **stringid_idx);
 void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid);
 int binlc_parsevarstring(_Binlc *c);
-void binlc(ProgramData *p, _Binlc *c, int lcnum);
-double changeerror(int N, double *t, double *mag, double *sig, double *aveval, int *ngood);
+void binlc(ProgramData *p, _Binlc *c, int lcnum, int lclistnum);
+double changeerror(int N, double *t, double *mag, double *sig, double *aveval, int *ngood, int usemask, _Variable *maskvar, int lcindex, int threadindex);
 #ifdef isinf
 #else
 int isinf(double);
@@ -169,9 +177,9 @@ void subtractbls(int N, double *t, double *mag, double *sig, double P, double q,
 void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double *sig, double P, double q, double depth, double in1_ph, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rn, double *wn, double *sigtopink, double qingress, double OOTmag, int *ntv);
 void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p);
 void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, double period, char *signalfilename, int matchstringid, char **stringid, int *stringid_idx, int lcindex, int threadid);
-void dodftclean(int N, double *t, double *mag, double *sig, int lc, _Dftclean *c, char *lcbasename, int ascii);
+void dodftclean(int N, double *t, double *mag, double *sig, int lc, _Dftclean *c, char *lcbasename, int ascii, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 void mysortstringint(int N, int sizestr, char **data1, int *data2);
-void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, double tmax, double tstep, char *outname);
+void autocorrelation(double *t, double *mag, double *sig, int N, double tmin, double tmax, double tstep, char *outname, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 void mandelagoltransitmodel(int Npoints, double *phase, double *outlc, int type, double *ldcoeffs, double sin_i, double a, double e, double p, double omega);
 void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int rthreadid, int lcid);
 void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid);
@@ -195,6 +203,19 @@ double chisqtraptransit(double *a_, int ma, int N, double *t, double *mag, doubl
 void dofittrap_amoeba(int N, double *t, double *mag, double *sig, double P, double *q, double *qingress, double *in1_ph, double *in2_ph, double *depth, double *OOTmag);
 void dofittrap_amoeba_fixdur(int N, double *t, double *mag, double *sig, double P, double q, double *qingress, double in1_ph, double in2_ph, double *depth, double *OOTmag);
 int sortlcbytime(int size, double *t, int lc, ProgramData *p);
+int sortlcbytime_rev(int size, double *t, int lc, ProgramData *p);
+int sortlcbyvardbl(int size, double *t, int lc, ProgramData *p);
+int sortlcbyvardbl_rev(int size, double *t, int lc, ProgramData *p);
+int sortlcbyvarint(int size, int *t, int lc, ProgramData *p);
+int sortlcbyvarint_rev(int size, int *t, int lc, ProgramData *p);
+int sortlcbyvarstring(int size, char **t, int lc, ProgramData *p);
+int sortlcbyvarstring_rev(int size, char **t, int lc, ProgramData *p);
+int sortlcbyvarfloat(int size, float *t, int lc, ProgramData *p);
+int sortlcbyvarfloat_rev(int size, float *t, int lc, ProgramData *p);
+int sortlcbyvarchar(int size, char *t, int lc, ProgramData *p);
+int sortlcbyvarchar_rev(int size, char *t, int lc, ProgramData *p);
+int sortlcbyvarlong(int size, long *t, int lc, ProgramData *p);
+int sortlcbyvarlong_rev(int size, long *t, int lc, ProgramData *p);
 double ran1(void);
 double gasdev(void);
 void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid);
@@ -209,7 +230,7 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
 void MemAllocDataFromInputList(ProgramData *p, int Nlc);
 void ParseInputList(ProgramData *p, char **inputlines, int Nlcs);
 void printinputlistformat(ProgramData *p, FILE *outfile);
-void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c);
+void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramData *p);
 double eccentricAnomaly (double M, double e);
 void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
 		       char *suffix, char *format, int lc_name_num);
@@ -221,7 +242,7 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
 				int disjointcolumns,
 				int Nonuniformnames, char *scanformat, 
 				_Variable *variable, ...);
-void InitializeMemAllocDataFromLightCurve(ProgramData *p, int Nthread);
+void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthread);
 void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
 void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm);
 void CompileAllExpressions(ProgramData *p, Command *c);
@@ -231,7 +252,14 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argv);
 _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vectortype, void *vptrinput, ...);
 double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression *expression);
 void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variable *var, double val);
+void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable *var, int val);
 double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Variable *var);
+float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variable *var);
+int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *var);
+short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variable *var);
+long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable *var);
+char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable *var);
+void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variable *var, char *val);
 double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call);
 int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *functionid, double *constval, _Variable **varptr);
 _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid);
@@ -258,7 +286,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
 int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 		       _Linfit *c);
 void zerooutcolumnvalue(OutColumn *c, int lc, int reallc);
-void addcolumn(ProgramData *p, int cnum, int type, int stringsize, void *ptr, char *outputformat, int Ndereference, int usereallc, int lcdereferencecol, ...);
+void addcolumn(ProgramData *p, Command *command, int cnum, int type, int stringsize, void *ptr, char *outputformat, int Ndereference, int usereallc, int lcdereferencecol, ...);
 _IfStack *CreateIfStack(void);
 char TestIf(_IfStack *stack, ProgramData *p, Command *c, int lcindex, int threadindex);
 int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Command *c);
@@ -266,6 +294,7 @@ int check_isspecialchar(char c);
 void SetupInListVariable(ProgramData *p, char *varname, int column, int datatype, char *format);
 void RunUserCommand(ProgramData *, Command *, int, int);
 void RunUserCommand_all_lcs(ProgramData *, Command *);
+void CloseUserCommand(ProgramData *, Command *);
 int listcommands_noexit(char *c, ProgramData *p, OutText *s);
 void listcommands(char *c, ProgramData *p);
 void usage(char *argv);
@@ -274,14 +303,20 @@ void RestrictTimes_readJDlist(char *filename, double **JDlist, int *Nlist);
 void RestrictTimes_readimagelist(char *filename, char ***imagelist, int **imagelist_indx, int *Nlist);
 int RestrictTimes_JDrange_apply(int N, double *t,
 				int lc, ProgramData *p, _RestrictTimes *c,
-				double JDmin, double JDmax, char exclude);
+				double JDmin, double JDmax, char exclude,
+				int markrestrict, _Variable *markvar, 
+				int noinitmark);
 int RestrictTimes_JDlist_apply(int N, double *t,
 			       int lc, ProgramData *p, _RestrictTimes *c,
-			       double *JDlist, int Nlist, char exclude);
+			       double *JDlist, int Nlist, char exclude,
+			       int markrestrict, _Variable *markvar,
+			       int noinitmark);
 void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx, 
 				   int lc, ProgramData *p, _RestrictTimes *c,
 				  char **imagelist, int *imagelist_indx, 
-				  int Nlist, char exclude);
+				  int Nlist, char exclude,
+				   int markrestrict, _Variable *markvar,
+				   int noinitmark);
 void RestrictTimes_ParseExpr(int *iret, int argc, char **argv, ProgramData *p, _RestrictTimes *RestrictTimes, char min_or_max);
 void MoveInputListData(ProgramData *p, int isrc, int idest);
 void RemoveEmptyLightCurves(ProgramData *p, Command *c);
@@ -298,7 +333,7 @@ int MCMC_GetBestLink(_MCMC_Chain *c);
 void MCMC_increment_parameter(_MCMC_Chain **cptr, double value, double delp);
 void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid);
 int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
-		    _WWZ *c);
+		    _WWZ *c, Command *cs);
 void dosaveifstackcopy(ProgramData *p, _CopyLC *c, int threadid);
 void dorestoreifstackcopy(ProgramData *p, _CopyLC *c, int sthreadid, int rthreadid);
 void turnoffcopies(ProgramData *p, Command *c, int cnum_start, int threadid, int lcid);
@@ -321,8 +356,8 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid);
 void SetupResampleExpression(ProgramData *p, _Resample *c);
 int ParseResampleCommand(int *iret, int argc, char **argv, ProgramData *p,
 			 _Resample *c, int cnum);
-int eeblsfixdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep);
-int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputper, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, double *depth, double *qtran, double *chisqrplus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep);
+int eeblsfixdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+int eeblsfixperdurtc(int n, double *t, double *x, double *e, double *u, double *v, double inputper, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, double *depth, double *qtran, double *chisqrplus, double *meanmagval, double timezone, double *fraconenight, int omodel, char *modelname, int correctlc, int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 int load_user_library(char *libname, ProgramData *p, int islib, ...);
 void CheckCreateCommandOutputLCVariable(char *varname, _Variable **omodelvar, ProgramData *p);
 void occultnl(double rl, double c1, double c2, double c3, double c4, double *b0, double *mulimb0, double **mulimbf, int nb);
@@ -394,7 +429,7 @@ int CheckIfUserCommandExampleIsCalled(ProgramData *p, char *argv);
 int ParseCL_UserCommand(ProgramData *p, Command *c, int *iterm, char **argv, int argc);
 void SetLinkedColumns_UserCommand(ProgramData *p, Command *c, int cnum);
 void DoNonlinfit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid);
-void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, int threadindex, int lcindex);
+void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, int threadindex, int lcindex, int markrestrict, _Variable *markvar, int noinitmark);
 void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s);
 void GetDoubleParameterValue(int threadid, int lcid, double *outparam, int source, double fixvalue, double *inlistvec, OutColumn *column, _Expression *exprsn);
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum);
@@ -408,3 +443,17 @@ int ParseLineToColumnsDelimString_testskip(char *line, char **cols, int maxcols,
 int ParseLineToColumnsDelimChar_testskip(char *line, char **cols, int maxcols, int Nskipchar, char *skipchars, char delim);
 void sort_generic(int N, int isreverse, int *index, int Nms, ...);
 void SkipCommand(ProgramData *p, Command *c, int thisindex, int lc, int lc2);
+_Variable * FindExistingVariable(char *varname, ProgramData *p);
+void Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keyname,
+					char *comment, int hdutouse, int updateexisting,
+					int dtype, ...);
+void Reset_outlc_fitsheader_additions(ProgramData *p, int lcnum);
+void RegisterTrackedOpenFile(ProgramData *p, FILE *f);
+void CloseTrackedOpenFiles(ProgramData *p);
+void Run_AddFitsKeyword_Command(ProgramData *p, _AddFitsKeyword *addfitskeyword,
+				int lcnum, int lc_name_num);
+void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int thisindex, int threadindex);
+void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int lc_name_num, int thisindex);
+void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
+void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
+void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum);

@@ -305,6 +305,48 @@ int ParseInputLCFormatString(char *argv, ProgramData *p)
   return 0;
 }
 
+int CountColumns_whitespace(char *line)
+{
+  int j, i, k;
+  j = 0;
+  i = 0;
+  /* Find the first non-white space character on the line and check if it is
+     a character to reject */
+  while((line[j] == ' ' || line[j] == '\t') && line[j] != '\0' && line[j] != '\n')
+    j++;
+  while(line[j] != '\n' && line[j] != '\0') {
+    j += skipone(&(line[j]));
+    i++;
+  }
+  return i;
+}  
+
+
+int CountColumns_delimstring(char *line, char *delim)
+{
+  int j, i, k;
+  j = 0;
+  i = 0;
+  while(line[j] != '\n' && line[j] != '\0') {
+    j += skiponedelimstring(&(line[j]), delim);
+    i++;
+  }
+  return i;
+}  
+
+int CountColumns_delimchar(char *line, char delim)
+{
+  int j, i, k;
+  j = 0;
+  i = 0;
+  while(line[j] != '\n' && line[j] != '\0') {
+    j += skiponedelimchar(&(line[j]), delim);
+    i++;
+  }
+  return i;
+}  
+
+
 int ParseLineToColumns_testskip(char *line, char **cols, int maxcols, int Nskipchar, char *skipchars)
 {
   int j, i, k;
@@ -410,7 +452,9 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
    disjointcolumns = 1 if you will be specifying the list columns for
        each of the columns in the array as separate arguments to the
        function, 2 if you will be supplying them in a vector, or 0 if
-       they are sequential.
+       they are sequential. If disjointcolumns < 0, then the data will
+       be read in from one of the multilc input list variables (index will
+       be (-disjointcolumns - 1) - note this is for internal use only.
 
    Nonuniformnames = 1 if you will be specifying separate names for
        each column in the array as separate arguments to the function,
@@ -493,6 +537,12 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
   for(i=0; i < Nmalloc; i++) {
     if((d->incolumn_names[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
       error(ERR_MEMALLOC);
+  }
+
+  if(disjointcolumns < 0) {
+    d->multilcinputlistvar = -disjointcolumns - 1;
+  } else {
+    d->multilcinputlistvar = -1;
   }
   
   if(disjointcolumns == 1) {
@@ -601,7 +651,7 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
   }
 }
 
-void InitializeMemAllocDataFromLightCurve(ProgramData *p, int Nthread) {
+void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthread) {
   _DataFromLightCurve *d;
   int i, j, k, Nc;
   double ***dblptr;
@@ -809,6 +859,22 @@ void InitializeMemAllocDataFromLightCurve(ProgramData *p, int Nthread) {
       default:
 	error(ERR_BADTYPE);
 	
+      }
+    }
+  }
+  /* Align data pointers for any user commands that come from existing variables where we don't need to allocate separate memory for the dataptr and copy the existing variable data into the new memory */
+  for(i=0; i < p->Ncommands; i++) {
+    if(c[i].cnum == CNUM_USERCOMMAND) {
+      for(j=0; j < c[i].UserCommand->Nptrs; j++) {
+	if(c[i].UserCommand->UserDataPointers[j].source == 
+	   VARTOOLS_SOURCE_EXISTINGVARIABLE ?
+	   c[i].UserCommand->UserDataPointers[j].expectedvectortype != VARTOOLS_VECTORTYPE_PERSTARDATA : 0)
+	  {
+	    if(c[i].UserCommand->UserDataPointers[j].dataptr != NULL) {
+	      *((void **) c[i].UserCommand->UserDataPointers[j].dataptr) =
+		*((void **) (*(c[i].UserCommand->UserDataPointers[j].existingvariable))->dataptr);
+	    }
+	  }
       }
     }
   }
@@ -1567,7 +1633,7 @@ void get_fitslc_header_columns(fitsfile *infile,
 
 #endif
 
-FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
+FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combinelcfilenum)
 /* This function uses popen to carry out a requested shell command in
    opening a light curve */
 {
@@ -1576,7 +1642,17 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
   int i, i2;
   int lc_in_name_length;
   FILE *return_pipe;
-  lc_in_name_length = strlen(p->lcnames[lc2]);
+  char *lcnameptr;
+  _CombineLCInfo *pclci;
+
+  if(p->combinelcs) {
+    pclci = p->combinelcinfo;
+    lcnameptr = pclci->combinelcnames[lc2][combinelcfilenum];
+  }
+  else
+    lcnameptr = p->lcnames[lc2];
+
+  lc_in_name_length = strlen(lcnameptr);
   if((execcommand = (char *) malloc((size_execcommand+1))) == NULL)
     error(ERR_MEMALLOC);
   i = 0; i2 = 0;
@@ -1608,7 +1684,7 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
 		if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
 		  error(ERR_MEMALLOC);
 	      }
-	      sprintf(&execcommand[i],"%s",p->lcnames[lc]);
+	      sprintf(&execcommand[i],"%s",lcnameptr);
 	      i = strlen(execcommand);
 	    }
 	  else if(p->lc_open_exec_command_str[i2] == '%')
@@ -1643,7 +1719,7 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2)
 
 #ifdef USECFITSIO
 
-int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
+int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinelcfilenum)
 {
   fitsfile *infile;
   int status, hdunum, ncols, hdutype, anynulallcolumns;
@@ -1669,9 +1745,17 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
   long ***longptr;
   long ****long2ptr;
 
-  int Nc, u;
+  char *lcnameptr;
 
-  p->NJD[lc2] = 0;
+  int Nc, u, Ninit;
+
+  _CombineLCInfo *pclci;
+
+
+  if(!combinelcfilenum)
+    p->NJD[lc2] = 0;
+
+  Ninit = p->NJD[lc2];
 
 #ifdef PARALLEL
   if(p->Nproc_allow > 1) {
@@ -1684,14 +1768,21 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 
   hdutype = 0; status = 0; nrows = 0; ncols = 0;
 
-  if((fits_open_file(&infile,p->lcnames[lc],READONLY,&status)))
+  if(p->combinelcs) {
+    pclci = p->combinelcinfo;
+    lcnameptr = pclci->combinelcnames[lc][combinelcfilenum];
+  } else {
+    lcnameptr = p->lcnames[lc];
+  }
+
+  if((fits_open_file(&infile,lcnameptr,READONLY,&status)))
     {
       if(p->skipmissing) {
-	error2_noexit(ERR_CANNOTOPEN,p->lcnames[lc]);
+	error2_noexit(ERR_CANNOTOPEN,lcnameptr);
 	return(ERR_CANNOTOPEN);
       }
       else
-	error2(ERR_CANNOTOPEN,p->lcnames[lc]);
+	error2(ERR_CANNOTOPEN,lcnameptr);
     }
   if(fits_get_hdu_num(infile, &hdunum) == 1)
     {
@@ -1702,11 +1793,11 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
   
   if(hdutype == IMAGE_HDU) {
     if(p->skipmissing) {
-      error2_noexit(ERR_IMAGEHDU,p->lcnames[lc]);
+      error2_noexit(ERR_IMAGEHDU,lcnameptr);
       return(ERR_IMAGEHDU);
     }
     else
-      error2(ERR_IMAGEHDU,p->lcnames[lc]);
+      error2(ERR_IMAGEHDU,lcnameptr);
   }
 
   fits_get_num_rows(infile, &nrows, &status);
@@ -1724,7 +1815,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
   }
 
   /* Increase the memory for the data vectors if needed */
-  MemAllocDataFromLightCurve(p, lc2, nrows);
+  MemAllocDataFromLightCurve(p, lc2, nrows + Ninit);
 
   anynulallcolumns = 0;
 
@@ -1740,7 +1831,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
       switch(d->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
 	dblptr = (double ***) d->dataptr;
-	fits_read_colnull(infile, TDOUBLE, d->incolumns[0], 1, 1, nrows, &((*dblptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TDOUBLE, d->incolumns[0], 1, 1, nrows, &((*dblptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
 	dblptr = (double ***) d->dataptr;
@@ -1754,14 +1845,14 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	    } 
 	  else 
 	    {
-	      convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dblptr)[lc2][k-1])));
+	      convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dblptr)[lc2][k-1 + Ninit])));
 	    }
 	}
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ****) d->dataptr;
 	for(k=1; k<=nrows && !status; k++) {
-	  fits_read_col_str(infile, d->incolumns[0], k, 1, 1, 0, &(((*stringptr)[lc2][k-1])), &anynul, &status);
+	  fits_read_col_str(infile, d->incolumns[0], k, 1, 1, 0, &(((*stringptr)[lc2][k-1 + Ninit])), &anynul, &status);
 	  if(anynul)
 	    {
 	      nullarray[k-1] = 1;
@@ -1772,23 +1863,23 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int ***) d->dataptr;
-	fits_read_colnull(infile, TINT, d->incolumns[0], 1, 1, nrows, &((*intptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TINT, d->incolumns[0], 1, 1, nrows, &((*intptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float ***) d->dataptr;
-	fits_read_colnull(infile, TFLOAT, d->incolumns[0], 1, 1, nrows, &((*floatptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TFLOAT, d->incolumns[0], 1, 1, nrows, &((*floatptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long ***) d->dataptr;
-	fits_read_colnull(infile, TLONG, d->incolumns[0], 1, 1, nrows, &((*longptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TLONG, d->incolumns[0], 1, 1, nrows, &((*longptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short ***) d->dataptr;
-	fits_read_colnull(infile, TSHORT, d->incolumns[0], 1, 1, nrows, &((*shortptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TSHORT, d->incolumns[0], 1, 1, nrows, &((*shortptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char ***) d->dataptr;
-	fits_read_colnull(infile, TBYTE, d->incolumns[0], 1, 1, nrows, &((*charptr)[lc2][0]), nullarray, &anynul,&status);
+	fits_read_colnull(infile, TBYTE, d->incolumns[0], 1, 1, nrows, &((*charptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       default:
 	error(ERR_BADTYPE);
@@ -1810,7 +1901,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	switch(d->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	  dbl2ptr = (double ****) d->dataptr;
-	  fits_read_colnull(infile, TDOUBLE, d->incolumns[u], 1, 1, nrows, &((*dbl2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TDOUBLE, d->incolumns[u], 1, 1, nrows, &((*dbl2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
 	  dbl2ptr = (double ****) d->dataptr;
@@ -1824,14 +1915,14 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	      } 
 	    else 
 	      {
-		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][u][k-1])));
+		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][u][k-1+Ninit])));
 	      }
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  string2ptr = (char *****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_col_str(infile, d->incolumns[u], k, 1, 1, 0, &(((*string2ptr)[lc2][u][k-1])), &anynul, &status);
+	    fits_read_col_str(infile, d->incolumns[u], k, 1, 1, 0, &(((*string2ptr)[lc2][u][k-1+Ninit])), &anynul, &status);
 	    if(anynul)
 	      {
 		nullarray[k-1] = 1;
@@ -1842,23 +1933,23 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  int2ptr = (int ****) d->dataptr;
-	  fits_read_colnull(infile, TINT, d->incolumns[u], 1, 1, nrows, &((*int2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TINT, d->incolumns[u], 1, 1, nrows, &((*int2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  float2ptr = (float ****) d->dataptr;
-	  fits_read_colnull(infile, TFLOAT, d->incolumns[u], 1, 1, nrows, &((*float2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TFLOAT, d->incolumns[u], 1, 1, nrows, &((*float2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  long2ptr = (long ****) d->dataptr;
-	  fits_read_colnull(infile, TLONG, d->incolumns[u], 1, 1, nrows, &((*long2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TLONG, d->incolumns[u], 1, 1, nrows, &((*long2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  short2ptr = (short ****) d->dataptr;
-	  fits_read_colnull(infile, TSHORT, d->incolumns[u], 1, 1, nrows, &((*short2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TSHORT, d->incolumns[u], 1, 1, nrows, &((*short2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  char2ptr = (char ****) d->dataptr;
-	  fits_read_colnull(infile, TBYTE, d->incolumns[u], 1, 1, nrows, &((*char2ptr)[lc2][u][0]), nullarray, &anynul,&status);
+	  fits_read_colnull(infile, TBYTE, d->incolumns[u], 1, 1, nrows, &((*char2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	default:
 	  error(ERR_BADTYPE);
@@ -1882,7 +1973,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_DOUBLE:
 	  dbl2ptr = (double ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TDOUBLE, d->incolumns[u], k, 1, 1, &((*dbl2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TDOUBLE, d->incolumns[u], k, 1, 1, &((*dbl2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1903,14 +1994,14 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	      } 
 	    else 
 	      {
-		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][k-1][u])));
+		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][k-1+Ninit][u])));
 	      }
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  string2ptr = (char *****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_col_str(infile, d->incolumns[u], k, 1, 1, 0, &(((*string2ptr)[lc2][k-1][u])), &anynul, &status);
+	    fits_read_col_str(infile, d->incolumns[u], k, 1, 1, 0, &(((*string2ptr)[lc2][k-1+Ninit][u])), &anynul, &status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1922,7 +2013,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_INT:
 	  int2ptr = (int ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TINT, d->incolumns[u], k, 1, 1, &((*int2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TINT, d->incolumns[u], k, 1, 1, &((*int2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1934,7 +2025,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_FLOAT:
 	  float2ptr = (float ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TFLOAT, d->incolumns[u], k, 1, 1, &((*float2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TFLOAT, d->incolumns[u], k, 1, 1, &((*float2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1946,7 +2037,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_LONG:
 	  long2ptr = (long ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TLONG, d->incolumns[u], k, 1, 1, &((*long2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TLONG, d->incolumns[u], k, 1, 1, &((*long2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1958,7 +2049,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_SHORT:
 	  short2ptr = (short ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TSHORT, d->incolumns[u], k, 1, 1, &((*short2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TSHORT, d->incolumns[u], k, 1, 1, &((*short2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -1970,7 +2061,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	case VARTOOLS_TYPE_CHAR:
 	  char2ptr = (char ****) d->dataptr;
 	  for(k=1; k<=nrows && !status; k++) {
-	    fits_read_colnull(infile, TBYTE, d->incolumns[u], k, 1, 1, &((*char2ptr)[lc2][k-1][u]), &tmpchar, &anynul,&status);
+	    fits_read_colnull(infile, TBYTE, d->incolumns[u], k, 1, 1, &((*char2ptr)[lc2][k-1+Ninit][u]), &tmpchar, &anynul,&status);
 	    if(anynul)
 	      {
 		nullarraystore[k-1] = 1;
@@ -2018,35 +2109,35 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 		switch(d->datatype) {
 		case VARTOOLS_TYPE_DOUBLE:
 		  dblptr = (double ***) d->dataptr;
-		  (*dblptr)[lc2][j] = (*dblptr)[lc2][i];
+		  (*dblptr)[lc2][j+Ninit] = (*dblptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_CONVERTJD:
 		  dblptr = (double ***) d->dataptr;
-		  (*dblptr)[lc2][j] = (*dblptr)[lc2][i];
+		  (*dblptr)[lc2][j+Ninit] = (*dblptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_STRING:
 		  stringptr = (char ****) d->dataptr;
-		  sprintf((*stringptr)[lc2][j],"%s",(*stringptr)[lc2][i]);
+		  sprintf((*stringptr)[lc2][j+Ninit],"%s",(*stringptr)[lc2][i+Ninit]);
 		  break;
 		case VARTOOLS_TYPE_INT:
 		  intptr = (int ***) d->dataptr;
-		  (*intptr)[lc2][j] = (*intptr)[lc2][i];
+		  (*intptr)[lc2][j+Ninit] = (*intptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_FLOAT:
 		  floatptr = (float ***) d->dataptr;
-		  (*floatptr)[lc2][j] = (*floatptr)[lc2][i];
+		  (*floatptr)[lc2][j+Ninit] = (*floatptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_LONG:
 		  longptr = (long ***) d->dataptr;
-		  (*longptr)[lc2][j] = (*longptr)[lc2][i];
+		  (*longptr)[lc2][j+Ninit] = (*longptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_SHORT:
 		  shortptr = (short ***) d->dataptr;
-		  (*shortptr)[lc2][j] = (*shortptr)[lc2][i];
+		  (*shortptr)[lc2][j+Ninit] = (*shortptr)[lc2][i+Ninit];
 		  break;
 		case VARTOOLS_TYPE_CHAR:
 		  charptr = (char ***) d->dataptr;
-		  (*charptr)[lc2][j] = (*charptr)[lc2][i];
+		  (*charptr)[lc2][j+Ninit] = (*charptr)[lc2][i+Ninit];
 		  break;
 		default:
 		  error(ERR_BADTYPE);
@@ -2057,35 +2148,35 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 		  switch(d->datatype) {
 		  case VARTOOLS_TYPE_DOUBLE:
 		    dbl2ptr = (double ****) d->dataptr;
-		    (*dbl2ptr)[lc2][u][j] = (*dbl2ptr)[lc2][u][i];
+		    (*dbl2ptr)[lc2][u][j+Ninit] = (*dbl2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_CONVERTJD:
 		    dbl2ptr = (double ****) d->dataptr;
-		    (*dbl2ptr)[lc2][u][j] = (*dbl2ptr)[lc2][u][i];
+		    (*dbl2ptr)[lc2][u][j+Ninit] = (*dbl2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_STRING:
 		    string2ptr = (char *****) d->dataptr;
-		    sprintf((*string2ptr)[lc2][u][j],"%s",(*string2ptr)[lc2][u][i]);
+		    sprintf((*string2ptr)[lc2][u][j+Ninit],"%s",(*string2ptr)[lc2][u][i+Ninit]);
 		    break;
 		  case VARTOOLS_TYPE_INT:
 		    int2ptr = (int ****) d->dataptr;
-		    (*int2ptr)[lc2][u][j] = (*int2ptr)[lc2][u][i];
+		    (*int2ptr)[lc2][u][j+Ninit] = (*int2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_FLOAT:
 		    float2ptr = (float ****) d->dataptr;
-		    (*float2ptr)[lc2][u][j] = (*float2ptr)[lc2][u][i];
+		    (*float2ptr)[lc2][u][j+Ninit] = (*float2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_LONG:
 		    long2ptr = (long ****) d->dataptr;
-		    (*long2ptr)[lc2][u][j] = (*long2ptr)[lc2][u][i];
+		    (*long2ptr)[lc2][u][j+Ninit] = (*long2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_SHORT:
 		    short2ptr = (short ****) d->dataptr;
-		    (*short2ptr)[lc2][u][j] = (*short2ptr)[lc2][u][i];
+		    (*short2ptr)[lc2][u][j+Ninit] = (*short2ptr)[lc2][u][i+Ninit];
 		    break;
 		  case VARTOOLS_TYPE_CHAR:
 		    char2ptr = (char ****) d->dataptr;
-		    (*char2ptr)[lc2][u][j] = (*char2ptr)[lc2][u][i];
+		    (*char2ptr)[lc2][u][j+Ninit] = (*char2ptr)[lc2][u][i+Ninit];
 		    break;
 		  default:
 		  error(ERR_BADTYPE);
@@ -2096,35 +2187,35 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 		  switch(d->datatype) {
 		  case VARTOOLS_TYPE_DOUBLE:
 		    dbl2ptr = (double ****) d->dataptr;
-		    (*dbl2ptr)[lc2][j][u] = (*dbl2ptr)[lc2][i][u];
+		    (*dbl2ptr)[lc2][j+Ninit][u] = (*dbl2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_CONVERTJD:
 		    dbl2ptr = (double ****) d->dataptr;
-		    (*dbl2ptr)[lc2][j][u] = (*dbl2ptr)[lc2][i][u];
+		    (*dbl2ptr)[lc2][j+Ninit][u] = (*dbl2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_STRING:
 		    string2ptr = (char *****) d->dataptr;
-		    sprintf((*string2ptr)[lc2][j][u],"%s",(*string2ptr)[lc2][i][u]);
+		    sprintf((*string2ptr)[lc2][j+Ninit][u],"%s",(*string2ptr)[lc2][i+Ninit][u]);
 		    break;
 		  case VARTOOLS_TYPE_INT:
 		    int2ptr = (int ****) d->dataptr;
-		    (*int2ptr)[lc2][j][u] = (*int2ptr)[lc2][i][u];
+		    (*int2ptr)[lc2][j+Ninit][u] = (*int2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_FLOAT:
 		    float2ptr = (float ****) d->dataptr;
-		    (*float2ptr)[lc2][j][u] = (*float2ptr)[lc2][i][u];
+		    (*float2ptr)[lc2][j+Ninit][u] = (*float2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_LONG:
 		    long2ptr = (long ****) d->dataptr;
-		    (*long2ptr)[lc2][j][u] = (*long2ptr)[lc2][i][u];
+		    (*long2ptr)[lc2][j+Ninit][u] = (*long2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_SHORT:
 		    short2ptr = (short ****) d->dataptr;
-		    (*short2ptr)[lc2][j][u] = (*short2ptr)[lc2][i][u];
+		    (*short2ptr)[lc2][j+Ninit][u] = (*short2ptr)[lc2][i+Ninit][u];
 		    break;
 		  case VARTOOLS_TYPE_CHAR:
 		    char2ptr = (char ****) d->dataptr;
-		    (*char2ptr)[lc2][j][u] = (*char2ptr)[lc2][i][u];
+		    (*char2ptr)[lc2][j+Ninit][u] = (*char2ptr)[lc2][i+Ninit][u];
 		    break;
 		  default:
 		  error(ERR_BADTYPE);
@@ -2136,111 +2227,180 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2)
 	  j++;
 	}
     }
-    p->NJD[lc2] = j;
+    p->NJD[lc2] = j+Ninit;
   }
   else
-    p->NJD[lc2] = nrows;
+    p->NJD[lc2] = nrows+Ninit;
   if(p->readimagestring)
     {
-      for(i=0;i<p->NJD[lc2];i++)
+      for(i=Ninit;i<p->NJD[lc2];i++)
 	p->stringid_idx[lc2][i] = i;
     }
+
+  if(p->combinelcs) {
+    if(p->combinelcinfo->lcnumvar != NULL) {
+      for(i=Ninit; i < p->NJD[lc2]; i++) {
+	SetVariable_Value_Int(lc, lc2, i, p->combinelcinfo->lcnumvar, 
+			      combinelcfilenum);
+      }
+    }
+  }
 
   /* Fill in any variables calculated from analytic expressions */
   for(j=0; j < p->NDataFromLightCurve; j++) {
     d = &(p->DataFromLightCurve[j]);
     if(d->incolumns[0] <= 0)
       {
-	if(d->scanformat != NULL) {
+	if(d->multilcinputlistvar >= 0) {
 	  Nc = d->Ncolumns;
 	  if(Nc != 0)
 	    error(ERR_CODEERROR);
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      dblptr = (double ***) d->dataptr;
-	      (*dblptr)[lc2][i] = 
-		EvaluateExpression(lc, lc2, i, d->expression);
+	    dblptr = (double ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*dblptr)[lc2][i] = (*((double ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      floatptr = (float ***) d->dataptr;
-	      (*floatptr)[lc2][i] = 
-		(float) EvaluateExpression(lc, lc2, i, d->expression);
+	  case VARTOOLS_TYPE_CONVERTJD:
+	    dblptr = (double ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*dblptr)[lc2][i] = (*((double ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	    }
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = (char ****) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      sprintf((*stringptr)[lc2][i],"%s",(*((char *****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum]);
 	    }
 	    break;
 	  case VARTOOLS_TYPE_INT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      intptr = (int ***) d->dataptr;
-	      (*intptr)[lc2][i] = 
-		(int) EvaluateExpression(lc, lc2, i, d->expression);
+	    intptr = (int ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*intptr)[lc2][i] = (*((int ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      shortptr = (short ***) d->dataptr;
-	      (*shortptr)[lc2][i] = 
-		(short) EvaluateExpression(lc, lc2, i, d->expression);
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = (float ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*floatptr)[lc2][i] = (*((float ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
 	  case VARTOOLS_TYPE_LONG:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      longptr = (long ***) d->dataptr;
-	      (*longptr)[lc2][i] = 
-		(long) EvaluateExpression(lc, lc2, i, d->expression);
+	    longptr = (long ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*longptr)[lc2][i] = (*((long ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = (short ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*shortptr)[lc2][i] = (*((short ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	    }
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = (char ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[lc2]; i++) {
+	      (*charptr)[lc2][i] = (*((char ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	      break;
+	    }
 	  default:
 	    error(ERR_BADTYPE);
 	  }
-	}
-	else {
-	  Nc = d->Ncolumns;
-	  if(Nc != 0)
-	    error(ERR_CODEERROR);
-	  switch(d->datatype) {
-	  case VARTOOLS_TYPE_DOUBLE:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      dblptr = (double ***) d->dataptr;
+	} else if(d->expression != NULL) {
+	  if(d->scanformat != NULL) {
+	    Nc = d->Ncolumns;
+	    if(Nc != 0)
+	      error(ERR_CODEERROR);
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		dblptr = (double ***) d->dataptr;
+		(*dblptr)[lc2][i] = 
+		  EvaluateExpression(lc, lc2, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		floatptr = (float ***) d->dataptr;
+		(*floatptr)[lc2][i] = 
+		  (float) EvaluateExpression(lc, lc2, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		intptr = (int ***) d->dataptr;
+		(*intptr)[lc2][i] = 
+		  (int) EvaluateExpression(lc, lc2, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		shortptr = (short ***) d->dataptr;
+		(*shortptr)[lc2][i] = 
+		  (short) EvaluateExpression(lc, lc2, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		longptr = (long ***) d->dataptr;
+		(*longptr)[lc2][i] = 
+		  (long) EvaluateExpression(lc, lc2, i, d->expression);
+	      }
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
+	    }
+	  }
+	  else {
+	    Nc = d->Ncolumns;
+	    if(Nc != 0)
+	      error(ERR_CODEERROR);
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		dblptr = (double ***) d->dataptr;
 	      (*dblptr)[lc2][i] = 0.;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		floatptr = (float ***) d->dataptr;
+		(*floatptr)[lc2][i] = 0.;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		intptr = (int ***) d->dataptr;
+		(*intptr)[lc2][i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		shortptr = (short ***) d->dataptr;
+		(*shortptr)[lc2][i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(i=Ninit; i < p->NJD[lc2]; i++) {
+		longptr = (long ***) d->dataptr;
+		(*longptr)[lc2][i] = 0;
+	      }
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
 	    }
-	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      floatptr = (float ***) d->dataptr;
-	      (*floatptr)[lc2][i] = 0.;
-	    }
-	    break;
-	  case VARTOOLS_TYPE_INT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      intptr = (int ***) d->dataptr;
-	      (*intptr)[lc2][i] = 0;
-	    }
-	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      shortptr = (short ***) d->dataptr;
-	      (*shortptr)[lc2][i] = 0;
-	    }
-	    break;
-	  case VARTOOLS_TYPE_LONG:
-	    for(i=0; i < p->NJD[lc2]; i++) {
-	      longptr = (long ***) d->dataptr;
-	      (*longptr)[lc2][i] = 0;
-	    }
-	    break;
-	  default:
-	    error(ERR_BADTYPE);
 	  }
 	}
       }
   }
   
   /* Fill the decorr matrix if we are decorrelating */
-  if(p->decorrflag)
-    Filldecorr_matrix(p,c,lc2);
-  
+  if(p->decorrflag) {
+    if(!p->combinelcs || (p->combinelcs && (combinelcfilenum == (pclci->Ncombinelcs[lc] - 1))))
+      Filldecorr_matrix(p,c,lc2);
+  }
+
   free(nullarray);
   free(nullarraystore);
   free(tmpstring[0]);
@@ -2678,7 +2838,7 @@ void pop_binary_lc_value(char *source, BinLC_OutputFormat *fmt,
 
 /* This function reads in a light curve that is stored in Kalo's binary
    light curve format */
-int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
+int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int combinelcfilenum)
 {
   FILE *infile;
   int status, hdunum, ncols, hdutype, anynulallcolumns;
@@ -2704,26 +2864,37 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   long ***longptr;
   long ****long2ptr;
   char *rec;
+  char *lcnameptr;
 
-  int Nc, u, rec_ind, col_ind;
 
-  p->NJD[threadid] = 0;
+  int Nc, u, rec_ind, col_ind, Ninit;
+
+  if(!combinelcfilenum)
+    p->NJD[threadid] = 0;
+
+  Ninit = p->NJD[threadid];
+
+  if(p->combinelcs) {
+    lcnameptr = p->combinelcinfo->combinelcnames[lc][combinelcfilenum];
+  } else {
+    lcnameptr = p->lcnames[lc];
+  }
 
   if(p->use_lc_open_exec_command) {
-    infile = ExecLCOpenCommand(p, c, lc, threadid);
+    infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
   else
     {
-      if((infile = fopen(p->lcnames[lc],"r")) == NULL) {
+      if((infile = fopen(lcnameptr,"r")) == NULL) {
 	if(p->skipmissing) {
-	  error2_noexit(ERR_FILENOTFOUND,p->lcnames[lc]);
+	  error2_noexit(ERR_FILENOTFOUND,lcnameptr);
 	  return(ERR_FILENOTFOUND);
 	}
 	else
-	  error2(ERR_FILENOTFOUND,p->lcnames[lc]);
+	  error2(ERR_FILENOTFOUND,lcnameptr);
       }
     }
   
@@ -2740,11 +2911,11 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 				  &(p->binlc[threadid].lc_column_format),
 				  &(p->binlc[threadid].memsize_lc_columns)) <= 0) {
     if(p->skipmissing) {
-      error2_noexit(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,p->lcnames[lc]);
+      error2_noexit(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
       return(ERR_BINARYLIGHTCURVE_INVALIDFORMAT);
     }
     else
-      error2(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,p->lcnames[lc]);
+      error2(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
   }
   if((rec = (char *) malloc(p->binlc[threadid].lc_record_size)) == NULL)
     error(ERR_MEMALLOC);
@@ -2756,8 +2927,8 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   }
 
 
-  p->NJD[threadid] = p->binlc[threadid].num_pts;  
-  MemAllocDataFromLightCurve(p, threadid, p->binlc[threadid].num_pts);
+  p->NJD[threadid] = p->binlc[threadid].num_pts + Ninit;  
+  MemAllocDataFromLightCurve(p, threadid, p->binlc[threadid].num_pts + Ninit);
   /* Read in the light curve data */
   for(rec_ind=0; rec_ind < p->binlc[threadid].num_pts; rec_ind++) {
     if(fread(rec, p->binlc[threadid].lc_record_size, 1, infile)!=1) {
@@ -2775,7 +2946,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	  dblptr = (double ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*dblptr)[threadid][rec_ind]),
+			      &((*dblptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
@@ -2788,35 +2959,35 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	  intptr = (int ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*intptr)[threadid][rec_ind]),
+			      &((*intptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  floatptr = (float ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*floatptr)[threadid][rec_ind]),
+			      &((*floatptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  longptr = (long ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*longptr)[threadid][rec_ind]),
+			      &((*longptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  shortptr = (short ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*shortptr)[threadid][rec_ind]),
+			      &((*shortptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  charptr = (char ***) d->dataptr;
 	  pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 			      (d->incolumns[0]-1), 
-			      &((*charptr)[threadid][rec_ind]),
+			      &((*charptr)[threadid][rec_ind+Ninit]),
 			      d->datatype);
 	  break;
 	default:
@@ -2829,7 +3000,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	    dbl2ptr = (double ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*dbl2ptr)[threadid][u][rec_ind]),
+				&((*dbl2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
@@ -2842,35 +3013,35 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	    int2ptr = (int ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*int2ptr)[threadid][u][rec_ind]),
+				&((*int2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    float2ptr = (float ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*float2ptr)[threadid][u][rec_ind]),
+				&((*float2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    long2ptr = (long ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*long2ptr)[threadid][u][rec_ind]),
+				&((*long2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    short2ptr = (short ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*short2ptr)[threadid][u][rec_ind]),
+				&((*short2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    char2ptr = (char ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*char2ptr)[threadid][u][rec_ind]),
+				&((*char2ptr)[threadid][u][rec_ind+Ninit]),
  				d->datatype);
 	    break;
 	  default:
@@ -2884,7 +3055,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	    dbl2ptr = (double ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*dbl2ptr)[threadid][rec_ind][u]),
+				&((*dbl2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
@@ -2897,35 +3068,35 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 	    int2ptr = (int ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*int2ptr)[threadid][rec_ind][u]),
+				&((*int2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    float2ptr = (float ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*float2ptr)[threadid][rec_ind][u]),
+				&((*float2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    long2ptr = (long ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*long2ptr)[threadid][rec_ind][u]),
+				&((*long2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    short2ptr = (short ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*short2ptr)[threadid][rec_ind][u]),
+				&((*short2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    char2ptr = (char ****) d->dataptr;
 	    pop_binary_lc_value(rec, p->binlc[threadid].lc_column_format,
 				(d->incolumns[u]-1), 
-				&((*char2ptr)[threadid][rec_ind][u]),
+				&((*char2ptr)[threadid][rec_ind+Ninit][u]),
 				d->datatype);
 	    break;
 	  default:
@@ -2944,14 +3115,14 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid)
 }
 #endif
       
-int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
+int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int combinelcfilenum)
 {
   FILE *infile;
   char *line;
   char inputUTC[MAXLEN], **incols;
   int u, j, jold, k, i, l, N, oldsizesinglelc, colmax, testskip, Nc;
 
-  int yr, mo, day, hr, min;
+  int yr, mo, day, hr, min, Ninit;
   double sec, jdout;
 
   _DataFromLightCurve *d;
@@ -2969,28 +3140,39 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   float ****float2ptr;
   long ***longptr;
   long ****long2ptr;
+  char *lcnameptr;
+  _CombineLCInfo *pclci;
 
   size_t line_size = MAXLEN;
 
-  p->NJD[threadid] = 0;
+  if(!combinelcfilenum) {
+    p->NJD[threadid] = 0;
+  }
 
 #ifdef _USEBINARY_LC
   /* Read in the light curve from Kalo's binary format if requested */
   if(p->binarylcinput)
-    return ReadBinaryLightCurve(p, c, lc, threadid);
+    return ReadBinaryLightCurve(p, c, lc, threadid, combinelcfilenum);
 #endif
+
+  if(p->combinelcs) {
+    lcnameptr = p->combinelcinfo->combinelcnames[lc][combinelcfilenum];
+    pclci = p->combinelcinfo;
+  } else {
+    lcnameptr = p->lcnames[lc];
+  }
 
 #ifdef USECFITSIO
 
   if(!(p->readfromstdinflag && p->fileflag)) {
     /* Check if the end of the file is .fits */
     /* If it is, then assume the input is a binary fits table */
-    j = strlen(p->lcnames[lc]);
+    j = strlen(lcnameptr);
     i = j - 5;
     if(i >= 0) {
-      if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
+      if(!strcmp(&(lcnameptr[i]),".fits")) {
 	p->is_inputlc_fits[lc] = 1;
-	return ReadFitsLightCurve(p, c, lc, threadid);
+	return ReadFitsLightCurve(p, c, lc, threadid, combinelcfilenum);
       }
     }
   }
@@ -3000,20 +3182,20 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   line = malloc(line_size);
 
   if(p->use_lc_open_exec_command) {
-    infile = ExecLCOpenCommand(p, c, lc, threadid);
+    infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
   else
     {
-      if((infile = fopen(p->lcnames[lc],"r")) == NULL) {
+      if((infile = fopen(lcnameptr,"r")) == NULL) {
 	if(p->skipmissing) {
-	  error2_noexit(ERR_FILENOTFOUND,p->lcnames[lc]);
+	  error2_noexit(ERR_FILENOTFOUND,lcnameptr);
 	  return(ERR_FILENOTFOUND);
 	}
 	else
-	  error2(ERR_FILENOTFOUND,p->lcnames[lc]);
+	  error2(ERR_FILENOTFOUND,lcnameptr);
       }
     }
 
@@ -3029,7 +3211,13 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   
   j = 0;
   l = p->Nskip;
-  N = 0;
+  if(!combinelcfilenum)
+    N = 0;
+  else
+    N = p->NJD[threadid];
+
+  Ninit = N;
+
   while(j < p->Nskip ? gnu_getline(&line,&line_size,infile) >= 0 : 0)
     j++;
   while(gnu_getline(&line,&line_size,infile) >= 0)
@@ -3045,6 +3233,12 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
       if(testskip)
 	continue;
       MemAllocDataFromLightCurve(p, threadid, (N+1));
+      if(p->combinelcs) {
+	if(p->combinelcinfo->lcnumvar != NULL) {
+	  SetVariable_Value_Int(lc, threadid, N, p->combinelcinfo->lcnumvar, 
+				combinelcfilenum);
+	}
+      }
       for(j=0; j < p->NDataFromLightCurve; j++) {
 	d = &(p->DataFromLightCurve[j]);
 	if(d->incolumns[0] <= 0)
@@ -3245,7 +3439,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   p->NJD[threadid] = N;
   if(p->readimagestring)
     {
-      for(i=0;i<N;i++)
+      for(i=Ninit;i<N;i++)
 	p->stringid_idx[threadid][i] = i;
     }
   if(p->use_lc_open_exec_command)
@@ -3256,103 +3450,176 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
   /* Fill in any variables calculated from analytic expressions */
   for(j=0; j < p->NDataFromLightCurve; j++) {
     d = &(p->DataFromLightCurve[j]);
-    if(d->incolumns[0] <= 0 && d->expression != NULL)
+    if(d->incolumns[0] <= 0)
       {
-	if(d->scanformat != NULL) {
+	if(d->multilcinputlistvar >= 0) {
 	  Nc = d->Ncolumns;
 	  if(Nc != 0)
 	    error(ERR_CODEERROR);
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      dblptr = (double ***) d->dataptr;
-	      (*dblptr)[threadid][i] = 
-		EvaluateExpression(lc, threadid, i, d->expression);
+	    dblptr = (double ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*dblptr)[threadid][i] = (*((double ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      floatptr = (float ***) d->dataptr;
-	      (*floatptr)[threadid][i] = 
-		(float) EvaluateExpression(lc, threadid, i, d->expression);
+	  case VARTOOLS_TYPE_CONVERTJD:
+	    dblptr = (double ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*dblptr)[threadid][i] = (*((double ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	    }
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    stringptr = (char ****) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      sprintf((*stringptr)[threadid][i],"%s",(*((char *****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum]);
 	    }
 	    break;
 	  case VARTOOLS_TYPE_INT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      intptr = (int ***) d->dataptr;
-	      (*intptr)[threadid][i] = 
-		(int) EvaluateExpression(lc, threadid, i, d->expression);
+	    intptr = (int ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*intptr)[threadid][i] = (*((int ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      shortptr = (short ***) d->dataptr;
-	      (*shortptr)[threadid][i] = 
-		(short) EvaluateExpression(lc, threadid, i, d->expression);
+	  case VARTOOLS_TYPE_FLOAT:
+	    floatptr = (float ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*floatptr)[threadid][i] = (*((float ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
 	  case VARTOOLS_TYPE_LONG:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      longptr = (long ***) d->dataptr;
-	      (*longptr)[threadid][i] = 
-		(long) EvaluateExpression(lc, threadid, i, d->expression);
+	    longptr = (long ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*longptr)[threadid][i] = (*((long ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
 	    }
 	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    shortptr = (short ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*shortptr)[threadid][i] = (*((short ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	    }
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    charptr = (char ***) d->dataptr;
+	    for(i=Ninit; i < p->NJD[threadid]; i++) {
+	      (*charptr)[threadid][i] = (*((char ****)(pclci->multilcinputlistvals))[d->multilcinputlistvar])[lc][combinelcfilenum];
+	      break;
+	    }
 	  default:
 	    error(ERR_BADTYPE);
 	  }
-	}
-	else {
-	  Nc = d->Ncolumns;
-	  if(Nc != 0)
-	    error(ERR_CODEERROR);
-	  switch(d->datatype) {
-	  case VARTOOLS_TYPE_DOUBLE:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      dblptr = (double ***) d->dataptr;
-	      (*dblptr)[threadid][i] = 0.;
+	} else if(d->expression != NULL) {
+	  if(d->scanformat != NULL) {
+	    Nc = d->Ncolumns;
+	    if(Nc != 0)
+	      error(ERR_CODEERROR);
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		dblptr = (double ***) d->dataptr;
+		(*dblptr)[threadid][i] = 
+		  EvaluateExpression(lc, threadid, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		floatptr = (float ***) d->dataptr;
+		(*floatptr)[threadid][i] = 
+		  (float) EvaluateExpression(lc, threadid, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		intptr = (int ***) d->dataptr;
+		(*intptr)[threadid][i] = 
+		  (int) EvaluateExpression(lc, threadid, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		shortptr = (short ***) d->dataptr;
+		(*shortptr)[threadid][i] = 
+		  (short) EvaluateExpression(lc, threadid, i, d->expression);
+	      }
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		longptr = (long ***) d->dataptr;
+		(*longptr)[threadid][i] = 
+		  (long) EvaluateExpression(lc, threadid, i, d->expression);
+	      }
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
 	    }
-	    break;
-	  case VARTOOLS_TYPE_FLOAT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      floatptr = (float ***) d->dataptr;
-	      (*floatptr)[threadid][i] = 0.;
+	  }
+	  else {
+	    Nc = d->Ncolumns;
+	    if(Nc != 0)
+	      error(ERR_CODEERROR);
+	    switch(d->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		dblptr = (double ***) d->dataptr;
+		(*dblptr)[threadid][i] = 0.;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		floatptr = (float ***) d->dataptr;
+		(*floatptr)[threadid][i] = 0.;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_INT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		intptr = (int ***) d->dataptr;
+		(*intptr)[threadid][i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_SHORT:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		shortptr = (short ***) d->dataptr;
+		(*shortptr)[threadid][i] = 0;
+	      }
+	      break;
+	    case VARTOOLS_TYPE_LONG:
+	      for(i=Ninit; i < p->NJD[threadid]; i++) {
+		longptr = (long ***) d->dataptr;
+		(*longptr)[threadid][i] = 0;
+	      }
+	      break;
+	    default:
+	      error(ERR_BADTYPE);
 	    }
-	    break;
-	  case VARTOOLS_TYPE_INT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      intptr = (int ***) d->dataptr;
-	      (*intptr)[threadid][i] = 0;
-	    }
-	    break;
-	  case VARTOOLS_TYPE_SHORT:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      shortptr = (short ***) d->dataptr;
-	      (*shortptr)[threadid][i] = 0;
-	    }
-	    break;
-	  case VARTOOLS_TYPE_LONG:
-	    for(i=0; i < p->NJD[threadid]; i++) {
-	      longptr = (long ***) d->dataptr;
-	      (*longptr)[threadid][i] = 0;
-	    }
-	    break;
-	  default:
-	    error(ERR_BADTYPE);
 	  }
 	}
       }
   }
 
   /* Fill the decorr matrix if we are decorrelating */
-  if(p->decorrflag)
+  if(p->decorrflag) {
+    if(!p->combinelcs || (p->combinelcs && (combinelcfilenum == (p->combinelcinfo->Ncombinelcs[lc] - 1))))
     Filldecorr_matrix(p,c,threadid);
+  }
   
   free(line);
 
   return 0;
 }
 
+int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid)
+{
+  int retval;
+  int i;
+  
+  sprintf(p->lcnames[lc],"%s",p->combinelcinfo->combinelcnames[lc][0]);
+  for(i = 0; i < p->combinelcinfo->Ncombinelcs[lc]; i++) {
+    retval = ReadSingleLightCurve(p, c, lc, threadid, i);
+    if(retval)
+      return(retval);
+  }
+  return 0;
+}
 
 int ReadAllLightCurves(ProgramData *p, Command *c)
 {
@@ -3366,6 +3633,12 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
 
 #ifdef USECFITSIO
 
+      if(p->combinelcs) {
+	if(ReadCombineSingleLightCurve(p, c, lc, lc))
+	  isempty++;
+	continue;
+      }
+
       /* Check if the end of the file is .fits */
       /* If it is, then assume the input is a binary fits table */
       j = strlen(p->lcnames[lc]);
@@ -3373,7 +3646,7 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
       if(i >= 0) {
 	if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
 	  p->is_inputlc_fits[lc] = 1;
-	  if(ReadFitsLightCurve(p, c, lc, lc)) {
+	  if(ReadFitsLightCurve(p, c, lc, lc, 0)) {
 	    isempty++;
 	  }
 	  continue;
@@ -3381,7 +3654,7 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
       }
 #endif
 
-      if(ReadSingleLightCurve(p, c, lc, lc))
+      if(ReadSingleLightCurve(p, c, lc, lc, 0))
 	isempty++;
     }
   return isempty;

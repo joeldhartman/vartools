@@ -63,7 +63,7 @@ gcc -o tfa tfa.c -lm
 
 /* Number of cycles to find the preliminary magnitude corrections */
 
-void zero_lc_averages(int Njd, double *b, double clipping)
+void zero_lc_averages(int Njd, double *b, double clipping, int usemedian, int useMAD)
 {
   int i, n;
   double ave1, ave2, std;
@@ -90,6 +90,12 @@ void zero_lc_averages(int Njd, double *b, double clipping)
       ave1 = 0.;
       std = 0.;
     }
+  if(usemedian) {
+    ave1 = median_nanrej(Njd, b);
+  }
+  if(useMAD) {
+    std = MAD_nanrej(Njd, b);
+  }
   val1 = 0.;
   val2 = 0.;
   n = 0;
@@ -121,13 +127,17 @@ void zero_lc_averages(int Njd, double *b, double clipping)
 }
 
 
-void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping, double *ave_stddev_out)
+void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping, int usemedian, int useMAD, double *ave_stddev_out)
 {
   int i, j, n;
-  double ave1, ave2, std;
+  double ave1, ave2, std, *b = NULL;
   double ave_stddev = 0.0;
   int Nave = 0;
   long double val1, val2;
+  if(usemedian || useMAD) {
+    if((b = (double *) malloc(Njd * sizeof(double))) == NULL)
+      error(ERR_MEMALLOC);
+  }
   for(j=0;j<Ntrends;j++)
     {
       val1 = 0.;
@@ -152,6 +162,18 @@ void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping,
 	  ave1 = 0.;
 	  std = 0.;
 	}
+   
+      if(usemedian || useMAD) {
+	for(i=0; i < Njd; i++)
+	  b[i] = trends[i][j];
+      }
+   
+      if(usemedian) {
+	ave1 = median_nanrej(Njd, b);
+      }
+      if(useMAD) {
+	std = MAD_nanrej(Njd, b);
+      }
 
       if(n > 0) {
 	ave_stddev += std;
@@ -190,6 +212,8 @@ void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping,
     ave_stddev = ave_stddev / (double) Nave;
   }
   *ave_stddev_out = ave_stddev;
+  if(b != NULL)
+    free(b);
 }
 
 #ifdef USECFITSIO
@@ -488,7 +512,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 
   fclose(dates);
 
-  tfa->clipping = DEFAULT_CLIPPING_VALUE;
+  /*tfa->clipping = DEFAULT_CLIPPING_VALUE;*/
 
   if((tfa->Njd_mout = (int *) malloc(Nthreads * sizeof(int))) == NULL)
     error(ERR_MEMALLOC);
@@ -547,6 +571,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 	    j = 0;
 	    kk = 0;
 	    jdin_last = 0.;
+	    mysort2(lengthtmp,jdin_tmp,magin_tmp);
 	    while(kk < lengthtmp)
 	      {
 		if(!j) {
@@ -892,7 +917,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 
   free(line);
 
-  zero_trend_averages(tfa->Njd,tfa->Ntrends,tfa->trends,tfa->clipping,&(tfa->ave_trend_stddev));
+  zero_trend_averages(tfa->Njd,tfa->Ntrends,tfa->trends,tfa->clipping,tfa->clippingusemedian, tfa->clippinguseMAD, &(tfa->ave_trend_stddev));
 
   /* Compute the Singular Value Decomposition of the trends matrix */
   if((tfa->u = (double **) malloc((tfa->Njd+tfa->Ntrend_priors) * sizeof(double *))) == NULL ||
@@ -970,6 +995,16 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
   double val1, val2;
   int *skip_trend = NULL;
   double *evec = NULL;
+  int usefitmask;
+  int outputfitmask;
+  _Variable *fitmaskvar;
+  _Variable *outputfitmaskvar;
+
+  usefitmask = tfa->usefitmask;
+  fitmaskvar = tfa->fitmaskvar;
+
+  outputfitmask = tfa->outputfitmask;
+  outputfitmaskvar = tfa->outputfitmaskvar;
 
   if(tfa->Ntrends > 0) {
     if((skip_trend = (int *) malloc(tfa->Ntrends*sizeof(int))) == NULL)
@@ -1005,10 +1040,17 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 	    }
 	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 	    {
-	      if(tfa->use_lc_errors) {
-		evec[k] = e[i];
+	      if(!usefitmask || (usefitmask && ((*((double ***) fitmaskvar->dataptr))[threadid][i] > VARTOOLS_MASK_TINY))) {
+		if(tfa->use_lc_errors) {
+		  evec[k] = e[i];
+		}
+		tfa->b[threadid][k] = m[i];
+	      } else {
+		if(tfa->use_lc_errors) {
+		  evec[k] = sqrt(-1.);
+		}
+		tfa->b[threadid][k] = sqrt(-1.);
 	      }
-	      tfa->b[threadid][k] = m[i];
 	      k++;
 	    }
 	}
@@ -1033,10 +1075,17 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 	    }
 	  if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]],tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) : 0)
 	    {
-	      if(tfa->use_lc_errors) {
-		evec[tfa->stringid_idx[k]] = e[stringid_idx[i]];
+	      if(!usefitmask || (usefitmask && ((*((double ***) fitmaskvar->dataptr))[threadid][i] > VARTOOLS_MASK_TINY))) {
+		if(tfa->use_lc_errors) {
+		  evec[tfa->stringid_idx[k]] = e[stringid_idx[i]];
+		}
+		tfa->b[threadid][tfa->stringid_idx[k]] = m[stringid_idx[i]];
+	      } else {
+		if(tfa->use_lc_errors) {
+		  evec[tfa->stringid_idx[k]] = sqrt(-1.);
+		}
+		tfa->b[threadid][tfa->stringid_idx[k]] = sqrt(-1.);
 	      }
-	      tfa->b[threadid][tfa->stringid_idx[k]] = m[stringid_idx[i]];
 	      k++;
 	    }
 	}
@@ -1047,7 +1096,7 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 	tfa->b[threadid][tfa->stringid_idx[k]] = sqrt(-1);
       }
     }
-  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping);
+  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping,tfa->clippingusemedian,tfa->clippinguseMAD);
   if(tfa->use_lc_errors) {
     for(k=0; k < tfa->Njd; k++) {
       if(!isnan(evec[k]) && evec[k] > 0.0) {
@@ -1239,8 +1288,50 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 	  val2 += (m[i] - tfa->m_out[threadid][i]);
 	}
     }
+
+  /* Output the fitmask variable if asked */
+  if(outputfitmask) {
+    if(!matchstringid)
+      {
+	for(i=0,k=0; i < N; i++)
+	  {
+	    while((k < tfa->Njd ? (t[i] > tfa->JD[k] + p->JDTOL) : 0))
+	      {
+		k++;
+	      }
+	    if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
+	      {
+		if(!isnan(tfa->b[threadid][k]))
+		  (*((double ***) outputfitmaskvar->dataptr))[threadid][i] = 1.0;
+		else
+		  (*((double ***) outputfitmaskvar->dataptr))[threadid][i] = 0.0;
+		k++;
+	      }
+	  }
+      }
+    else 
+      {
+	for(i=0,k=0; i < N; i++)
+	  {
+	    while((k < tfa->Njd ? strncmp(stringid[stringid_idx[i]],tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) > 0 : 0))
+	      {
+		k++;
+	      }
+	    if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]],tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) : 0)
+	      {
+		if(!isnan(tfa->b[threadid][tfa->stringid_idx[k]]))
+		  (*((double ***) outputfitmaskvar->dataptr))[threadid][i] = 1.0;
+		else
+		  (*((double ***) outputfitmaskvar->dataptr))[threadid][i] = 0.0;
+		k++;
+	      }
+	  }
+      }
+  }
+
   *ave_out = (double) (val2 / (double) n);
   *rms_out = sqrt((double) ((val1 / (double) n) - (val2 * val2 / (double) (n*n))));
+
   if(skip_trend != NULL)
     free(skip_trend);
   if(evec != NULL)
@@ -1423,7 +1514,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 
   fclose(dates);
 
-  tfa->clipping = DEFAULT_CLIPPING_VALUE;
+  /*tfa->clipping = DEFAULT_CLIPPING_VALUE;*/
 
   if((tfa->Njd_mout = (int *) malloc(Nthreads * sizeof(int))) == NULL)
     error(ERR_MEMALLOC);
@@ -1772,7 +1863,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
       free(stringid_tmp);
     }
   fclose(trend_list);
-  zero_trend_averages(tfa->Njd,tfa->Ntrends,tfa->trends,tfa->clipping,&(tfa->ave_trend_stddev));
+  zero_trend_averages(tfa->Njd,tfa->Ntrends,tfa->trends,tfa->clipping,tfa->clippingusemedian, tfa->clippinguseMAD, &(tfa->ave_trend_stddev));
 
   /* Make adjustments for the type of external parameter decorrelation */
   tfa->Ntfatot = tfa->Ntrends;
@@ -1895,6 +1986,11 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
   double tfathresh, term;
   char *line;
   size_t line_size = MAXLEN;
+  int usefitmask;
+  _Variable *fitmaskvar;
+
+  usefitmask = tfa->usefitmask;
+  fitmaskvar = tfa->fitmaskvar;
 
   line = malloc(line_size);
 
@@ -1969,10 +2065,14 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 	    }
 	  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 	    {
-	      tfa->bstore[threadid][k] = m[i];
-	      val1 += m[i];
-	      val2 += m[i]*m[i];
-	      l++;
+	      if(!usefitmask || (usefitmask && ((*((double ***) fitmaskvar->dataptr))[threadid][i] > VARTOOLS_MASK_TINY))) {
+		tfa->bstore[threadid][k] = m[i];
+		val1 += m[i];
+		val2 += m[i]*m[i];
+		l++;
+	      } else {
+		tfa->bstore[threadid][k] = sqrt(-1);
+	      }
 	      k++;
 	    }
 	}
@@ -1990,10 +2090,14 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 	    }
 	  if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]], tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) : 0)
 	    {
-	      tfa->bstore[threadid][tfa->stringid_idx[k]] = m[stringid_idx[i]];
-	      val1 += m[stringid_idx[i]];
-	      val2 += m[stringid_idx[i]]*m[stringid_idx[i]];
-	      l++;
+	      if(!usefitmask || (usefitmask && ((*((double ***) fitmaskvar->dataptr))[threadid][i] > VARTOOLS_MASK_TINY))) {
+		tfa->bstore[threadid][tfa->stringid_idx[k]] = m[stringid_idx[i]];
+		val1 += m[stringid_idx[i]];
+		val2 += m[stringid_idx[i]]*m[stringid_idx[i]];
+		l++;
+	      } else {
+		tfa->bstore[threadid][tfa->stringid_idx[k]] = sqrt(-1);
+	      }
 	      k++;
 	    }
 	}
@@ -2065,10 +2169,14 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		}
 	      if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		{
-		  tfa->b[threadid][k] = tfa->bstore[threadid][k] - tfa->signal[threadid][i];
-		  val1 += tfa->b[threadid][k];
-		  val2 += tfa->b[threadid][k]*tfa->b[threadid][k];
-		  l++;
+		  if(!isnan(tfa->bstore[threadid][k])) {
+		    tfa->b[threadid][k] = tfa->bstore[threadid][k] - tfa->signal[threadid][i];
+		    val1 += tfa->b[threadid][k];
+		    val2 += tfa->b[threadid][k]*tfa->b[threadid][k];
+		    l++;
+		  } else {
+		    tfa->b[threadid][k] = sqrt(-1);
+		  }
 		  k++;
 		}
 	    }
@@ -2086,10 +2194,14 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		}
 	      if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]], tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) : 0)
 		{
-		  tfa->b[threadid][tfa->stringid_idx[k]] = tfa->bstore[threadid][tfa->stringid_idx[k]] - tfa->signal[threadid][stringid_idx[i]];
-		  val1 += tfa->b[threadid][tfa->stringid_idx[k]];
-		  val2 += tfa->b[threadid][tfa->stringid_idx[k]]*tfa->b[threadid][tfa->stringid_idx[k]];
-		  l++;
+		  if(!isnan(tfa->bstore[threadid][tfa->stringid_idx[k]])) {
+		    tfa->b[threadid][tfa->stringid_idx[k]] = tfa->bstore[threadid][tfa->stringid_idx[k]] - tfa->signal[threadid][stringid_idx[i]];
+		    val1 += tfa->b[threadid][tfa->stringid_idx[k]];
+		    val2 += tfa->b[threadid][tfa->stringid_idx[k]]*tfa->b[threadid][tfa->stringid_idx[k]];
+		    l++;
+		  } else {
+		    tfa->b[threadid][tfa->stringid_idx[k]] = sqrt(-1.);
+		  }
 		  k++;
 		}
 	    }
@@ -2140,7 +2252,7 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 	tfa->b[threadid][i] = tfa->bstore[threadid][i];
     }
 
-  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping);
+  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping,tfa->clippingusemedian,tfa->clippinguseMAD);
 
   /* Prepare the decorr_trends matrix if needed */
   if(tfa->decorrflag)
@@ -2169,14 +2281,24 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
 		      l = lstart;
-		      tfa->decorr_trends[threadid][k][l] = tfa->lcdecorr_terms_in[j][lcindex][i];
-		      term = tfa->decorr_trends[threadid][k][l];
-		      l++;
-		      for(h=2; h <= tfa->decorr_lc_order[j]; h++)
-			{
-			  tfa->decorr_trends[threadid][k][l] = tfa->decorr_trends[threadid][k][l-1]*term;
-			  l++;
-			}
+		      if(!isnan(tfa->b[threadid][k])) {
+			tfa->decorr_trends[threadid][k][l] = tfa->lcdecorr_terms_in[j][lcindex][i];
+			term = tfa->decorr_trends[threadid][k][l];
+			l++;
+			for(h=2; h <= tfa->decorr_lc_order[j]; h++)
+			  {
+			    tfa->decorr_trends[threadid][k][l] = tfa->decorr_trends[threadid][k][l-1]*term;
+			    l++;
+			  }
+		      } else {
+			tfa->decorr_trends[threadid][k][l] = 0.;
+			l++;
+			for(h=2; h <= tfa->decorr_lc_order[j]; h++)
+			  {
+			    tfa->decorr_trends[threadid][k][l] = 0.;
+			    l++;
+			  }
+		      }
 		      k++;
 		    }
 		}
@@ -2211,14 +2333,23 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		  if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]],tfa->stringid[tfa->stringid_idx[k]],MAXIDSTRINGLENGTH) : 0)
 		    {
 		      l = lstart;
-		      tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = tfa->lcdecorr_terms_in[j][lcindex][stringid_idx[i]];
-		      term = tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l];
-		      l++;
-		      for(h=2; h <= tfa->decorr_lc_order[j]; h++)
-			{
-			  tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l-1]*term;
+		      if(!isnan(tfa->b[threadid][tfa->stringid_idx[k]])) {
+			tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = tfa->lcdecorr_terms_in[j][lcindex][stringid_idx[i]];
+			term = tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l];
+			l++;
+			for(h=2; h <= tfa->decorr_lc_order[j]; h++)
+			  {
+			    tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l-1]*term;
+			    l++;
+			  }
+		      } else {
+			tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = 0.0;
+			l++;
+			for(h=2; h <= tfa->decorr_lc_order[j]; h++) {
+			  tfa->decorr_trends[threadid][tfa->stringid_idx[k]][l] = 0.0;
 			  l++;
 			}
+		      }
 		      k++;
 		    }
 		}
@@ -2235,7 +2366,7 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		}
 	    }
 	}
-      zero_trend_averages(tfa->Njd, tfa->Ndecorr, tfa->decorr_trends[threadid], tfa->clipping,&(tfa->ave_trend_stddev));
+      zero_trend_averages(tfa->Njd, tfa->Ndecorr, tfa->decorr_trends[threadid], tfa->clipping,tfa->clippingusemedian, tfa->clippinguseMAD, &(tfa->ave_trend_stddev));
     }
 
   isatrend_flag = 0;
@@ -2420,7 +2551,8 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		    }
 		  if ( k < tfa->Njd ? (t[i] < tfa->JD[k] + p->JDTOL && t[i] > tfa->JD[k] - p->JDTOL) : 0)
 		    {
-		      tfa->b[threadid][k] = tfa->b[threadid][k] - tfa->m_out[threadid][i];
+		      if(!isnan(tfa->b[threadid][k]))
+			tfa->b[threadid][k] = tfa->b[threadid][k] - tfa->m_out[threadid][i];
 		      k++;
 		    }
 		}
@@ -2435,7 +2567,8 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		    }
 		  if ( k < tfa->Njd ? !strncmp(stringid[stringid_idx[i]], tfa->stringid[tfa->stringid_idx[k]], MAXIDSTRINGLENGTH) : 0)
 		    {
-		      tfa->b[threadid][tfa->stringid_idx[k]] = tfa->b[threadid][tfa->stringid_idx[k]] - tfa->m_out[threadid][stringid_idx[i]];
+		      if(!isnan(tfa->b[threadid][tfa->stringid_idx[k]]))
+			tfa->b[threadid][tfa->stringid_idx[k]] = tfa->b[threadid][tfa->stringid_idx[k]] - tfa->m_out[threadid][stringid_idx[i]];
 		      k++;
 		    }
 		}
@@ -2646,7 +2779,7 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
 		tfa->b[threadid][tfa->stringid_idx[k]] = tfa->bstore[threadid][tfa->stringid_idx[k]];
 	    }
 	  rmsnew = sqrt((val2 / l) - (val1*val1/l/l));
-	  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping);
+	  zero_lc_averages(tfa->Njd,tfa->b[threadid],tfa->clipping,tfa->clippingusemedian,tfa->clippinguseMAD);
 	  iter++;
 	}
     } while(!use_harm ? fabs(rmsold - rmsnew) < tfathresh*rmsold && iter < maxiter : 0);

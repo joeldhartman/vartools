@@ -207,7 +207,7 @@ int VARTOOLS_ParseConstantParameter(ProgramData *p,
 				    char **argv,
 				    int argc,
 				    const char *keyword,
-				    int datatype,
+				    char datatype,
 				    void *dataptr,
 				    int Ncolumns)
 {
@@ -393,7 +393,7 @@ int VARTOOLS_ParseParameter(ProgramData *p,
 
 
 void VARTOOLS_RegisterDataVector(ProgramData *p, Command *c, void *dataptr,
-				int datatype, int Ncolumns, int source,
+				char datatype, int Ncolumns, int source,
 				int output, char *outname, ...)
 {
   va_list varlist;
@@ -701,8 +701,50 @@ void VARTOOLS_mysortstringint(int N, int sizestr, char **data1, int *data2)
   VARTOOLS_FUNCTION_POINTER_STRUCT.mysortstringint(N, sizestr, data1, data2);
 }
 
-void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint)
+void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
-  VARTOOLS_FUNCTION_POINTER_STRUCT.docorr(mag, err, Npoints, ndecorr, decorr, order, Avector, A_errvector, mag_ave, zeropoint);
+  VARTOOLS_FUNCTION_POINTER_STRUCT.docorr(mag, err, Npoints, ndecorr, decorr, order, Avector, A_errvector, mag_ave, zeropoint, usemask, maskvar, lcindex, threadindex);
 }
 
+void VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, 
+						 char *keyname,
+						 char *comment, int hdutouse, 
+						 int updateexisting,
+						 int dtype, ...)
+{
+  va_list varlist;
+  va_start(varlist, dtype);
+  VARTOOLS_FUNCTION_POINTER_STRUCT.vAdd_Keyword_To_OutputLC_FitsHeader(p, lcnum,
+								       keyname,
+								       comment,
+								       hdutouse,
+								       updateexisting,
+								       dtype,
+								       varlist);
+  va_end(varlist);
+}
+
+int VARTOOLS_findX(double *x, double xval, int i1, int N)
+{
+  return(VARTOOLS_FUNCTION_POINTER_STRUCT.findX(x, xval, i1, N));
+}
+
+int VARTOOLS_findX_string(char **in_str_vec, int *in_str_vec_sortindx, char *str_to_find, int i1, int N)
+{
+  return(VARTOOLS_FUNCTION_POINTER_STRUCT.findX_string(in_str_vec, in_str_vec_sortindx, str_to_find, i1, N));
+}
+
+void VARTOOLS_RegisterTrackedOpenFile(ProgramData *p, FILE *f)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.RegisterTrackedOpenFile(p,f);
+}
+
+int VARTOOLS_parseone(char *line, void *val, int vartype)
+{
+  return(VARTOOLS_FUNCTION_POINTER_STRUCT.parseone(line,val,vartype));
+}
+
+void VARTOOLS_printtostring(OutText *text, const char *stoadd)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.printtostring(text, stoadd);
+}

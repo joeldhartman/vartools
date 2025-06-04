@@ -55,9 +55,11 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
   Nparam = c->Nparams;
   Njd = p->NJD[threadid];
   
+
   /* We will make use of the docorr function to carry out the fit.  We
    need to create the input matrices and vectors expected by this
    function. */
+
   if((decorr = (double **) malloc(Njd * sizeof(double *))) == NULL ||
      (magtofit = (double *) malloc(Njd * sizeof(double))) == NULL ||
      (constantterm = (double *) malloc(Njd * sizeof(double))) == NULL ||
@@ -77,7 +79,15 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
     } else {
       constantterm[i] = 0.;
     }
-    magtofit[i] = p->mag[threadid][i] - constantterm[i];
+    if(c->usemask) {
+      if(EvaluateVariable_Double(lcid, threadid, i, c->maskvar) > VARTOOLS_MASK_TINY)
+	magtofit[i] = p->mag[threadid][i] - constantterm[i];
+      else
+	magtofit[i] = sqrt(-1.0);
+    }
+    else {
+      magtofit[i] = p->mag[threadid][i] - constantterm[i];
+    }
   }
   
   /* Do the fit */
@@ -87,7 +97,8 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
   do {
     doiterate = 0;
     docorr(magtofit, p->sig[threadid], Njd, Nparam, decorr, order, 
-	   c->param_outvals[threadid], c->param_uncertainties[threadid], 0., 0);
+	   c->param_outvals[threadid], c->param_uncertainties[threadid], 0., 0,
+	   0, NULL, 0, 0);
 
     /* Store the resulting parameter values in the appropriate variables */
     for(j=0; j < Nparam; j++) {
@@ -115,6 +126,10 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
 	  }
 	  tmpmag[i] = p->mag[threadid][i] - modelval;
 	  if(!isnan(tmpmag[i]) && !isinf(tmpmag[i])) {
+	    if(c->usemask) {
+	      if(EvaluateVariable_Double(lcid, threadid, i, c->maskvar) <= VARTOOLS_MASK_TINY)
+		continue;
+	    }
 	    tmpmag2[k] = tmpmag[i];
 	    k++;
 	  }
@@ -126,6 +141,10 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
 	}
 	numrej=0;
 	for(i=0; i < Njd; i++) {
+	  if(c->usemask) {
+	    if(EvaluateVariable_Double(lcid, threadid, i, c->maskvar) <= VARTOOLS_MASK_TINY)
+	      continue;
+	  }
 	  if(!isnan(p->mag[threadid][i]) && !isinf(p->mag[threadid][i])) {
 	    if(tmpmag[i] > rmsval*c->rejsigclip || tmpmag[i] < -rmsval*c->rejsigclip) {
 	      magtofit[i] = sqrt(-1.0);
@@ -276,6 +295,9 @@ void InitLinfit(ProgramData *p, _Linfit *c, int cnum) {
   if(c->calcchi2out) {
     RegisterScalarData(p, (void *) (&(c->chi2out)), VARTOOLS_TYPE_DOUBLE, 0);
   }
+
+
+  CheckCreateCommandOutputLCVariable(c->maskvarname,&(c->maskvar),p);
 
 }
 
@@ -2126,6 +2148,9 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->rejiterate = 0;
   c->rejfixnum = 0;
   c->rejiternum = 0;
+  c->usemask = 0;
+  c->maskvarname = NULL;
+  c->maskvar = NULL;
   i++;
   if(i < argc) {
     if(!strcmp(argv[i],"modelvar")) {
@@ -2221,6 +2246,25 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   }
   else
     i--;
+
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"fitmask")) {
+      c->usemask = 1;
+      i++;
+      if(i >= argc) {
+	*iret = i; return 1;
+      }
+      if((c->maskvarname = (char *) malloc(strlen(argv[i]+1))) == NULL)
+	error(ERR_MEMALLOC);
+      sprintf(c->maskvarname,"%s",argv[i]);
+    }
+    else
+      i--;
+  }
+  else
+    i--;
+    
 
   /* Parse the parameter string to get the number of output parameters,
      this is needed for the CreateOutputColumns function. Later

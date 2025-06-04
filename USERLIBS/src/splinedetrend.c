@@ -889,7 +889,7 @@ void splinedetrend_RunCommand(ProgramData *p, void *userdata, int lc_name_num,
 	  }
 	}
 	/* Perform the fit */
-	VARTOOLS_docorr(groupmag, grouperr, Npoints_ingroup[g], Nparam, decorr_terms, order_terms, Avector, A_errvector, 0., 0);
+	VARTOOLS_docorr(groupmag, grouperr, Npoints_ingroup[g], Nparam, decorr_terms, order_terms, Avector, A_errvector, 0., 0, 0, NULL, lc_name_num, lc_num);
       
 	if(Splinedetrend->outputmodelcoeffs) {
 	  if(!isoutputmodelcoeffsopen) {

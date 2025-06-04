@@ -665,7 +665,7 @@ void ParseObservatoryCode(char *code, double *obslat, double *obslong, double *o
 }
 
 /* Main Function for converting time from one system to another */
-void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
+void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramData *p)
 {
   int i, useradecv = 0, useradecinv = 0;
   double rain, raout, decin, decout, ppm_mu_ra_in, ppm_mu_ra_out,
@@ -848,6 +848,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> MJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -856,10 +861,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  delt = jd2mjd(delt,&tint);
 	  t[i] = delt + tint - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* MJD -> MJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -869,6 +884,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = (delt + tint)
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -894,6 +914,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> JD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -901,10 +926,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = jdutc2jdtdb(delt,tint)+tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* MJD -> JD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -912,6 +947,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = jdtdb2jdutc(delt,tint)+tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -944,6 +984,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* MJD -> HJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -958,10 +1003,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			TIMESYSTEM_TDB) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* MJD -> HJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -976,6 +1031,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			TIMESYSTEM_UTC) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -990,6 +1050,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
     case TIMETYPE_BJD:
 
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	while(pthread_mutex_trylock(&(p->cspice_mutex)));
+      }
+#endif
       /* MJD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
 	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
@@ -1135,6 +1200,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       }
       else
 	error(ERR_CODEERROR);
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	pthread_mutex_unlock(&(p->cspice_mutex));
+      }
+#endif
       break;
 #else
     case TIMETYPE_BJD:
@@ -1164,6 +1234,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> MJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1172,10 +1247,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = delt + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* JD -> MJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1184,6 +1269,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = delt + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1205,22 +1295,42 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> JD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	  t[i] = jdutc2jdtdb(delt,tint) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* JD -> JD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
 	  t[i] = jdtdb2jdutc(delt,tint) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1252,6 +1362,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* JD -> HJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1265,10 +1380,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			TIMESYSTEM_TDB) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* JD -> HJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1282,6 +1407,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			TIMESYSTEM_UTC) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1296,6 +1426,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
     case TIMETYPE_BJD:
 
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	while(pthread_mutex_trylock(&(p->cspice_mutex)));
+      }
+#endif
       /* JD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
 	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
@@ -1435,6 +1570,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       }
       else
 	error(ERR_CODEERROR);
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	pthread_mutex_unlock(&(p->cspice_mutex));
+      }
+#endif
       break;
 #else
     case TIMETYPE_BJD:
@@ -1473,6 +1613,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> MJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1488,10 +1633,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = delt + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* HJD -> MJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1507,6 +1662,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	  t[i] = delt + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1538,6 +1698,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> JD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1551,10 +1716,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			TIMESYSTEM_TDB) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* HJD -> JD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	for(i=0; i < N; i++) {
 	  tint = floor(t[i] + c->inputsubtractval);
 	  delt = (t[i] + c->inputsubtractval) - floor(t[i] + c->inputsubtractval);
@@ -1567,6 +1742,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 			ppm_mu_dec_in, TIMESYSTEM_UTC) + tint
 	    - c->outputsubtractval;
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1611,6 +1791,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
       /* HJD -> HJD, UTC -> TDB */
       else if(c->inputsys == TIMESYSTEM_UTC) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
@@ -1639,10 +1824,20 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	      - c->outputsubtractval;
 	  }
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
 
       /* HJD -> HJD, TDB -> UTC */
       else if(c->inputsys == TIMESYSTEM_TDB) {
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  while(pthread_mutex_trylock(&(p->cspice_mutex)));
+	}
+#endif
 	if((useradecv ? 1 : (useradecinv ? 1 : (rain != raout || decin != decout))) || epochin != epochout ||
 	   ppm_mu_ra_in != ppm_mu_ra_out || ppm_mu_dec_in != ppm_mu_dec_out) {
 	  for(i=0; i < N; i++) {
@@ -1671,6 +1866,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 	      - c->outputsubtractval;
 	  }
 	}
+#ifdef PARALLEL
+	if(p->Nproc_allow > 1) {
+	  pthread_mutex_unlock(&(p->cspice_mutex));
+	}
+#endif
       }
       else
 	error(ERR_CODEERROR);
@@ -1685,6 +1885,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
 
     case TIMETYPE_BJD:
 
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	while(pthread_mutex_trylock(&(p->cspice_mutex)));
+      }
+#endif
       /* HJD -> BJD, no system change */
       if(c->inputsys == c->outputsys) {
 	if(c->source_obs_coords != VARTOOLS_SOURCE_LC &&
@@ -1858,6 +2063,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
       }
       else
 	error(ERR_CODEERROR);
+#ifdef PARALLEL
+      if(p->Nproc_allow > 1) {
+	pthread_mutex_unlock(&(p->cspice_mutex));
+      }
+#endif
       break;
 #else
     case TIMETYPE_BJD:
@@ -1870,6 +2080,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
     break;
 #ifdef _HAVE_CSPICE
   case TIMETYPE_BJD:
+#ifdef PARALLEL
+    if(p->Nproc_allow > 1) {
+      while(pthread_mutex_trylock(&(p->cspice_mutex)));
+    }
+#endif
     switch(c->outputtimetype) {
 
     case TIMETYPE_MJD:
@@ -2463,6 +2678,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c)
     default:
       error(ERR_CODEERROR);
     }
+#ifdef PARALLEL
+    if(p->Nproc_allow > 1) {
+      pthread_mutex_unlock(&(p->cspice_mutex));
+    }
+#endif
     break;
 #else
   case TIMETYPE_BJD:

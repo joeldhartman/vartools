@@ -447,13 +447,14 @@ void avevar(double *data, int n, double *ave, double *var)
 }
 
 /* Routine that will run LS on a given light curve */
-void Lombscargle (int N, double *t, double *mag, double *sig, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap)
+void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double minper, double maxper, double subsample, int Npeaks, double *periods, double *peaks, double *probs, double *SNR, int outputflag, char *outfile, int ascii, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_FAPvalues, double *fixperiodSNR_SNRvalues, double *fixperiodSNR_peakvalues, int use_orig_ls, int dobootstrapfap, int Nbootstrap, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   int nf, nfreqt, nfreq, ndim, outval, nout, i, j, k, foundflag, peakiter, test, nclippedlast, nclippedthis, ngood, bootstrapind;
   double T, freq, freqstep, minfreq, *wk1, *wk2, maxfreq, trueminfreq, expy, effm, ofac, hifac, testperiod, lastpoint, tmpprob;
   double **wk2_whiten, *t_cpy, *mag_cpy, *sig_cpy, fundA, fundB, meanval, amp, zval;
   double *pbest_whiten;
   double *t_cpy2 = NULL, *mag_cpy2 = NULL, *sig_cpy2 = NULL;
+  double *t_mask = NULL, *mag_mask = NULL, *sig_mask = NULL;
   double *bootstrapdist = NULL, *bootstrapprobs = NULL, *fitcoeffs = NULL;
   long klong;
 
@@ -462,6 +463,40 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
   int nfit;
 
   FILE *outf;
+  int N;
+  double *t, *mag, *sig;
+
+  if(!usemask) {
+    N = N_in;
+    t = t_in;
+    mag = mag_in;
+    sig = sig_in;
+  } else {
+    if((t_mask = (double *) malloc(N_in*sizeof(double))) == NULL ||
+       (mag_mask = (double *) malloc(N_in*sizeof(double))) == NULL ||
+       (sig_mask = (double *) malloc(N_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    N = 0;
+    for(i = 0; i < N_in; i++) {
+      if(!isnan(mag_in[i]) && EvaluateVariable_Double(lcindex, threadindex, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[N] = t_in[i];
+	mag_mask[N] = mag_in[i];
+	sig_mask[N] = sig_in[i];
+	N++;
+      }
+    }
+    if(N <= 1) {
+      if(t_mask != NULL) free(t_mask);
+      if(mag_mask != NULL) free(mag_mask);
+      if(sig_mask != NULL) free(sig_mask);
+      return;
+    }
+    t = t_mask;
+    mag = mag_mask;
+    sig = sig_mask;
+  }
+	
 
   T = t[N-1] - t[0];
 
@@ -1245,10 +1280,111 @@ void Lombscargle (int N, double *t, double *mag, double *sig, double minper, dou
 
     }
 
+  if(t_mask != NULL) free(t_mask);
+  if(mag_mask != NULL) free(mag_mask);
+  if(sig_mask != NULL) free(sig_mask);
+
   if(t_cpy2 != NULL) free(t_cpy2);
   if(mag_cpy2 != NULL) free(mag_cpy2);
   if(sig_cpy2 != NULL) free(sig_cpy2);
   if(bootstrapdist != NULL) free(bootstrapdist);
   if(bootstrapprobs != NULL) free(bootstrapprobs);
   if(fitcoeffs != NULL) free(fitcoeffs);
+}
+
+void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int lc_name_num, int thisindex)
+{
+  int i1, i2;
+  double d1;
+  double *d1ptr, *d2ptr, *d3ptr;
+  char outname[MAXLEN];
+  if(Ls->operiodogram)
+    {
+      i1 = 0;
+      i2 = 0;
+      while(p->lcnames[lc_name_num][i1] != '\0')
+	{
+	  if(p->lcnames[lc_name_num][i1] == '/')
+	    i2 = i1 + 1;
+	  i1++;
+	}
+      sprintf(outname,"%s/%s%s",Ls->outdir,&p->lcnames[lc_name_num][i2],Ls->suffix);
+    }
+  if(Ls->minp_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Ls->minp_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Ls->minp_expr);
+  }
+  else if(Ls->minp_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Ls->minp_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Ls->minp_var);
+  }
+  else {
+    Ls->minp_vals[lcnum] = Ls->minp;
+  }
+
+  if(Ls->maxp_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Ls->maxp_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Ls->maxp_expr);
+  }
+  else if(Ls->maxp_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Ls->maxp_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Ls->maxp_var);
+  }
+  else {
+    Ls->maxp_vals[lcnum] = Ls->maxp;
+  }
+
+  if(Ls->subsample_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+    Ls->subsample_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Ls->subsample_expr);
+  }
+  else if(Ls->subsample_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+    Ls->subsample_vals[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Ls->subsample_var);
+  }
+  else {
+    Ls->subsample_vals[lcnum] = Ls->subsample;
+  }
+
+  if(Ls->fixperiodSNR)
+    {
+      if(Ls->fixperiodSNR_pertype == PERTYPE_AOV)
+	{
+	  i1=Ls->fixperiodSNR_lastaovindex;
+	  if(c[i1-thisindex].cnum == CNUM_AOV)
+	    Ls->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Aov->peakperiods[lcnum][0];
+	  else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	    Ls->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].AovHarm->peakperiods[lcnum][0];
+	  
+	}
+      else if(Ls->fixperiodSNR_pertype == PERTYPE_LS)
+	{
+	  i1 = Ls->fixperiodSNR_lastaovindex;
+	  Ls->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Ls->peakperiods[lcnum][0];
+	}
+      else if(Ls->fixperiodSNR_pertype == PERTYPE_INJECTHARM)
+	{
+	  i1 = Ls->fixperiodSNR_lastaovindex;
+	  Ls->fixperiodSNR_periods[lcnum][0] = c[i1-thisindex].Injectharm->periodinject[lcnum];
+	}
+      else if(Ls->fixperiodSNR_pertype == PERTYPE_FIX)
+	{
+	  Ls->fixperiodSNR_periods[lcnum][0] = Ls->fixperiodSNR_fixedperiod;
+	}
+      else if(Ls->fixperiodSNR_pertype == PERTYPE_FIXCOLUMN)
+	{
+	  getoutcolumnvalue(Ls->fixperiodSNR_linkedcolumn, lcnum, lc_name_num, VARTOOLS_TYPE_DOUBLE, &(Ls->fixperiodSNR_periods[lcnum][0]));
+	}
+      if(Ls->fixperiodSNR_pertype != PERTYPE_SPECIFIED)
+	d1 = Ls->fixperiodSNR_periods[lcnum][0];
+      else
+	d1 = Ls->fixperiodSNR_periods[lc_name_num][0];
+      d1ptr = &(Ls->fixperiodSNR_FAPvalues[lcnum]);
+      d2ptr = &(Ls->fixperiodSNR_SNRvalues[lcnum]);
+      d3ptr = &(Ls->fixperiodSNR_peakvalues[lcnum]);
+    }
+  else
+    {
+      d1 = 1.;
+      d1ptr = NULL;
+      d2ptr = NULL;
+      d3ptr = NULL;
+    }
+  if(p->NJD[lcnum] > 1) {
+    Lombscargle (p->NJD[lcnum], p->t[lcnum], p->mag[lcnum], p->sig[lcnum], Ls->minp_vals[lcnum], Ls->maxp_vals[lcnum], Ls->subsample_vals[lcnum], Ls->Npeaks, Ls->peakperiods[lcnum], Ls->peakvalues[lcnum], Ls->peakFAP[lcnum], Ls->SNRvalues[lcnum],Ls->operiodogram, outname,p->ascii,Ls->whiten,Ls->clip,Ls->clipiter,Ls->fixperiodSNR,d1,d1ptr,d2ptr,d3ptr,Ls->use_orig_ls,Ls->dobootstrapfap,Ls->Nbootstrap, Ls->usemask, Ls->maskvar, lc_name_num, lcnum);
+  }
 }

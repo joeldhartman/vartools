@@ -21,7 +21,7 @@ typedef struct {
   int (*ParseOutNameKeyword)(ProgramData *, Command *, int *, char **, int,
 			     const char *, int *, char **, int *, char **);
   int (*ParseConstantParameter)(ProgramData *, Command *, int *,
-				char **, int, const char *, int, void *,
+				char **, int, const char *, char, void *,
 				int);
   int (*ParseParameter)(ProgramData *, Command *, int *,
 			char **, int, const char *,
@@ -33,7 +33,7 @@ typedef struct {
 #else
   void (*mrqmin)(double *, double *, double *, int, double *, int *, int, double **, double **, double *, double *, void (*)(double *, double *, double *, double **, int, int, int, double *, double **, double *, double *, int *, void *), int, double **, double *, int *, void *);
 #endif
-  void (*vRegisterDataVector)(ProgramData *, Command *, void *, int, int, int,
+  void (*vRegisterDataVector)(ProgramData *, Command *, void *, char, int, int,
 			     int, char *, va_list argp);
   void (*GetOutputFilename)(char *, char *, char *, char *, char *, int);
   void (*incrementparameters_foramoeba)(int *, int *, double ***, int **, int, double, double);
@@ -71,5 +71,13 @@ typedef struct {
   void (*memallocdatafromlightcurvemidprocess)(ProgramData *, int, int);
   int (*gnu_getline)(char **, size_t *, FILE *);
   void (*mysortstringint)(int, int, char **, int*);
-  void (*docorr)(double *, double *, int, int, double **, int *, double *, double *, double, int);
+  void (*docorr)(double *, double *, int, int, double **, int *, double *, double *, double, int, int, _Variable *, int, int);
+  void (*vAdd_Keyword_To_OutputLC_FitsHeader)(ProgramData *, int, char *,
+					     char *, int, int,
+					     int, va_list argp);
+  int (*findX)(double *, double, int, int);
+  int (*findX_string)(char **, int *, char *, int, int);
+  void (*RegisterTrackedOpenFile)(ProgramData *, FILE *);
+  int (*parseone)(char *, void *, int);
+  void (*printtostring)(OutText *, const char*);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

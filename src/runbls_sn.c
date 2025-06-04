@@ -55,6 +55,8 @@
 #define BLS_DFT_F0  0.125
 #define BLS_DFT_F1  8.0
 
+#define G_CGS_DAYS 498.23382528   /* Newton's gravitional constant in cm^3 g^-1 days^-2 */
+
 #ifdef MAX_
 #undef MAX_
 #endif
@@ -1086,8 +1088,8 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
 	      &harmamp, 0.0, KILLHARM_OUTTYPE_DEFAULT, -1.0);
 
   Bls->harmdeltachi2[lcnum][peaknum] =
-    chi2(Ncut, tcut, magcutkillharm, sigcut1, &tmp, &ngood1) -
-    chi2(Ncut, tcut, magcut, sigcut1, &tmp2, &ngood2);
+    chi2(Ncut, tcut, magcutkillharm, sigcut1, &tmp, &ngood1, 0, NULL, 0, 0) -
+    chi2(Ncut, tcut, magcut, sigcut1, &tmp2, &ngood2, 0, NULL, 0, 0);
 
   Bls->harmamp[lcnum][peaknum] = harmamp;
 
@@ -1099,23 +1101,23 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
 
   /* Run fix period BLS */
   if(!Bls->rflag) {
-    eeblsfixper(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins, Bls->qmin,
-		Bls->qmax, &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
+    eeblsfixper(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins_val[lcnum], Bls->qmin_val[lcnum],
+		Bls->qmax_val[lcnum], &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
 		&in2sec,
 		&in1_ph_sec, &in2_ph_sec, &chisqrplussec,
 		&chisqrminussec, &meanmagvalsec, Bls->timezone, &fraconenighsec,
 		0, NULL, 0, 0, &ntsec, &Ntsec, &Nbeforesec, &Naftersec,
 		&rednoisesec, &whitenoisesec, &sigtopinksec, 1,
-		&qingresssec, &ootmagsec, &srsumsec);
+		&qingresssec, &ootmagsec, &srsumsec, 0, 0, 0, NULL);
   } else {
-    eeblsfixper_rad(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins, Bls->rmin,
-		Bls->rmax, &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
+    eeblsfixper_rad(Ncut, tcut, magcut, sigcut1, u, v, Bls->nbins_val[lcnum], Bls->rmin_val[lcnum],
+		Bls->rmax_val[lcnum], &P, &bt0sec, &bpowsec, &depthsec, &qtransec, &in1sec,
 		&in2sec,
 		&in1_ph_sec, &in2_ph_sec, &chisqrplussec,
 		&chisqrminussec, &meanmagvalsec, Bls->timezone, &fraconenighsec,
 		0, NULL, 0, 0, &ntsec, &Ntsec, &Nbeforesec, &Naftersec,
 		&rednoisesec, &whitenoisesec, &sigtopinksec, 1,
-		&qingresssec, &ootmagsec, &srsumsec);
+		&qingresssec, &ootmagsec, &srsumsec, 0, 0, 0, NULL);
   }
   Bls->sr_sec[lcnum][peaknum] = bpowsec;
   Bls->srsum_sec[lcnum][peaknum] = srsumsec;
@@ -1285,7 +1287,7 @@ c========================================================================
 c
 */
 
-int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum)
+int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double *y;
   double *ibi;
@@ -1319,6 +1321,108 @@ int eebls(int n, double *t, double *x, double *e, double *u, double *v, int nf, 
   double *srshiftvals = NULL;
   double *srnoshiftvals = NULL;
   int *ntvptr = NULL;
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      for(j=0;j<Npeak;j++)
+	{
+	  bper[j] = -1.;
+          bt0[j] = -1.;
+	  snval[j] = -1.;
+	  bpow[j] = -1.;
+	  in1[j] = -1;
+	  in2[j] = -1;
+	  in1_ph[j] = -1.;
+	  in2_ph[j] = -1.;
+	  qtran[j] = -1.;
+	  depth[j] = -1.;
+	  sde[j] = -1.;
+	  chisqrplus[j] = 999999.;
+      	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
+	}
+      *bperpos = -1.;
+      *chisqrminus = 999999.;
+      *meanmagval = -1.;
+
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+      return 1;
+    }
+  }
 
   nbmax = 2*nb;
 
@@ -1775,6 +1879,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -2014,6 +2121,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
   //fprintf(stderr,"Error Running BLS - no frequencies survive clipping!\n");
@@ -2306,6 +2416,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -2471,6 +2584,17 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+	for(i=0;i<n;i++)
+	  {
+	    u[i]=t[i]-t1;
+	  }
+      }
+
       for(i=0;i<n;i++)
 	{
 	  ph = (u[i] - in1_ph[0]*bper[0])*f0;
@@ -2519,6 +2643,9 @@ the periodogram, and then search it for peaks    *
   if(srvals != NULL) free(srvals);
   if(srvals_minus != NULL) free(srvals_minus);
 #endif
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
   return(0);
 }
 
@@ -2526,7 +2653,7 @@ the periodogram, and then search it for peaks    *
 q = 0.076 * R**(2/3) / P**(2/3)
 */
 
-int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum)
+int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, int nf, double fmin, double df, int nb, double rmin, double rmax, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum, int lclistnum, int usemask, _Variable *maskvar, int isoptimal, double Aval)
 {
   double *y;
   double *ibi;
@@ -2558,7 +2685,114 @@ int eebls_rad(int n, double *t, double *x, double *e, double *u, double *v, int 
   double *srshiftvals = NULL;
   double *srnoshiftvals = NULL;
   int *ntvptr = NULL;
-
+  int n;
+  double *t, *x, *e;
+  double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
+  double Cval;
+  
+  if(isoptimal) {
+    Cval = pow(fmin, (1.0/3.0)) - Aval/3.0;
+  }
+  
+  if(!usemask) {
+    n = n_in;
+    t = t_in;
+    x = x_in;
+    e = e_in;
+  } else {
+    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+      error(ERR_MEMALLOC);
+    }
+    n = 0;
+    for(i = 0; i < n_in; i++) {
+      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
+	t_mask[n] = t_in[i];
+	x_mask[n] = x_in[i];
+	e_mask[n] = e_in[i];
+	n++;
+      }
+    }
+    t = t_mask;
+    x = x_mask;
+    e = e_mask;
+    if(n <= 1) {
+      for(j=0;j<Npeak;j++)
+	{
+	  bper[j] = -1.;
+	  snval[j] = -1.;
+	  bpow[j] = -1.;
+	  bt0[j] = -1.;
+	  in1[j] = -1;
+	  in2[j] = -1;
+	  in1_ph[j] = -1.;
+	  in2_ph[j] = -1.;
+	  qtran[j] = -1.;
+	  depth[j] = -1.;
+	  sde[j] = -1.;
+	  chisqrplus[j] = 999999.;
+      	  fraconenight[j] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][j] = -1.;
+	    Bls->ressig[lcnum][j] = -1.;
+	    Bls->dipsig[lcnum][j] = -1.;
+	    Bls->srshift[lcnum][j] = -1.;
+	    Bls->srsig[lcnum][j] = -1.;
+	    Bls->snrextra[lcnum][j] = -1.;
+	    Bls->dsp[lcnum][j] = -1.;
+	    Bls->dspg[lcnum][j] = -1.;
+	    Bls->freqlow[lcnum][j] = -1.;
+	    Bls->freqhigh[lcnum][j] = -1.;
+	    Bls->logprob[lcnum][j] = -1.;
+	    Bls->peakarea[lcnum][j] = -1.;
+	    Bls->peakmean[lcnum][j] = -1.;
+	    Bls->peakdev[lcnum][j] = -1.;
+	    Bls->lomblog[lcnum][j] = -1.;
+	    Bls->ntv[lcnum][j] = 0;
+	    Bls->gezadsp[lcnum][j] = -1.;
+	    Bls->ootsig[lcnum][j] = -1.;
+	    Bls->trsig[lcnum][j] = -1.;
+	    Bls->ootdftf[lcnum][j] = -1.;
+	    Bls->ootdfta[lcnum][j] = -1.;
+	    Bls->binsignaltonoise[lcnum][j] = -1.;
+	    Bls->maxphasegap[lcnum][j] = -1.;
+	    Bls->depth1_2tran[lcnum][j] = -1.;
+	    Bls->depth2_2tran[lcnum][j] = -1.;
+	    Bls->delchi2_2tran[lcnum][j] = -1.;
+	    Bls->sr_sec[lcnum][j] = -1.;
+	    Bls->srsum_sec[lcnum][j] = -1.;
+	    Bls->q_sec[lcnum][j] = -1.;
+	    Bls->epoch_sec[lcnum][j] = -1.;
+	    Bls->H_sec[lcnum][j] = -1.;
+	    Bls->L_sec[lcnum][j] = -1.;
+	    Bls->depth_sec[lcnum][j] = -1.;
+	    Bls->nt_sec[lcnum][j] = 0;
+	    Bls->Nt_sec[lcnum][j] = 0;
+	    Bls->sigtopink_sec[lcnum][j] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	    Bls->phaseoffset_sec[lcnum][j] = -1.;
+	    Bls->harmmean[lcnum][j] = -1.;
+	    Bls->fundA[lcnum][j] = -1.;
+	    Bls->fundB[lcnum][j] = -1.;
+	    Bls->harmA[lcnum][j] = -1.;
+	    Bls->harmB[lcnum][j] = -1.;
+	    Bls->harmamp[lcnum][j] = -1.;
+	    Bls->harmdeltachi2[lcnum][j] = -1.;
+	  }
+	}
+      *bperpos = -1.;
+      *chisqrminus = 999999.;
+      *meanmagval = -1.;
+      
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
+      return 1;
+    }
+  }
+  
 
   if(firsttime == 0 && !nobinnedrms)
     {
@@ -2683,15 +2917,21 @@ the periodogram, and then search it for peaks    *
 
   for(jf=0;jf<nf;jf++)
     {
-      if(!freq_step_type) {
-	f0=fmin+df*((double)jf);
-	p0=1./f0;
-      } else if(freq_step_type == VARTOOLS_FREQSTEPTYPE_PERIOD) {
-	p0 = (1./fmin) - df*((double)jf);
-	f0 = 1./p0;
-      } else if(freq_step_type == VARTOOLS_FREQSTEPTYPE_LOGPERIOD) {
-	f0 = exp(log(fmin) + df*((double)jf));
-	p0=1./f0;
+      if(isoptimal) {
+	f0 = ((Aval*(((double)jf)+1.0)/3.0) + Cval);
+	f0 = f0*f0*f0;
+	p0 = 1./f0;
+      } else {
+	if(!freq_step_type) {
+	  f0=fmin+df*((double)jf);
+	  p0=1./f0;
+	} else if(freq_step_type == VARTOOLS_FREQSTEPTYPE_PERIOD) {
+	  p0 = (1./fmin) - df*((double)jf);
+	  f0 = 1./p0;
+	} else if(freq_step_type == VARTOOLS_FREQSTEPTYPE_LOGPERIOD) {
+	  f0 = exp(log(fmin) + df*((double)jf));
+	  p0=1./f0;
+	}
       }
 
       /*
@@ -3013,6 +3253,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -3252,6 +3495,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
   //fprintf(stderr,"Error Running BLS - no frequencies survive clipping!\n");
@@ -3550,6 +3796,9 @@ the periodogram, and then search it for peaks    *
       if(srvals != NULL) free(srvals);
       if(srvals_minus != NULL) free(srvals_minus);
 #endif
+      if(t_mask != NULL) free(t_mask);
+      if(x_mask != NULL) free(x_mask);
+      if(e_mask != NULL) free(e_mask);
       return 1;
     }
 
@@ -3717,6 +3966,16 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
+      if(usemask) {
+	n = n_in;
+	t = t_in;
+	x = x_in;
+	e = e_in;
+	for(i=0;i<n;i++)
+	  {
+	    u[i]=t[i]-t1;
+	  }
+      }
       for(i=0;i<n;i++)
 	{
 	  ph = (u[i] - in1_ph[0]*bper[0])*f0;
@@ -3764,5 +4023,302 @@ the periodogram, and then search it for peaks    *
   if(srvals != NULL) free(srvals);
   if(srvals_minus != NULL) free(srvals_minus);
 #endif
+  if(t_mask != NULL) free(t_mask);
+  if(x_mask != NULL) free(x_mask);
+  if(e_mask != NULL) free(e_mask);
   return(0);
+}
+
+void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int thisindex, int threadindex)
+{
+  int i1, i2;
+  char outname[MAXLEN];
+  char outname2[MAXLEN];
+  char outname3[MAXLEN];
+  char outname4[MAXLEN];
+  if(p->NJD[lcnum] > 1) {
+    if(Bls->omodel)
+      {
+	i1 = 0;
+	i2 = 0;
+	while(p->lcnames[lc_name_num][i1] != '\0')
+	  {
+	    if(p->lcnames[lc_name_num][i1] == '/')
+	      i2 = i1 + 1;
+	    i1++;
+	  }
+	sprintf(outname2,"%s/%s%s",Bls->modeloutdir,&p->lcnames[lc_name_num][i2],Bls->modelsuffix);
+      }
+    if(Bls->ophcurve)
+      {
+	i1 = 0;
+	i2 = 0;
+	while(p->lcnames[lc_name_num][i1] != '\0')
+	  {
+	    if(p->lcnames[lc_name_num][i1] == '/')
+	      i2 = i1 + 1;
+	    i1++;
+	  }
+	sprintf(outname3,"%s/%s%s",Bls->ophcurveoutdir,&p->lcnames[lc_name_num][i2],Bls->ophcurvesuffix);
+      }
+    if(Bls->ojdcurve)
+      {
+	i1 = 0;
+	i2 = 0;
+	while(p->lcnames[lc_name_num][i1] != '\0')
+	  {
+	    if(p->lcnames[lc_name_num][i1] == '/')
+	      i2 = i1 + 1;
+	    i1++;
+	  }
+	sprintf(outname4,"%s/%s%s",Bls->ojdcurveoutdir,&p->lcnames[lc_name_num][i2],Bls->ojdcurvesuffix);
+      }
+    /* First check to see that the u/v vectors are large enough */
+    if(Bls->sizeuv[lcnum] == 0)
+      {
+	Bls->sizeuv[lcnum] = p->NJD[lcnum];
+	if((Bls->u[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL ||
+	   (Bls->v[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    else if(Bls->sizeuv[lcnum] < p->NJD[lcnum])
+      {
+	Bls->sizeuv[lcnum] = p->NJD[lcnum];
+	free(Bls->u[lcnum]);
+	free(Bls->v[lcnum]);
+	if((Bls->u[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL ||
+	   (Bls->v[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL)
+	  error(ERR_MEMALLOC);
+      }
+    
+    if(Bls->operiodogram)
+      {
+	i1 = 0;
+	i2 = 0;
+	while(p->lcnames[lc_name_num][i1] != '\0')
+	  {
+	    if(p->lcnames[lc_name_num][i1] == '/')
+	      i2 = i1 + 1;
+	    i1++;
+	  }
+	sprintf(outname,"%s/%s%s",Bls->outdir,&p->lcnames[lc_name_num][i2],Bls->suffix);
+      }
+    if(Bls->minper_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+      Bls->minper_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->minper_expr);
+    } 
+    else if(Bls->minper_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+      Bls->minper_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->minper_var);
+    }
+    else {
+      Bls->minper_val[lcnum] = Bls->minper;
+    }
+    if(Bls->maxper_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+      Bls->maxper_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->maxper_expr);
+    } 
+    else if(Bls->maxper_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+      Bls->maxper_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->maxper_var);
+    }
+    else {
+      Bls->maxper_val[lcnum] = Bls->maxper;
+    }
+
+
+    if(!Bls->rflag) {
+      if(Bls->qmin_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->qmin_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->qmin_expr);
+      } 
+      else if(Bls->qmin_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->qmin_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->qmin_var);
+      }
+      else {
+	Bls->qmin_val[lcnum] = Bls->qmin;
+      }
+      
+      if(Bls->qmax_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->qmax_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->qmax_expr);
+      } 
+      else if(Bls->qmax_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->qmax_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->qmax_var);
+      }
+      else {
+	Bls->qmax_val[lcnum] = Bls->qmax;
+      }
+    }
+    else if(Bls->rflag == 1) {
+      if(Bls->rmin_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->rmin_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->rmin_expr);
+      } 
+      else if(Bls->rmin_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->rmin_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->rmin_var);
+      }
+      else {
+	Bls->rmin_val[lcnum] = Bls->rmin;
+      }
+      
+      if(Bls->rmax_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->rmax_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->rmax_expr);
+      } 
+      else if(Bls->rmax_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->rmax_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->rmax_var);
+      }
+      else {
+	Bls->rmax_val[lcnum] = Bls->rmax;
+      }
+    }
+    else if(Bls->rflag == 2) {
+      if(Bls->rho_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->rho_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->rho_expr);
+      } 
+      else if(Bls->rho_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->rho_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->rho_var);
+      }
+      else {
+	Bls->rho_val[lcnum] = Bls->rho;
+      }
+      
+      if(Bls->minexpdurfrac_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->minexpdurfrac_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->minexpdurfrac_expr);
+      } 
+      else if(Bls->minexpdurfrac_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->minexpdurfrac_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->minexpdurfrac_var);
+      }
+      else {
+	Bls->minexpdurfrac_val[lcnum] = Bls->minexpdurfrac;
+      }	  
+      
+      if(Bls->maxexpdurfrac_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->maxexpdurfrac_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->maxexpdurfrac_expr);
+      } 
+      else if(Bls->maxexpdurfrac_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->maxexpdurfrac_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->maxexpdurfrac_var);
+      }
+      else {
+	Bls->maxexpdurfrac_val[lcnum] = Bls->minexpdurfrac;
+      }
+      
+      Bls->rmin_val[lcnum] = pow(((0.0848203*Bls->minexpdurfrac_val[lcnum]*pow(Bls->rho_val[lcnum],(-1.0/3.0)))/0.076),1.5);
+      Bls->rmax_val[lcnum] = pow(((0.0848203*Bls->maxexpdurfrac_val[lcnum]*pow(Bls->rho_val[lcnum],(-1.0/3.0)))/0.076),1.5);
+    }
+    
+    if(!Bls->isdf_specified) {
+      if(Bls->nf_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->nf_val[lcnum] = ceil(EvaluateExpression(lc_name_num, lcnum, 0, Bls->nf_expr));
+      } 
+      else if(Bls->nf_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->nf_val[lcnum] = ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->nf_var));
+      }
+      else {
+	Bls->nf_val[lcnum] = Bls->nf;
+      }
+      Bls->df_val[lcnum] = ((1./Bls->minper_val[lcnum]) - (1./Bls->maxper_val[lcnum])) / (Bls->nf_val[lcnum] - 1);
+    } else if(Bls->isdf_specified == 1) {
+      if(Bls->df_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->df_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->df_expr);
+      } 
+      else if(Bls->df_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->df_val[lcnum] = ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->df_var));
+      }
+      else {
+	Bls->df_val[lcnum] = Bls->df;
+      }
+      Bls->nf_val[lcnum] = ceil(((1./Bls->minper_val[lcnum]) - (1./Bls->maxper_val[lcnum])) / (Bls->df_val[lcnum])) + 1;
+
+    } else if(Bls->isdf_specified == 2) {
+      if(Bls->subsample_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+	Bls->subsample_val[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Bls->subsample_expr);
+      } 
+      else if(Bls->subsample_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+	Bls->subsample_val[lcnum] = ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->subsample_var));
+      }
+      else {
+	Bls->subsample_val[lcnum] = Bls->subsample;
+      }
+      Bls->A_val[lcnum] = pow((3.0*M_PI/(G_CGS_DAYS * Bls->rho_val[lcnum])),(1.0/3.0))*Bls->subsample_val[lcnum]/(M_PI*(p->t[lcnum][p->NJD[lcnum]-1] - p->t[lcnum][0]));
+      Bls->nf_val[lcnum] = ceil((pow((1./Bls->minper_val[lcnum]),(1.0/3.0)) - pow((1./Bls->maxper_val[lcnum]),(1.0/3.0)) + Bls->A_val[lcnum]/3.0)*3.0/Bls->A_val[lcnum]);
+    }
+    Bls->fmin[lcnum] = dmax((1./(p->t[lcnum][p->NJD[lcnum]-1] - p->t[lcnum][0])),1./Bls->maxper_val[lcnum]);
+    if(Bls->isdf_specified == 2) {
+      Bls->nf2[lcnum] = Bls->nf_val[lcnum];
+    }
+    else {
+      if(!Bls->freqsteptype) {
+	Bls->nf2[lcnum] = floor((((1./Bls->minper_val[lcnum]) - Bls->fmin[lcnum])/Bls->df_val[lcnum])+1.);
+      } else if(Bls->freqsteptype == VARTOOLS_FREQSTEPTYPE_PERIOD) {
+	Bls->nf2[lcnum] = floor((((1./Bls->fmin[lcnum]) - Bls->minper_val[lcnum])/Bls->df_val[lcnum])+1.);
+      } else if(Bls->freqsteptype == VARTOOLS_FREQSTEPTYPE_LOGPERIOD) {
+	Bls->nf2[lcnum] = floor(((log(1./Bls->fmin[lcnum]) - log(Bls->minper_val[lcnum]))/Bls->df_val[lcnum])+1.);
+      }
+    }
+
+    if(Bls->nbins_source == VARTOOLS_SOURCE_EVALEXPRESSION) {
+      Bls->nbins_val[lcnum] = ceil(EvaluateExpression(lc_name_num, lcnum, 0, Bls->nbins_expr));
+    } 
+    else if(Bls->nbins_source == VARTOOLS_SOURCE_EXISTINGVARIABLE) {
+      Bls->nbins_val[lcnum] = ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->nbins_var));
+    }
+    else {
+      Bls->nbins_val[lcnum] = Bls->nbins;
+    }
+
+
+    /* Now either run bls using the fixed q range or the fixed stellar radius range */
+    if(Bls->nf2[lcnum] > 0 && Bls->nbins_val[lcnum] > 0 && Bls->Npeak > 0) {
+#ifdef PARALLEL
+      if((Bls->nf2[lcnum]+1) > Bls->sizepvec[threadindex]) {
+	if(!(Bls->sizepvec[threadindex])) {
+	  Bls->sizepvec[threadindex] = Bls->nf2[lcnum] + 1;
+	  if((Bls->p[threadindex] = (double *) malloc(Bls->sizepvec[threadindex]*sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	} else {
+	  Bls->sizepvec[threadindex] = Bls->nf2[lcnum] + 1;
+	  if((Bls->p[threadindex] = (double *) realloc(Bls->p[threadindex], Bls->sizepvec[threadindex]*sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+      }
+#else
+      if((Bls->nf2[lcnum]+1) > Bls->sizepvec) {
+	if(!Bls->sizepvec) {
+	  Bls->sizepvec = Bls->nf2[lcnum] + 1;
+	  if((Bls->p = (double *) malloc(Bls->sizepvec*sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	} else {
+	  Bls->sizepvec = Bls->nf2[lcnum] + 1;
+	  if((Bls->p = (double *) realloc(Bls->p, Bls->sizepvec*sizeof(double))) == NULL)
+	    error(ERR_MEMALLOC);
+	}
+      }
+#endif
+
+      if(!Bls->rflag)
+	{
+
+	  eebls(p->NJD[lcnum],p->t[lcnum],p->mag[lcnum],p->sig[lcnum],Bls->u[lcnum],Bls->v[lcnum],Bls->nf2[lcnum],Bls->fmin[lcnum],Bls->df_val[lcnum],Bls->nbins_val[lcnum],Bls->qmin_val[lcnum],Bls->qmax_val[lcnum],
+#ifdef PARALLEL
+		Bls->p[threadindex]
+#else
+		Bls->p
+#endif
+		,Bls->Npeak,Bls->bper[lcnum],Bls->bt0[lcnum],Bls->bpow[lcnum],Bls->sde[lcnum],Bls->snval[lcnum],Bls->depth[lcnum],Bls->qtran[lcnum],Bls->i1[lcnum],Bls->i2[lcnum],Bls->i1_ph[lcnum],Bls->i2_ph[lcnum],Bls->chisqrplus[lcnum],&Bls->chisqrminus[lcnum],&Bls->bperpos[lcnum],&Bls->meanmagval[lcnum], Bls->timezone, Bls->fraconenight[lcnum], Bls->operiodogram, outname, Bls->omodel, outname2, Bls->correctlc,p->ascii, Bls->nt[lcnum], Bls->Nt[lcnum], Bls->Nbefore[lcnum], Bls->Nafter[lcnum], Bls->rednoise[lcnum], Bls->whitenoise[lcnum], Bls->sigtopink[lcnum], Bls->fittrap, Bls->qingress[lcnum], Bls->OOTmag[lcnum], Bls->ophcurve, outname3, Bls->phmin, Bls->phmax, Bls->phstep, Bls->ojdcurve, outname4, Bls->jdstep, Bls->nobinnedrms, Bls->freqsteptype, Bls->adjust_qmin_mindt, Bls->reduce_nb, Bls->reportharmonics, Bls, lcnum, lc_name_num, Bls->usemask, Bls->maskvar);
+	}
+      else
+	{
+	  
+	  eebls_rad(p->NJD[lcnum],p->t[lcnum],p->mag[lcnum],p->sig[lcnum],Bls->u[lcnum],Bls->v[lcnum],Bls->nf2[lcnum],Bls->fmin[lcnum],Bls->df_val[lcnum],Bls->nbins_val[lcnum],Bls->rmin_val[lcnum],Bls->rmax_val[lcnum],
+#ifdef PARALLEL
+			  Bls->p[threadindex]
+#else
+			  Bls->p
+#endif
+			  ,Bls->Npeak,Bls->bper[lcnum],Bls->bt0[lcnum],Bls->bpow[lcnum],Bls->sde[lcnum],Bls->snval[lcnum],Bls->depth[lcnum],Bls->qtran[lcnum],Bls->i1[lcnum],Bls->i2[lcnum],Bls->i1_ph[lcnum],Bls->i2_ph[lcnum],Bls->chisqrplus[lcnum],&Bls->chisqrminus[lcnum],&Bls->bperpos[lcnum],&Bls->meanmagval[lcnum], Bls->timezone, Bls->fraconenight[lcnum], Bls->operiodogram,outname, Bls->omodel, outname2, Bls->correctlc,p->ascii, Bls->nt[lcnum], Bls->Nt[lcnum], Bls->Nbefore[lcnum], Bls->Nafter[lcnum], Bls->rednoise[lcnum], Bls->whitenoise[lcnum], Bls->sigtopink[lcnum], Bls->fittrap, Bls->qingress[lcnum], Bls->OOTmag[lcnum], Bls->ophcurve, outname3, Bls->phmin, Bls->phmax, Bls->phstep, Bls->ojdcurve, outname4, Bls->jdstep, Bls->nobinnedrms,Bls->freqsteptype, Bls->adjust_qmin_mindt, Bls->reduce_nb, Bls->reportharmonics, Bls, lcnum, lc_name_num, Bls->usemask, Bls->maskvar, (Bls->isdf_specified == 2), (Bls->isdf_specified == 2 ? Bls->A_val[lcnum] : 0.0));
+	      }
+	  } else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc_name_num, p->lcnames[lc_name_num]);
+	    }
+	  }
+	} else {
+	    if(!p->quiet_mode) {
+	      fprintf(stderr,"Warning: skipping -BLS command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc_name_num, p->lcnames[lc_name_num]);
+	    }
+      }
 }

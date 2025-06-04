@@ -114,4 +114,6 @@ float getsum_float(int, float *);
 int getsum_int(int, int *);
 long getsum_long(int, long *);
 short getsum_short(int, short *);
+double median_nanrej(int, double *);
+double MAD_nanrej(int, double *);
 #endif
