@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyvartools"
+version = "0.1.0"
+description = "Python API for the VARTOOLS light curve analysis program"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "pandas",
+]
+
+[project.optional-dependencies]
+fits = ["astropy"]
+dev  = ["pytest", "pytest-cov"]
+all  = ["astropy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pyvartools*"]
+
+[tool.setuptools.package-data]
+pyvartools = ["_install_path.py"]

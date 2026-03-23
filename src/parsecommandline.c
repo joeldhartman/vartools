@@ -35,6 +35,7 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include <string.h>
 
 /* Routines for parsing the command line - these are part of the vartools program by J. Hartman */
 
@@ -113,6 +114,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   FILE *inlist;
 
   char **inputlistlines, *teststring;
+  char *tmpbuf = NULL;
+  int buflen = 0;
 
   int Nkillharmterms;
   int sizeperptrs;
@@ -148,7 +151,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
   for(i=1;i<argc;i++)
     {
       if(strlen(argv[i]) > 1 && (argv[i][0] == '-' && argv[i][1] == '-')) {
-	sprintf(argv[i],"%s",&(argv[i][1]));
+	if(buflen < strlen(argv[i])+1) {
+	  buflen = strlen(argv[i]) + 1;
+	  tmpbuf = realloc(tmpbuf,buflen*sizeof(char));
+	}
+	sprintf(tmpbuf,"%s",&(argv[i][1]));
+	sprintf(argv[i],"%s",tmpbuf);
       }
       /* -i lcname : A single input light curve - allocate memory to store the names and the light curves */
       if(!strncmp(argv[i],"-i",2) && strlen(argv[i]) == 2)
@@ -11386,4 +11394,5 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
     }
 
   *cptr = c;
+  if(tmpbuf != NULL) free(tmpbuf);
 }

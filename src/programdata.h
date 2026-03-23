@@ -34,6 +34,8 @@
 /*                                                                           */
 #include "outcolumn.h"
 
+#include <setjmp.h>
+
 #ifdef PARALLEL
 #include <pthread.h>
 #include <semaphore.h>
@@ -375,6 +377,13 @@ typedef struct {
   FILE **tracked_open_files;
 
   char *next_command_outcolumn_suffix;
+
+  /* Pipeline library API (Step 2: library extraction).
+     Set pipeline_mode=1 when running as an in-process library so that
+     error() / error2() longjmp back to the caller instead of exit().  */
+  int pipeline_mode;
+  jmp_buf exit_jmp;
+  int exit_code;
 
 } ProgramData;
 

@@ -1751,6 +1751,9 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 
   _CombineLCInfo *pclci;
 
+  char *tmpbuf = NULL;
+  int lenbuf = 0;
+
 
   if(!combinelcfilenum)
     p->NJD[lc2] = 0;
@@ -2117,7 +2120,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		  break;
 		case VARTOOLS_TYPE_STRING:
 		  stringptr = (char ****) d->dataptr;
-		  sprintf((*stringptr)[lc2][j+Ninit],"%s",(*stringptr)[lc2][i+Ninit]);
+		  if(lenbuf < (strlen((*stringptr)[lc2][i+Ninit])+1)) {
+		    lenbuf = (strlen((*stringptr)[lc2][i+Ninit])+1);
+		    tmpbuf = realloc(tmpbuf, lenbuf*sizeof(char));
+		  }
+		  sprintf(tmpbuf,"%s",(*stringptr)[lc2][i+Ninit]);
+		  sprintf((*stringptr)[lc2][j+Ninit],"%s",tmpbuf);
+		  /*sprintf((*stringptr)[lc2][j+Ninit],"%s",(*stringptr)[lc2][i+Ninit]);*/
 		  break;
 		case VARTOOLS_TYPE_INT:
 		  intptr = (int ***) d->dataptr;
@@ -2156,7 +2165,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		    break;
 		  case VARTOOLS_TYPE_STRING:
 		    string2ptr = (char *****) d->dataptr;
-		    sprintf((*string2ptr)[lc2][u][j+Ninit],"%s",(*string2ptr)[lc2][u][i+Ninit]);
+		    if(lenbuf < (strlen((*string2ptr)[lc2][u][i+Ninit])+1)) {
+		      lenbuf = (strlen((*string2ptr)[lc2][u][i+Ninit])+1);
+		      tmpbuf = realloc(tmpbuf, lenbuf*sizeof(char));
+		    }
+		    sprintf(tmpbuf,"%s",(*string2ptr)[lc2][u][i+Ninit]);
+		    sprintf((*string2ptr)[lc2][u][j+Ninit],"%s",tmpbuf);
+		    /*sprintf((*string2ptr)[lc2][u][j+Ninit],"%s",(*string2ptr)[lc2][u][i+Ninit]);*/
 		    break;
 		  case VARTOOLS_TYPE_INT:
 		    int2ptr = (int ****) d->dataptr;
@@ -2195,7 +2210,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		    break;
 		  case VARTOOLS_TYPE_STRING:
 		    string2ptr = (char *****) d->dataptr;
-		    sprintf((*string2ptr)[lc2][j+Ninit][u],"%s",(*string2ptr)[lc2][i+Ninit][u]);
+		    if(lenbuf < (strlen((*string2ptr)[lc2][i+Ninit][u])+1)) {
+		      lenbuf = (strlen((*string2ptr)[lc2][i+Ninit][u])+1);
+		      tmpbuf = realloc(tmpbuf, lenbuf*sizeof(char));
+		    }
+		    sprintf(tmpbuf,"%s",(*string2ptr)[lc2][i+Ninit][u]);
+		    sprintf((*string2ptr)[lc2][j+Ninit][u],"%s",tmpbuf);
+		    /*sprintf((*string2ptr)[lc2][j+Ninit][u],"%s",(*string2ptr)[lc2][i+Ninit][u]);*/
 		    break;
 		  case VARTOOLS_TYPE_INT:
 		    int2ptr = (int ****) d->dataptr;
@@ -2405,6 +2426,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
   free(nullarraystore);
   free(tmpstring[0]);
   free(tmpstring);
+  if(tmpbuf != NULL) free(tmpbuf);
   return 0;
 } 
 #endif

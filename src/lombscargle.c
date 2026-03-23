@@ -490,6 +490,13 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
       if(t_mask != NULL) free(t_mask);
       if(mag_mask != NULL) free(mag_mask);
       if(sig_mask != NULL) free(sig_mask);
+      for(j=0;j<Npeaks;j++)
+	{
+	  periods[j] = -1.;
+	  peaks[j] = -1.;
+	  probs[j] = -1.;
+	  SNR[j] = -1.;
+	}
       return;
     }
     t = t_mask;

@@ -197,7 +197,7 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	  simpleprinttostring(text,"][0] for _VARTOOLS_TMP_ITEM in _VARTOOLS_VARIABLES_LIST]\n");
 	}
 	else {
-	  simpleprinttostring(text,"=numpy.core.multiarray.array([_VARTOOLS_TMP_ITEM[");
+	  simpleprinttostring(text,"=numpy.array([_VARTOOLS_TMP_ITEM[");
 	  simpleprinttostring(text,tmpstr);
 	  simpleprinttostring(text,"][0] for _VARTOOLS_TMP_ITEM in _VARTOOLS_VARIABLES_LIST])\n");
 	}
@@ -249,26 +249,26 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	simpleprinttostring(text,"\tif '");
 	simpleprinttostring(text,c->vars[i]->varname);
 	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
+	simpleprinttostring(text,"\t\tif isinstance(");
 	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,") == type(numpy.core.multiarray.zeros(0)):\n");
+	simpleprinttostring(text,", numpy.ndarray):\n");
 	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
 	simpleprinttostring(text,c->vars[i]->varname);
 	simpleprinttostring(text,tmpstrtype);
 	simpleprinttostring(text,")\n");
 	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.array([");
+	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.array([");
 	simpleprinttostring(text,c->vars[i]->varname);
 	simpleprinttostring(text,"])");
 	simpleprinttostring(text,tmpstrtype);
 	simpleprinttostring(text,")\n");
 	simpleprinttostring(text,"\telse:\n");
 	if(c->vars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.zeros(1)");
 	  simpleprinttostring(text,tmpstrtype);
 	  simpleprinttostring(text,")\n");
 	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.zeros(1)");
 	  simpleprinttostring(text,tmpstrtype);
 	  simpleprinttostring(text,")\n");
 	}
@@ -276,9 +276,9 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	simpleprinttostring(text,"\tif '");
 	simpleprinttostring(text,c->vars[i]->varname);
 	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
+	simpleprinttostring(text,"\t\tif isinstance(");
 	simpleprinttostring(text,c->vars[i]->varname);
-	simpleprinttostring(text,") is list:\n");
+	simpleprinttostring(text,", list):\n");
 	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
 	simpleprinttostring(text,c->vars[i]->varname);
 	simpleprinttostring(text,")\n");
@@ -319,26 +319,26 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	simpleprinttostring(text,"\tif '");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
 	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
+	simpleprinttostring(text,"\t\tif isinstance(");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,") == type(numpy.core.multiarray.zeros(0)):\n");
+	simpleprinttostring(text,", numpy.ndarray):\n");
 	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
 	simpleprinttostring(text,tmpstrtype);
 	simpleprinttostring(text,")\n");
 	simpleprinttostring(text,"\t\telse:\n");
-	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.array([");
+	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.array([");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
 	simpleprinttostring(text,"])");
 	simpleprinttostring(text,tmpstrtype);
 	simpleprinttostring(text,")\n");
 	simpleprinttostring(text,"\telse:\n");
 	if(c->outonlyvars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.zeros(1)");
 	  simpleprinttostring(text,tmpstrtype);
 	  simpleprinttostring(text,")\n");
 	} else {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.core.multiarray.zeros(1)");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(numpy.zeros(1)");
 	  simpleprinttostring(text,tmpstrtype);
 	  simpleprinttostring(text,")\n");
 	}
@@ -346,9 +346,9 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
 	simpleprinttostring(text,"\tif '");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
 	simpleprinttostring(text,"' in locals():\n");
-	simpleprinttostring(text,"\t\tif type(");
+	simpleprinttostring(text,"\t\tif isinstance(");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
-	simpleprinttostring(text,") is list:\n");
+	simpleprinttostring(text,", list):\n");
 	simpleprinttostring(text,"\t\t\t_VARTOOLS_VARIABLES_OUTPUTLIST.append(");
 	simpleprinttostring(text,c->outonlyvars[i]->varname);
 	simpleprinttostring(text,")\n");
@@ -375,7 +375,7 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
       } else {
 	if(c->vars[i]->datatype != VARTOOLS_TYPE_STRING &&
 	   c->vars[i]->datatype != VARTOOLS_TYPE_CHAR) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.core.multiarray.array([");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.array([");
 	  simpleprinttostring(text,c->vars[i]->varname);
 	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]]))\n");
 	} else {
@@ -393,7 +393,7 @@ void CreateVartoolsPythonUserFunctionString(ProgramData *p, _PythonCommand *cpar
       } else {
 	if(c->outonlyvars[i]->datatype != VARTOOLS_TYPE_STRING &&
 	   c->outonlyvars[i]->datatype != VARTOOLS_TYPE_CHAR) {
-	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.core.multiarray.array([");
+	  simpleprinttostring(text,"\t\t_VARTOOLS_VARIABLES_TMPOUTLIST.append(numpy.array([");
 	  simpleprinttostring(text,c->outonlyvars[i]->varname);
 	  simpleprinttostring(text,"[_VARTOOLS_TMP_ITEM]]))\n");
 	} else {
@@ -488,6 +488,7 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   OutText usercodetext;
   _PythonObjectContainer *py;
   char tmpstr[MAXLEN];
+  char tmpbuf[MAXLEN];
   int i, j, testneedreadall;
 #ifdef HAVE_PYTHON_UNICODE
   wchar_t *tmp1, *tmp2, *tmp3;
@@ -600,9 +601,13 @@ int InitializePython(ProgramData *p, _PythonCommand *c, int threadindex)
   for(i=0; i < c->Nchildren + 1; i++) {
     sprintf(tmpstr,"_VARTOOLS_PYTHON_USERFUNCTION_");
     if(!i) {
-      sprintf(tmpstr,"%s%d",tmpstr,c->cnum);
+      sprintf(tmpbuf,"%s%d",tmpstr,c->cnum);
+      sprintf(tmpstr,"%s",tmpbuf);
+      /*sprintf(tmpstr,"%s%d",tmpstr,c->cnum);*/
     } else {
-      sprintf(tmpstr,"%s%d",tmpstr,((_PythonCommand **)c->childcommandptrs)[i-1]->cnum);
+      sprintf(tmpbuf,"%s%d",tmpstr,((_PythonCommand **)c->childcommandptrs)[i-1]->cnum);
+      sprintf(tmpstr,"%s",tmpbuf);
+      /*sprintf(tmpstr,"%s%d",tmpstr,((_PythonCommand **)c->childcommandptrs)[i-1]->cnum);*/
     }
     
     py->UserFunctionToRun[i] = PyObject_GetAttrString( py->UserModule, tmpstr);
@@ -941,6 +946,9 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
   char *tmpstr;
   char *tmpcharvec = NULL;
   int sizetmpcharvec = 0;
+#ifdef HAVE_PYTHON_UNICODE
+  PyObject *tmpbytesobj = NULL;
+#endif
 
   double *dblptrout;
   float *floatptrout;
@@ -1132,7 +1140,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
 	    floatptrout = (float *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
+	    if(write(cparent->sockets[threadindex][1], (void *) floatptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
@@ -1174,7 +1182,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      return 1;
 	    }
 	    longptrout = (long *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(long)))) {
+	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(long)))) < (((size_t) lenvec)*(sizeof(long)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
@@ -1182,7 +1190,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
 	    longptrout = (long *) PyArray_DATA(tmparray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(long)))) {
+	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(long)))) < (((size_t) lenvec)*(sizeof(long)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
@@ -1199,7 +1207,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      return 1;
 	    }
 	    shortptrout = (short *) PyArray_DATA(tmpcopyarray);
-	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
+	    if(write(cparent->sockets[threadindex][1], (void *) shortptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
@@ -1248,18 +1256,25 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	}
 	else {
 #ifdef HAVE_PYTHON_UNICODE
-	  tmpstr = PyBytes_AS_STRING(PyUnicode_AsEncodedString(PyList_GetItem(tmplist,k), "UTF-8", "strict"));
+	  tmpbytesobj = PyUnicode_AsEncodedString(PyList_GetItem(tmplist,k), "UTF-8", "strict");
+	  tmpstr = (tmpbytesobj != NULL) ? PyBytes_AS_STRING(tmpbytesobj) : NULL;
 #else
 	  tmpstr = PyString_AsString(PyList_GetItem(tmplist,k));
 #endif
 	  if(tmpstr == NULL) {
 	    fprintf(stderr,"Error: NULL value returned from python for string or ASCII char variable %s\n", v->varname);
+#ifdef HAVE_PYTHON_UNICODE
+	    Py_XDECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 	    if(tmpcharvec != NULL) free(tmpcharvec);
 	    return 1;
 	  }
 	  if(v->datatype == VARTOOLS_TYPE_CHAR) {
 	    if(lenvec <= 1) {
 	      outchar = tmpstr[0];
+#ifdef HAVE_PYTHON_UNICODE
+	      Py_DECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 	      if(write(cparent->sockets[threadindex][1], &outchar, sizeof(char)) < sizeof(char)) {
 		if(tmpcharvec != NULL) free(tmpcharvec);
 		return 1;
@@ -1278,6 +1293,9 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 		}
 	      }
 	      tmpcharvec[k] = tmpstr[0];
+#ifdef HAVE_PYTHON_UNICODE
+	      Py_DECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 	      if(k == lenvec - 1) {
 		if(write(cparent->sockets[threadindex][1], tmpcharvec, (((size_t) lenvec)*sizeof(char))) < (((size_t) lenvec)*sizeof(char))) {
 		  if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1288,15 +1306,24 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  } else {
 	    outstrlen = strlen(tmpstr);
 	    if(write(cparent->sockets[threadindex][1], &outstrlen, sizeof(int)) < sizeof(int)) {
+#ifdef HAVE_PYTHON_UNICODE
+	      Py_DECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
 	    if(outstrlen > 0) {
 	      if(write(cparent->sockets[threadindex][1], tmpstr, (((size_t) (outstrlen))*sizeof(char))) < (((size_t) (outstrlen))*sizeof(char))) {
+#ifdef HAVE_PYTHON_UNICODE
+		Py_DECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 		if(tmpcharvec != NULL) free(tmpcharvec);
 		return 1;
 	      }
 	    }
+#ifdef HAVE_PYTHON_UNICODE
+	    Py_DECREF(tmpbytesobj); tmpbytesobj = NULL;
+#endif
 	  }
 	}
       }

@@ -1,0 +1,12 @@
+name: pyvartools
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - pytest
+  - pytest-cov
+  - pip
+  - pip:
+      - -e .[fits]

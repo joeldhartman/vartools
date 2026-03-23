@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.51], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.52], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -179,11 +179,11 @@ AS_IF([test "x$cspice_include_path_string" != x && test "x$cspice_lib_path_strin
        ],
        AC_MSG_WARN([Did not find SpiceUsr.h in directory "${cspice_include_path_string}" or did not find file "$cspice_lib_path_string"]))],[])
 
-AC_ARG_WITH([pythonhome], 
+AC_ARG_WITH([pythonhome],
   [AS_HELP_STRING([--with-pythonhome=@<:@check,no,PATH@:>@],
-    [Hard-code the PYTHONHOME path @<:@default=check@:>@])],
+    [Hard-code the PYTHONHOME path @<:@default=no@:>@])],
   [],
-  [with_pythonhome=check])
+  [with_pythonhome=no])
 
 AC_ARG_WITH([pythonconfig], 
   [AS_HELP_STRING([--with-pythonconfig=@<:@PATH@:>@],
@@ -191,11 +191,11 @@ AC_ARG_WITH([pythonconfig],
   [],
   [with_pythonconfig=check])
 
-AC_ARG_WITH([pythonpath], 
+AC_ARG_WITH([pythonpath],
   [AS_HELP_STRING([--with-pythonpath=@<:@check,no,PATH@:>@],
-    [Hard-code the PYTHONPATH path @<:@default=check@:>@])],
+    [Hard-code the PYTHONPATH path @<:@default=no@:>@])],
   [],
-  [with_pythonpath=check])
+  [with_pythonpath=no])
 
 
 AX_PYTHON_DEFAULT( )
@@ -270,7 +270,7 @@ if test x"$ax_python_use" = x"true"; then
              [PYTHONSEARCHPATH=`echo "import os; import sys; outpath=';'.join(sys.path) if os.name == 'nt' else ':'.join(sys.path); print(outpath)" | $PYTHON - 2>/dev/null`
               AC_SUBST(PYTHONSEARCHPATH)
               AC_DEFINE_UNQUOTED([PYTHONSEARCHPATH], ["${PYTHONSEARCHPATH}"], [Set to the PYTHONPATH])],
-             [AS_IF([test "x$with_pythonhome" != xno],
+             [AS_IF([test "x$with_pythonpath" != xno],
                     [AC_DEFINE_UNQUOTED([PYTHONSEARCHPATH], ["${with_pythonpath}"], [Set to the PYTHONPATH])], [])])
    fi
    LDFLAGS="$PYTHON_LSPEC $LDFLAGS"

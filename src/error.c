@@ -18,9 +18,25 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include <setjmp.h>
+
+/* Current pipeline ProgramData context for library mode.  Set by
+   vartools_error_set_pipeline_context(); NULL in normal subprocess mode.
+   When non-NULL, error() and error2() longjmp instead of exit(). */
+static ProgramData *_g_pipeline_p = NULL;
+
+void vartools_error_set_pipeline_context(ProgramData *p) {
+  _g_pipeline_p = p;
+}
 
 void error(int errflag)
 {
+  /* In library (pipeline) mode, longjmp back to the handler instead of
+     calling exit(), which would kill the host process. */
+  if (_g_pipeline_p != NULL) {
+    _g_pipeline_p->exit_code = errflag ? errflag : 1;
+    longjmp(_g_pipeline_p->exit_jmp, 1);
+  }
   switch(errflag)
     {
     case 0:
@@ -279,6 +295,12 @@ void error2_noexit(int errflag, char *s)
 
 void error2(int errflag, char *s)
 {
+  /* In library (pipeline) mode, longjmp back to the handler instead of
+     calling exit(), which would kill the host process. */
+  if (_g_pipeline_p != NULL) {
+    _g_pipeline_p->exit_code = errflag ? errflag : 1;
+    longjmp(_g_pipeline_p->exit_jmp, 1);
+  }
   switch(errflag)
     {
     case ERR_FILENOTFOUND:

@@ -239,13 +239,13 @@ distuninstallcheck_listfiles = find . -type f -print
 am__distuninstallcheck_listfiles = $(distuninstallcheck_listfiles) \
   | sed 's|^\./|$(prefix)/|' | grep -v '$(infodir)/dir$$'
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = @ACLOCAL@ || echo
+ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
-AUTOCONF = @AUTOCONF@ || echo
-AUTOHEADER = @AUTOHEADER@ || echo
-AUTOMAKE = @AUTOMAKE@ || echo
+AUTOCONF = @AUTOCONF@
+AUTOHEADER = @AUTOHEADER@
+AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 BUILDDIR = @BUILDDIR@
 CC = @CC@
@@ -429,6 +429,7 @@ example_files = \
  EXAMPLES/2.twoharmsignal \
  EXAMPLES/6.gz \
  EXAMPLES/OUTDIR1/InjectRRLyrae.2.txt \
+ EXAMPLES/OUTDIR1/2.rev.txt \
  EXAMPLES/OUTDIR1/6.png \
  EXAMPLES/OUTDIR1/10.autocorr \
  EXAMPLES/OUTDIR1/3.aov_harm \
@@ -494,6 +495,7 @@ example_files = \
  EXAMPLES/OUTDIR1/2.arimaresiduals.png \
  EXAMPLES/OUTDIR1/10.png \
  EXAMPLES/OUTDIR1/9.aov_harm \
+ EXAMPLES/OUTDIR1/2.magsorted.txt \
  EXAMPLES/OUTDIR1/5.cleanharm \
  EXAMPLES/OUTDIR1/3.nonlinfit.model \
  EXAMPLES/OUTDIR1/2.test_tfa_sr \
@@ -639,6 +641,7 @@ example_files = \
  EXAMPLES/OUTDIR1/6.bls.phcurve \
  EXAMPLES/OUTDIR1/2.aov_harm \
  EXAMPLES/OUTDIR1/8.sysrem.model \
+ EXAMPLES/OUTDIR1/3.restoretimes.txt \
  EXAMPLES/OUTDIR1/2.test_tfa_nosr \
  EXAMPLES/OUTDIR1/9.arimaforecast.png \
  EXAMPLES/OUTDIR1/InjectRRLyrae.7.txt \
@@ -980,6 +983,9 @@ distdir-am: $(DISTFILES)
 	      || exit 1; \
 	  fi; \
 	done
+	$(MAKE) $(AM_MAKEFLAGS) \
+	  top_distdir="$(top_distdir)" distdir="$(distdir)" \
+	  dist-hook
 	-test -n "$(am__skip_mode_fix)" \
 	|| find "$(distdir)" -type d ! -perm -755 \
 		-exec chmod u+rwx,go+rx {} \; -o \
@@ -1224,23 +1230,51 @@ uninstall-am: uninstall-dist_docDATA uninstall-nobase_dist_pkgdataDATA
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--refresh check check-am clean clean-cscope clean-generic \
 	clean-libtool cscope cscopelist-am ctags ctags-am dist \
-	dist-all dist-bzip2 dist-gzip dist-lzip dist-shar dist-tarZ \
-	dist-xz dist-zip distcheck distclean distclean-generic \
-	distclean-hdr distclean-libtool distclean-tags distcleancheck \
-	distdir distuninstallcheck dvi dvi-am html html-am info \
-	info-am install install-am install-data install-data-am \
-	install-dist_docDATA install-dvi install-dvi-am install-exec \
-	install-exec-am install-html install-html-am install-info \
-	install-info-am install-man install-nobase_dist_pkgdataDATA \
-	install-pdf install-pdf-am install-ps install-ps-am \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am tags tags-am uninstall uninstall-am \
-	uninstall-dist_docDATA uninstall-nobase_dist_pkgdataDATA
+	dist-all dist-bzip2 dist-gzip dist-hook dist-lzip dist-shar \
+	dist-tarZ dist-xz dist-zip distcheck distclean \
+	distclean-generic distclean-hdr distclean-libtool \
+	distclean-tags distcleancheck distdir distuninstallcheck dvi \
+	dvi-am html html-am info info-am install install-am \
+	install-data install-data-am install-dist_docDATA install-dvi \
+	install-dvi-am install-exec install-exec-am install-html \
+	install-html-am install-info install-info-am install-man \
+	install-nobase_dist_pkgdataDATA install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-generic \
+	mostlyclean-libtool pdf pdf-am ps ps-am tags tags-am uninstall \
+	uninstall-am uninstall-dist_docDATA \
+	uninstall-nobase_dist_pkgdataDATA
 
 .PRECIOUS: Makefile
 
+
+# Include the Python package in 'make dist'.
+# We use dist-hook rather than EXTRA_DIST so that generated artifacts
+# (__pycache__, *.egg-info, *.pyc) are excluded from the tarball.
+dist-hook:
+	cp -r $(srcdir)/python $(distdir)/python
+	find $(distdir)/python -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+	find $(distdir)/python -name '*.egg-info' -type d -exec rm -rf {} + 2>/dev/null || true
+	find $(distdir)/python -name '.pytest_cache' -type d -exec rm -rf {} + 2>/dev/null || true
+	find $(distdir)/python -name '.hypothesis' -type d -exec rm -rf {} + 2>/dev/null || true
+	find $(distdir)/python -name '*.pyc' -delete 2>/dev/null || true
+
+.PHONY: dist-hook
+
+# Python package installation
+# Run 'make install-python' after 'make install' to install pyvartools.
+# This records the vartools install path into the Python package so that
+# pyvartools can find the binary without requiring it to be on PATH.
+install-python:
+	echo "VARTOOLS_INSTALL_PATH = '$(DESTDIR)$(bindir)/vartools'" \
+	    > $(srcdir)/python/pyvartools/_install_path.py
+	cd $(srcdir)/python && pip install .
+
+uninstall-python:
+	pip uninstall -y pyvartools
+
+.PHONY: install-python uninstall-python
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

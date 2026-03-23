@@ -2255,7 +2255,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(i >= argc) {
 	*iret = i; return 1;
       }
-      if((c->maskvarname = (char *) malloc(strlen(argv[i]+1))) == NULL)
+      if((c->maskvarname = (char *) malloc(strlen(argv[i])+1)) == NULL)
 	error(ERR_MEMALLOC);
       sprintf(c->maskvarname,"%s",argv[i]);
     }

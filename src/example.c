@@ -439,6 +439,34 @@ void example(char *c, ProgramData *p)
 		    "A slightly more involved example to illustrate the use of the clean algorithm. Here 3 harmonic signals are added to the light curve EXAMPLES/4 with periods of 0.697516, 2.123456 and 0.426515 days, and amplitudes of 0.1, 0.05 and 0.01 mag. We then calculate the DFT as in Example 1, but this time we determine the 3 highest peaks in the DFT and we also output the window function to EXAMPLES/OUTDIR1 (the filename will be 4.dftclean.wfunc). We then apply the CLEAN deconvolution algorithm to the DFT using a gain of 0.5 and a S/N threshold of 5.0. The clean-beam, and clean power spectrum are written to EXAMPLES/OUTDIR1 (with filenames 4.dftclean.cbeam and 4.dftclean.cspec respectively). We search the clean power spectrum for 3 peaks, and include the average and standard deviation of the dirty and clean power spectra in the output table of statistics. The frequencies found in the clean spectrum are a little closer to the injected frequencies.\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-difffluxtomag",14) && strlen(c) == 14)
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\necho \"EXAMPLES/1 10.085\" | \\\n");
+      printtostring(&s,
+		    "vartools -l - -header \\\n");
+      printtostring(&s,
+		    "\t-difffluxtomag 25.0 0.0 -rms\n\n");
+      printtostring(&s,
+		    "Convert a light curve from ISIS differential photometry flux format to magnitudes. The input list is piped via stdin and contains the light curve filename in column 1 and the star's reference magnitude (10.085) in column 2. Since \"magcolumn\" is not specified, the reference magnitude is read from the next available column (column 2) by default. The zero-point magnitude constant is 25.0 (i.e., a source with a flux of 1 ADU has magnitude 25.0) and the offset is 0.0. The -rms command outputs statistics for the converted light curve. In practice, the light curve should contain ISIS differential flux values rather than magnitudes as in EXAMPLES/1.\n\n");
+      printtostring(&s,
+		    "Example 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\necho \"EXAMPLES/1 10.085\" | \\\n");
+      printtostring(&s,
+		    "vartools -l - -header \\\n");
+      printtostring(&s,
+		    "\t-difffluxtomag 25.0 0.0 magcolumn 2 -rms\n\n");
+      printtostring(&s,
+		    "Same as Example 1, but explicitly specifying that the star's reference magnitude is in column 2 of the input list using the \"magcolumn\" keyword.\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19)
     {
       printtostring(&s,
@@ -1385,6 +1413,44 @@ void example(char *c, ProgramData *p)
 		    "\n\nSee \"vartools -example -savelc\" for an example of how to use the -restorelc command.\n");
       commandfound=1;
     }
+  if(!strcmp(c,"-restoretimes"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3 \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-restricttimes JDrange 53740 53750 \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-restoretimes 1 \\\n");
+      printtostring(&s,
+		    "\t-rms -oneline\n\n");
+      printtostring(&s,
+		    "Filter the light curve EXAMPLES/3 to the time range 53740 < t < 53750 using -restricttimes, compute statistics on the restricted light curve using -rms, then restore all originally excluded observations using -restoretimes and compute statistics once more. The argument '1' to -restoretimes refers to the first -restricttimes command on the command line. The three -rms calls show that the full light curve is recovered after calling -restoretimes.\n\n");
+      printtostring(&s,
+		    "Example 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3 \\\n");
+      printtostring(&s,
+		    "\t-restricttimes JDrange 53740 53750 \\\n");
+      printtostring(&s,
+		    "\t-expr 'mag=mag+0.05' \\\n");
+      printtostring(&s,
+		    "\t-restoretimes 1 \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/OUTDIR1/3.restoretimes.txt\n\n");
+      printtostring(&s,
+		    "Restrict the light curve EXAMPLES/3 to the time range 53740 < t < 53750, apply a magnitude offset of 0.05 to that restricted segment using -expr, then restore the full set of observations with -restoretimes. The net effect is that only the points in the restricted time range have their magnitudes shifted; the restored points outside that range are returned in their original, unmodified state. The resulting light curve is written to EXAMPLES/OUTDIR1/3.restoretimes.txt.\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-rms",4) && strlen(c) == 4)
     {
       printtostring(&s,
@@ -1436,6 +1502,34 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "An example of running a battery of variability selection algorithms on a number of light curves in parallel. We first save the initial state of the light curve using the -savelc command, then apply iterative 5-sigma clipping to the light curve. We save the 5-sigma clipped light curve. We then run the -LS and -aov period finding algorithms. We then restore the light curve to its state before the 5-sigma clipping and apply 10-sigma clipping and run BLS (BLS would be sensitive to eclipses. To search for eclipses we would want to use a less aggressive sigma-clipping). After BLS we restore the light curve to its state after the 5-sigma clipping was applied and replace the errors in the light curve with the RMS. Finally we run the -autocorrelation command on the light curve which will output the autocorrelation function to the EXAMPLES/OUTDIR1 directory (see for example EXAMPLES/OUTDIR1/2.autocorr which is periodic and has a first peak at 1.23 days).\n");
       commandfound=1;
+    }
+  if(!strcmp(c,"-sortlc"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 \\\n");
+      printtostring(&s,
+		    "\t-sortlc reverse \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/OUTDIR1/2.rev.txt\n\n");
+      printtostring(&s,
+		    "Sort the light curve EXAMPLES/2 in reverse time order (most recent observation first) and write the result to EXAMPLES/OUTDIR1/2.rev.txt.\n\n");
+      printtostring(&s,
+		    "Example 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 \\\n");
+      printtostring(&s,
+		    "\t-sortlc var mag \\\n");
+      printtostring(&s,
+		    "\t-o EXAMPLES/OUTDIR1/2.magsorted.txt\n\n");
+      printtostring(&s,
+		    "Sort the light curve EXAMPLES/2 by magnitude (brightest first) and write the result to EXAMPLES/OUTDIR1/2.magsorted.txt. The \"var\" keyword is used to specify the variable to sort by; here we sort by the light curve magnitude column.\n");
+      commandfound = 1;
     }
   if(!strncmp(c,"-SoftenedTransit",16) && strlen(c) == 16)
     {

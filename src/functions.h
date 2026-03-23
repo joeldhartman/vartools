@@ -54,6 +54,7 @@ void printresults(int, char *, Command *, int, int, int);
 double readdates(char *, double);
 void error(int);
 void error2(int, char *);
+void vartools_error_set_pipeline_context(ProgramData *p);
 void parsecommandline(int, char **, ProgramData *, Command **);
 int ReadAllLightCurves(ProgramData *, Command *);
 int ReadSingleLightCurve(ProgramData *, Command *, int, int, int);

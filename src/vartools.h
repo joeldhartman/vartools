@@ -172,3 +172,35 @@ void VARTOOLS_RegisterTrackedOpenFile(ProgramData *p, FILE *f);
 int VARTOOLS_parseone(char *line, void *val, int vartype);
 
 void VARTOOLS_printtostring(OutText *text, const char *stoadd);
+
+/* ---------------------------------------------------------------------------
+ * Pipeline library API (Step 2: library extraction)
+ *
+ * These three functions implement an init-once / process-many interface for
+ * embedding vartools as an in-process library.
+ *
+ * Usage:
+ *   ProgramData *p = vartools_init_pipeline(argc, argv);
+ *   vartools_process_lc(p, t, mag, err, n, "lcname", outbuf, outbuf_size);
+ *   vartools_free_pipeline(p);
+ * ---------------------------------------------------------------------------
+ */
+
+/* Initialise a pipeline from a vartools command-line (without -i / -l).
+ * Internally inserts "-i -" to configure for single-LC stdin mode.
+ * Returns a heap-allocated opaque handle on success, NULL on error. */
+ProgramData *vartools_init_pipeline(int argc, char **argv);
+
+/* Inject one light curve and run the pipeline.
+ * t, mag, err  – arrays of length n
+ * lc_name      – name written into the output (may be NULL, defaults to "lc")
+ * outbuf        – caller-provided buffer filled with -oneline output text
+ * outbuf_size   – size of outbuf in bytes (e.g. 65536)
+ * Returns 0 on success, non-zero error code on failure. */
+int vartools_process_lc(ProgramData *p,
+                        const double *t, const double *mag, const double *err,
+                        int n, const char *lc_name,
+                        char *outbuf, int outbuf_size);
+
+/* Release all resources held by the pipeline handle. */
+void vartools_free_pipeline(ProgramData *p);

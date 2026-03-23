@@ -35,6 +35,7 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include <string.h>
 
 void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int lc_list_num) {
   int i;
@@ -1136,6 +1137,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 {
   int i, j, k, l, m;
   char tmpstring[MAXLEN];
+  char tmpbuf[MAXLEN];
   char *tmpfmt;
   char doublefmt[] = "%.17g";
   char floatfmt[] = "%f";
@@ -1434,51 +1436,66 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 		  sprintf(tmpstring,"Nonlinfit_%s_",c[l].Nonlinfit->mcmc_chain_expr_strings[i]);
 		  switch(c[l].Nonlinfit->mcmc_statstocalc[j]) {
 		  case VARTOOLS_STATSTYPE_MEAN:
-		    sprintf(tmpstring,"%sMEAN_%%d", tmpstring);
+		    strcat(tmpstring,"MEAN_%d");
+		    /*sprintf(tmpstring,"%sMEAN_%%d", tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_WEIGHTEDMEAN:
-		    sprintf(tmpstring,"%sWEIGHTEDMEAN_%%d",tmpstring);
+		    strcat(tmpstring,"WEIGHTEDMEAN_%d");
+		    /*sprintf(tmpstring,"%sWEIGHTEDMEAN_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MEDIAN:
-		    sprintf(tmpstring,"%sMEDIAN_%%d",tmpstring);
+		    strcat(tmpstring,"MEDIAN_%d");
+		    /*sprintf(tmpstring,"%sMEDIAN_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MEDIAN_WEIGHT:
-		    sprintf(tmpstring,"%sWEIGHTEDMEDIAN_%%d",tmpstring);
+		    strcat(tmpstring,"WEIGHTEDMEDIAN_%d");
+		    /*sprintf(tmpstring,"%sWEIGHTEDMEDIAN_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_STDDEV:
-		    sprintf(tmpstring,"%sSTDDEV_%%d",tmpstring);
+		    strcat(tmpstring,"STDDEV_%d");
+		    /*sprintf(tmpstring,"%sSTDDEV_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MEDDEV:
-		    sprintf(tmpstring,"%sMEDDEV_%%d",tmpstring);
+		    strcat(tmpstring,"MEDDEV_%d");
+		    /*sprintf(tmpstring,"%sMEDDEV_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MEDMEDDEV:
-		    sprintf(tmpstring,"%sMEDMEDDEV_%%d",tmpstring);
+		    strcat(tmpstring,"MEDMEDDEV_%d");
+		    /*sprintf(tmpstring,"%sMEDMEDDEV_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MAD:
-		    sprintf(tmpstring,"%sMAD_%%d",tmpstring);
+		    strcat(tmpstring,"MAD_%d");
+		    /*sprintf(tmpstring,"%sMAD_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_KURTOSIS:
-		    sprintf(tmpstring,"%sKURTOSIS_%%d",tmpstring);
+		    strcat(tmpstring,"KURTOSIS_%d");
+		    /*sprintf(tmpstring,"%sKURTOSIS_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_SKEWNESS:
-		    sprintf(tmpstring,"%sSKEWNESS_%%d",tmpstring);
+		    strcat(tmpstring,"SKEWNESS_%d");
+		    /*sprintf(tmpstring,"%sSKEWNESS_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_PERCENTILE:
-		    sprintf(tmpstring,"%sPCT%.2f_%%d",tmpstring,c[l].Nonlinfit->pctval[m]);
+		    sprintf(tmpbuf,"%sPCT%.2f_%%d",tmpstring,c[l].Nonlinfit->pctval[m]);
+		    sprintf(tmpstring,"%s",tmpbuf);
 		    m++;
 		    break;
 		  case VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT:
-		    sprintf(tmpstring,"%sWPCT%.2f_%%d",tmpstring,c[l].Nonlinfit->pctval[m]);
+		    sprintf(tmpbuf,"%sWPCT%.2f_%%d",tmpstring,c[l].Nonlinfit->pctval[m]);
+		    sprintf(tmpstring,"%s",tmpbuf);
 		    m++;
 		    break;
 		  case VARTOOLS_STATSTYPE_MAXIMUM:
-		    sprintf(tmpstring,"%sMAX_%%d",tmpstring);
+		    strcat(tmpstring,"MAX_%d");
+		    /*sprintf(tmpstring,"%sMAX_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_MINIMUM:
-		    sprintf(tmpstring,"%sMIN_%%d",tmpstring);
+		    strcat(tmpstring,"MIN_%d");
+		    /*sprintf(tmpstring,"%sMIN_%%d",tmpstring);*/
 		    break;
 		  case VARTOOLS_STATSTYPE_SUM:
-		    sprintf(tmpstring,"%sSUM_%%d",tmpstring);
+		    strcat(tmpstring,"SUM_%d");
+		    /*sprintf(tmpstring,"%sSUM_%%d",tmpstring);*/
 		    break;
 		  default:
 		    break;
@@ -1909,51 +1926,66 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      sprintf(tmpstring,"STATS_%s_",c[l].Stats->varnames[i]);
 	      switch(c[l].Stats->statstocalc[j]) {
 	      case VARTOOLS_STATSTYPE_MEAN:
-		sprintf(tmpstring,"%sMEAN_%%d", tmpstring);
+		strcat(tmpstring,"MEAN_%d");
+		/*sprintf(tmpstring,"%sMEAN_%%d", tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_WEIGHTEDMEAN:
-		sprintf(tmpstring,"%sWEIGHTEDMEAN_%%d",tmpstring);
+		strcat(tmpstring,"WEIGHTEDMEAN_%d");
+		/*sprintf(tmpstring,"%sWEIGHTEDMEAN_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MEDIAN:
-		sprintf(tmpstring,"%sMEDIAN_%%d",tmpstring);
+		strcat(tmpstring,"MEDIAN_%d");
+		/*sprintf(tmpstring,"%sMEDIAN_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MEDIAN_WEIGHT:
-		sprintf(tmpstring,"%sWEIGHTEDMEDIAN_%%d",tmpstring);
+		strcat(tmpstring,"WEIGHTEDMEDIAN_%d");
+		/*sprintf(tmpstring,"%sWEIGHTEDMEDIAN_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_STDDEV:
-		sprintf(tmpstring,"%sSTDDEV_%%d",tmpstring);
+		strcat(tmpstring,"STDDEV_%d");
+		/*sprintf(tmpstring,"%sSTDDEV_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MEDDEV:
-		sprintf(tmpstring,"%sMEDDEV_%%d",tmpstring);
+		strcat(tmpstring,"MEDDEV_%d");
+		/*sprintf(tmpstring,"%sMEDDEV_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MEDMEDDEV:
-		sprintf(tmpstring,"%sMEDMEDDEV_%%d",tmpstring);
+		strcat(tmpstring,"MEDMEDDEV_%d");
+		/*sprintf(tmpstring,"%sMEDMEDDEV_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MAD:
-		sprintf(tmpstring,"%sMAD_%%d",tmpstring);
+		strcat(tmpstring,"MAD_%d");
+		/*sprintf(tmpstring,"%sMAD_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_KURTOSIS:
-		sprintf(tmpstring,"%sKURTOSIS_%%d",tmpstring);
+		strcat(tmpstring,"KURTOSIS_%d");
+		/*sprintf(tmpstring,"%sKURTOSIS_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_SKEWNESS:
-		sprintf(tmpstring,"%sSKEWNESS_%%d",tmpstring);
+		strcat(tmpstring,"SKEWNESS_%d");
+		/*sprintf(tmpstring,"%sSKEWNESS_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_PERCENTILE:
-		sprintf(tmpstring,"%sPCT%.2f_%%d",tmpstring,c[l].Stats->pctval[m]);
+		sprintf(tmpbuf,"%sPCT%.2f_%%d",tmpstring,c[l].Stats->pctval[m]);
+		sprintf(tmpstring,"%s",tmpbuf);
 		m++;
 		break;
 	      case VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT:
-		sprintf(tmpstring,"%sWPCT%.2f_%%d",tmpstring,c[l].Stats->pctval[m]);
+		sprintf(tmpbuf,"%sWPCT%.2f_%%d",tmpstring,c[l].Stats->pctval[m]);
+		sprintf(tmpstring,"%s",tmpbuf);
 		m++;
 		break;
 	      case VARTOOLS_STATSTYPE_MAXIMUM:
-		sprintf(tmpstring,"%sMAX_%%d",tmpstring);
+		strcat(tmpstring,"MAX_%d");
+		/*sprintf(tmpstring,"%sMAX_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_MINIMUM:
-		sprintf(tmpstring,"%sMIN_%%d",tmpstring);
+		strcat(tmpstring,"MIN_%d");
+		/*sprintf(tmpstring,"%sMIN_%%d",tmpstring);*/
 		break;
 	      case VARTOOLS_STATSTYPE_SUM:
-		sprintf(tmpstring,"%sSUM_%%d",tmpstring);
+		strcat(tmpstring,"SUM_%d");
+		/*sprintf(tmpstring,"%sSUM_%%d",tmpstring);*/
 		break;
 	      default:
 		break;
