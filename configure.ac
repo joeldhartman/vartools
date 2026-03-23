@@ -306,7 +306,7 @@ AC_ARG_WITH([R-lib],
    fi],
   [])
 
-AS_IF([test "x$RHOME" = xcheck],
+AS_IF([test "x$with_RHOME" = xcheck],
   [AC_CHECK_PROG(ISRBIN,R,yes)
    AS_IF([test "x$ISRBIN" = xyes],
       [RHOME=`R RHOME`],
