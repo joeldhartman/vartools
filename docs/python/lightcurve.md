@@ -152,11 +152,12 @@ associated with this light curve, populated automatically by pyvartools
 when a run captures its output LC (`capture_lc=True`) and used as input
 to the next segment in a chain.
 
-`Result.lcscalars` and `BatchResult.lcscalars` are shortcuts for reading from
-this dict — the values live here, not in the `Result`.  Writing to
-`result.lcscalars` does nothing persistent; mutate `result.lc.scalars` (or
-build a new `LightCurve` with a different `scalars=` kwarg) to change
-what flows into subsequent chain segments.
+For single-LC runs, read the scalars directly as `result.lc.scalars`;
+for batches, `BatchResult.lcscalars` collates every LC's dict into a
+DataFrame.  The values live here, not in the `Result`, so to change
+what flows into subsequent chain segments mutate `result.lc.scalars`
+directly (or build a new `LightCurve` with a different `scalars=`
+kwarg).
 
 Its primary role is to carry state across chained pyvartools commands:
 when a `Result.LS(...).expr(...)` chain runs, the prior segment's

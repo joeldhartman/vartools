@@ -536,7 +536,7 @@ class TestBatchPerLC:
 # ---------------------------------------------------------------------------
 
 class TestScalars:
-    """Tests for LightCurve.scalars, Result.lcscalars, BatchResult.lcscalars, and the
+    """Tests for LightCurve.scalars, BatchResult.lcscalars, and the
     parse_oneline_output split of ``VARTOOLS_SCALAR:`` rows.
 
     These cover the Python-only plumbing added in step 1 of the chained
@@ -580,15 +580,11 @@ class TestScalars:
     def test_lightcurve_repr_omits_scalars_when_empty(self, lc):
         assert "scalars=" not in repr(lc)
 
-    def test_result_lcscalars_empty_when_no_lc(self):
-        r = Result(var=pd.Series({"Name": "foo"}), lc=None)
-        assert r.lcscalars == {}
-
-    def test_result_lcscalars_reads_from_captured_lc_scalars(self):
+    def test_result_lc_scalars_reads_captured_scalars(self):
         df = pd.DataFrame({"t": [0.0], "mag": [0.0], "err": [0.0]})
         out_lc = vt.LightCurve(df, scalars={"myvar": 3.14})
         r = Result(var=pd.Series({"Name": "x"}), lc=out_lc)
-        assert r.lcscalars == {"myvar": 3.14}
+        assert r.lc.scalars == {"myvar": 3.14}
 
     def test_batchresult_lcscalars_empty_when_no_scalars(self):
         df = pd.DataFrame({"t": [0.0]})
@@ -646,9 +642,9 @@ class TestScalars:
         prior OUTCOLUMN values in its .scalars dict.
 
         Cannot observe this directly without hooking Pipeline, so we verify
-        indirectly: the merged final Result's .lcscalars (from captured lc) at
-        minimum contains the scalars carried in (library mode may also add
-        harvested scalars once step 3 lands).
+        indirectly: the merged final Result's captured lc.scalars at minimum
+        contains the scalars carried in (library mode may also add harvested
+        scalars once step 3 lands).
         """
         r1 = lc.LS(0.1, 10.0, 1e-3)
         r2 = r1.rms()
@@ -656,8 +652,8 @@ class TestScalars:
         # should be among them, since _make_immediate_result injected it into
         # input_lc.scalars and Pipeline.run preserved it through to out_lc.
         assert r2.lc is not None
-        assert "LS_Period_1_0" in r2.lcscalars
-        assert r2.lcscalars["LS_Period_1_0"] == r1.vars["LS_Period_1_0"]
+        assert "LS_Period_1_0" in r2.lc.scalars
+        assert r2.lc.scalars["LS_Period_1_0"] == r1.vars["LS_Period_1_0"]
 
 
 # ---------------------------------------------------------------------------
@@ -672,7 +668,7 @@ class TestCrossChainScalars:
     prior vars into the next run's lc.scalars, Pipeline.run prepends
     ``-expr const 'name=value'`` tokens and ``-columnsuffix <offset+i>``
     before each user command, vartools' -printallscalars dumps the new
-    scalar state, and pyvartools parses it back into Result.lcscalars.
+    scalar state, and pyvartools parses it back into result.lc.scalars.
     """
 
     def test_chained_expr_references_prior_ls_period(self, lc):
@@ -681,8 +677,8 @@ class TestCrossChainScalars:
         r1 = lc.LS(0.5, 10.0, 0.1)
         period = r1.vars["LS_Period_1_0"]
         r2 = r1.expr("doubled=2*LS_Period_1_0", vartype="scalar")
-        assert "doubled" in r2.lcscalars
-        assert abs(r2.lcscalars["doubled"] - 2 * period) < 1e-9
+        assert "doubled" in r2.lc.scalars
+        assert abs(r2.lc.scalars["doubled"] - 2 * period) < 1e-9
 
     def test_chained_segment_suffix_shifts(self, lc):
         """Second segment's OUTCOLUMN suffixes continue the numbering."""
@@ -702,10 +698,10 @@ class TestCrossChainScalars:
         r1 = lc.LS(0.5, 10.0, 0.1)
         period = r1.vars["LS_Period_1_0"]
         r2 = r1.expr("halfper=LS_Period_1_0/2", vartype="scalar")
-        # halfper is now in r2.lcscalars AND should be carried into the next segment
+        # halfper is now in r2.lc.scalars AND should be carried into the next segment
         r3 = r2.expr("quarterper=halfper/2", vartype="scalar")
-        assert "quarterper" in r3.lcscalars
-        assert abs(r3.lcscalars["quarterper"] - period / 4) < 1e-9
+        assert "quarterper" in r3.lc.scalars
+        assert abs(r3.lc.scalars["quarterper"] - period / 4) < 1e-9
 
     def test_fresh_run_with_empty_scalars_unchanged(self, lc):
         """A non-chained run (no prior scalars, offset=0) produces output
@@ -713,8 +709,9 @@ class TestCrossChainScalars:
         injected -expr const tokens."""
         r = lc.LS(0.1, 10.0, 1e-3)
         assert "LS_Period_1_0" in r.vars.index
-        # Nothing should be in .lcscalars for a fresh run with no prior scalars.
-        assert r.lcscalars == {}
+        # Nothing should be in lc.scalars for a fresh run with no prior scalars.
+        assert r.lc is not None
+        assert r.lc.scalars == {}
 
     def test_chained_via_result_method_merges_known_commands(self, lc):
         r = lc.LS(0.1, 10.0, 1e-3).rms()

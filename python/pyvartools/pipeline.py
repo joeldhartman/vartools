@@ -1197,8 +1197,9 @@ class Pipeline:
             args += command._to_cli_args()
         # -printallscalars is harmless when no scalars exist and enables round-
         # tripping of user-created scalars (from -expr scalar / listvar) into
-        # result.lcscalars.  Only emit when chained (command_offset > 0) or when
-        # scalars were injected, to avoid changing output for existing tests.
+        # result.lc.scalars.  Only emit when chained (command_offset > 0) or
+        # when scalars were injected, to avoid changing output for existing
+        # tests.
         if command_offset > 0 or scalars:
             args += ["-printallscalars"]
         args += ["-oneline"]

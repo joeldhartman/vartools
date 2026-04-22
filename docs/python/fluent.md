@@ -116,8 +116,8 @@ from earlier in the chain by its full name (including the `_N` suffix):
 r1 = lc.LS(0.5, 10.0, 0.1)
 r2 = r1.expr("doubled=2*LS_Period_1_0", vartype="scalar")
 
-r2.vars["LS_Period_1_0"]    # 1.2344 — OUTCOLUMN from the LS segment
-r2.lcscalars["doubled"]         # 2.4688 — SCALAR created by the expr segment
+r2.vars["LS_Period_1_0"]        # 1.2344 — OUTCOLUMN from the LS segment
+r2.lc.scalars["doubled"]        # 2.4688 — SCALAR created by the expr segment
 ```
 
 Similarly, user-defined scalars (created with `-expr scalar` /
@@ -128,8 +128,8 @@ referenced downstream:
 r1 = lc.LS(0.5, 10.0, 0.1).expr("halfper=LS_Period_1_0/2", vartype="scalar")
 r2 = r1.expr("quarterper=halfper/2", vartype="scalar")
 
-r2.lcscalars["halfper"]       # LS_Period_1_0 / 2
-r2.lcscalars["quarterper"]    # LS_Period_1_0 / 4
+r2.lc.scalars["halfper"]        # LS_Period_1_0 / 2
+r2.lc.scalars["quarterper"]     # LS_Period_1_0 / 4
 ```
 
 **How it works (brief).** pyvartools assembles a CLI for each continuation
@@ -139,16 +139,18 @@ carried forward from the prior segment, (b) emits an explicit
 suffixes continue the numbering from where the prior one left off
 (avoiding collision with the injected scalar names), and (c) appends
 `-printallscalars` so any new scalar state round-trips back to
-`result.lcscalars`.
+`result.lc.scalars`.
 
 For batch chains (continuations from a `BatchResult`), the per-LC scalar
 values are injected via `-inlistvars` list-file columns instead of
 `-expr const`, so each LC sees its own value rather than a shared
 constant. This is done automatically by `LightCurveBatch.run()`.
 
-See [`LightCurve.scalars`](lightcurve.md#scalars), [`Result.lcscalars`](results.md),
-and the CLI docs for [`-startcommandnumber`](../cli/options.md#-startcommandnumber-n)
-and [`-printallscalars`](../cli/options.md#-printallscalars).
+See [`LightCurve.scalars`](lightcurve.md#scalars),
+[`BatchResult.lcscalars`](results.md#lcscalars-pddataframe),
+and the CLI docs for
+[`-startcommandnumber`](../cli/options.md#-startcommandnumber-n) and
+[`-printallscalars`](../cli/options.md#-printallscalars).
 
 ---
 

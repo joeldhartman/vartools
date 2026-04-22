@@ -77,29 +77,6 @@ class Result:
         """
         return VarsNamespace.from_series(self.vars, self._known_commands)
 
-    @property
-    def lcscalars(self) -> Dict[str, object]:
-        """Per-star scalar variables for this light curve.
-
-        A convenience view of ``self.lc.scalars`` — equivalent to
-        ``dict(result.lc.scalars)``.  The values themselves live on the
-        captured ``LightCurve``; this property just reads them.
-
-        Holds values of vartools variables whose vectortype is SCALAR,
-        PERSTARDATA, or INLIST — i.e. user-defined scalars (from ``-expr
-        vartype=scalar``), list-file column values (from ``-inlistvars``),
-        and the OUTCOLUMN values that pyvartools carries forward across
-        chained command invocations so subsequent analytic expressions can
-        reference them.
-
-        Keys are the raw vartools variable names with no ``_N`` suffix (in
-        contrast to ``.vars``).  Returns an empty dict if the captured
-        light curve has no scalars, or if no light curve was captured.
-        """
-        if self.lc is None:
-            return {}
-        return dict(self.lc.scalars)
-
     def __getattr__(self, name: str) -> object:
         """Shorthand access to individual var keys, e.g. result.LS_Period_1_0."""
         # Only reached when normal attribute lookup has failed.
@@ -411,7 +388,8 @@ def _merge_prior(prior: "Result", new: "Result") -> "Result":
 
 # Lines starting with this prefix are per-star scalar variables emitted by
 # vartools' ``-printallscalars`` option.  They are routed to
-# ``LightCurve.scalars`` / ``Result.lcscalars`` rather than ``.vars``.
+# ``LightCurve.scalars`` (and ``BatchResult.lcscalars`` for batch runs)
+# rather than ``.vars``.
 _SCALAR_PREFIX = "VARTOOLS_SCALAR:"
 
 

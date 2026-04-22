@@ -106,35 +106,29 @@ pgram = result.files["LS_periodogram_0"]   # pd.DataFrame with frequency/power c
 pgram.plot(x="Frequency", y="Power")
 ```
 
-### `.lcscalars` — `dict[str, float]`
+### Per-star scalars — `result.lc.scalars`
 
-A convenience view of the captured light curve's per-star scalars —
-equivalent to `dict(result.lc.scalars)`.  Not a separate storage layer:
-[`LightCurve.scalars`](lightcurve.md#scalars) is the canonical home for
-these values, and `.lcscalars` is just a shorthand so callers don't have to
-chain through `result.lc`.
-
-Holds variables of vectortype `SCALAR`, `PERSTARDATA`, and `INLIST` —
-values created by `-expr scalar ...`, `-expr listvar ...`, or
-`-inlistvars`.  Keys are the raw variable names (no `_N` suffix), in
-contrast to `result.vars`, which holds OUTCOLUMN values whose names
-carry a `_N` suffix reflecting the command's position (e.g.
-`"LS_Period_1_0"`).
+Per-star scalars (vectortype `SCALAR`, `PERSTARDATA`, or `INLIST`) are
+stored directly on the captured light curve at
+[`LightCurve.scalars`](lightcurve.md#scalars).  These come from `-expr
+scalar ...`, `-expr listvar ...`, or `-inlistvars`.  Keys are the raw
+variable names with no `_N` suffix, in contrast to `result.vars`, which
+holds OUTCOLUMN values whose names carry a `_N` suffix reflecting the
+command's position (e.g. `"LS_Period_1_0"`).
 
 pyvartools enables the underlying [`-printallscalars`](../cli/options.md#-printallscalars)
 option automatically when running chained commands, so user-defined
-scalars round-trip into `result.lc.scalars` (and hence `result.lcscalars`)
-with no extra configuration.
+scalars round-trip into `result.lc.scalars` with no extra configuration.
 
 ```python
-# -expr scalar creates a SCALAR variable — it lives in .lcscalars, not .vars
+# -expr scalar creates a SCALAR variable — it lives in lc.scalars, not .vars
 r = lc.LS(0.5, 10.0, 0.1).expr("doubled=2*LS_Period_1_0", vartype="scalar")
 r.vars["LS_Period_1_0"]     # 1.2344 — OUTCOLUMN, lives in .vars
-r.lcscalars["doubled"]          # 2.4688 — SCALAR; equivalent to r.lc.scalars["doubled"]
+r.lc.scalars["doubled"]     # 2.4688 — SCALAR on the captured LightCurve
 ```
 
-Returns an empty dict when `result.lc` is `None` (i.e. no LC captured);
-in that case the scalars were not captured and there is nothing to view.
+If `result.lc is None` (no LC captured) there are no scalars to inspect —
+check `result.lc` before reading `.scalars`.
 
 ### `.ok` and `.error`
 
@@ -238,7 +232,8 @@ objects in `batch.lcs`, not in a separate store.
 
 Column names are the raw variable names (no `_N` suffix); column values
 may differ per LC (e.g. for a `listvar` that depends on the LC data).
-Batched counterpart of `Result.lcscalars` above.
+The batched counterpart of accessing `result.lc.scalars` on a single-LC
+`Result`.
 
 ```python
 br = vt.LightCurveBatch(lcs).LS(0.5, 10.0, 0.1).run()
