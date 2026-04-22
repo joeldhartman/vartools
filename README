@@ -5,7 +5,8 @@ Light-curve analysis tools — a command-line C program and Python API
 for analyzing astronomical photometric time series.
 
     Website:       http://www.astro.princeton.edu/~jhartman/vartools.html
-    Documentation: http://www.astro.princeton.edu/~jhartman/vartools.html
+    Documentation: http://www.astro.princeton.edu/~jhartman/vartools_new/
+                   (legacy: http://www.astro.princeton.edu/~jhartman/vartools.html)
     GitHub:        https://github.com/joeldhartman/vartools
     Contact:       Joel D. Hartman <jhartman@astro.princeton.edu>
 
