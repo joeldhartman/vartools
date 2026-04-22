@@ -159,6 +159,64 @@ class TestStatefulCommandErrors:
 
 
 # ---------------------------------------------------------------------------
+# Pipeline builder API — vt.Pipeline().X().Y() constructs the command list
+# ---------------------------------------------------------------------------
+
+class TestPipelineBuilder:
+
+    def test_empty_pipeline(self):
+        p = vt.Pipeline()
+        assert p.commands == []
+
+    def test_builder_returns_self(self):
+        p = vt.Pipeline()
+        assert p.clip(5.0) is p
+
+    def test_single_builder_call(self):
+        from pyvartools import commands as cmd
+        p = vt.Pipeline().LS(0.5, 10.0, 1e-3)
+        assert len(p.commands) == 1
+        assert isinstance(p.commands[0], cmd.LS)
+
+    def test_chained_builder_calls(self):
+        from pyvartools import commands as cmd
+        p = vt.Pipeline().clip(5.0).LS(0.5, 10.0, 1e-3)
+        assert [type(c) for c in p.commands] == [cmd.clip, cmd.LS]
+
+    def test_preseeded_list_plus_builder(self):
+        """Passing a list into Pipeline() and then chaining extends the list."""
+        from pyvartools import commands as cmd
+        p = vt.Pipeline([cmd.rms()]).LS(0.5, 10.0, 1e-3)
+        assert [type(c) for c in p.commands] == [cmd.rms, cmd.LS]
+
+    def test_builder_forwards_args_and_kwargs(self):
+        from pyvartools import commands as cmd
+        p = vt.Pipeline().LS(0.5, 10.0, 1e-3, npeaks=3)
+        ls = p.commands[0]
+        assert isinstance(ls, cmd.LS)
+        assert ls.npeaks == 3
+
+    def test_builder_and_list_forms_produce_equivalent_runs(self, lc):
+        """Same commands built either way → same Result.vars."""
+        from pyvartools import commands as cmd
+        r_builder = vt.Pipeline().clip(5.0).LS(0.5, 10.0, 1e-3).run(lc)
+        r_list = vt.Pipeline([cmd.clip(5.0), cmd.LS(0.5, 10.0, 1e-3)]).run(lc)
+        # The two Result.vars Series should be element-wise equal.
+        assert list(r_builder.vars.index) == list(r_list.vars.index)
+        for k in r_builder.vars.index:
+            assert r_builder.vars[k] == r_list.vars[k], k
+
+    def test_o_capture_via_builder(self, lc):
+        """cmd.o(capture=True) works through the builder form too."""
+        r = vt.Pipeline().o(capture=True, key="snap").run(lc)
+        assert "snap" in r.files
+
+    def test_run_batch_via_builder(self, lc):
+        r = vt.Pipeline().rms().run_batch([lc, lc, lc])
+        assert len(r.vars) == 3
+
+
+# ---------------------------------------------------------------------------
 # VarsNamespace and var access
 # ---------------------------------------------------------------------------
 

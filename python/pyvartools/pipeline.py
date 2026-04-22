@@ -323,13 +323,18 @@ class Pipeline:
 
     Examples
     --------
-    Single light curve::
+    Single light curve — builder form (preferred)::
 
         import pyvartools as vt
         lc = vt.LightCurve.from_file("EXAMPLES/2")
-        pipe = vt.Pipeline([vt.commands.LS(0.1, 10.0, 0.1, 5, 1)])
+        pipe = vt.Pipeline().clip(5.0).LS(0.1, 10.0, 0.1, npeaks=5)
         result = pipe.run(lc)
         print(result.vars)
+
+    Or equivalently, supply a pre-built list of commands::
+
+        from pyvartools import commands as cmd
+        pipe = vt.Pipeline([cmd.clip(5.0), cmd.LS(0.1, 10.0, 0.1, npeaks=5)])
 
     Batch::
 
@@ -337,8 +342,11 @@ class Pipeline:
         print(results.vars)  # one row per LC
     """
 
-    def __init__(self, commands: Sequence[VartoolsCommand]) -> None:
-        self.commands: List[VartoolsCommand] = list(commands)
+    def __init__(
+        self,
+        commands: Optional[Sequence[VartoolsCommand]] = None,
+    ) -> None:
+        self.commands: List[VartoolsCommand] = list(commands or [])
         self._lib_pipeline = None  # lazily created LibPipeline when library mode is active
 
     # ------------------------------------------------------------------

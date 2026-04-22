@@ -193,9 +193,44 @@ def _make_stateful_error(cmd_cls: Type["VartoolsCommand"], owner: str):
         f"-{vt_name} is a pipeline-stateful command.\n\n"
         f"It cannot be called directly on a {owner} because it only works "
         f"correctly within a single vartools invocation.  Use "
-        f"``Pipeline([..., commands.{vt_name}(...), ...]).run(lc)`` instead."
+        f"``Pipeline().{vt_name}(...).run(lc)`` instead."
     )
     return _error
+
+
+# ---------------------------------------------------------------------------
+# Method factory — Pipeline builder
+# ---------------------------------------------------------------------------
+
+def _make_pipeline_builder(cmd_cls: Type["VartoolsCommand"]):
+    """Builder method for Pipeline: pipe.LS(...) appends a command and returns self.
+
+    Lets users construct a Pipeline with chained method calls::
+
+        pipe = vt.Pipeline().clip(5.0).LS(0.5, 10.0, 1e-3)
+        result = pipe.run(lc)
+
+    This is equivalent to passing a list of command instances to the
+    Pipeline constructor::
+
+        pipe = vt.Pipeline([cmd.clip(5.0), cmd.LS(0.5, 10.0, 1e-3)])
+    """
+    vt_name = cmd_cls._vt_name
+
+    def _builder(self, *args, **kwargs):
+        self.commands.append(cmd_cls(*args, **kwargs))
+        return self
+
+    _builder.__name__ = vt_name
+    _builder.__qualname__ = f"Pipeline.{vt_name}"
+    _builder.__doc__ = (
+        f"Append a -{vt_name} command to the pipeline and return ``self``.\n\n"
+        f"Positional and keyword arguments are forwarded verbatim to "
+        f"``commands.{vt_name}.__init__``.  The returned Pipeline is the "
+        f"same instance the method was called on, so calls can be chained.\n\n"
+        + (inspect.cleandoc(cmd_cls.__doc__) if cmd_cls.__doc__ else "")
+    )
+    return _builder
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +349,7 @@ def _make_immediate_batch_result(cmd_cls: Type["VartoolsCommand"]):
 # ---------------------------------------------------------------------------
 
 def _attach_all_command_methods() -> None:
-    """Generate and attach command methods to LightCurve, Result,
+    """Generate and attach command methods to LightCurve, Result, Pipeline,
     LightCurveBatch, and BatchResult.
 
     Called once at the bottom of pyvartools/__init__.py.
@@ -322,6 +357,7 @@ def _attach_all_command_methods() -> None:
     from . import commands as _cmds
     from .lightcurve import LightCurve
     from ._batch import LightCurveBatch
+    from .pipeline import Pipeline
     from .results import Result, BatchResult
 
     _SKIP = {"Raw", "UserCommand"}
@@ -355,6 +391,31 @@ def _attach_all_command_methods() -> None:
             # Result: single immediate method (merges prior vars)
             if not hasattr(Result, vt_name):
                 setattr(Result, vt_name, _make_immediate_result(cmd_cls))
+
+        # Pipeline: builder method that appends the command and returns self.
+        # Use the class name (what callers write as ``cmd.X``) as the primary
+        # method name; also alias the vt_name when it differs and is a valid
+        # Python identifier.  Raise if a name would shadow an existing
+        # Pipeline attribute (run, run_batch, commands, …) — silent skips
+        # would hide a real API design mistake.
+        cls_name = cmd_cls.__name__
+        builder_names = {cls_name}
+        if vt_name != cls_name and vt_name.isidentifier():
+            builder_names.add(vt_name)
+        for nm in builder_names:
+            if hasattr(Pipeline, nm):
+                existing = getattr(Pipeline, nm)
+                if getattr(existing, "__qualname__", "") == f"Pipeline.{nm}":
+                    continue  # already attached
+                raise RuntimeError(
+                    f"Cannot attach Pipeline.{nm} builder for {cls_name}: "
+                    f"the name collides with an existing Pipeline attribute "
+                    f"({existing!r}).  Rename the command or the attribute."
+                )
+            method = _make_pipeline_builder(cmd_cls)
+            method.__name__ = nm
+            method.__qualname__ = f"Pipeline.{nm}"
+            setattr(Pipeline, nm, method)
 
         # LightCurveBatch: deferred chain-builder + immediate run_*
         if not hasattr(LightCurveBatch, vt_name):
