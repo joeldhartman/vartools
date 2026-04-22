@@ -1,10 +1,11 @@
 """Light curve manipulation and statistics command wrappers."""
 
 from __future__ import annotations
+import re
 from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
-from ._helpers import _bool, _flag, _injectparam, _norm_save, _outtoken, _period_spec, _pval, _should_emit
+from ._helpers import _bool, _flag, _injectparam, _norm_save, _outtoken, _period_spec, _pval, _should_emit, _varexpr
 
 
 class clip(VartoolsCommand):
@@ -50,9 +51,9 @@ class clip(VartoolsCommand):
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-clip", str(self.sigclip), "1" if self.iterative else "0"]
+        args = ["-clip"] + _varexpr(self.sigclip) + _varexpr(1 if self.iterative else 0)
         if self.niter is not None:
-            args += ["niter", str(self.niter)]
+            args += ["niter"] + _varexpr(self.niter)
         args += _bool("median", self.median)
         if self.markclip is not None:
             args += ["markclip", self.markclip]
@@ -303,27 +304,86 @@ class Killharm(VartoolsCommand):
         if self.output_format is not None:
             args += [self.output_format]
         if self.clip is not None:
-            args += ["clip", str(self.clip)]
+            args += ["clip"] + _varexpr(self.clip)
         args += _flag("maskpoints", self.maskpoints)
         return args
 
     def _killharm_period_spec(self) -> List[str]:
         """Build period spec tokens for Killharm.
 
-        Killharm's "fix" spec has the form: fix Nper per1 ... perN.
-        A plain float becomes: fix 1 <value>.
-        A string like "fix 2.0 1.0" is expanded to: fix 2 2.0 1.0.
-        Keywords like "ls", "aov", "both" are passed as-is.
+        Killharm's "fix" spec has the form: fix Nper per1 ... perN, where
+        each perN may be a number, ``var <name>``, or ``expr <expression>``.
+        Keywords like "ls", "aov", "both", "injectharm", "list" are passed
+        through verbatim.  A tuple/list of values emits the multi-period
+        ``fix Nper <v1> ... <vN>`` form (used when a chained ``period="both"``
+        back-reference resolves to a pair of periods).
         """
+        _KILLHARM_KEYWORDS = {"ls", "aov", "both", "injectharm", "list"}
         p = self.period
         if isinstance(p, (int, float)):
             return ["fix", "1", str(p)]
-        tokens = str(p).split()
-        if tokens[0] == "fix":
-            # bare "fix val" → insert count of periods
+        if isinstance(p, (tuple, list)):
+            return ["fix", str(len(p))] + [str(v) for v in p]
+        s = str(p)
+        tokens = s.split()
+        first = tokens[0] if tokens else ""
+        if first == "fix":
+            # "fix <period> [period ...]" — insert the period count.  Each
+            # period is assumed to be a bare value or pre-qualified token.
             periods = tokens[1:]
             return ["fix", str(len(periods))] + periods
-        return tokens
+        if first in _KILLHARM_KEYWORDS:
+            return tokens
+        # "var NAME" / "expr EXPR" pre-qualified forms (produced by the
+        # per-LC substitution in Pipeline.run_batch) need the "fix 1"
+        # prefix prepended, not another "expr"/"var" wrap.
+        if first in ("var", "expr"):
+            return ["fix", "1"] + tokens
+        # Single period specified as a variable name (from -inlistvars or
+        # -expr listvar) or an analytic expression.  Must be wrapped in
+        # the "fix 1 var|expr" form since Killharm requires an explicit
+        # period count.
+        if re.match(r'^[A-Za-z_]\w*$', s):
+            return ["fix", "1", "var", s]
+        return ["fix", "1", "expr", s]
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import (_resolve_period_backref, _most_recent_lookup,
+                                _coerce_to_numeric)
+        from pyvartools.perlc import PerLC
+        # "both" is a Killharm-only back-ref that pulls the most-recent LS
+        # period and the most-recent AOV period.  The result becomes a
+        # (ls_period, aov_period) tuple that _killharm_period_spec renders
+        # into `fix 2 <ls> <aov>`.
+        if isinstance(self.period, str) and self.period.strip() == "both":
+            ls_stats = _most_recent_lookup(prev, ["LS"])
+            aov_stats = _most_recent_lookup(prev, ["aov", "aov_harm"])
+            if ls_stats is None:
+                raise LookupError(
+                    "Back-reference 'both' has no prior -LS command in "
+                    "this chain"
+                )
+            if aov_stats is None:
+                raise LookupError(
+                    "Back-reference 'both' has no prior -aov or -aov_harm "
+                    "command in this chain"
+                )
+            ls_per = _coerce_to_numeric(ls_stats.Period_1)
+            aov_per = _coerce_to_numeric(aov_stats.Period_1)
+            # Both scalars → 2-tuple of floats.  Any PerLC input → 2-tuple of
+            # PerLCs (multi-period batch emission handled elsewhere; for now
+            # raise if either value is PerLC, since Killharm's per-LC pair
+            # emission isn't plumbed through).
+            if isinstance(ls_per, PerLC) or isinstance(aov_per, PerLC):
+                raise NotImplementedError(
+                    "Killharm(period='both') across a batch chain boundary "
+                    "is not supported (per-LC pairs of periods would need "
+                    "two -inlistvars columns).  Pass the two periods "
+                    "explicitly via Raw() or a single-LC chain."
+                )
+            self.period = (float(ls_per), float(aov_per))
+            return
+        self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
         return {"model": (".killharm.model", None)}
@@ -393,7 +453,7 @@ class linfit(VartoolsCommand):
         if self.modelvar is not None:
             args += ["modelvar", self.modelvar]
         if self.reject is not None:
-            args += ["reject", str(self.reject)]
+            args += ["reject"] + _varexpr(self.reject)
             args += _bool("useMAD", self.reject_usemad)
             if self.reject_iter:
                 args += ["iter"]
@@ -468,7 +528,22 @@ class Injectharm(VartoolsCommand):
         args += [str(vt_nharm)]
         # Repeat amp/phase spec for each of the nharm harmonics
         for _ in range(self.nharm):
-            args += ["ampfix", str(self.amplitude), "phasefix", str(self.phase)]
+            if isinstance(self.amplitude, (int, float)):
+                args += ["ampfix", str(self.amplitude)]
+            elif isinstance(self.amplitude, str) and re.match(r'^[A-Za-z_]\w*$', self.amplitude):
+                args += ["ampvar", self.amplitude]
+            elif isinstance(self.amplitude, str):
+                args += ["ampexpr", self.amplitude]
+            else:
+                args += ["ampfix", str(self.amplitude)]
+            if isinstance(self.phase, (int, float)):
+                args += ["phasefix", str(self.phase)]
+            elif isinstance(self.phase, str) and re.match(r'^[A-Za-z_]\w*$', self.phase):
+                args += ["phasevar", self.phase]
+            elif isinstance(self.phase, str):
+                args += ["phaseexpr", self.phase]
+            else:
+                args += ["phasefix", str(self.phase)]
         # sub-harmonics
         args += [str(self.nsubharm)]
         args += _outtoken(self.save_model, outdir)
@@ -576,7 +651,13 @@ class Injecttransit(VartoolsCommand):
                 args += ["dilute", "fix", str(self.dilute)]
             else:
                 args += ["dilute"] + str(self.dilute).split()
-        args += [self.ld_type] + [str(c) for c in self.ld_coeffs]
+        args += [self.ld_type]
+        ldc = list(self.ld_coeffs)
+        if ldc and isinstance(ldc[0], str) and ldc[0] in (
+                "ldlist", "ldfix", "ldvar", "ldexpr"):
+            args += [str(c) for c in ldc]
+        else:
+            args += ["ldfix"] + [str(c) for c in ldc]
         args += _outtoken(self.save_model, outdir)
         return args
 
@@ -760,7 +841,7 @@ class difffluxtomag(VartoolsCommand):
         self.magcolumn = magcolumn
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-difffluxtomag", str(self.mag_constant), str(self.offset)]
+        args = ["-difffluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
         args += _flag("magcolumn", self.magcolumn)
         return args
 
@@ -783,7 +864,7 @@ class fluxtomag(VartoolsCommand):
         self.offset = offset
 
     def _to_cli_args(self) -> List[str]:
-        return ["-fluxtomag", str(self.mag_constant), str(self.offset)]
+        return ["-fluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
 
 
 class changeerror(VartoolsCommand):
@@ -867,7 +948,7 @@ class medianfilter(VartoolsCommand):
         self.replace = replace
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-medianfilter", str(self.time)]
+        args = ["-medianfilter"] + _varexpr(self.time)
         if self.method in ("average", "weightedaverage"):
             args.append(self.method)
         args += _bool("replace", self.replace)
@@ -880,9 +961,43 @@ class expr(VartoolsCommand):
     Parameters
     ----------
     expression : str
-        Expression of the form ``varname=expr``.
+        Expression of the form ``varname=expression``.
+    vartype : str or None
+        Variable type for the left-hand-side when creating a new variable:
+
+        - ``None`` (default) — per-observation light-curve vector.
+        - ``"listvar"`` — per-star variable (one value per light curve,
+          persists across all LCs).  LC vectors on the RHS are evaluated
+          at the first observation.
+        - ``"scalar"`` — per-thread scalar.
+        - ``"const"`` — global constant (single value, same for all LCs).
+
+        If the variable already exists, its type is preserved regardless
+        of this setting.
     outputcolumns : str, optional
         Comma-separated list of column names to output.
+
+    Notes
+    -----
+    The expression engine supports aggregate functions that operate over
+    all observations in the current light curve.  These are especially
+    useful with ``vartype="listvar"`` to compute per-star summary
+    statistics:
+
+    - ``mean(x [, filter])``, ``median(x)``, ``stddev(x)``, ``MAD(x)``
+    - ``vmin(x)``, ``vmax(x)``, ``sum(x)``
+    - ``pct(x, pctval)``, ``wpct(x, w, pctval)``
+    - ``weightedmean(x, w)``, ``wmedian(x, w)``
+    - ``kurtosis(x)``, ``skewness(x)``, ``meddev(x)``, ``medmeddev(x)``
+
+    All accept an optional filter argument, e.g. ``mean(mag, t>53730)``
+    computes the mean of mag only for observations where t > 53730.
+
+    Examples
+    --------
+    >>> cmd.expr("dmag=mag-10.0")                     # per-observation
+    >>> cmd.expr("avg=mean(mag)", vartype="listvar")   # per-star mean
+    >>> cmd.expr("pi=3.14159", vartype="const")        # global constant
     """
 
     _vt_name = "expr"
@@ -890,13 +1005,23 @@ class expr(VartoolsCommand):
     def __init__(
         self,
         expression: str,
+        vartype: Optional[str] = None,
         outputcolumns: Optional[str] = None,
     ) -> None:
+        if vartype is not None and vartype not in ("listvar", "scalar", "const"):
+            raise ValueError(
+                f"vartype must be None, 'listvar', 'scalar', or 'const', "
+                f"got {vartype!r}"
+            )
         self.expression = expression
+        self.vartype = vartype
         self.outputcolumns = outputcolumns
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-expr", self.expression]
+        args = ["-expr"]
+        if self.vartype is not None:
+            args.append(self.vartype)
+        args.append(self.expression)
         args += _flag("outputcolumns", self.outputcolumns)
         return args
 

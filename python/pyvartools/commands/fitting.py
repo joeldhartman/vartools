@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
-from ._helpers import _bool, _flag, _norm_save, _outtoken, _period_spec, _pval, _should_emit
+from ._helpers import _bool, _flag, _norm_save, _outtoken, _period_spec, _pval, _should_emit, _varexpr
 
 
 class TFA(VartoolsCommand):
@@ -206,7 +206,7 @@ class TFA_SR(VartoolsCommand):
             nharm, nsubharm = self.signal_params or (3, 0)
             args += ["harm", str(nharm), str(nsubharm)]
         if self.signal_period is not None:
-            args += ["period"] + _pval(self.signal_period)
+            args += ["period"] + _pval(self.signal_period, "fix")
         if self.decorr_params is not None:
             args += ["decorr"] + str(self.decorr_params).split()
         if self.clip is not None:
@@ -216,6 +216,10 @@ class TFA_SR(VartoolsCommand):
         args += _flag("fitmask", self.fitmask)
         args += _flag("outfitmask", self.outfitmask)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.signal_period = _resolve_period_backref(prev, self.signal_period)
 
     def _output_file_specs(self):
         return {
@@ -347,7 +351,13 @@ class MandelAgolTransit(VartoolsCommand):
     modelvar : str, optional
         Variable name to store the best-fit model.
     save_phcurve : bool
+    ophcurve_phmin, ophcurve_phmax, ophcurve_phstep : float
+        Phase range and step for the phcurve output (only used when
+        ``save_phcurve`` is truthy).  Defaults are ``0.0``, ``1.0``, ``0.005``.
     save_jdcurve : bool
+    ojdcurve_jdstep : float
+        Time step for the jdcurve output (only used when ``save_jdcurve`` is
+        truthy).  Default is ``0.02``.
     """
 
     _vt_name = "MandelAgolTransit"
@@ -383,7 +393,11 @@ class MandelAgolTransit(VartoolsCommand):
         save_model: bool = False,
         modelvar: Optional[str] = None,
         save_phcurve: bool = False,
+        ophcurve_phmin: float = 0.0,
+        ophcurve_phmax: float = 1.0,
+        ophcurve_phstep: float = 0.005,
         save_jdcurve: bool = False,
+        ojdcurve_jdstep: float = 0.02,
     ) -> None:
         self.P0 = P0
         self.T00 = T00
@@ -414,26 +428,37 @@ class MandelAgolTransit(VartoolsCommand):
         self.save_model = save_model
         self.modelvar = modelvar
         self.save_phcurve = save_phcurve
+        self.ophcurve_phmin = ophcurve_phmin
+        self.ophcurve_phmax = ophcurve_phmax
+        self.ophcurve_phstep = ophcurve_phstep
         self.save_jdcurve = save_jdcurve
+        self.ojdcurve_jdstep = ojdcurve_jdstep
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-MandelAgolTransit",
-                str(self.P0), str(self.T00), str(self.r0), str(self.a0)]
-        if self.bimpact is not None:
-            args += ["b", str(self.bimpact)]
+        args = ["-MandelAgolTransit"]
+        # "bls"/"blsfixper" are single-token initial-param specs that pull
+        # P0/T00/r0/a0/e0/omega0 from the prior BLS command.
+        if isinstance(self.P0, str) and self.P0.strip() in ("bls", "blsfixper"):
+            args += [self.P0.strip()]
         else:
-            args += ["i", str(self.inclination)]
-        args += [str(self.e0), str(self.omega0), str(self.mconst0),
-                 self.ld_type] + [str(c) for c in self.ld_coeffs]
+            args += _varexpr(self.P0) + _varexpr(self.T00) + _varexpr(self.r0) + _varexpr(self.a0)
+            if self.bimpact is not None:
+                args += ["b"] + _varexpr(self.bimpact)
+            else:
+                args += ["i"] + _varexpr(self.inclination)
+            args += _varexpr(self.e0) + _varexpr(self.omega0) + _varexpr(self.mconst0)
+        args += [self.ld_type]
+        for c in self.ld_coeffs:
+            args += _varexpr(c)
         args += [str(self.fitephem), str(self.fitr), str(self.fita),
                  str(self.fitinclterm), str(self.fite), str(self.fitomega),
                  str(self.fitmconst)] + [str(f) for f in self.fitldcoeffs]
         if self.rv_file is not None:
             args += ["1", self.rv_file,
-                     self.rv_model_file or "0",
-                     str(self.K0 or 0.0), str(self.gamma0 or 0.0),
-                     str(self.fitK), str(self.fitgamma)]
+                     self.rv_model_file or "0"]
+            args += _varexpr(self.K0 or 0.0) + _varexpr(self.gamma0 or 0.0)
+            args += [str(self.fitK), str(self.fitgamma)]
         else:
             args += ["0"]  # fitRV=0
         args += ["1" if self.correct_lc else "0"]
@@ -443,11 +468,50 @@ class MandelAgolTransit(VartoolsCommand):
             args += ["modelvar", self.modelvar]
         ph_spec = _norm_save(self.save_phcurve)
         if _should_emit(ph_spec):
-            args += ["ophcurve", ph_spec.path or outdir, "0", "1", "0.005"]
+            args += ["ophcurve", ph_spec.path or outdir,
+                     str(self.ophcurve_phmin),
+                     str(self.ophcurve_phmax),
+                     str(self.ophcurve_phstep)]
         jd_spec = _norm_save(self.save_jdcurve)
         if _should_emit(jd_spec):
-            args += ["ojdcurve", jd_spec.path or outdir, "0.02"]
+            args += ["ojdcurve", jd_spec.path or outdir,
+                     str(self.ojdcurve_jdstep)]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        # When P0 is "bls" / "blsfixper", pull P, Tc, depth, qtran from the
+        # prior -BLS (or -BLSFixPer) and convert to (P0, T00, r0, a0).  The
+        # C-side formulas are:  r0 = sqrt(depth), a0 = 1/(qtran*pi).  Other
+        # initial params are set to the vartools defaults used on the C side.
+        import math
+        from ._helpers import _resolve_bls_transit_backref
+        from pyvartools.perlc import PerLC
+
+        if not (isinstance(self.P0, str)
+                and self.P0.strip() in ("bls", "blsfixper")):
+            return
+        d = _resolve_bls_transit_backref(prev, self.P0.strip())
+
+        def _sqrt(v):
+            if isinstance(v, PerLC):
+                return PerLC([math.sqrt(float(x)) for x in v])
+            return math.sqrt(float(v))
+
+        def _inv_pi(v):
+            if isinstance(v, PerLC):
+                return PerLC([1.0 / (float(x) * math.pi) for x in v])
+            return 1.0 / (float(v) * math.pi)
+
+        self.P0 = d["period"]
+        self.T00 = d["T0"]
+        self.r0 = _sqrt(d["depth"])
+        self.a0 = _inv_pi(d["qtran"])
+        self.e0 = 0.0
+        self.omega0 = 0.0
+        # Match the C defaults (inclination=90 unless bimpact is supplied).
+        if self.bimpact is None:
+            self.inclination = 90.0
+        self.mconst0 = 0.0
 
     def _output_file_specs(self):
         return {
@@ -524,7 +588,12 @@ class SoftenedTransit(VartoolsCommand):
         if self.fit_harm > 0:
             args += [str(self.fit_harm)]
             if self.fit_harm_method is not None:
-                args += [str(self.fit_harm_method)]
+                # A resolved back-ref may be a numeric value — emit with the
+                # "fix" keyword so the CLI parses it correctly.
+                if isinstance(self.fit_harm_method, (int, float)):
+                    args += ["fix", str(self.fit_harm_method)]
+                else:
+                    args += [str(self.fit_harm_method)]
             if self.fit_harm_nharm is not None:
                 args += [str(self.fit_harm_nharm)]
             if self.fit_harm_nsubharm is not None:
@@ -532,6 +601,32 @@ class SoftenedTransit(VartoolsCommand):
         else:
             args += ["0"]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import (_resolve_bls_transit_backref,
+                                _resolve_period_backref)
+        from pyvartools.perlc import PerLC
+
+        # init_params: "bls" / "blsfixper" → 6-tuple (P, T0, eta, delta,
+        # mconst, cval) filled from the prior -BLS / -BLSFixPer.  The
+        # vartools C defaults are mconst0=-1 (auto-estimate) and cval0=0.2.
+        if isinstance(self.init_params, str) and self.init_params.strip() in (
+                "bls", "blsfixper"):
+            d = _resolve_bls_transit_backref(prev, self.init_params.strip())
+            P, T0, eta, delta = d["period"], d["T0"], d["qtran"], d["depth"]
+            if any(isinstance(v, PerLC) for v in (P, T0, eta, delta)):
+                raise NotImplementedError(
+                    "SoftenedTransit init_params='bls' across a batch chain "
+                    "boundary is not supported (would need 4 per-LC columns "
+                    "injected).  Use single-LC chaining or a Pipeline."
+                )
+            self.init_params = (float(P), float(T0), float(eta),
+                                float(delta), -1.0, 0.2)
+
+        # fit_harm_method: supports ls / aov / bls back-refs when fit_harm>0.
+        if self.fit_harm and self.fit_harm_method:
+            self.fit_harm_method = _resolve_period_backref(
+                prev, self.fit_harm_method)
 
     def _output_file_specs(self):
         return {"model": (".softenedtransit.model", None)}
@@ -612,8 +707,9 @@ class Starspot(VartoolsCommand):
         outdir = getattr(self, "_outdir", ".")
         args = ["-Starspot"] + _period_spec(self.period)
         # Initial parameter values: CLI order is a b alpha i chi psi mconst
-        args += [str(self.a0), str(self.b0), str(self.alpha0), str(self.i0),
-                 str(self.chi0), str(self.psi00), str(self.mconst0)]
+        args += (_varexpr(self.a0) + _varexpr(self.b0) + _varexpr(self.alpha0)
+                 + _varexpr(self.i0) + _varexpr(self.chi0) + _varexpr(self.psi00)
+                 + _varexpr(self.mconst0))
         # Fit flags: CLI order is fitP fita fitb fitalpha fiti fitchi fitpsi fitmconst
         args += [str(self.fit_period), str(self.fit_a), str(self.fit_b),
                  str(self.fit_alpha), str(self.fit_i), str(self.fit_chi),
@@ -621,6 +717,10 @@ class Starspot(VartoolsCommand):
         args += ["1" if self.correct_lc else "0"]
         args += _outtoken(self.save_model, outdir)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
         return {"model": (".starspot.model", None)}
@@ -706,6 +806,16 @@ class microlens(VartoolsCommand):
         if _should_emit(m_spec):
             args += ["omodel", m_spec.path or outdir]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        # Each of f0/f1/u0/t0/tmax may be given as "fixcolumn NAME" — resolve
+        # each one independently against the prior step's output.
+        from ._helpers import _resolve_period_backref
+        self.f0 = _resolve_period_backref(prev, self.f0)
+        self.f1 = _resolve_period_backref(prev, self.f1)
+        self.u0 = _resolve_period_backref(prev, self.u0)
+        self.t0 = _resolve_period_backref(prev, self.t0)
+        self.tmax = _resolve_period_backref(prev, self.tmax)
 
     def _output_file_specs(self):
         return {"model": (".microlens", None)}
@@ -837,18 +947,18 @@ class nonlinfit(VartoolsCommand):
         args += [self.optimizer]
         if self.optimizer == "amoeba":
             if self.amoeba_tolerance is not None:
-                args += ["tolerance", str(self.amoeba_tolerance)]
+                args += ["tolerance"] + _varexpr(self.amoeba_tolerance)
             if self.amoeba_maxsteps is not None:
-                args += ["maxsteps", str(self.amoeba_maxsteps)]
+                args += ["maxsteps"] + _varexpr(self.amoeba_maxsteps)
         elif self.optimizer == "mcmc":
             if self.mcmc_naccept is not None:
-                args += ["Naccept", str(self.mcmc_naccept)]
+                args += ["Naccept"] + _varexpr(self.mcmc_naccept)
             if self.mcmc_nlinkstotal is not None:
-                args += ["Nlinkstotal", str(self.mcmc_nlinkstotal)]
+                args += ["Nlinkstotal"] + _varexpr(self.mcmc_nlinkstotal)
             if self.mcmc_fracburnin is not None:
-                args += ["fracburnin", str(self.mcmc_fracburnin)]
+                args += ["fracburnin"] + _varexpr(self.mcmc_fracburnin)
             if self.mcmc_eps is not None:
-                args += ["eps", str(self.mcmc_eps)]
+                args += ["eps"] + _varexpr(self.mcmc_eps)
             if self.mcmc_skipamoeba:
                 args += ["skipamoeba"]
             if self.mcmc_maxmemstore is not None:
@@ -1016,6 +1126,12 @@ class findblends(VartoolsCommand):
         if _should_emit(m_spec):
             args += ["omatches", m_spec.path or outdir]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        # Resolve "fixcolumn NAME" against the prior step's output.  Numeric
+        # values and other specs pass through unchanged.
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
         return {"matches": (".findblends.matches", None)}

@@ -52,9 +52,11 @@ void dotab(FILE *,int);
 void printheader(int, Command *, int, int);
 void printresults(int, char *, Command *, int, int, int);
 double readdates(char *, double);
-void error(int);
-void error2(int, char *);
+void vt_error(int);
+void vt_error2(int, char *);
 void vartools_error_set_pipeline_context(ProgramData *p);
+const char *vartools_last_error_message(void);
+void vartools_clear_last_error_message(void);
 void parsecommandline(int, char **, ProgramData *, Command **);
 int ReadAllLightCurves(ProgramData *, Command *);
 int ReadSingleLightCurve(ProgramData *, Command *, int, int, int);
@@ -69,9 +71,10 @@ double binnedrms(int, double *, double *, double *, double, double *, double *, 
 double rms(int, double *, double *, double *, double *, double *, int *, int, _Variable *, int, int);
 void ProcessCommandSingle(ProgramData *, Command *, int, int, int);
 void ProcessCommandAll(ProgramData *, Command *, int);
-void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname, 
-		      int usecolumnformat, int Nvars, _Variable **variables, 
-		      char **formats, int noclobber, char sepchar, int logcommandline);
+void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
+		      int usecolumnformat, int Nvars, _Variable **variables,
+		      char **formats, int noclobber, char sepchar, int logcommandline,
+		      int emitheader);
 void ReadGlobalDecorr(ProgramData *, Command *);
 void DetermineColumns(ProgramData *, Command *);
 void Filldecorr_matrix(ProgramData *, Command *, int);
@@ -199,7 +202,7 @@ double distxy(double x1, double y1, double x2, double y2);
 double distradec(double ra1, double dec1, double ra2, double dec2);
 void astr_iarc(double xi, double eta, double rac, double decc, double *ra, double *dec);
 void astr_irarc(double xi, double eta, double rac, double decc, double *ra, double *dec);
-void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m, char *outname, double *f0_out, double *f1_out, double *u0_out, double *t0_out, double *tmax_out, double *chi2_);
+void microlens(double *t, double *mag, double *sig, int N, int lc, int threadid, _MicroLens *m, char *outname, double *f0_out, double *f1_out, double *u0_out, double *t0_out, double *tmax_out, double *chi2_);
 double chisqtraptransit(double *a_, int ma, int N, double *t, double *mag, double *sig, void *userparams);
 void dofittrap_amoeba(int N, double *t, double *mag, double *sig, double P, double *q, double *qingress, double *in1_ph, double *in2_ph, double *depth, double *OOTmag);
 void dofittrap_amoeba_fixdur(int N, double *t, double *mag, double *sig, double P, double q, double *qingress, double in1_ph, double in2_ph, double *depth, double *OOTmag);
@@ -250,6 +253,7 @@ void CompileAllExpressions(ProgramData *p, Command *c);
 void RunExpressionCommand(int lcindex, int threadindex, 
 			  ProgramData *p, _ExpressionCommand *c);
 _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argv);
+_ExpressionCommand* CreateExpressionCommandWithType(ProgramData *p, char *argv, int vectortype_override);
 _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vectortype, void *vptrinput, ...);
 double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression *expression);
 void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variable *var, double val);
@@ -262,8 +266,8 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
 char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable *var);
 void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variable *var, char *val);
 double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call);
-int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *functionid, double *constval, _Variable **varptr);
-_FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid);
+int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, int *functionid, double *constval, _Variable **varptr);
+_FunctionCall* ParseFunctionCall(char *term, ProgramData *p, int functionid);
 _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm, ProgramData *p);
 _Expression* ParseExpression(char *term, ProgramData *p);
 void PrintVartoolsFunctionList(ProgramData *p);
@@ -285,7 +289,7 @@ void printinputlcformat(ProgramData *p, FILE *outfile);
 void InitCommands(ProgramData *p, Command *c);
 int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *s);
 int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
-		       _Linfit *c);
+		       _Linfit *c, Command *cs);
 void zerooutcolumnvalue(OutColumn *c, int lc, int reallc);
 void addcolumn(ProgramData *p, Command *command, int cnum, int type, int stringsize, void *ptr, char *outputformat, int Ndereference, int usereallc, int lcdereferencecol, ...);
 _IfStack *CreateIfStack(void);
@@ -413,12 +417,12 @@ void SetupNonlinfitExpression(ProgramData *p, _Nonlinfit *c);
 void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid);
 void dorestorelistdata(ProgramData *p, _SaveListData *s, int sthreadid, int rthreadid, int lcid);
 void DoChangeVariable(ProgramData *p, _Changevariable *c, int threadid);
-void error2_noexit(int errflag, char *s);
+void vt_error2_noexit(int errflag, char *s);
 void MemAllocDataForUserCommand(Command *c, int Nlc);
 _IfStruct * popIfStack(_IfStack *stack);
 void ParseObservatoryCode(char *code, double *obslat, double *obslong, double *obsalt);
 void load_cspice_kernels(char *ephemfile, char *leapsecfile, char *planetdatafile, int inputtimetype, int outputtimetype, int inputsys, int outputsys);
-int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p, _Nonlinfit *c);
+int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p, _Nonlinfit *c, Command *cs);
 char isstringint(char *s);
 int ParseInputLCFormatString(char *argv, ProgramData *p);
 void ParseSkipCharString(char *argv, int *Nskip, char **skipchars);
@@ -458,3 +462,22 @@ void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int l
 void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
 void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum);
+void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr);
+void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varptr, char vectortype, char datatype);
+void SetAggregateNJD(int njd);
+int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid);
+int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int combinelcfilenum);
+void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int lc_list_num);
+void SetupInListMultiLCVariable(ProgramData *p, char *varname, int column, int datatype, char *format);
+double getmean(int n, double *data);
+double getweightedmean(int n, double *data, double *sig);
+double median_nocopy(int n, double *data);
+double median_weight_nocopy(int n, double *data, double *err);
+double stddev(int n, double *data);
+double meddev(int n, double *data);
+double medmeddev(int n, double *data);
+double MAD(int n, double *data);
+double kurtosis(int n, double *data);
+double skewness(int n, double *data);
+double percentile_nocopy(int n, double *data, double pct);
+double percentile_weight_nocopy(int n, double *data, double *err, double pct);

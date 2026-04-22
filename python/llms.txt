@@ -1,0 +1,468 @@
+# pyvartools — LLM Reference
+
+pyvartools is the Python API for VARTOOLS, an astronomical time-series analysis
+program.  It feeds light curves to the vartools engine (either in-process via
+`libvartoolspipeline.so` or as a subprocess) and returns results as pandas
+Series/DataFrames with no manual output parsing.
+
+Full documentation: https://www.astro.princeton.edu/~jhartman/vartools/
+PyPI package name: pyvartools
+Requires: Python ≥ 3.8, numpy, pandas, a working `vartools` binary on PATH.
+
+---
+
+## Installation
+
+```bash
+pip install pyvartools
+# or from the source tree:
+cd python && pip install -e .
+```
+
+If `libvartoolspipeline.so` is installed alongside the binary (`make install`
+does this automatically), Pipeline runs are executed in-process — no subprocess
+is spawned, giving roughly a 20× speedup per call.  This includes
+`capture_lc=True` mode: the modified light curve data is read back directly
+from C memory.  If the library is absent the package falls back to subprocess
+mode transparently.
+
+---
+
+## Core objects
+
+### LightCurve
+
+An in-memory light curve backed by a pandas DataFrame.  Standard columns are
+`t` (time), `mag` (magnitude or flux), `err` (uncertainty), but none are
+required.  Additional columns are preserved as auxiliary vartools variables
+and round-trip through the library mode automatically.
+
+```python
+import pyvartools as vt
+
+# From numpy arrays
+lc = vt.LightCurve.from_arrays(t, mag, err, name="my_star")
+
+# From a pandas DataFrame
+lc = vt.LightCurve.from_dataframe(df, name="my_star")
+
+# From an ASCII or FITS file
+lc = vt.LightCurve.from_file("path/to/lc.txt")           # ASCII (t mag err …)
+lc = vt.LightCurve.from_file("path/to/lc.fits",
+                              t_col="BJD", mag_col="Mag", err_col="Err")
+
+# From an astropy TimeSeries (requires astropy)
+lc = vt.LightCurve.from_timeseries(ts, mag_col="flux", err_col="flux_err")
+```
+
+Access the underlying DataFrame: `lc.data`  (a `pd.DataFrame`).
+
+### Pipeline
+
+An ordered sequence of VartoolsCommand objects.  A Pipeline is reusable: the
+same instance can be called on many light curves.
+
+```python
+from pyvartools import commands as cmd
+
+pipe = vt.Pipeline([
+    cmd.LS(minp=0.5, maxp=10.0, subsample=0.01),
+    cmd.BLS(minper=0.5, maxper=10.0, qmin=0.01, qmax=0.1,
+            nfreq=20000, nbins=200),
+])
+```
+
+### Result
+
+Returned by single-LC runs.
+
+- `result.vars` — `pd.Series` indexed by vartools column names, e.g.
+  `result.vars["LS_Period_1_0"]` or `result.vars["Log10_LS_Prob_1_0"]`.
+- `result.lc` — `LightCurve` of the (possibly modified) output LC, or `None`
+  if `capture_lc=False` (the default).
+- `result.files` — dict of `key → pd.DataFrame` for auxiliary output files
+  (periodograms, model LCs, MCMC chains, …) when `save_*=True` was set on a
+  command.
+
+### BatchResult
+
+Returned by batch runs.
+
+- `batch.var` — `pd.DataFrame` with one row per light curve.
+- `batch.lcs` — list of `LightCurve` or `None` (controlled by `capture_lc`).
+- `batch.files` — dict of `key → list[pd.DataFrame]`, one DataFrame per LC.
+- `batch.error` — `RunError` or `None`; set if vartools exited non-zero.
+
+---
+
+## Fluent / chaining API
+
+Every vartools command is available as a method on `LightCurve` and `Result`,
+enabling immediate chaining without constructing a Pipeline:
+
+```python
+lc = vt.LightCurve.from_file("EXAMPLES/2")
+result = lc.LS(0.1, 10.0, 0.1).clip(3.0).rms()
+print(result.vars["LS_Period_1_0"])
+print(result.vars["RMS_2"])
+```
+
+Each call executes immediately and returns a `Result`.  When
+`libvartoolspipeline.so` is available, chained commands run fully in-process.
+
+Top-level module functions also work:
+
+```python
+result = vt.LS("EXAMPLES/2", 0.1, 10.0, 0.01)   # filename
+result = vt.LS(lc, 0.1, 10.0, 0.01)              # LightCurve object
+result = vt.LS(df, 0.1, 10.0, 0.01)              # pandas DataFrame
+```
+
+---
+
+## Run methods
+
+| Method | Input | Returns | Notes |
+|--------|-------|---------|-------|
+| `pipe.run(lc)` | `LightCurve` | `Result` | In-process when library available. |
+| `pipe.run_file(path)` | file path | `Result` | Binary reads file directly; fastest for large on-disk files. |
+| `pipe.run_batch(lcs)` | list of `LightCurve` | `BatchResult` | In-process when available; else one subprocess call. |
+| `pipe.run_filelist(paths)` | list of paths **or** path to a list-file | `BatchResult` | Binary reads all files directly. |
+| `pipe.run_combinelcs(groups)` | list of path-groups | `BatchResult` | Uses `-l … combinelcs`; each group is merged into one in-memory LC. |
+
+All run methods accept:
+
+| Parameter | Type | Default | CLI flag |
+|-----------|------|---------|---------|
+| `capture_lc` | bool | `False` | — |
+| `randseed` | int or None | `None` | `-randseed N` |
+| `skipmissing` | bool | `False` | `-skipmissing` |
+| `jdtol` | float or None | `None` | `-jdtol N` |
+| `matchstringid` | bool | `False` | `-matchstringid` |
+
+Batch methods (`run_batch`, `run_filelist`, `run_combinelcs`) also accept
+`nthreads=N` which forwards `-parallel N` to vartools.
+
+Setting any of `randseed`, `skipmissing`, `jdtol`, or `matchstringid` to a
+non-default value forces subprocess mode even when the in-process library is
+available.
+
+---
+
+## Commands
+
+All commands are in `pyvartools.commands`.  Import as:
+
+```python
+from pyvartools import commands as cmd
+```
+
+### Variable and expression parameters
+
+Most numeric parameters accept three forms:
+
+| Value | Emitted CLI tokens | When to use |
+|-------|--------------------|-------------|
+| A number (`float` or `int`) | `0.5` | Fixed value. |
+| A bare identifier string, e.g. `"minperiod"` | `var minperiod` | Value read from a named per-star variable. |
+| Any other string, e.g. `"tspan/200"` | `expr tspan/200` | Evaluated as a per-LC math expression. |
+
+This works for parameters on commands like `LS`, `BLS`, `aov`, `clip`,
+`fluxtomag`, `medianfilter`, `MandelAgolTransit`, `Starspot`, `nonlinfit`,
+`BLSFixDurTc`, `autocorrelation`, `dftclean`, `wwz`, `binlc`, `Phase`,
+`Killharm`, `linfit`, `Injectharm`, `Injecttransit`, `addnoise`, `microlens`,
+and more.
+
+### Period-search commands
+
+```python
+cmd.LS(minp, maxp, subsample, npeaks=5, save_periodogram=False,
+       noGLS=False, whiten=False, bootstrap=None, fixperiod_snr=None)
+
+cmd.BLS(minper, maxper, qmin, qmax, nfreq, nbins, npeaks=5,
+        save_bls=False)
+
+cmd.aov(minp, maxp, subsample, nh=5, npeaks=5)
+cmd.aov_harm(minp, maxp, subsample, nh2=5, npeaks=5)
+
+cmd.BLSFixPer(period, qmin, qmax, nbins, npeaks=1)
+cmd.BLSFixDurTc(duration, tc, minper, maxper, nfreq, ...)
+cmd.BLSFixPerDurTc(period, duration, tc, ...)
+
+cmd.autocorrelation(start, stop, step, save_result=True)
+cmd.dftclean(nbeam, maxfreq=None, gain=0.1, SNlimit=5.0, ...)
+cmd.wwz(maxfreq, freqsamp=0.25, tau0="auto", tau1="auto", dtau="auto",
+        c=0.0126, ...)
+cmd.GetLSAmpThresh(confidence, nbootstrap=1000)
+cmd.Phase(period, T0=None)
+```
+
+### Light-curve manipulation and statistics
+
+```python
+cmd.rms()                 # RMS scatter
+cmd.rmsbin(binsize)       # binned RMS
+cmd.chi2()                # reduced chi-squared
+cmd.chi2bin(binsize)
+cmd.alarm()               # alarm statistic
+cmd.stats(variables, statistics)  # mean, median, skewness, kurtosis, …
+cmd.clip(sigclip)         # sigma-clipping
+cmd.rescalesig(method)
+cmd.Killharm(period, nharm, nsubharm=0, clip=None)
+cmd.linfit(function, paramlist, reject=None, ...)
+cmd.Injectharm(period, amplitude, nharm=1, phase=0.0, ...)
+cmd.Injecttransit(period, Rp, Mp, ...)
+cmd.sortlc()
+cmd.restricttimes(minJD, maxJD)
+cmd.restoretimes()
+cmd.savelc(tag)           # save LC state
+cmd.restorelc(tag)        # restore saved LC state
+cmd.difffluxtomag(mag_constant, offset=0.0)
+cmd.fluxtomag(mag_constant, offset=0.0)
+cmd.changeerror(method)
+cmd.changevariable(varname, expr)
+cmd.copylc()
+cmd.medianfilter(time)
+cmd.expr(expression, vartype=None)  # evaluate a math expression
+cmd.print_cols(colnames)  # print specified columns to stdout
+cmd.binlc(method, binsize=None, nbins=None, ...)
+cmd.FFT()
+cmd.IFFT()
+cmd.resample(method)
+cmd.decorr(colnames)      # decorrelation against auxiliary columns
+cmd.Jstet()               # J-statistic variability measure
+```
+
+### The `-expr` command and aggregate functions
+
+`cmd.expr(expression, vartype=None)` evaluates an analytic expression.  The
+`vartype` parameter controls the left-hand-side variable type:
+
+| `vartype` | Variable type | Example |
+|-----------|--------------|---------|
+| `None` (default) | Per-observation vector | `cmd.expr("flux=10^(-0.4*(mag-25))")` |
+| `"listvar"` | Per-star (persists across LCs) | `cmd.expr("avg=mean(mag)", vartype="listvar")` |
+| `"scalar"` | Per-thread scalar | `cmd.expr("x=mag[0]", vartype="scalar")` |
+| `"const"` | Global constant | `cmd.expr("pi=3.14159", vartype="const")` |
+
+The expression engine includes aggregate functions that operate over all
+observations in the current LC:
+
+- `mean(x [, filter])`, `median(x)`, `stddev(x)`, `MAD(x)`
+- `vmin(x)`, `vmax(x)`, `sum(x)`
+- `weightedmean(x, w)`, `wmedian(x, w)`
+- `pct(x, pctval)`, `wpct(x, w, pctval)`
+- `kurtosis(x)`, `skewness(x)`, `meddev(x)`, `medmeddev(x)`
+
+All accept an optional trailing filter argument:  `mean(mag, t>53730)`.
+First arguments can be any expression: `mean(mag*mag)`, `sum(sin(2*pi*t/P))`.
+
+### Model-fitting commands
+
+```python
+cmd.TFA(templatelist, period=None, epoch=None, duration=None)
+cmd.TFA_SR(templatelist)   # TFA with signal reconstruction
+cmd.SYSREM(templatelist, niter=1)
+
+cmd.MandelAgolTransit(P0, T00, r0, a0, ld_type="quad", ld_coeffs=[0.3, 0.3],
+                      bimpact=None, inclination=None, e0=0.0, omega0=0.0,
+                      mconst0=-1, ...)
+cmd.SoftenedTransit(...)
+cmd.Starspot(period, a0, b0, alpha0, i0, chi0, psi00, mconst0, ...)
+cmd.microlens(...)
+
+cmd.nonlinfit(function, paramlist, fit_method="amoeba",
+              amoeba_tolerance=None, amoeba_maxsteps=None,
+              mcmc_naccept=None, mcmc_nlinkstotal=None,
+              mcmc_fracburnin=None, mcmc_eps=None, ...)
+cmd.addnoise(noise_type, ...)
+cmd.findblends(...)
+```
+
+### Miscellaneous / utility
+
+```python
+cmd.converttime(fromformat, toformat)
+cmd.addfitskeyword(keyword)
+cmd.match(filelist, colnames)
+cmd.R(rscript)            # run an inline R script
+cmd.o(filename)           # write output light curve to file
+cmd.ifcmd(condition, commands)   # conditional command block
+
+# Control output column name suffix (applies to the next command only)
+cmd.columnsuffix("mysuffix")
+
+# Escape hatch: pass raw CLI tokens verbatim
+cmd.Raw("-sometoken value")
+
+# User extension library commands (compiled .so)
+cmd.UserCommand(lib_path, cmd_name, raw_args)
+```
+
+---
+
+## Output column naming convention
+
+Each statistic name is formed as `CMDNAME_descriptor_suffix` where `suffix` is
+the 0-indexed position of the command in the pipeline:
+
+```
+LS_Period_1_0       → LS, 2nd peak, command at index 0
+BLS_Period_1_1      → BLS, 2nd peak, command at index 1
+```
+
+To use a human-readable suffix instead of a positional number, insert
+`cmd.columnsuffix("tag")` before the command:
+
+```python
+pipe = vt.Pipeline([
+    cmd.columnsuffix("short"),
+    cmd.LS(0.1, 5.0, 0.01),
+    cmd.columnsuffix("long"),
+    cmd.LS(5.0, 50.0, 0.1),
+])
+result = pipe.run(lc)
+print(result.vars["LS_Period_1_short"])
+print(result.vars["LS_Period_1_long"])
+```
+
+---
+
+## Saving periodograms and other output files
+
+Commands that write files accept `save_*=True` keyword arguments.  The
+resulting DataFrames are returned in `result.files` / `batch.files`:
+
+```python
+pipe = vt.Pipeline([
+    cmd.LS(0.5, 10.0, 0.01, save_periodogram=True),
+])
+result = pipe.run(lc)
+pgram = result.files["periodogram"]   # pd.DataFrame with Period, Power columns
+```
+
+---
+
+## Batch processing and PerLC parameters
+
+For batch runs where each light curve needs a different parameter value, wrap
+the list of values in `PerLC`:
+
+```python
+from pyvartools import PerLC
+
+periods = PerLC([1.23, 4.56, 7.89])   # one value per LC
+pipe = vt.Pipeline([cmd.Killharm(period=periods, nharm=3, nsubharm=0)])
+batch = pipe.run_batch(lcs)
+```
+
+`PerLC` is valid only with `run_batch()` and `run_filelist()`.
+
+---
+
+## Library mode and performance
+
+When `libvartoolspipeline.so` is on the library search path, pyvartools runs
+vartools in-process.  The C library API provides:
+
+- `vartools_init_pipeline(argc, argv)` — parse command line once
+- `vartools_process_lc(p, t, mag, err, n, ...)` — run on one LC
+- `vartools_get_lc_variables(p, ...)` — read all LC variables back
+- `vartools_set_lc_data(p, ...)` — inject extra named columns
+- `vartools_free_pipeline(p)` — clean up
+
+Library mode is used automatically for `run()` and `run_batch()`, including
+with `capture_lc=True`.  Extra DataFrame columns (beyond t, mag, err) are
+passed via `-inputlcformat` and round-trip through the library automatically.
+
+Library mode falls back to subprocess when:
+- the library is not installed
+- `timeout` is specified
+- output files are requested (e.g. `save_model=True`)
+- `VARTOOLS_USE_LIBRARY=0` is set in the environment
+
+---
+
+## User extension libraries
+
+vartools supports compiled extension commands (.so/.la files).  Load and use
+them from Python:
+
+```python
+# Quick one-off
+pipe = vt.Pipeline([
+    vt.UserCommand("USERLIBS/src/stitch.so", "stitch",
+                   "mag err mask lcnum median")
+])
+
+# Factory (returns a class)
+Stitch = vt.load_userlib("USERLIBS/src/stitch.so")
+pipe = vt.Pipeline([Stitch("mag err mask lcnum median")])
+
+# Auto-discover all installed extensions
+cmds = vt.discover_userlibs()
+pipe = vt.Pipeline([cmds["stitch"]("mag err mask lcnum median")])
+```
+
+---
+
+## Error handling
+
+If vartools exits non-zero, `run()` and `run_file()` raise `RunError` (a
+subclass of `RuntimeError`).  Batch methods store the error in
+`batch.error` and return an empty `batch.var` unless
+`raise_on_error=False` is passed (the default is `raise_on_error=True`).
+
+---
+
+## Common patterns
+
+```python
+import numpy as np
+import pyvartools as vt
+from pyvartools import commands as cmd
+
+# --- Single LC period search ---
+lc = vt.LightCurve.from_file("data/star001.lc")
+result = vt.Pipeline([cmd.LS(0.1, 30.0, 1e-3)]).run(lc)
+print(result.vars["LS_Period_1_0"])
+
+# --- Fluent API chaining ---
+result = lc.LS(0.1, 10.0, 0.1).clip(3.0).rms()
+print(result.vars["LS_Period_1_0"])
+
+# --- Per-star statistics with aggregate functions ---
+result = vt.Pipeline([
+    cmd.expr("avg=mean(mag)", vartype="listvar"),
+    cmd.expr("sd=stddev(mag)", vartype="listvar"),
+    cmd.expr("dmag=mag-avg"),
+    cmd.rms(),
+]).run(lc, capture_lc=True)
+
+# --- Batch from a list file (most efficient for large surveys) ---
+batch = vt.Pipeline([cmd.rms()]).run_filelist("lc_list.txt", nthreads=8)
+print(batch.var[["Name", "RMS_0"]])
+
+# --- Inject and recover a transit ---
+result = vt.Pipeline([
+    cmd.Injecttransit(period=3.14, Rp=0.1, Mp=1.0, phase=0.0,
+                      sini=1.0, Mstar=1.0, Rstar=1.0),
+    cmd.BLS(minper=1.0, maxper=10.0, qmin=0.005, qmax=0.2,
+            nfreq=50000, nbins=200),
+]).run(lc)
+print(result.vars["BLS_Period_1_1"])
+
+# --- TFA detrending then LS ---
+result = vt.Pipeline([
+    cmd.TFA("template_list.txt"),
+    cmd.LS(0.1, 10.0, 1e-3),
+]).run(lc)
+
+# --- Combine multi-telescope files ---
+groups = [["tel1/star001.lc", "tel2/star001.lc"]]
+batch = vt.Pipeline([
+    cmd.UserCommand("USERLIBS/src/stitch.so", "stitch",
+                    "mag err mask lcnum median"),
+    cmd.LS(0.1, 10.0, 1e-3),
+]).run_combinelcs(groups, lcnumvar="lcnum")
+```

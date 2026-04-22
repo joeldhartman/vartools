@@ -99,16 +99,16 @@ void sort_generic(int N, int isreverse, int *index, int Nms, ...)
 
   va_start(varlist, Nms);
   if(Nms <= 0) {
-    error(ERR_MYSORT_GENERIC_BADCALL);
+    vt_error(ERR_MYSORT_GENERIC_BADCALL);
   }
   if((s = (mysort_generic_struct *) malloc(Nms * sizeof(mysort_generic_struct))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Nms; i++) {
     datatype = va_arg(varlist,int);
     dataptr = va_arg(varlist,void *);
     useindex = va_arg(varlist,int);
     if(useindex && index == NULL)
-      error(ERR_MYSORT_GENERIC_BADCALL);
+      vt_error(ERR_MYSORT_GENERIC_BADCALL);
     if(datatype == VARTOOLS_TYPE_STRING) {
       sizeobj = va_arg(varlist,size_t);
       comp_func = NULL;
@@ -156,7 +156,7 @@ void add_swap(mysort_swapstruct *s, int i1, int i2)
     s->sizeswaps *= 2;
     if((s->i1 = (int *) realloc(s->i1, s->sizeswaps * sizeof(int))) == NULL ||
        (s->i2 = (int *) realloc(s->i2, s->sizeswaps * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   s->i1[s->Nswaps] = i1;
   s->i2[s->Nswaps] = i2;
@@ -235,11 +235,11 @@ void do_swaps(mysort_swapstruct *sw, int Nms, mysort_generic_struct *s) {
 	if(s[i].sizeobj > sizestring) {
 	  if(!sizestring) {
 	    if((stringval = (char *) malloc(s[i].sizeobj)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  else {
 	    if((stringval = (char *) realloc(stringval, s[i].sizeobj)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  sizestring = s[i].sizeobj;
 	}
@@ -250,7 +250,7 @@ void do_swaps(mysort_swapstruct *sw, int Nms, mysort_generic_struct *s) {
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     }
   }
@@ -283,7 +283,7 @@ void vsort_generic(int N, int isreverse, int *index, int Nms, mysort_generic_str
 
   /* Check for bad calls to this function */
   if(Nms < 1) {
-    error(ERR_MYSORT_GENERIC_BADCALL);
+    vt_error(ERR_MYSORT_GENERIC_BADCALL);
   }
 
   if(!N)
@@ -387,7 +387,7 @@ void vsort_generic(int N, int isreverse, int *index, int Nms, mysort_generic_str
   */
   if(index == NULL) {
     if((tmpindex = (int *) malloc(N * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N; i++)
       tmpindex[i] = i;
   }
@@ -465,7 +465,7 @@ void vsort_generic(int N, int isreverse, int *index, int Nms, mysort_generic_str
     }
     break;
   default:
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
   }
 
   /* Carry out the swaps as needed */

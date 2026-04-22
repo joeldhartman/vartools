@@ -137,9 +137,9 @@ class TestLibPipelineUnit:
         t = np.linspace(0, 10, 100)
         mag = np.full(100, 10.0)
         err = np.full(100, 0.01)
-        stats = lp.process_lc(t, mag, err, name="test")
-        assert "RMS_0" in stats.index
-        assert math.isfinite(float(stats["RMS_0"]))
+        var = lp.process_lc(t, mag, err, name="test")
+        assert "RMS_0" in var.index
+        assert math.isfinite(float(var["RMS_0"]))
 
     def test_libpipeline_process_multiple_lcs_same_pipeline(self):
         """Init-once / process-many: three LCs give independent (different) RMS values."""
@@ -149,8 +149,8 @@ class TestLibPipelineUnit:
             t = np.linspace(0, 10, 100)
             mag = 10.0 + i * 0.01 * np.sin(2 * np.pi * t)
             err = np.full(100, 0.005)
-            stats = lp.process_lc(t, mag, err, name=f"lc{i}")
-            results.append(float(stats["RMS_0"]))
+            var = lp.process_lc(t, mag, err, name=f"lc{i}")
+            results.append(float(var["RMS_0"]))
 
         # All values should be finite
         for v in results:
@@ -165,11 +165,11 @@ class TestLibPipelineUnit:
     def test_libpipeline_process_lc_ls(self, sinusoidal_lc):
         """LS period recovery: recovered period within 1% of injected 1.5 d."""
         lp = LibPipeline(["-LS", "0.5", "5.0", "0.001", "1", "0", "-oneline"])
-        stats = lp.process_lc(
+        var = lp.process_lc(
             sinusoidal_lc.t, sinusoidal_lc.mag, sinusoidal_lc.err, name="sinlc"
         )
-        assert "LS_Period_1_0" in stats.index
-        period = float(stats["LS_Period_1_0"])
+        assert "LS_Period_1_0" in var.index
+        period = float(var["LS_Period_1_0"])
         assert math.isfinite(period)
         assert abs(period - 1.5) / 1.5 < 0.01, (
             f"Recovered period {period:.4f} d is not within 1% of 1.5 d"
@@ -187,9 +187,9 @@ class TestLibPipelineUnit:
 
         lp = LibPipeline(["-clip", "5.0", "1", "-LS", "0.5", "5.0", "0.001", "1", "0",
                           "-oneline"])
-        stats = lp.process_lc(t, mag, err, name="cliplc")
-        assert "LS_Period_1_1" in stats.index
-        period = float(stats["LS_Period_1_1"])
+        var = lp.process_lc(t, mag, err, name="cliplc")
+        assert "LS_Period_1_1" in var.index
+        period = float(var["LS_Period_1_1"])
         assert math.isfinite(period)
         assert abs(period - 2.1) / 2.1 < 0.01
 
@@ -199,13 +199,13 @@ class TestLibPipelineUnit:
         t = np.linspace(0, 1000, 10000)
         mag = 10.0 + 0.01 * np.sin(2 * np.pi * t / 2.0)
         err = np.full(10000, 0.005)
-        stats = lp.process_lc(t, mag, err, name="biglc")
-        assert "RMS_0" in stats.index
-        assert math.isfinite(float(stats["RMS_0"]))
+        var = lp.process_lc(t, mag, err, name="biglc")
+        assert "RMS_0" in var.index
+        assert math.isfinite(float(var["RMS_0"]))
 
     @needs_binary
     def test_libpipeline_stats_match_subprocess(self, sinusoidal_lc):
-        """LibPipeline stats agree with subprocess Pipeline to within 1e-6."""
+        """LibPipeline var agree with subprocess Pipeline to within 1e-6."""
         # Subprocess reference
         pipe = vt.Pipeline([cmd.rms()])
         result_sub = pipe.run(sinusoidal_lc)
@@ -219,7 +219,7 @@ class TestLibPipelineUnit:
 
         for key in ["RMS_0"]:
             v_lib = float(stats_lib[key])
-            v_sub = float(result_sub.stats[key])
+            v_sub = float(result_sub.vars[key])
             assert abs(v_lib - v_sub) < 1e-6, (
                 f"{key}: library={v_lib} vs subprocess={v_sub}"
             )
@@ -301,14 +301,14 @@ class TestPipelineLibraryDispatch:
         assert subprocess_called, (
             "VARTOOLS_USE_LIBRARY=0 should force subprocess mode"
         )
-        assert math.isfinite(float(result.stats["RMS_0"]))
+        assert math.isfinite(float(result.vars["RMS_0"]))
 
     @needs_library
     @needs_binary
     def test_pipeline_library_run_produces_same_result_as_subprocess(
         self, sinusoidal_lc
     ):
-        """Library mode and subprocess mode yield identical stats."""
+        """Library mode and subprocess mode yield identical var."""
         from pyvartools import pipeline as _pipeline_mod
 
         pipe = vt.Pipeline([cmd.rms()])
@@ -321,11 +321,11 @@ class TestPipelineLibraryDispatch:
         with patch.object(_pipeline_mod, "_library_enabled", return_value=False):
             result_sub = pipe.run(sinusoidal_lc)
 
-        for key in result_sub.stats.index:
+        for key in result_sub.vars.index:
             if key == "Name":
                 continue
-            v_lib = float(result_lib.stats[key])
-            v_sub = float(result_sub.stats[key])
+            v_lib = float(result_lib.vars[key])
+            v_sub = float(result_sub.vars[key])
             assert abs(v_lib - v_sub) < 1e-6, (
                 f"{key}: library={v_lib} vs subprocess={v_sub}"
             )
@@ -350,7 +350,7 @@ class TestPipelineLibraryDispatch:
         assert not subprocess_called, (
             "subprocess was called for run_batch() in library mode"
         )
-        assert len(batch.stats) == len(lcs)
+        assert len(batch.vars) == len(lcs)
 
     @needs_library
     @needs_binary
@@ -375,7 +375,7 @@ class TestPipelineLibraryDispatch:
         assert subprocess_called, (
             "nthreads>1 should fall back to subprocess even when library is available"
         )
-        assert len(batch.stats) == len(lcs)
+        assert len(batch.vars) == len(lcs)
 
     @needs_library
     @needs_binary

@@ -58,13 +58,13 @@ void docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr,
 	 (v = (double **) malloc(ncomp * sizeof(double *))) == NULL ||
 	 (w = (double *) malloc(ncomp * sizeof(double))) == NULL ||
 	 (wti = (double *) malloc(ncomp * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Npoints;i++)
 	if((Amatrix[i] = (double *) malloc(ncomp * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       for(i=0;i<ncomp;i++)
 	if((v[i] = (double *) malloc(ncomp * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 
       /* Fill out the design matrix */
       s = 0;
@@ -195,7 +195,7 @@ void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr
   if(omodel)
     {
       if((outfile = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
     }
 
   if(!usemask) {
@@ -244,7 +244,7 @@ void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr
 		    fprintf(outfile,"%s %f %f %f\n",((char **) t)[i],mag[i],modelterm,sig[i]);
 		    break;
 		  default:
-		    error(ERR_BADTYPE);
+		    vt_error(ERR_BADTYPE);
 		  }
 	      }
 	    mag[i] = mag[i] - modelterm + mag_ave;
@@ -296,7 +296,7 @@ void  magcorr(void *t,int ttype, double *mag,double *sig,int Npoints,int ndecorr
 		    fprintf(outfile,"%s %f %f %f\n",((char **) t)[i],mag[i],modelterm,sig[i]);
 		    break;
 		  default:
-		    error(ERR_BADTYPE);
+		    vt_error(ERR_BADTYPE);
 		  }
 	      }
 	    mag[i] = mag[i] - modelterm + mag_ave;
@@ -360,7 +360,7 @@ void  magcorr_chi2only(double *t,double *mag,double *sig,int Npoints,int ndecorr
   if(omodel)
     {
       if((outfile = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
     }
   if(!usemask) {
     for(i=0;i<Npoints;i++)
@@ -641,17 +641,17 @@ double fitpoly(int N, double *x, double *y, double *sig, int order,
   /* Set up arrays needed for call to docorr */
 
   if((decorr = (double **) malloc(N * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < N; i++) {
     if((decorr[i] = (double *) malloc(sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     decorr[i][0] = x[i];
   }
 
   Nparam = order + 1;
   if(sig == NULL) {
     if((err = (double *) malloc(N * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N; i++) {
       err[i] = 1.;
     }
@@ -661,14 +661,14 @@ double fitpoly(int N, double *x, double *y, double *sig, int order,
 
   if(fitparams == NULL) {
     if((Avector = (double *) malloc(Nparam * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     Avector = fitparams;
   }
 
   if(paramerrs == NULL) {
     if((Aerrvector = (double *) malloc(Nparam * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     Aerrvector = paramerrs;
   }

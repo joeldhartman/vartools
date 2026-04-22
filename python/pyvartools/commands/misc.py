@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
 from pyvartools.userlib import UserCommand  # noqa: F401 — re-exported
-from ._helpers import _flag, _bool, _outtoken, _pval
+from ._helpers import _flag, _bool, _outtoken, _pval, _varexpr
 
 
 class addfitskeyword(VartoolsCommand):
@@ -387,6 +387,7 @@ class o(VartoolsCommand):
         filename: Optional[str] = None,
         nameformat: Optional[str] = None,
         columnformat: Optional[str] = None,
+        allcols: bool = False,
         fits: bool = False,
         noclobber: bool = False,
         copyheader: bool = False,
@@ -401,9 +402,14 @@ class o(VartoolsCommand):
             raise ValueError(
                 "cmd.o() requires either a filename or capture=True"
             )
+        if allcols and columnformat is not None:
+            raise ValueError(
+                "cmd.o(): 'allcols' and 'columnformat' are mutually exclusive"
+            )
         self.filename = filename
         self.nameformat = nameformat
         self.columnformat = columnformat
+        self.allcols = allcols
         self.fits = fits
         self.noclobber = noclobber
         self.copyheader = copyheader
@@ -429,6 +435,12 @@ class o(VartoolsCommand):
             args += ["nameformat", str(self.nameformat)]
         if self.columnformat is not None:
             args += ["columnformat", str(self.columnformat)]
+        elif self.allcols or self.capture:
+            # When capturing, default to `allcols` so the captured DataFrame
+            # contains every LC-vector variable defined by earlier commands —
+            # matching the library-mode fast path.  The explicit allcols flag
+            # also takes this branch for non-capturing callers.
+            args += ["allcols"]
         if self.fits:
             args += ["fits"]
         if self.noclobber:
@@ -451,14 +463,43 @@ class o(VartoolsCommand):
     def _output_file_specs(self) -> dict:
         return {}
 
+    # ------------------------------------------------------------------
+    # Capture helpers
+    # ------------------------------------------------------------------
+
+    def _columnformat_names(self):
+        """Return the list of column names declared in ``self.columnformat``.
+
+        Returns ``None`` when no ``columnformat`` is set.  Each entry in
+        the comma-separated spec is ``name[:printf_format]`` — strip the
+        format suffix and keep the bare name, so the captured ASCII
+        DataFrame can be renamed from auto-generated ``col4``/``col5``/…
+        to the user-declared names.
+        """
+        if not self.columnformat:
+            return None
+        names = []
+        for entry in str(self.columnformat).split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            names.append(entry.split(":", 1)[0])
+        return names or None
+
 
 class ifcmd(VartoolsCommand):
-    """Conditional execution of commands (-if).
+    """Open a conditional block (-if).
 
     Parameters
     ----------
     condition : str
         The vartools condition expression (passed verbatim).
+
+    See Also
+    --------
+    elifcmd : ``-elif`` branch.
+    elsecmd : ``-else`` branch.
+    ficmd : ``-fi`` — closes an `ifcmd` / `elifcmd` / `elsecmd` block.
     """
 
     _vt_name = "if"
@@ -467,8 +508,71 @@ class ifcmd(VartoolsCommand):
         self.condition = condition
 
     def _to_cli_args(self) -> List[str]:
-        # vartools -if requires the condition tokens on the same command line
-        return ["-if"] + str(self.condition).split()
+        # vartools -if takes the condition as a single token; do not split
+        # on whitespace.
+        return ["-if", str(self.condition)]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class elifcmd(VartoolsCommand):
+    """Open a conditional `-elif` branch.
+
+    Must be preceded by a matching :class:`ifcmd` and closed by a
+    :class:`ficmd`.
+
+    Parameters
+    ----------
+    condition : str
+        The vartools condition expression (passed verbatim).
+    """
+
+    _vt_name = "elif"
+
+    def __init__(self, condition: str) -> None:
+        self.condition = condition
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-elif", str(self.condition)]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class elsecmd(VartoolsCommand):
+    """Open a conditional `-else` branch.
+
+    Must be preceded by a matching :class:`ifcmd` (or :class:`elifcmd`) and
+    closed by a :class:`ficmd`.  Takes no parameters.
+    """
+
+    _vt_name = "else"
+
+    def __init__(self) -> None:
+        pass
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-else"]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class ficmd(VartoolsCommand):
+    """Close a conditional block (`-fi`).
+
+    Must follow a matching :class:`ifcmd` / :class:`elifcmd` / :class:`elsecmd`
+    sequence.  Takes no parameters.
+    """
+
+    _vt_name = "fi"
+
+    def __init__(self) -> None:
+        pass
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-fi"]
 
     def _output_file_specs(self) -> dict:
         return {}
@@ -531,9 +635,9 @@ class binlc(VartoolsCommand):
     def _to_cli_args(self) -> List[str]:
         args = ["-binlc", str(self.method)]
         if self.binsize is not None:
-            args += ["binsize", str(self.binsize)]
+            args += ["binsize"] + _varexpr(self.binsize)
         else:
-            args += ["nbins", str(self.nbins)]
+            args += ["nbins"] + _varexpr(self.nbins)
         if self.bincolumns is not None:
             args += ["bincolumns", str(self.bincolumns)]
         if self.T0 is not None:
@@ -542,7 +646,7 @@ class binlc(VartoolsCommand):
             else:
                 args += ["T0"] + str(self.T0).split()
         if self.firstbinshift is not None:
-            args += ["firstbinshift", str(self.firstbinshift)]
+            args += ["firstbinshift"] + _varexpr(self.firstbinshift)
         to = str(self.time_output)
         args += [to]
         if to == "tnoshrink" and self.bincolumnsonly:
@@ -578,7 +682,7 @@ class columnsuffix(VartoolsCommand):
             cmd.LS(0.5, 10.0, 1e-3),
         ])
         result = pipe.run(lc)
-        best_period = float(result.stats["LS_Period_1_ls"])
+        best_period = float(result.vars["LS_Period_1_ls"])
     """
 
     _vt_name = "columnsuffix"

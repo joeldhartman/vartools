@@ -61,8 +61,11 @@ comment character(s) (default `#`). `"delimiter" delim` changes the column
 separator (default: whitespace).
 
 ```bash
-vartools -l EXAMPLES/lc_list \
-    -inputlcformat t:1,mag:2,err:3,xpos:4,ypos:5 \
+# Explicit default mapping plus a synthesized per-observation variable.
+# The col=0 form creates 'phase' without reading from a column, evaluating the
+# expression NR/1000.0 for each record.
+vartools -i EXAMPLES/2 \
+    -inputlcformat 't:1,mag:2,err:3,phase:0:double:NR/1000.0' \
     -rms
 ```
 
@@ -87,9 +90,11 @@ The value in the list is then a comma-separated sequence matching the number of
 input files for that line.
 
 ```bash
-vartools -l EXAMPLES/lc_list \
+# EXAMPLES/lc_list_periods has a period in column 2 for each LC.
+# Pass it to -LS as the minimum period via the 'var' form.
+vartools -l EXAMPLES/lc_list_periods \
     -inlistvars period:2:double \
-    -LS fix 0.5 10.0 0.01 1 0
+    -LS var period 10.0 0.01 1 0
 ```
 
 ### `-readformat Nskip ["stringid" colstringid] ["inpututc" format] col_time col_mag col_sig`
@@ -146,6 +151,94 @@ Prefix each column name in the header with its sequential column number:
 1:Name   2:Mean_Mag_0   3:RMS_0   ...
 ```
 
+### `-columnsuffix suffix`
+
+```
+-columnsuffix
+    suffix
+```
+
+Change the suffix appended to output column names for the **next** command called on the command line. By default VARTOOLS appends the command number (e.g., `_1`, `_2`) to every column name to keep them unique when the same command is called multiple times.
+
+**Parameters**
+
+- `suffix` — Replacement suffix string. Supply an empty string `""` to remove the suffix entirely.
+
+**Notes**
+
+- This option applies only to the immediately following command. Call it again before each subsequent command if needed.
+- If the same command is called more than once with the same suffix, VARTOOLS will error because column names must be unique.
+
+**Example**
+
+```bash
+vartools -i EXAMPLES/2 \
+    -columnsuffix "raw" -rms \
+    -clip 5.0 1 \
+    -columnsuffix "clean" -rms \
+    -oneline
+```
+
+### `-startcommandnumber N`
+
+Offset the auto-generated suffix on every command's output-column names by
+the non-negative integer `N`. Without this option, the first command's
+output columns end in `_0`, the second in `_1`, and so on. With
+`-startcommandnumber 5`, they instead end in `_5`, `_6`, etc. Commands
+that have an explicit `-columnsuffix` preceding them are not affected.
+
+```bash
+vartools -i EXAMPLES/2 -rms -oneline -startcommandnumber 7
+```
+
+```
+Name           = EXAMPLES/2
+Mean_Mag_7     =  10.11802
+RMS_7          =   0.03663
+Expected_RMS_7 =   0.00102
+Npoints_7      =  3313
+```
+
+This option exists primarily to support pyvartools' chained command API,
+where a continuation run must not collide with output column names from
+the prior run (which pyvartools carries forward as injected scalar
+variables). See the [pyvartools fluent API docs](../python/fluent.md#cross-chain-references).
+
+### `-printallscalars`
+
+When combined with `-oneline`, append one line per per-star variable of
+vectortype `SCALAR`, `PERSTARDATA`, or `INLIST` to each light curve's
+output block, in the format:
+
+```
+VARTOOLS_SCALAR:<varname> = <value>
+```
+
+These lines follow the regular `OUTCOLUMN = value` lines for each LC.
+The option is used by pyvartools to round-trip per-star scalar state
+across chained vartools invocations, and can also be handy from the CLI
+to dump all user-defined scalars created via `-expr scalar` / `-expr
+listvar` / `-inlistvars`.
+
+```bash
+vartools -i EXAMPLES/2 -expr scalar 'myvar=42.5' \
+    -expr listvar 'lvar=mean(mag)' \
+    -rms -oneline -printallscalars
+```
+
+```
+Name           = EXAMPLES/2
+Mean_Mag_2     =  10.11802
+RMS_2          =   0.03663
+Expected_RMS_2 =   0.00102
+Npoints_2      =  3313
+VARTOOLS_SCALAR:myvar = 42.5
+VARTOOLS_SCALAR:lvar = 10.118016872924841
+```
+
+Requires `-oneline`; using `-printallscalars` without `-oneline` produces
+an error.
+
 ### `-redirectstats statsfile ["append"]`
 
 Write the statistics table to `statsfile` rather than stdout. Add `"append"` to
@@ -168,12 +261,16 @@ Print the full VARTOOLS command line as a comment at the top of the output,
 before the header. This embeds provenance information directly in the output
 file.
 
-### `-o <outdir | outname> ["nameformat" formatstring] ["columnformat" formatstring]`
+### `-o <outdir | outname> ["nameformat" formatstring] ["columnformat" formatstring | "allcols"]`
 
 Write the (processed) light curve to a file. If `outdir` is a directory,
 output files are placed inside it using the base name of the input file. Use
 `"nameformat"` to control the output filename pattern and `"columnformat"` to
-select and format the columns written.
+select and format the columns written. Pass `"allcols"` in place of
+`"columnformat"` to write every light-curve-vector variable defined by
+commands before this `-o`, with a type-appropriate default `printf` format
+and a `# name1 name2 …` header line for ASCII output so downstream readers
+can recover the column names.
 
 **Examples**
 
@@ -236,7 +333,8 @@ Print a terse list of all available commands and options, one per line.
 
 List all functions, operators, constants, and special variables understood by
 the VARTOOLS analytic expression evaluator (used in `-expr`, `-linfit`, `-if`,
-etc.).
+etc.). See the [Analytic Expressions](expressions.md) reference for the full
+documentation.
 
 ### `-showinputlcformat`
 

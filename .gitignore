@@ -1,0 +1,65 @@
+# Build artefacts (autotools / libtool)
+*.o
+*.a
+*.la
+*.lai
+*.lo
+*.Plo
+*.so
+*.so.*
+.deps/
+.libs/
+stamp-h*
+
+# Top-level build outputs (configure-generated)
+# Note: Makefile.in and config.h.in *are* tracked (they are autoconf sources).
+/Makefile
+/config.h
+/config.log
+/config.status
+/src/Makefile
+/src/config.h
+/USERFUNCS/src/Makefile
+/USERLIBS/src/Makefile
+/python/Makefile
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+*.egg
+.pytest_cache/
+.hypothesis/
+
+# Editor / IDE leftovers
+*~
+*.swp
+*.swo
+\#*\#
+.#*
+.vscode/
+.idea/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Test / run output in the EXAMPLES tree that isn't tracked
+EXAMPLES/OUTDIR1/lc_*
+EXAMPLES/OUTDIR1/2
+EXAMPLES/OUTDIR1/2.clipped
+EXAMPLES/OUTDIR1/out.txt
+EXAMPLES/OUTDIR1/vartools.out
+EXAMPLES/pgram_*.csv
+EXAMPLES/periodogram.csv
+EXAMPLES/results.csv
+/0.1
+/*_pgram.csv
+/4.injecttransit.model
+
+# Ad-hoc Python/analysis outputs written to the repo root
+/ls_results.csv
+/results.csv
+
+# Local-only user config (do not commit)
+hatconf_jhlaptop*.sh

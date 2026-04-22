@@ -538,12 +538,19 @@ double VARTOOLS_fitpoly(int N, double *x, double *y, double *sig, int order,
   return retval;
 }
 
-double VARTOOLS_chi2(int N, double *t, double *mag, double *err, 
+double VARTOOLS_chi2(int N, double *t, double *mag, double *err,
 		     double *weighted_average, int *Ngood)
 {
   double retval;
-  retval = VARTOOLS_FUNCTION_POINTER_STRUCT.chi2(N, t, mag, err, 
-						 weighted_average, Ngood);
+  /* The internal chi2() function grew four additional arguments
+     (usemask, maskvar, lcindex, threadindex) to support the -rms /
+     -chi2 ... maskpoints feature.  Extensions that link against
+     libvartools via the VARTOOLS_chi2 wrapper still see the original
+     6-argument API; we pass usemask=0 (mask disabled) so the new args
+     are ignored by chi2(). */
+  retval = VARTOOLS_FUNCTION_POINTER_STRUCT.chi2(N, t, mag, err,
+						 weighted_average, Ngood,
+						 0, NULL, 0, 0);
   return retval;
 }
 

@@ -164,7 +164,7 @@ Compute one or more general statistics on one or more light-curve vectors (e.g.,
 **Example**
 
 ```bash
-vartools -l lclist.txt -stats mag,err mean,stddev,MAD
+vartools -l EXAMPLES/lc_list -stats mag,err mean,stddev,MAD
 ```
 
 **Examples**

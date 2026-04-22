@@ -32,7 +32,7 @@ double chebev(double a, double b, double c[], int m, double x)
   double d=0.0,dd=0.0,sv,y,y2;
   int j;
 
-  if ((x-a)*(x-b) > 0.0) error2(ERR_NR,"x not in range in routine chebev");
+  if ((x-a)*(x-b) > 0.0) vt_error2(ERR_NR,"x not in range in routine chebev");
   y2=2.0*(y=(2.0*x-a-b)/(b-a));
   for(j=m-1;j>=1;j--) {
     sv=d;
@@ -79,7 +79,7 @@ void bessik(double x, double xnu, double *ri, double *rk, double *rip, double *r
 		gammi,gampl,h,p,pimu,q,q1,q2,qnew,ril,ril1,rimu,rip1,ripl,
 		ritemp,rk1,rkmu,rkmup,rktemp,s,sum,sum1,x2,xi,xi2,xmu,xmu2;
 
-	if (x <= 0.0 || xnu < 0.0) error2(ERR_NR,"bad arguments in bessik");
+	if (x <= 0.0 || xnu < 0.0) vt_error2(ERR_NR,"bad arguments in bessik");
 	nl=(int)(xnu+0.5);
 	xmu=xnu-nl;
 	xmu2=xmu*xmu;
@@ -98,7 +98,7 @@ void bessik(double x, double xnu, double *ri, double *rk, double *rip, double *r
 		h=del*h;
 		if (fabs(del-1.0) < EPS) break;
 	}
-	if (i > MAXIT) error2(ERR_NR,"x too large in bessik; try asymptotic expansion");
+	if (i > MAXIT) vt_error2(ERR_NR,"x too large in bessik; try asymptotic expansion");
 	ril=FPMIN;
 	ripl=h*ril;
 	ril1=ril;
@@ -138,7 +138,7 @@ void bessik(double x, double xnu, double *ri, double *rk, double *rip, double *r
 			sum1 += del1;
 			if (fabs(del) < fabs(sum)*EPS) break;
 		}
-		if (i > MAXIT) error2(ERR_NR,"bessk series failed to converge");
+		if (i > MAXIT) vt_error2(ERR_NR,"bessk series failed to converge");
 		rkmu=sum;
 		rk1=sum1*xi2;
 	} else {
@@ -166,7 +166,7 @@ void bessik(double x, double xnu, double *ri, double *rk, double *rip, double *r
 			s += dels;
 			if (fabs(dels/s) < EPS) break;
 		}
-		if (i > MAXIT) error2(ERR_NR,"bessik: failure to converge in cf2");
+		if (i > MAXIT) vt_error2(ERR_NR,"bessik: failure to converge in cf2");
 		h=a1*h;
 		rkmu=sqrt(M_PI/(2.0*x))*exp(-x)/s;
 		rk1=rkmu*(xmu+x+0.5-h)*xi;
@@ -244,7 +244,7 @@ double betacf(double a, double b, double x)
     if(fabs(del-1.0) < EPS) break;
   }
   if(m > MAXIT) {
-    error2(ERR_NR,"a or b too big, or MAXIT too small in betacf\n\n");
+    vt_error2(ERR_NR,"a or b too big, or MAXIT too small in betacf\n\n");
     exit(3);
   }
   return h;
@@ -282,7 +282,7 @@ double lbetacf(double a, double b, double x)
     if(fabs(del-1.0) < EPS) break;
   }
   if(m > MAXIT) {
-    error2(ERR_NR,"a or b too big, or MAXIT too small in betacf\n\n");
+    vt_error2(ERR_NR,"a or b too big, or MAXIT too small in betacf\n\n");
     exit(3);
   }
   return log(h);

@@ -19,6 +19,24 @@
 #include "programdata.h"
 #include "functions.h"
 
+/* NJD used by aggregate vector functions in the expression engine.
+   Set via SetAggregateNJD() before evaluating expressions that may
+   contain vector aggregate functions.  Thread-local so that -parallel
+   mode is safe. */
+#ifndef VT_THREAD_LOCAL
+#  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
+#    define VT_THREAD_LOCAL _Thread_local
+#  elif defined(__GNUC__) || defined(__clang__)
+#    define VT_THREAD_LOCAL __thread
+#  elif defined(_MSC_VER)
+#    define VT_THREAD_LOCAL __declspec(thread)
+#  else
+#    define VT_THREAD_LOCAL
+#  endif
+#endif
+static VT_THREAD_LOCAL int _aggregate_njd = 0;
+void SetAggregateNJD(int njd) { _aggregate_njd = njd; }
+
 /*void SetupLinfitExpression(ProgramData *p, _Linfit *l) {
   return;
   }*/
@@ -57,7 +75,7 @@ int CheckExpressionForLCVector(_Expression *expression)
   case VARTOOLS_OPERANDTYPE_ARRAYINDEX:
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 				
   if(expression->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT)
@@ -94,7 +112,7 @@ int CheckExpressionForLCVector(_Expression *expression)
   case VARTOOLS_OPERANDTYPE_ARRAYINDEX:
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   
   return 0;
@@ -109,7 +127,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
   _DataFromInputList *d2;
   char *tmpstr;
   if((tmpstr = (char *) malloc(sizetmpstr * sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   /* Setup any Variables associated with the output columns */
   for(i=0; i < p->Ncolumns; i++) {
     //if(p->outcolumns[i].type != VARTOOLS_TYPE_STRING &&
@@ -117,7 +135,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     if(strlen(p->outcolumns[i].columnname) >= sizetmpstr) {
       sizetmpstr *= 2;
       if((tmpstr = (char *) realloc(tmpstr, sizetmpstr*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     // Change Any forbidden characters in the column name to "_"
     sprintf(tmpstr,"%s",p->outcolumns[i].columnname);
@@ -142,15 +160,15 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       *(c[i].prior_vars[j]) = 
 	FindExistingVariable(c[i].prior_var_names[j], p);
       if(*(c[i].prior_vars[j]) == NULL) {
-	error2(ERR_UNDEFINEDVARIABLE, c[i].prior_var_names[j]);
+	vt_error2(ERR_UNDEFINEDVARIABLE, c[i].prior_var_names[j]);
       }
       if(c[i].prior_var_vectortypes[j] != VARTOOLS_VECTORTYPE_ANY) {
 	if((*(c[i].prior_vars[j]))->vectortype != c[i].prior_var_vectortypes[j]) {
 	  if(c[i].prior_var_vectortypes[j] == VARTOOLS_VECTORTYPE_PERSTARDATA) {
 	    if((*(c[i].prior_vars[j]))->vectortype == VARTOOLS_VECTORTYPE_LC)
-	      error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
+	      vt_error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
 	  } else
-	    error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
+	    vt_error2(ERR_BADVECTORTYPE, c[i].prior_var_names[j]);
 	}
       }
       if(c[i].prior_var_datatypes[j] == VARTOOLS_TYPE_ANY)
@@ -163,10 +181,10 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_LONG &&
 	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_CONVERTJD &&
 	     (*(c[i].prior_vars[j]))->datatype != VARTOOLS_TYPE_SHORT) {
-	    error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
+	    vt_error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
 	  }
 	} else {
-	  error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
+	  vt_error2(ERR_BADDATATYPE, c[i].prior_var_names[j]);
 	}
       }
     }
@@ -183,13 +201,34 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	}
       }
       if(!test) {
-	c[i].ExpressionCommand->outputvar = CreateVariable(p, c[i].ExpressionCommand->lhsstring, VARTOOLS_TYPE_DOUBLE, VARTOOLS_VECTORTYPE_LC, NULL);
-	RegisterDataFromLightCurve(p,
-				   c[i].ExpressionCommand->outputvar->dataptr,
-				   VARTOOLS_TYPE_DOUBLE,
-				   0, 0, 0, 0, 0, NULL, 
-				   c[i].ExpressionCommand->outputvar,
-				   -1, c[i].ExpressionCommand->lhsstring);
+	int vtype = (c[i].ExpressionCommand->lhs_vectortype_override >= 0
+		     ? c[i].ExpressionCommand->lhs_vectortype_override
+		     : VARTOOLS_VECTORTYPE_LC);
+	c[i].ExpressionCommand->outputvar = CreateVariable(p, c[i].ExpressionCommand->lhsstring, VARTOOLS_TYPE_DOUBLE, vtype, NULL);
+	if(vtype == VARTOOLS_VECTORTYPE_LC) {
+	  RegisterDataFromLightCurve(p,
+				     c[i].ExpressionCommand->outputvar->dataptr,
+				     VARTOOLS_TYPE_DOUBLE,
+				     0, 0, 0, 0, 0, NULL,
+				     c[i].ExpressionCommand->outputvar,
+				     -1, c[i].ExpressionCommand->lhsstring);
+	}
+	else if(vtype == VARTOOLS_VECTORTYPE_INLIST) {
+	  RegisterDataFromInputList(p,
+				    c[i].ExpressionCommand->outputvar->dataptr,
+				    VARTOOLS_TYPE_DOUBLE,
+				    0, -1, 0, 0, NULL, -1,
+				    c[i].ExpressionCommand->lhsstring);
+	}
+	else if(vtype == VARTOOLS_VECTORTYPE_SCALAR) {
+	  RegisterDataFromLightCurve(p,
+				     c[i].ExpressionCommand->outputvar->dataptr,
+				     VARTOOLS_TYPE_DOUBLE,
+				     0, 0, 0, 0, 0, NULL,
+				     c[i].ExpressionCommand->outputvar,
+				     -1, c[i].ExpressionCommand->lhsstring);
+	}
+	/* CONSTANT: no registration needed, memory already allocated by CreateVariable */
       }
       /* Parse the expression */
       c[i].ExpressionCommand->expression = 
@@ -212,14 +251,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  c[i].ExpressionCommand->lhs_indx_expr1 =
 	    ParseExpression(c[i].ExpressionCommand->lhsindexstring1, p);
 	  if(CheckExpressionForLCVector(c[i].ExpressionCommand->lhs_indx_expr1))
-	    error2(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND,
+	    vt_error2(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND,
 		   c[i].ExpressionCommand->lhsindexstring1);
 	}
 	if(!c[i].ExpressionCommand->lhs_indx_range_stopmax) {
 	  c[i].ExpressionCommand->lhs_indx_expr2 =
 	    ParseExpression(c[i].ExpressionCommand->lhsindexstring2, p);
 	  if(CheckExpressionForLCVector(c[i].ExpressionCommand->lhs_indx_expr2))
-	    error2(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND,
+	    vt_error2(ERR_BADINDEXINGOFLHSVARIABLEINEXPRESSIONCOMMAND,
 		   c[i].ExpressionCommand->lhsindexstring2);
 	}
       }
@@ -227,7 +266,27 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_PRINT) {
       for(j = 0; j < c[i].PrintCommand->Nvars; j++) {
 	if(c[i].PrintCommand->colindx[j] >= 0) {
-	  p->outcolumns[c[i].PrintCommand->colindx[j]].type = c[i].PrintCommand->vars[j]->datatype;
+	  int _newtype = c[i].PrintCommand->vars[j]->datatype;
+	  OutColumn *_outc = &(p->outcolumns[c[i].PrintCommand->colindx[j]]);
+	  _outc->type = _newtype;
+	  /* The _Variable for this OUTCOLUMN was registered earlier (in the
+	     first loop of this function) with the provisional placeholder
+	     type VARTOOLS_TYPE_ANY that CNUM_PRINT's addcolumn call uses.
+	     Now that we know the real datatype, propagate it to the
+	     _Variable too — otherwise any code that later iterates
+	     p->DefinedVariables and dispatches on datatype (e.g. the
+	     dosavelistdata path invoked by -copylc, -savelc, etc.) will
+	     see ANY and fail with ERR_BADTYPE. */
+	  {
+	    int _k;
+	    for(_k = 0; _k < p->NDefinedVariables; _k++) {
+	      if(p->DefinedVariables[_k]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN &&
+		 p->DefinedVariables[_k]->outc == _outc) {
+		p->DefinedVariables[_k]->datatype = _newtype;
+		break;
+	      }
+	    }
+	  }
 	  if(!c[i].PrintCommand->isformat) {
 	    AdjustPrintCommandOutColumnFormat(p, c, i, j);
 	  }
@@ -294,13 +353,13 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	    test = 1;
 	    c[i].SortLC->sortvar = p->DefinedVariables[j];
 	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	      error(ERR_INVALIDVARIABLEFORSORTLC);
+	      vt_error(ERR_INVALIDVARIABLEFORSORTLC);
 	    }
 	    c[i].SortLC->sortdtype = p->DefinedVariables[j]->datatype;
 	  }
 	}
 	if(!test) {
-	  error2(ERR_UNDEFINEDVARIABLE, c[i].SortLC->sortvarname);
+	  vt_error2(ERR_UNDEFINEDVARIABLE, c[i].SortLC->sortvarname);
 	}
       }
     }
@@ -331,6 +390,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       }
     }
 #endif
+    /* Snapshot the current set of defined variables for any "-o ... allcols"
+       command.  We must do this *during* the command-order walk — not in the
+       second loop below — so that the snapshot only includes variables
+       created by earlier commands (prior -expr, -Phase phasevar, -linfit
+       modelvar, etc.) and excludes any created by later commands. */
+    if(c[i].cnum == CNUM_OUTPUTLCS && c[i].Outputlcs->allcols) {
+      c[i].Outputlcs->allcols_nvars_snapshot = p->NDefinedVariables;
+    }
     /* Do any evaluations that are set through the "expr" option for
        built-in commands */
     for(j=0; j < c[i].N_setparam_expr; j++) {
@@ -360,7 +427,68 @@ void CompileAllExpressions(ProgramData *p, Command *c)
   /* Now setup any Variable pointers which are required by the -o, -changevariable, -stats, -FFT, or -restorelc commands */
   for(i=0; i < p->Ncommands; i++) {
     if(c[i].cnum == CNUM_OUTPUTLCS) {
-      if(c[i].Outputlcs->usecolumnformat) {
+      if(c[i].Outputlcs->allcols) {
+	/* "-o <path> allcols" — populate variables[] / varnames[] /
+	   printfformats[] from every LC-vector variable that was defined
+	   before this command in the command sequence.  The cutoff was
+	   captured in allcols_nvars_snapshot during the command-order walk
+	   above.  Default printf formats depend on the variable's datatype;
+	   they can later be overridden by a user-supplied columnformat (but
+	   allcols and columnformat are mutually exclusive at parse time). */
+	int nsnap = c[i].Outputlcs->allcols_nvars_snapshot;
+	if(nsnap > p->NDefinedVariables) nsnap = p->NDefinedVariables;
+	int nlc = 0;
+	for(j=0; j < nsnap; j++) {
+	  if(p->DefinedVariables[j]->vectortype == VARTOOLS_VECTORTYPE_LC)
+	    nlc++;
+	}
+	if(nlc > 0) {
+	  if((c[i].Outputlcs->variables =
+	      (_Variable **) malloc(nlc * sizeof(_Variable *))) == NULL ||
+	     (c[i].Outputlcs->varnames =
+	      (char **) malloc(nlc * sizeof(char *))) == NULL ||
+	     (c[i].Outputlcs->printfformats =
+	      (char **) malloc(nlc * sizeof(char *))) == NULL ||
+	     (c[i].Outputlcs->descriptions =
+	      (char **) malloc(nlc * sizeof(char *))) == NULL ||
+	     (c[i].Outputlcs->units =
+	      (char **) malloc(nlc * sizeof(char *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  int nv = 0;
+	  for(j=0; j < nsnap; j++) {
+	    _Variable *v = p->DefinedVariables[j];
+	    if(v->vectortype != VARTOOLS_VECTORTYPE_LC) continue;
+	    if((c[i].Outputlcs->varnames[nv] = (char *) malloc(MAXLEN)) == NULL ||
+	       (c[i].Outputlcs->printfformats[nv] = (char *) malloc(MAXLEN)) == NULL ||
+	       (c[i].Outputlcs->descriptions[nv] = (char *) malloc(MAXLEN)) == NULL ||
+	       (c[i].Outputlcs->units[nv] = (char *) malloc(MAXLEN)) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    c[i].Outputlcs->variables[nv] = v;
+	    sprintf(c[i].Outputlcs->varnames[nv], "%s", v->varname);
+	    c[i].Outputlcs->descriptions[nv][0] = '\0';
+	    c[i].Outputlcs->units[nv][0] = '\0';
+	    switch(v->datatype) {
+	    case VARTOOLS_TYPE_DOUBLE:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%.17g"); break;
+	    case VARTOOLS_TYPE_FLOAT:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%.9g");  break;
+	    case VARTOOLS_TYPE_STRING:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%s");    break;
+	    case VARTOOLS_TYPE_CHAR:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%c");    break;
+	    case VARTOOLS_TYPE_INT:
+	    case VARTOOLS_TYPE_SHORT:
+	    case VARTOOLS_TYPE_LONG:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%d");    break;
+	    default:
+	      sprintf(c[i].Outputlcs->printfformats[nv], "%%.17g"); break;
+	    }
+	    nv++;
+	  }
+	  c[i].Outputlcs->Nvar = nlc;
+	}
+      }
+      else if(c[i].Outputlcs->usecolumnformat) {
 	for(k=0; k < c[i].Outputlcs->Nvar; k++) {
 	  for(j=0; j < p->NDefinedVariables; j++) {
 	    if(!strcmp(c[i].Outputlcs->varnames[k],
@@ -370,7 +498,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	    }
 	  }
 	  if(j == p->NDefinedVariables) {
-	    error2(ERR_UNDEFINEDVARIABLE,c[i].Outputlcs->varnames[k]);
+	    vt_error2(ERR_UNDEFINEDVARIABLE,c[i].Outputlcs->varnames[k]);
 	  }
 	}
       }
@@ -379,15 +507,15 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       for(j=0; j < p->NDefinedVariables; j++) {
 	if(!strcmp(c[i].Changevariable->newvarname,p->DefinedVariables[j]->varname)) {
 	  if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	    error(ERR_INVALIDVARIABLEFORCHANGEVAR);
+	    vt_error(ERR_INVALIDVARIABLEFORCHANGEVAR);
 	  }
 	  if(c[i].Changevariable->changevar == VARTOOLS_CHANGEVAR_ID) {
 	    if(p->DefinedVariables[j]->datatype != VARTOOLS_TYPE_STRING) {
-	      error(ERR_INVALIDVARIABLEFORCHANGEVAR);
+	      vt_error(ERR_INVALIDVARIABLEFORCHANGEVAR);
 	    }
 	  } else {
 	    if(p->DefinedVariables[j]->datatype != VARTOOLS_TYPE_DOUBLE) {
-	      error(ERR_INVALIDVARIABLEFORCHANGEVAR);
+	      vt_error(ERR_INVALIDVARIABLEFORCHANGEVAR);
 	    }
 	  }
 	  c[i].Changevariable->newvar = p->DefinedVariables[j];
@@ -395,7 +523,7 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	}
       }
       if(j == p->NDefinedVariables) {
-	error2(ERR_UNDEFINEDVARIABLE,c[i].Changevariable->newvarname);
+	vt_error2(ERR_UNDEFINEDVARIABLE,c[i].Changevariable->newvarname);
       }
     }
     else if(c[i].cnum == CNUM_STATS) {
@@ -404,14 +532,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  if(!strcmp(c[i].Stats->varnames[k],
 		     p->DefinedVariables[j]->varname)) {
 	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	      error(ERR_BADVARIABLETYPE_STATSCOMMAND);
+	      vt_error(ERR_BADVARIABLETYPE_STATSCOMMAND);
 	    }
 	    c[i].Stats->vars[k] = p->DefinedVariables[j];
 	    break;
 	  }
 	}
 	if(j == p->NDefinedVariables) {
-	  error2(ERR_UNDEFINEDVARIABLE,c[i].Stats->varnames[k]);
+	  vt_error2(ERR_UNDEFINEDVARIABLE,c[i].Stats->varnames[k]);
 	}
       }
       CheckCreateCommandOutputLCVariable(c[i].Stats->maskvarname,&(c[i].Stats->maskvar),p);
@@ -423,14 +551,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	    if(!strcmp(c[i].Restorelc->restorevarnames[k],
 		       p->DefinedVariables[j]->varname)) {
 	      if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-		error(ERR_BADVARIABLETYPE_RESTORELCCOMMAND);
+		vt_error(ERR_BADVARIABLETYPE_RESTORELCCOMMAND);
 	      }
 	      c[i].Restorelc->restorevars[k] = p->DefinedVariables[j];
 	      break;
 	    }
 	  }
 	  if(j == p->NDefinedVariables) {
-	    error2(ERR_UNDEFINEDVARIABLE,c[i].Restorelc->restorevarnames[k]);
+	    vt_error2(ERR_UNDEFINEDVARIABLE,c[i].Restorelc->restorevarnames[k]);
 	  }
 	}
       }
@@ -442,14 +570,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  if(!strcmp(c[i].FFT->inputvarname_real,
 		     p->DefinedVariables[j]->varname)) {
 	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	      error(ERR_BADVARIABLETYPE_FFTCOMMAND);
+	      vt_error(ERR_BADVARIABLETYPE_FFTCOMMAND);
 	    }
 	    c[i].FFT->inputvar_real = p->DefinedVariables[j];
 	    break;
 	  }
 	}
 	if(j == p->NDefinedVariables) {
-	  error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_real);
+	  vt_error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_real);
 	}
       }
       if(c[i].FFT->inputvarname_imag[0] != '\0') {
@@ -457,14 +585,14 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  if(!strcmp(c[i].FFT->inputvarname_imag,
 		     p->DefinedVariables[j]->varname)) {
 	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	      error(ERR_BADVARIABLETYPE_FFTCOMMAND);
+	      vt_error(ERR_BADVARIABLETYPE_FFTCOMMAND);
 	    }
 	    c[i].FFT->inputvar_imag = p->DefinedVariables[j];
 	    break;
 	  }
 	}
 	if(j == p->NDefinedVariables) {
-	  error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_imag);
+	  vt_error2(ERR_UNDEFINEDVARIABLE,c[i].FFT->inputvarname_imag);
 	}
       }
     }
@@ -478,21 +606,21 @@ void CompileAllExpressions(ProgramData *p, Command *c)
 	  if(!strcmp(c[i].Binlc->binvarnames[k],
 		     p->DefinedVariables[j]->varname)) {
 	    if(p->DefinedVariables[j]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	      error(ERR_BADVARIABLETYPE_STATSCOMMAND);
+	      vt_error(ERR_BADVARIABLETYPE_STATSCOMMAND);
 	    }
 	    c[i].Binlc->binvars[k] = p->DefinedVariables[j];
 	    break;
 	  }
 	}
 	if(j == p->NDefinedVariables) {
-	  error2(ERR_UNDEFINEDVARIABLE,c[i].Binlc->binvarnames[k]);
+	  vt_error2(ERR_UNDEFINEDVARIABLE,c[i].Binlc->binvarnames[k]);
 	}
       }
     }
   }
 }
 
-void RunExpressionCommand(int lcindex, int threadindex, 
+void RunExpressionCommand(int lcindex, int threadindex,
 			  ProgramData *p, _ExpressionCommand *c)
 /* Execute the -expr command, this is the function called from
    processcommand.c */
@@ -500,6 +628,8 @@ void RunExpressionCommand(int lcindex, int threadindex,
   int i, j;
   int min_index, max_index;
   char *test_index = NULL;
+
+  _aggregate_njd = p->NJD[threadindex];
 
   double dblval;
 
@@ -525,7 +655,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
       *((short *) c->outputvar->dataptr) = dblval;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_SCALAR:
@@ -547,7 +677,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
       (*((short **) c->outputvar->dataptr))[threadindex] = dblval;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -569,7 +699,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
       (*((short **) c->outputvar->dataptr))[lcindex] = dblval;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -639,7 +769,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     }
     else if(c->lhs_indx_type == 
@@ -647,7 +777,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
       if(!p->NJD[threadindex])
 	break;
       if((test_index = (char *) malloc(p->NJD[threadindex]*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       /* Determine which indices to operate on */
       for(j=0; j < p->NJD[threadindex]; j++) {
 	if(EvaluateExpression(lcindex, threadindex, j, c->lhs_indx_expr1) > 0) {
@@ -692,15 +822,15 @@ void RunExpressionCommand(int lcindex, int threadindex,
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       free(test_index);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
-    error(ERR_OUTCOLUMN_ON_LHS);
+    vt_error(ERR_OUTCOLUMN_ON_LHS);
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }    
 }
 
@@ -722,7 +852,7 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
     i++;
   }
   if(argv[i] != '=' || j == 0) {
-    error2(ERR_INVALIDARGUMENTTOEXPR,argv);
+    vt_error2(ERR_INVALIDARGUMENTTOEXPR,argv);
   }
   argv[j] = '\0';
   i++;
@@ -738,19 +868,20 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
   argv[j] = '\0';
   
   if((c = (_ExpressionCommand *) malloc(sizeof(_ExpressionCommand))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
+  c->lhs_vectortype_override = -1;
 
   i = strlen(argv);
   j = strlen(&(argv[jstart2]));
   if(!i || !j) {
     argv[jstart2 - 1] = '=';
-    error2(ERR_INVALIDARGUMENTTOEXPR,argv);
+    vt_error2(ERR_INVALIDARGUMENTTOEXPR,argv);
   }
   
   if((c->lhsstring = (char *) malloc((i+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((c->rhsstring = (char *) malloc((j+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   sprintf(c->lhsstring,"%s",argv);
   sprintf(c->rhsstring,"%s",&(argv[jstart2]));
@@ -776,7 +907,7 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
   } else {
     if(c->lhsstring[i-1] != ']') {
       argv[jstart2 - 1] = '=';
-      error2(ERR_INVALIDARGUMENTTOEXPR,argv);
+      vt_error2(ERR_INVALIDARGUMENTTOEXPR,argv);
     }
     if(j == i-2) {
       /* The brackets are empty, treat this as if no indexing is used */
@@ -794,7 +925,7 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
 	c->lhs_indx_range_stopmax = 0;
 	if((c->lhsindexstring1 = (char *) malloc((k-j+1)*sizeof(char))) == NULL ||
 	   (c->lhsindexstring2 = (char *) malloc((i-j)*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	if(k == j+1 || (k == j+2 && c->lhsstring[k-1] == '*')) {
 	  c->lhs_indx_range_startmin == 1;
 	  c->lhsindexstring1[0] = '\0';
@@ -823,7 +954,7 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
 	 compile the expression */
 	c->lhs_indx_type = VARTOOLS_EXPRESSIONCOMMAND_INDEXTYPE_SINGLEINDEX;
 	if((c->lhsindexstring1 = (char *) malloc((i-j)*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=j+1; k < i-1; k++)
 	  c->lhsindexstring1[k-j-1] = c->lhsstring[k];
 	c->lhsindexstring1[k-j-1] = '\0';
@@ -832,6 +963,14 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
   }
 
   free(argv);
+  return c;
+}
+
+_ExpressionCommand* CreateExpressionCommandWithType(ProgramData *p, char *argvin, int vectortype_override)
+{
+  _ExpressionCommand *c;
+  c = CreateExpressionCommand(p, argvin);
+  c->lhs_vectortype_override = vectortype_override;
   return c;
 }
 
@@ -855,7 +994,7 @@ void ParseOutputColumnFormat(_Outputlcs *o)
        o->columnformat[i] == '\0') {
       copystring[j] = '\0';
       if((o->columnformat[i] == ':' && inunit == 1) || !j) {
-	error2(ERR_BADCOLUMNFORMATSTRING,o->columnformat);
+	vt_error2(ERR_BADCOLUMNFORMATSTRING,o->columnformat);
       }
       if(invarname == 1) {
 	if(!o->Nvar) {
@@ -864,7 +1003,7 @@ void ParseOutputColumnFormat(_Outputlcs *o)
 	     (o->varnames = (char **) malloc(sizeof(char *))) == NULL ||
 	     (o->descriptions = (char **) malloc(sizeof(char *))) == NULL ||
 	     (o->units = (char **) malloc(sizeof(char *))) == NULL) {
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  }
 	} else {
 	  if((o->variables = (_Variable **) realloc(o->variables, (o->Nvar + 1)*sizeof(_Variable *))) == NULL ||
@@ -872,13 +1011,13 @@ void ParseOutputColumnFormat(_Outputlcs *o)
 	     (o->varnames = (char **) realloc(o->varnames, (o->Nvar + 1)*sizeof(char *))) == NULL ||
 	     (o->descriptions = (char **) realloc(o->descriptions, (o->Nvar + 1)*sizeof(char *))) == NULL ||
 	     (o->units = (char **) realloc(o->units, (o->Nvar + 1)*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if((o->printfformats[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
 	   (o->varnames[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
 	   (o->descriptions[o->Nvar] = (char *) malloc(MAXLEN)) == NULL ||
 	   (o->units[o->Nvar] = (char *) malloc(MAXLEN)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	o->printfformats[o->Nvar][0] = '\0';
 	o->descriptions[o->Nvar][0] = '\0';
 	o->units[o->Nvar][0] = '\0';
@@ -1060,7 +1199,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
   int testval;
 
   if(vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN && vptrinput == NULL)
-    error(ERR_CREATEVARIABLE_OUTCOLUMN_NEEDS_VPTRINPUT);    
+    vt_error(ERR_CREATEVARIABLE_OUTCOLUMN_NEEDS_VPTRINPUT);    
 
 
   if(vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
@@ -1072,22 +1211,22 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 
   testval = CheckVariableNameNotAcceptable(varname, p);
   if(testval)
-    error2(testval, varname);
+    vt_error2(testval, varname);
 
   j = p->NDefinedVariables;
 
   if(!p->NDefinedVariables) {
     p->NDefinedVariables = 1;
     if((p->DefinedVariables = (_Variable **) malloc(sizeof(_Variable *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     p->NDefinedVariables++;
     if((p->DefinedVariables = (_Variable **) realloc(p->DefinedVariables, p->NDefinedVariables * sizeof(_Variable *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if((p->DefinedVariables[j] = (_Variable *) malloc(sizeof(_Variable))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   v = p->DefinedVariables[j];
 
@@ -1097,7 +1236,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
   
   len = strlen(varname)+1;
   if((v->varname = (char *) malloc(len)) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(v->varname,"%s",varname);
   
   v->vectortype = vectortype;
@@ -1165,7 +1304,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 	vptr = (void *) stringptr;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       break;
     case VARTOOLS_VECTORTYPE_SCALAR:
@@ -1203,7 +1342,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 	vptr = (void *) string2ptr;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       break;
     case VARTOOLS_VECTORTYPE_INLIST:
@@ -1241,7 +1380,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 	vptr = (void *) string2ptr;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       break;
     case VARTOOLS_VECTORTYPE_LC:
@@ -1279,11 +1418,11 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 	vptr = (void *) string3ptr;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
     }
   } else {
     vptr = vptrinput;
@@ -1304,7 +1443,7 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
   _Expression *expression;
 
   if(fcall->Nexpr != 1)
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
 
   expression = fcall->arguments[0];
 
@@ -1337,7 +1476,7 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
       break;
     }
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 				
   if(expression->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT)
@@ -1376,7 +1515,7 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
       break;
     }
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   
   switch(expression->operatortype) {
@@ -1417,9 +1556,9 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
     return ((int) (val1 != val2));
     break;
   case VARTOOLS_OPERATORTYPE_NOT:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_AND:
     return ((int) (val1 && val2));
     break;
@@ -1433,7 +1572,7 @@ int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall 
     return ((int) (((int) val1) | ((int) val2)));
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   
   return 0;
@@ -1472,7 +1611,7 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
       break;
     }
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 				
   if(expression->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT)
@@ -1511,7 +1650,7 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
       break;
     }
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   
   switch(expression->operatortype) {
@@ -1552,9 +1691,9 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
     return ((double) (val1 != val2));
     break;
   case VARTOOLS_OPERATORTYPE_NOT:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   case VARTOOLS_OPERATORTYPE_AND:
     return ((double) (val1 && val2));
     break;
@@ -1568,7 +1707,7 @@ double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression
     return ((double) (((int) val1) | ((int) val2)));
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   
   return 0.0;
@@ -1595,13 +1734,13 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
       *((long *) var->dataptr) = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     break;
@@ -1623,13 +1762,13 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
       (*((long **) var->dataptr))[threadindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     break;
@@ -1651,13 +1790,13 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
       (*((long **) var->dataptr))[lcindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -1678,20 +1817,20 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
       (*((long ***) var->dataptr))[threadindex][jdindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
     setoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_DOUBLE, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 }
 
@@ -1716,13 +1855,13 @@ void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable 
       *((long *) var->dataptr) = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     break;
@@ -1744,13 +1883,13 @@ void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable 
       (*((long **) var->dataptr))[threadindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     break;
@@ -1772,13 +1911,13 @@ void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable 
       (*((long **) var->dataptr))[lcindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -1799,20 +1938,20 @@ void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable 
       (*((long ***) var->dataptr))[threadindex][jdindex] = (long) val;
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
     setoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_INT, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 }
 
@@ -1840,13 +1979,13 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
       val = (double) (*((long *) var->dataptr));
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -1869,13 +2008,13 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
       val = (double) ((*((long **) var->dataptr))[threadindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -1905,13 +2044,13 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
       val = (double) ((*((long **) var->dataptr))[lcindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -1941,13 +2080,13 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
       val = (double) (*((long ***) var->dataptr))[threadindex][jdindex];
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -1963,7 +2102,7 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_DOUBLE, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -1991,13 +2130,13 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
       val = (float) (*((long *) var->dataptr));
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -2020,13 +2159,13 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
       val = (float) ((*((long **) var->dataptr))[threadindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2056,13 +2195,13 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
       val = (float) ((*((long **) var->dataptr))[lcindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2092,13 +2231,13 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
       val = (float) (*((long ***) var->dataptr))[threadindex][jdindex];
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2114,7 +2253,7 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_FLOAT, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -2142,13 +2281,13 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
       val = (int) (*((long *) var->dataptr));
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -2171,13 +2310,13 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
       val = (int) ((*((long **) var->dataptr))[threadindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2207,13 +2346,13 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
       val = (int) ((*((long **) var->dataptr))[lcindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2243,13 +2382,13 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
       val = (int) (*((long ***) var->dataptr))[threadindex][jdindex];
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2265,7 +2404,7 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_INT, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -2293,13 +2432,13 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
       val = (short) (*((long *) var->dataptr));
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -2322,13 +2461,13 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
       val = (short) ((*((long **) var->dataptr))[threadindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2358,13 +2497,13 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
       val = (short) ((*((long **) var->dataptr))[lcindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2394,13 +2533,13 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
       val = (short) (*((long ***) var->dataptr))[threadindex][jdindex];
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2416,7 +2555,7 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_SHORT, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -2445,13 +2584,13 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
       val = (*((long *) var->dataptr));
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -2474,13 +2613,13 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
       val = ((*((long **) var->dataptr))[threadindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2510,13 +2649,13 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
       val = ((*((long **) var->dataptr))[lcindex]);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2546,13 +2685,13 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
       val = (*((long ***) var->dataptr))[threadindex][jdindex];
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2568,7 +2707,7 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_LONG, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -2602,7 +2741,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
       val = (char) (*((char *) var->dataptr));
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return val;
@@ -2631,7 +2770,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
       val = (char) ((*((char **) var->dataptr))[threadindex]);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2667,7 +2806,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
       val = (char) ((*((char **) var->dataptr))[lcindex]);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2703,7 +2842,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
       val = (char) (*((char ***) var->dataptr))[threadindex][jdindex];
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2719,7 +2858,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_CHAR, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return val;
 }
@@ -2745,7 +2884,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%8d", (int) (*((short *) var->dataptr)));
       break;
     case VARTOOLS_TYPE_LONG:
-      sprintf(val, "%32d", (long) (*((long *) var->dataptr)));
+      sprintf(val, "%32ld", (long) (*((long *) var->dataptr)));
       break;
     case VARTOOLS_TYPE_STRING:
       sprintf(val, "%s", (*((char **) var->dataptr)));
@@ -2754,7 +2893,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%c", (*((char *) var->dataptr)));
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
     return;
@@ -2774,18 +2913,18 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%8d", (int) ((*((short **) var->dataptr))[threadindex]));
       break;
     case VARTOOLS_TYPE_LONG:
-      sprintf(val, "%32d", (long) ((*((long **) var->dataptr))[threadindex]));
+      sprintf(val, "%32ld", (long) ((*((long **) var->dataptr))[threadindex]));
       break;
     case VARTOOLS_TYPE_STRING:
       sprintf(val, "%s", (char *) ((*((char ***) var->dataptr))[threadindex]));
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     case VARTOOLS_TYPE_CHAR:
       sprintf(val, "%c", (char) ((*((char **) var->dataptr))[threadindex]));
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
@@ -2812,7 +2951,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%8d", (int) ((*((short **) var->dataptr))[lcindex]));
       break;
     case VARTOOLS_TYPE_LONG:
-      sprintf(val, "%32d", (long) ((*((long **) var->dataptr))[lcindex]));
+      sprintf(val, "%32ld", (long) ((*((long **) var->dataptr))[lcindex]));
       break;
     case VARTOOLS_TYPE_STRING:
       sprintf(val, "%s", (char *) ((*((char ***) var->dataptr))[lcindex]));
@@ -2821,7 +2960,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%c", (char) ((*((char **) var->dataptr))[lcindex]));
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -2848,7 +2987,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%8d", (int) (*((short ***) var->dataptr))[threadindex][jdindex]);
       break;
     case VARTOOLS_TYPE_LONG:
-      sprintf(val, "%32d", (long) (*((long ***) var->dataptr))[threadindex][jdindex]);
+      sprintf(val, "%32ld", (long) (*((long ***) var->dataptr))[threadindex][jdindex]);
       break;
     case VARTOOLS_TYPE_STRING:
       sprintf(val, "%s", (char *) (*((char ****) var->dataptr))[threadindex][jdindex]);
@@ -2857,7 +2996,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
       sprintf(val, "%c", (char) (*((char ***) var->dataptr))[threadindex][jdindex]);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     break;
   case VARTOOLS_VECTORTYPE_OUTCOLUMN:
@@ -2873,9 +3012,76 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
     getoutcolumnvalue(var->outc, threadindex, lcindex, VARTOOLS_TYPE_STRING, &val);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   return;
+}
+
+/* Helper: evaluate an expression at every observation in the current LC,
+   optionally filtering by a condition expression.  Returns a malloc'd
+   array and sets *out_n to the number of elements.  Caller must free. */
+static double *_build_vector_from_expr(int lcindex, int threadindex,
+                                       _Expression *data_expr,
+                                       _Expression *filter_expr,
+                                       int njd, int *out_n)
+{
+  int j, count;
+  double *tmp, *result;
+  tmp = (double *) malloc(njd * sizeof(double));
+  if(!tmp) vt_error(ERR_MEMALLOC);
+  if(filter_expr == NULL) {
+    for(j = 0; j < njd; j++)
+      tmp[j] = EvaluateExpression(lcindex, threadindex, j, data_expr);
+    *out_n = njd;
+    return tmp;
+  }
+  count = 0;
+  for(j = 0; j < njd; j++) {
+    if(EvaluateExpression(lcindex, threadindex, j, filter_expr) > 0.0)
+      tmp[count++] = EvaluateExpression(lcindex, threadindex, j, data_expr);
+  }
+  if(count < njd) {
+    result = (double *) realloc(tmp, (count > 0 ? count : 1) * sizeof(double));
+    if(!result) { free(tmp); vt_error(ERR_MEMALLOC); }
+    tmp = result;
+  }
+  *out_n = count;
+  return tmp;
+}
+
+/* Same as above but builds two parallel vectors (data + weights). */
+static void _build_weighted_vectors(int lcindex, int threadindex,
+                                    _Expression *data_expr,
+                                    _Expression *weight_expr,
+                                    _Expression *filter_expr,
+                                    int njd,
+                                    double **out_data, double **out_weights,
+                                    int *out_n)
+{
+  int j, count;
+  double *dvals, *wvals;
+  dvals = (double *) malloc(njd * sizeof(double));
+  wvals = (double *) malloc(njd * sizeof(double));
+  if(!dvals || !wvals) vt_error(ERR_MEMALLOC);
+  if(filter_expr == NULL) {
+    for(j = 0; j < njd; j++) {
+      dvals[j] = EvaluateExpression(lcindex, threadindex, j, data_expr);
+      wvals[j] = EvaluateExpression(lcindex, threadindex, j, weight_expr);
+    }
+    *out_n = njd;
+  } else {
+    count = 0;
+    for(j = 0; j < njd; j++) {
+      if(EvaluateExpression(lcindex, threadindex, j, filter_expr) > 0.0) {
+        dvals[count] = EvaluateExpression(lcindex, threadindex, j, data_expr);
+        wvals[count] = EvaluateExpression(lcindex, threadindex, j, weight_expr);
+        count++;
+      }
+    }
+    *out_n = count;
+  }
+  *out_data = dvals;
+  *out_weights = wvals;
 }
 
 double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call) {
@@ -2886,12 +3092,12 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
   /* Check for special functions like "len" */
   if(call->functionid == VARTOOLS_FUNCTIONCALL_LEN) {
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "len");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "len");
     if(call->arguments[i]->operatortype != VARTOOLS_OPERATORTYPE_CONSTANT ||
        call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION ||
        call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_FUNCTION ||
        call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_ARRAYINDEX)
-      error(ERR_FUNCTIONCALL_LENINVALIDOPERAND);
+      vt_error(ERR_FUNCTIONCALL_LENINVALIDOPERAND);
     if(call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_CONSTANT ||
        call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_ITERATORNR ||
        call->arguments[i]->op1type == VARTOOLS_OPERANDTYPE_ITERATORNF)
@@ -2912,6 +3118,96 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
     }
   }
 
+  /* --- Vector aggregate functions: build temp arrays, compute, return --- */
+  if(call->functionid >= VARTOOLS_FUNCTIONCALL_VMEAN &&
+     call->functionid <= VARTOOLS_FUNCTIONCALL_VWPCT) {
+    int njd = _aggregate_njd;
+    int n;
+    double *darr = NULL, *warr = NULL;
+    _Expression *filter_expr = NULL;
+    double pctval;
+    double result;
+
+    switch(call->functionid) {
+    /* --- 1-arg functions with optional filter --- */
+    case VARTOOLS_FUNCTIONCALL_VMEAN:
+    case VARTOOLS_FUNCTIONCALL_VMEDIAN:
+    case VARTOOLS_FUNCTIONCALL_VSTDDEV:
+    case VARTOOLS_FUNCTIONCALL_VMEDDEV:
+    case VARTOOLS_FUNCTIONCALL_VMEDMEDDEV:
+    case VARTOOLS_FUNCTIONCALL_VMAD:
+    case VARTOOLS_FUNCTIONCALL_VKURTOSIS:
+    case VARTOOLS_FUNCTIONCALL_VSKEWNESS:
+    case VARTOOLS_FUNCTIONCALL_VMIN:
+    case VARTOOLS_FUNCTIONCALL_VMAX:
+    case VARTOOLS_FUNCTIONCALL_VSUM:
+      if(call->Nexpr < 1 || call->Nexpr > 2) vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "aggregate");
+      filter_expr = (call->Nexpr == 2) ? call->arguments[1] : NULL;
+      darr = _build_vector_from_expr(lcindex, threadindex, call->arguments[0], filter_expr, njd, &n);
+      if(n == 0) { free(darr); return 0.0; }
+      switch(call->functionid) {
+      case VARTOOLS_FUNCTIONCALL_VMEAN:     result = getmean(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VMEDIAN:   result = median_nocopy(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VSTDDEV:   result = stddev(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VMEDDEV:   result = meddev(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VMEDMEDDEV:result = medmeddev(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VMAD:      result = MAD(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VKURTOSIS: result = kurtosis(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VSKEWNESS: result = skewness(n, darr); break;
+      case VARTOOLS_FUNCTIONCALL_VSUM:
+        result = 0.0; for(i=0;i<n;i++) result += darr[i]; break;
+      case VARTOOLS_FUNCTIONCALL_VMIN:
+        result = darr[0]; for(i=1;i<n;i++) if(darr[i]<result) result=darr[i]; break;
+      case VARTOOLS_FUNCTIONCALL_VMAX:
+        result = darr[0]; for(i=1;i<n;i++) if(darr[i]>result) result=darr[i]; break;
+      default: result = 0.0;
+      }
+      free(darr);
+      return result;
+
+    /* --- 2-arg weighted functions with optional filter --- */
+    case VARTOOLS_FUNCTIONCALL_VWEIGHTEDMEAN:
+      if(call->Nexpr < 2 || call->Nexpr > 3) vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "weightedmean");
+      filter_expr = (call->Nexpr == 3) ? call->arguments[2] : NULL;
+      _build_weighted_vectors(lcindex, threadindex, call->arguments[0], call->arguments[1], filter_expr, njd, &darr, &warr, &n);
+      if(n == 0) { free(darr); free(warr); return 0.0; }
+      result = getweightedmean(n, darr, warr);
+      free(darr); free(warr);
+      return result;
+
+    case VARTOOLS_FUNCTIONCALL_VWMEDIAN:
+      if(call->Nexpr < 2 || call->Nexpr > 3) vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "wmedian");
+      filter_expr = (call->Nexpr == 3) ? call->arguments[2] : NULL;
+      _build_weighted_vectors(lcindex, threadindex, call->arguments[0], call->arguments[1], filter_expr, njd, &darr, &warr, &n);
+      if(n == 0) { free(darr); free(warr); return 0.0; }
+      result = median_weight_nocopy(n, darr, warr);
+      free(darr); free(warr);
+      return result;
+
+    /* --- pct(x, pctval [, filter]) --- */
+    case VARTOOLS_FUNCTIONCALL_VPCT:
+      if(call->Nexpr < 2 || call->Nexpr > 3) vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "pct");
+      pctval = EvaluateExpression(lcindex, threadindex, jdindex, call->arguments[1]);
+      filter_expr = (call->Nexpr == 3) ? call->arguments[2] : NULL;
+      darr = _build_vector_from_expr(lcindex, threadindex, call->arguments[0], filter_expr, njd, &n);
+      if(n == 0) { free(darr); return 0.0; }
+      result = percentile_nocopy(n, darr, pctval);
+      free(darr);
+      return result;
+
+    /* --- wpct(x, w, pctval [, filter]) --- */
+    case VARTOOLS_FUNCTIONCALL_VWPCT:
+      if(call->Nexpr < 3 || call->Nexpr > 4) vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "wpct");
+      pctval = EvaluateExpression(lcindex, threadindex, jdindex, call->arguments[2]);
+      filter_expr = (call->Nexpr == 4) ? call->arguments[3] : NULL;
+      _build_weighted_vectors(lcindex, threadindex, call->arguments[0], call->arguments[1], filter_expr, njd, &darr, &warr, &n);
+      if(n == 0) { free(darr); free(warr); return 0.0; }
+      result = percentile_weight_nocopy(n, darr, warr, pctval);
+      free(darr); free(warr);
+      return result;
+    }
+  }
+
   if(call->Nexpr > 0) {
     val = malloc(call->Nexpr * sizeof(double));
     for(i=0; i < call->Nexpr; i++) {
@@ -2922,200 +3218,200 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
   switch(call->functionid) {
   case VARTOOLS_FUNCTIONCALL_EXP:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "exp");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "exp");
     outval = exp(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_LOG:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "log");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "log");
     outval = log(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_LOG10:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "log10");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "log10");
     outval = log(val[0])/M_LN10;
     break;
   case VARTOOLS_FUNCTIONCALL_SQRT:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sqrt");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sqrt");
     outval = sqrt(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ABS:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "abs");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "abs");
     outval = fabs(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_MAX:
     if(call->Nexpr != 2)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "max");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "max");
     outval = (val[0] > val[1] ? val[0] : val[1]);
     break;
   case VARTOOLS_FUNCTIONCALL_MIN:
     if(call->Nexpr != 2)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "min");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "min");
     outval = (val[0] < val[1] ? val[0] : val[1]);
     break;
   case VARTOOLS_FUNCTIONCALL_HYPOT:
     if(call->Nexpr != 2)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "hypot");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "hypot");
     outval = hypot(val[0],val[1]);
     break;
   case VARTOOLS_FUNCTIONCALL_SIN:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sin");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sin");
     outval = sin(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_SINDEGR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sindegr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sindegr");
     outval = sin(M_PI*val[0]/180.0);
     break;
   case VARTOOLS_FUNCTIONCALL_COS:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cos");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cos");
     outval = cos(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_COSDEGR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cosdegr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cosdegr");
     outval = cos(M_PI*val[0]/180.0);
     break;
   case VARTOOLS_FUNCTIONCALL_TAN:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tan");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tan");
     outval = tan(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_TANDEGR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tandegr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tandegr");
     outval = tan(M_PI*val[0]/180.0);
     break;
   case VARTOOLS_FUNCTIONCALL_ASIN:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asin");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asin");
     outval = asin(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ASINDEGR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asindegr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asindegr");
     outval = 180.0*asin(val[0])/M_PI;
     break;
   case VARTOOLS_FUNCTIONCALL_ACOS:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acos");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acos");
     outval = acos(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ACOSDEGR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acosdegr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acosdegr");
     outval = 180.0*acos(val[0])/M_PI;
     break;
   case VARTOOLS_FUNCTIONCALL_ATAN2:
     if(call->Nexpr != 2)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atan2");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atan2");
     outval = atan2(val[0],val[1]);
     break;
   case VARTOOLS_FUNCTIONCALL_ATAN2DEGR:
     if(call->Nexpr != 2)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atan2degr");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atan2degr");
     outval = 180.0*atan2(val[0],val[1])/M_PI;
     break;
   case VARTOOLS_FUNCTIONCALL_CEIL:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "ceil");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "ceil");
     outval = ceil(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_FLOOR:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "floor");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "floor");
     outval = floor(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_COSH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cosh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "cosh");
     outval = cosh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_SINH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sinh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "sinh");
     outval = sinh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_TANH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tanh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "tanh");
     outval = tanh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ERF:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "erf");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "erf");
     outval = erf(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ERFC:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "erfc");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "erfc");
     outval = erfc(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_LGAMMA:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "lgamma");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "lgamma");
     outval = lgamma(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_GAMMA:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "gamma");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "gamma");
     outval = tgamma(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ROUND:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "round");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "round");
     outval = round(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_THETA:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "theta");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "theta");
     outval = (val[0] < 0.0 ? 0.0 : 1.0);
     break;
   case VARTOOLS_FUNCTIONCALL_ACOSH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acosh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "acosh");
     outval = acosh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ASINH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asinh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "asinh");
     outval = asinh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_ATANH:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atanh");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "atanh");
     outval = atanh(val[0]);
     break;
   case VARTOOLS_FUNCTIONCALL_RAND:
     if(call->Nexpr != 0)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "rand");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "rand");
     outval = (double) (rand() / (double) RAND_MAX);
     break;
   case VARTOOLS_FUNCTIONCALL_GAUSS:
     if(call->Nexpr != 0)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "gauss");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "gauss");
     outval = gasdev();
     break;
   case VARTOOLS_FUNCTIONCALL_ISNAN:
     if(call->Nexpr != 1)
-      error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "isnan");
+      vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, "isnan");
     outval = isnan(val[0]);
     break;
   default:
 #ifdef DYNAMICLIB
     if(call->UserFunc != NULL) {
       if(call->Nexpr != call->UserFunc->Nargs)
-	error2(ERR_FUNCTIONCALL_INVALIDNEXPR, call->UserFunc->funcname);
+	vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, call->UserFunc->funcname);
       outval = call->UserFunc->EvalFunction_ptr(val);
       break;
     }
     else if(call->AnalyticUserFunc != NULL) {
       if(call->Nexpr != call->AnalyticUserFunc->Nargs)
-	error2(ERR_FUNCTIONCALL_INVALIDNEXPR, call->AnalyticUserFunc->funcname);
+	vt_error2(ERR_FUNCTIONCALL_INVALIDNEXPR, call->AnalyticUserFunc->funcname);
       for(i=0; i < call->Nexpr; i++) {
 	SetVariable_Value_Double(lcindex, threadindex, jdindex, call->AnalyticUserFunc->input_argvars[i], val[i]);
       }
@@ -3124,7 +3420,7 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
     }
     else {
 #endif
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
 #ifdef DYNAMICLIB
     }
 #endif
@@ -3157,7 +3453,7 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
        5 -- the string is the NR iterator.
        6 -- the string is the NF iterator.
 */
-int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *functionid, double *constval, _Variable **varptr)
+int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, int *functionid, double *constval, _Variable **varptr)
 {
   int retval = 0;
   int i, j, userindx, test, ndec, numeterms, firstparen, firstbracket;
@@ -3248,11 +3544,11 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	if(firstbracket + 1 > sizeterm2) {
 	  if(!sizeterm2) {
 	    if((term2 = malloc((firstbracket+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  else {
 	    if((term2 = realloc(term2, (firstbracket+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  sizeterm2 = firstbracket + 1;
 	}
@@ -3269,7 +3565,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	    if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_CONSTANT ||
 	       p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_SCALAR ||
 	       p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
-	      error2(ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION,term);
+	      vt_error2(ERR_INDEXINGWRONGVARIABLETYPEINEXPRESSION,term);
 	    }
 	    *varptr = p->DefinedVariables[i];
 	    *functionid = -1;
@@ -3294,7 +3590,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	}
 	if(!test) {
 	  free(term2);
-	  error2(ERR_ANALYTICPARSE,term);
+	  vt_error2(ERR_ANALYTICPARSE,term);
 	}
       }
     }
@@ -3324,11 +3620,11 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	if(firstparen + 1 > sizeterm2) {
 	  if(!sizeterm2) {
 	    if((term2 = malloc((firstparen+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  else {
 	    if((term2 = realloc(term2, (firstparen+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  sizeterm2 = firstparen + 1;
 	}
@@ -3490,6 +3786,66 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	  *functionid = VARTOOLS_FUNCTIONCALL_LEN;
 	  test = 1;
 	}
+	else if(!strcmp(term2,"mean")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMEAN;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"weightedmean")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VWEIGHTEDMEAN;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"median")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMEDIAN;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"wmedian")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VWMEDIAN;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"stddev")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VSTDDEV;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"meddev")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMEDDEV;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"medmeddev")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMEDMEDDEV;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"MAD")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMAD;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"kurtosis")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VKURTOSIS;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"skewness")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VSKEWNESS;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"vmin")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMIN;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"vmax")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VMAX;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"sum")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VSUM;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"pct")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VPCT;
+	  test = 1;
+	}
+	else if(!strcmp(term2,"wpct")) {
+	  *functionid = VARTOOLS_FUNCTIONCALL_VWPCT;
+	  test = 1;
+	}
 #ifdef DYNAMICLIB
         else {
 	  if(p->NUserFunc > 0) {
@@ -3533,7 +3889,7 @@ int CheckIsFunctionConstantVariableExpression(char *term, ProgramData *p, char *
 	  }
 	  if(!test) {
 	    free(term2);
-	    error2(ERR_ANALYTICPARSE,term);
+	    vt_error2(ERR_ANALYTICPARSE,term);
 	  }
 	}
       }
@@ -3607,7 +3963,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
   int sizeterm2 = 0;
 
   if((retval = (_FunctionCall *) malloc(sizeof(_FunctionCall))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
 
 #ifdef DYNAMICLIB
@@ -3622,7 +3978,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
   while(term[i] != '\0' && term[i] != '[') 
     i++;
   if(i == 0 || term[i] != '[') {
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   }
   i++;
   
@@ -3638,20 +3994,20 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
     i++;
   }
   if(!(Nbracket == 0 && term[i] == ']'))
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   
   if(i == ilast)
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   
   if(i-ilast+1 > sizeterm2) {
     if(!sizeterm2) {
       sizeterm2 = i - ilast + 1;
       if((term2 = (char *) malloc(sizeterm2)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       sizeterm2 = i - ilast + 1;
       if((term2 = (char *) realloc(term2,sizeterm2)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
   for(k=ilast,j=0;k<i;k++,j++) {
@@ -3660,7 +4016,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
   term2[j] = '\0';
 
   if((retval->arguments = (_Expression **) malloc(sizeof(_Expression *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   retval->arguments[0] = ParseExpression(term2,p);
   
@@ -3673,7 +4029,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
 }
 
 
-_FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
+_FunctionCall* ParseFunctionCall(char *term, ProgramData *p, int functionid)
 /* This function parses the string term and returns a pointer to a 
    "FunctionCall" structure which it creates */
 {
@@ -3686,7 +4042,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
   int sizeterm2 = 0;
 
   if((retval = (_FunctionCall *) malloc(sizeof(_FunctionCall))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
 
 #ifdef DYNAMICLIB
@@ -3701,7 +4057,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
   while(term[i] != '\0' && term[i] != '(') 
     i++;
   if(i == 0 || term[i] != '(') {
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   }
   i++;
   
@@ -3716,18 +4072,18 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
     }
     else if(term[i] == ',' && Nparen == 0) {
       if(i == ilast) {
-	error2(ERR_ANALYTICPARSE,term);
+	vt_error2(ERR_ANALYTICPARSE,term);
       }
       if(i-ilast+1 > sizeterm2) {
 	if(!sizeterm2) {
 	  sizeterm2 = i-ilast+1;
 	  if((term2 = (char *) malloc(sizeterm2)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	else {
 	  sizeterm2 = i-ilast+1;
 	  if((term2 = (char *) realloc(term2,sizeterm2)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       }
       for(k=ilast,j=0;k<i;k++,j++) {
@@ -3737,35 +4093,35 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
       Nexpr++;
       if(Nexpr == 1) {
 	if((retval->arguments = (_Expression **) malloc(sizeof(_Expression *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((retval->arguments = (_Expression **) realloc(retval->arguments, Nexpr*sizeof(_Expression *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       retval->arguments[Nexpr-1] = ParseExpression(term2,p);
       if(retval->arguments[Nexpr-1] == NULL)
-	error2(ERR_ANALYTICPARSE,term);
+	vt_error2(ERR_ANALYTICPARSE,term);
       ilast = i+1;
     }
     i++;
   }
   if(!(term[i] == ')' && Nparen == 0)) {
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   }
   if(i == ilast && Nexpr > 0) {
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   }
   else if(i != ilast) {
     if(i-ilast+1 > sizeterm2) {
       if(!sizeterm2) {
 	sizeterm2 = i-ilast+1;
 	if((term2 = (char *) malloc(sizeterm2)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       else {
 	sizeterm2 = i-ilast+1;
 	if((term2 = (char *) realloc(term2,sizeterm2)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     }
     for(k=ilast,j=0;k<i;k++,j++) {
@@ -3775,19 +4131,19 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
     Nexpr++;
     if(Nexpr == 1) {
       if((retval->arguments = (_Expression **) malloc(sizeof(_Expression *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       if((retval->arguments = (_Expression **) realloc(retval->arguments, Nexpr*sizeof(_Expression *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     retval->arguments[Nexpr-1] = ParseExpression(term2,p);
     if(retval->arguments[Nexpr-1] == NULL)
-      error2(ERR_ANALYTICPARSE,term);
+      vt_error2(ERR_ANALYTICPARSE,term);
     ilast = i+1;
   }
 
   if(term[i+1] != '\0')
-    error2(ERR_ANALYTICPARSE,term);
+    vt_error2(ERR_ANALYTICPARSE,term);
   
   retval->Nexpr = Nexpr;
 
@@ -3795,31 +4151,58 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
   switch(retval->functionid) {
   case VARTOOLS_FUNCTIONCALL_MAX:
     if(Nexpr != 2)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_MIN:
     if(Nexpr != 2)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_HYPOT:
     if(Nexpr != 2)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_ATAN2:
     if(Nexpr != 2)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_ATAN2DEGR:
     if(Nexpr != 2)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_RAND:
     if(Nexpr != 0)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   case VARTOOLS_FUNCTIONCALL_GAUSS:
     if(Nexpr != 0)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
+    break;
+  case VARTOOLS_FUNCTIONCALL_VMEAN:
+  case VARTOOLS_FUNCTIONCALL_VMEDIAN:
+  case VARTOOLS_FUNCTIONCALL_VSTDDEV:
+  case VARTOOLS_FUNCTIONCALL_VMEDDEV:
+  case VARTOOLS_FUNCTIONCALL_VMEDMEDDEV:
+  case VARTOOLS_FUNCTIONCALL_VMAD:
+  case VARTOOLS_FUNCTIONCALL_VKURTOSIS:
+  case VARTOOLS_FUNCTIONCALL_VSKEWNESS:
+  case VARTOOLS_FUNCTIONCALL_VMIN:
+  case VARTOOLS_FUNCTIONCALL_VMAX:
+  case VARTOOLS_FUNCTIONCALL_VSUM:
+    if(Nexpr < 1 || Nexpr > 2)
+      vt_error2(ERR_ANALYTICPARSE, term);
+    break;
+  case VARTOOLS_FUNCTIONCALL_VWEIGHTEDMEAN:
+  case VARTOOLS_FUNCTIONCALL_VWMEDIAN:
+    if(Nexpr < 2 || Nexpr > 3)
+      vt_error2(ERR_ANALYTICPARSE, term);
+    break;
+  case VARTOOLS_FUNCTIONCALL_VPCT:
+    if(Nexpr < 2 || Nexpr > 3)
+      vt_error2(ERR_ANALYTICPARSE, term);
+    break;
+  case VARTOOLS_FUNCTIONCALL_VWPCT:
+    if(Nexpr < 3 || Nexpr > 4)
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   default:
 #ifdef DYNAMICLIB
@@ -3827,7 +4210,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
        retval->functionid < VARTOOLS_FUNCTIONCALL_USERFUNC + p->NUserFunc) {
       indx = retval->functionid - VARTOOLS_FUNCTIONCALL_USERFUNC;
       if(Nexpr != p->UserFunc[indx].Nargs)
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       retval->UserFunc = &(p->UserFunc[indx]);
       break;
     }
@@ -3835,13 +4218,13 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, char functionid)
 	    retval->functionid < VARTOOLS_FUNCTIONCALL_USERFUNC + p->NUserFunc + p->NAnalyticUserFunc) {
       indx = retval->functionid - VARTOOLS_FUNCTIONCALL_USERFUNC - p->NUserFunc;
       if(Nexpr != p->AnalyticUserFunc[indx].Nargs)
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       retval->AnalyticUserFunc = &(p->AnalyticUserFunc[indx]);
       break;
     }
 #endif
     if(Nexpr != 1)
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     break;
   }
 
@@ -3862,10 +4245,10 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
   _Expression *retval;
   _Variable *varptr;
   double constval;
-  char functionid;
+  int functionid;
   int len = 1, i, j, expressiontype;
   if((retval = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   retval->operatortype = operatortype;
   switch(operatortype) {
   case VARTOOLS_OPERATORTYPE_GREATERTHANEQUAL:
@@ -3890,15 +4273,15 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
     len = 1;
   }
   if((i1 + len) == sizeterm) {
-    error2(ERR_ANALYTICPARSE, term);
+    vt_error2(ERR_ANALYTICPARSE, term);
   }
   if(i1 > 0) {
     if((term1 = malloc(i1+1)) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
   }
   if((term2 = malloc(sizeterm - (i1+len) + 1)) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   if(term1 != NULL) {
     for(i=0; i < i1; i++) {
@@ -3918,7 +4301,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
 						&functionid, &constval,
 						&varptr);
     if(!expressiontype) {
-          error2(ERR_ANALYTICPARSE, term);
+          vt_error2(ERR_ANALYTICPARSE, term);
     }
     else if(expressiontype == 1) {
       /***** It is a function call ****/
@@ -3941,7 +4324,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
       retval->op2type = VARTOOLS_OPERANDTYPE_EXPRESSION;
       retval->op2_expression = (void *) (ParseExpression(term2, p));
       if(retval->op2_expression == NULL) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
     }
     else if(expressiontype == 5) {
@@ -3968,7 +4351,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
 					      &functionid, &constval,
 					      &varptr);
   if(!expressiontype) {
-          error2(ERR_ANALYTICPARSE, term);
+          vt_error2(ERR_ANALYTICPARSE, term);
   }
   else if(expressiontype == 1) {
     /***** It is a function call ****/
@@ -3991,7 +4374,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
     retval->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
     retval->op1_expression = (void *) (ParseExpression(term1, p));
     if(retval->op1_expression == NULL) {
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     }
   }
   else if(expressiontype == 5) {
@@ -4025,7 +4408,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 */
   int starti, i, j, k, k1, k2, iendparen, istartparen, Nparen, Nbracket;
   int expressiontype, checknonnum;
-  char functionid;
+  int functionid;
   double constval;
   _Variable *varptr;
   _Expression *retval = NULL;
@@ -4069,7 +4452,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '|' && term[i+1] == '|' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_OR, i, sizeterm, p);
       return retval;
@@ -4077,7 +4460,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     i++;
   }
   if(Nparen != 0 || Nbracket != 0)
-    error2(ERR_ANALYTICPARSE, term);
+    vt_error2(ERR_ANALYTICPARSE, term);
 
   /* Check for | */
   Nparen = 0;
@@ -4090,7 +4473,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '|' && term[i+1] != '|' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_BITWISEOR, i, sizeterm, p);
       return retval;
@@ -4098,7 +4481,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     i++;
   }
   if(Nparen != 0 || Nbracket != 0)
-    error2(ERR_ANALYTICPARSE, term);
+    vt_error2(ERR_ANALYTICPARSE, term);
 
 
   /* Check for && */
@@ -4112,7 +4495,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '&' && term[i+1] == '&' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_AND, i, sizeterm, p);
       return retval;
@@ -4131,7 +4514,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '&' && term[i+1] != '&' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_BITWISEAND, i, sizeterm, p);
       return retval;
@@ -4150,14 +4533,14 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '!' && term[i+1] == '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_NOTEQUAL, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '=' && term[i+1] == '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_ISEQUAL, i, sizeterm, p);
       return retval;
@@ -4176,28 +4559,28 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '>' && term[i+1] == '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_GREATERTHANEQUAL, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '>' && term[i+1] != '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_GREATERTHAN, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '<' && term[i+1] == '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_LESSTHANEQUAL, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '<' && term[i+1] != '=' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_LESSTHAN, i, sizeterm, p);
       return retval;
@@ -4293,21 +4676,21 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 
     else if(term[i] == '*' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_MULTIPLY, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '/' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_DIVIDE, i, sizeterm, p);
       return retval;
     }
     else if(term[i] == '%' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_MODULO, i, sizeterm, p);
       return retval;
@@ -4338,12 +4721,12 @@ _Expression* ParseExpression(char *term, ProgramData *p){
       if(!sizeterm2) {
 	sizeterm2 = sizeterm + 2;
 	if((term2 = (char *) malloc((sizeterm2))) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       } else {
 	sizeterm2 = sizeterm + 2;
 	if((term2 = (char *) realloc(term2, sizeterm2)) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       }
     }
@@ -4358,12 +4741,12 @@ _Expression* ParseExpression(char *term, ProgramData *p){
       if(!sizeterm2) {
 	sizeterm2 = sizeterm + 2;
 	if((term2 = (char *) malloc((sizeterm2))) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       } else {
 	sizeterm2 = sizeterm + 2;
 	if((term2 = (char *) realloc(term2, sizeterm2)) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       }
     }
@@ -4385,7 +4768,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     else if(term[i] == ']') Nbracket--;
     else if(term[i] == '^' && Nparen == 0 && Nbracket == 0) {
       if(!i) {
-	error2(ERR_ANALYTICPARSE, term);
+	vt_error2(ERR_ANALYTICPARSE, term);
       }
       retval = SplitExpression(term, VARTOOLS_OPERATORTYPE_POWER, i, sizeterm, p);
       return retval;
@@ -4397,7 +4780,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
      the trailing ')' and pass it back */
   if(term[0] == '(') {
     if(term[sizeterm-1] != ')') {
-      error2(ERR_ANALYTICPARSE, term);
+      vt_error2(ERR_ANALYTICPARSE, term);
     }
     if(sizeterm - 2 <= 1)
       return NULL;
@@ -4405,12 +4788,12 @@ _Expression* ParseExpression(char *term, ProgramData *p){
       if(!sizeterm2) {
 	sizeterm2 = sizeterm - 1;
 	if((term2 = (char *) malloc((sizeterm2))) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       } else {
 	sizeterm2 = sizeterm - 1;
 	if((term2 = (char *) realloc(term2, sizeterm2)) == NULL) {
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
       }
     }
@@ -4425,7 +4808,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
   
   /* Check if this is a variable, or a function call */
   if((retval = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   expressiontype = CheckIsFunctionConstantVariableExpression(term, p, 
 							     &functionid, 
@@ -4433,7 +4816,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
 							     &varptr);
 
   if(!expressiontype)
-    error2(ERR_ANALYTICPARSE, term);
+    vt_error2(ERR_ANALYTICPARSE, term);
 
   retval->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
   
@@ -4462,7 +4845,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     retval->op1_functioncall = (void *) (ParseArrayIndex(term, p));
   }
   else {
-    error2(ERR_ANALYTICPARSE, term);
+    vt_error2(ERR_ANALYTICPARSE, term);
   }
 
   return retval;
@@ -4552,6 +4935,41 @@ void PrintVartoolsFunctionList(ProgramData *p)
   printtostring(&s,"-----------------\n\n");
   printtostring_indentwrap(&s,"len(x)\t\t- returns the length of a vector. x must be a single number or variable, more complicated expressions are not permitted as arguments to this function.",8);
   printtostring(&s,"\n\n");
+  printtostring(&s,"Aggregate Functions:\n\n");
+  printtostring(&s,"--------------------\n\n");
+  printtostring(&s,"These functions operate on all observations in the current light curve.\n");
+  printtostring(&s,"The first argument can be any expression (e.g. mag, mag*mag, sin(t)).\n");
+  printtostring(&s,"An optional filter argument selects a subset of observations.\n\n");
+  printtostring_indentwrap(&s,"mean(x [, filter])\t- arithmetic mean of x over all (filtered) observations.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"weightedmean(x, w [, filter])\t- weighted mean of x with weights w (typically err). Uses inverse-variance weighting.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"median(x [, filter])\t- median of x.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"wmedian(x, w [, filter])\t- weighted median of x with weights w.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"stddev(x [, filter])\t- standard deviation of x.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"meddev(x [, filter])\t- median deviation from the mean.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"medmeddev(x [, filter])\t- median of absolute deviations from the median.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"MAD(x [, filter])\t- median absolute deviation (1.483 * medmeddev).",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"kurtosis(x [, filter])\t- excess kurtosis of x.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"skewness(x [, filter])\t- skewness of x.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"vmin(x [, filter])\t- minimum value of x. Use vmin to distinguish from the two-argument scalar min(a,b).",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"vmax(x [, filter])\t- maximum value of x. Use vmax to distinguish from the two-argument scalar max(a,b).",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"sum(x [, filter])\t- sum of x over all (filtered) observations.",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"pct(x, pctval [, filter])\t- percentile of x. pctval is the percentile as a percentage (e.g. 50.0 for the median, 95.0 for the 95th percentile).",8);
+  printtostring(&s,"\n\n");
+  printtostring_indentwrap(&s,"wpct(x, w, pctval [, filter])\t- weighted percentile of x with weights w.",8);
+  printtostring(&s,"\n\n");
   printtostring(&s,"Constants:\n");
   printtostring(&s,"----------\n\n");
   printtostring(&s,"pi\n\n");
@@ -4599,7 +5017,7 @@ void PrintVartoolsFunctionList(ProgramData *p)
 #endif
 
   if(s.s != NULL) {
-    printf(s.s);
+    printf("%s", s.s);
     free(s.s);
   }
   exit(0);
@@ -4610,7 +5028,7 @@ char * GenerateInternalVariableName(ProgramData *p) {
   int len;
   len = (p->NInternalVars / 10) + 10;
   if((ret = (char *) malloc(len)) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(ret,"InT_vAr_%d", p->NInternalVars);
   p->NInternalVars += 1;
   return ret;
@@ -4638,7 +5056,7 @@ void CheckCreateCommandOutputLCVariable(char *varname, _Variable **omodelvar, Pr
 	/* This is an existing variable, make sure it is the correct type */
 	if(v->vectortype != VARTOOLS_VECTORTYPE_LC ||
 	   v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	  error2(ERR_INVALIDVARIABLELCVARIABLE,varname);
+	  vt_error2(ERR_INVALIDVARIABLELCVARIABLE,varname);
 	}
 	*(omodelvar) = v;
 	break;
@@ -4668,10 +5086,10 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   int Narg, *inlen = NULL, *outlen = NULL, lenexpr, sizeexpr;
   if(!p->NAnalyticUserFunc) {
     if((p->AnalyticUserFunc = malloc(sizeof(_AnalyticUserFunc))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     if((p->AnalyticUserFunc = realloc(p->AnalyticUserFunc,(p->NAnalyticUserFunc+1)*sizeof(_AnalyticUserFunc))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   /* Remove any white space from the expression */
@@ -4691,20 +5109,20 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   i = 0;
   while(argv[i] != '\0' && argv[i] != '(') i++;
   if(argv[i] != '(' || i == 0)
-    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+    vt_error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
 
   if((funcname = malloc((i+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(j=0; j < i; j++)
     funcname[j] = argv[j];
   funcname[j] = '\0';
 
   testval = CheckVariableNameNotAcceptable(funcname, p);
   if(testval)
-    error2(testval, funcname);
+    vt_error2(testval, funcname);
 
   if(strlen(funcname) >= MAXFUNCNAMELENGTH) {
-    error2(ERR_FUNCNAMETOOLONG, funcname);
+    vt_error2(ERR_FUNCNAMETOOLONG, funcname);
   }
 
   /* determine the number of arguments */
@@ -4718,19 +5136,19 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
     i++;
   }
   if(argv[i] != ')' || i == k)
-    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+    vt_error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
   
   if(Narg > 0) {
     if((inargvars = (char **) malloc(Narg*sizeof(char *))) == NULL ||
        (outargvars = (char **) malloc(Narg*sizeof(char *))) == NULL ||
        (inlen = (int *) malloc(Narg*sizeof(int))) == NULL ||
        (outlen = (int *) malloc(Narg*sizeof(int))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
   }
   for(j=0; j < Narg; j++) {
     if((inargvars[j] = (char *) malloc((i-k + 2)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   /* Get the names of the input argument variables, and make sure they are
@@ -4754,11 +5172,11 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   for(j=0; j < Narg; j++) {
     testval = CheckFunctionArgVariableNameNotAcceptable(inargvars[j],p);
     if(testval)
-      error2(testval,inargvars[j]);
+      vt_error2(testval,inargvars[j]);
     inlen[j] = strlen(inargvars[j]);
     for(m=j+1; m < Narg; m++) {
       if(!strcmp(inargvars[j],inargvars[m])) {
-	error2(ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG,inargvars[j]);
+	vt_error2(ERR_ANALYTICFUNCTIONDUPLICATEINPUTARG,inargvars[j]);
       }
     }
   }
@@ -4773,11 +5191,11 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   /* Make sure the next term is an equal sign */
   i++;
   if(argv[i] != '=')
-    error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
+    vt_error2(ERR_INVALIDANALYTICFUNCTIONDEFINITION, argv);
 
   sizeexpr = 2048;
   if((funcexprstr = (char *) malloc(sizeexpr*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   i++;
 
@@ -4806,7 +5224,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
 	      if(lenexpr >= sizeexpr) {
 		sizeexpr *= 2;
 		if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      funcexprstr[lenexpr] = outargvars[j][k];
 	      lenexpr++;
@@ -4822,7 +5240,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
 	if(lenexpr >= sizeexpr) {
 	  sizeexpr *= 2;
 	  if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	funcexprstr[lenexpr] = argv[i];
 	lenexpr++;
@@ -4833,7 +5251,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
 	  if(lenexpr >= sizeexpr) {
 	    sizeexpr *= 2;
 	    if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  funcexprstr[lenexpr] = argv[i];
 	  lenexpr++;
@@ -4846,7 +5264,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
       if(lenexpr >= sizeexpr) {
 	sizeexpr *= 2;
 	if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       funcexprstr[lenexpr] = argv[i];
       lenexpr++;
@@ -4856,7 +5274,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   if(lenexpr >= sizeexpr) {
     sizeexpr *= 2;
     if((funcexprstr = (char *) realloc(funcexprstr, sizeexpr*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   funcexprstr[lenexpr] = '\0';
 
@@ -4870,7 +5288,7 @@ void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv)
   f->Nargs = Narg;
   if(Narg > 0) {
     if((f->input_argvars = (_Variable **) malloc(Narg * sizeof(_Variable *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(m=0; m < Narg; m++) {
       f->input_argvars[m] = CreateVariable(p, outargvars[m], 
 					   VARTOOLS_TYPE_DOUBLE,

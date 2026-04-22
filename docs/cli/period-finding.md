@@ -412,16 +412,25 @@ Npoints_2                        =  3417
 **Syntax**
 ```
 -BLSFixDurTc
-    < "duration" < "fix" | "fixcolumn" <colname | colnum> | "list" ["column" col] > >
-    < "Tc" < "fix" | "fixcolumn" <colname | colnum> | "list" ["column" col] > >
-    ["fixdepth" < "fix" depth | "fixcolumn" ... | "list" ... >
-        ["qgress" < "fix" qgress | "fixcolumn" ... | "list" ... >]]
-    minper maxper nfreq timezone
+    <"duration" <"fix" dur | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>>
+    <"Tc" <"fix" Tc | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>>
+    ["fixdepth" <"fix" depth | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>
+        ["qgress" <"fix" qgress | "var" varname | "expr" expression
+            | "fixcolumn" <colname | colnum>
+            | "list" ["column" col]>]]
+    <"var" minpvar | "expr" minpexpr | minper>
+    <"var" maxpvar | "expr" maxpexpr | maxper>
+    <"var" nfvar | "expr" nfexpr | nfreq> timezone
     Npeak outperiodogram [outdir] omodel [model_outdir]
     correctlc ["fittrap"]
     ["ophcurve" outdir phmin phmax phstep]
-    ["ojdcurve" outdir jdstep]
-    ["maskpoints" maskvar]
+    ["ojdcurve" outdir jdstep] ["maskpoints" maskvar]
 ```
 
 **Description**
@@ -450,10 +459,21 @@ Cite Kovács, Zucker & Mazeh 2002, A&A, 391, 369.
 **Syntax**
 ```
 -BLSFixPerDurTc
-    < "period" < "fix" per | "fixcolumn" <colname | colnum> | "list" ["column" col] > >
-    < "duration" < "fix" dur | "fixcolumn" <colname | colnum> | "list" ["column" col] > >
-    < "Tc" < "fix" Tc | "fixcolumn" <colname | colnum> | "list" ["column" col] > >
-    ["fixdepth" ...  ["qgress" ...]]
+    <"period" <"fix" per | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>>
+    <"duration" <"fix" dur | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>>
+    <"Tc" <"fix" Tc | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>>
+    ["fixdepth" <"fix" depth | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>
+        | "list" ["column" col]>
+        ["qgress" <"fix" qgress | "var" varname | "expr" expression
+            | "fixcolumn" <colname | colnum>
+            | "list" ["column" col]>]]
     timezone omodel [model_outdir]
     correctlc ["fittrap"]
     ["ophcurve" outdir phmin phmax phstep]
@@ -470,49 +490,22 @@ Cite Kovács, Zucker & Mazeh 2002, A&A, 391, 369.
 
 ---
 
-### `-autocorrelation` — Discrete Autocorrelation Function
-
-**Syntax**
-```
--autocorrelation
-    start stop step outdir ["maskpoints" maskvar]
-```
-
-**Description**
-
-Calculate the discrete autocorrelation function (ACF) of the light curve following the method of Edelson & Krolik (1988). The ACF is written to `outdir/$basename.autocorr`. Note that the denominator uses the formal photometric uncertainty rather than the variance (subtracting the measurement noise from the variance could yield imaginary numbers when errors are overestimated). If the variance-based denominator is desired, run `-changeerror` before this command.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `start` | Minimum time lag for the ACF (days). |
-| `stop` | Maximum time lag for the ACF (days). |
-| `step` | Time lag step size (days). |
-| `outdir` | Directory for output ACF files. |
-| `"maskpoints" maskvar` | Exclude points with `maskvar ≤ 0`. |
-
-**Output columns**
-
-No columns are added to the statistics table; the ACF is written entirely to the output file.
-
-**References**
-
-Cite Edelson & Krolik 1988, ApJ, 333, 646.
-
----
-
 ### `-dftclean` — DFT Power Spectrum + CLEAN
 
 **Syntax**
 ```
--dftclean
-    nbeam ["maxfreq" maxf]
+-dftclean <"var" nbvar | "expr" nbexpr | nbeam>
+    ["maxfreq" <"var" mfvar | "expr" mfexpr | maxf>]
     ["outdspec" dspec_outdir]
-    ["finddirtypeaks" Npeaks ["clip" clip clipiter]]
+    ["finddirtypeaks" Npeaks ["clip" <"var" cvar | "expr" cexpr | clip>
+    clipiter]]
     ["outwfunc" wfunc_outdir]
-    ["clean" gain SNlimit ["outcbeam" cbeam_outdir] ["outcspec" cspec_outdir]
-        ["findcleanpeaks" Npeaks ["clip" clip clipiter]]]
+    ["clean" <"var" gvar | "expr" gexpr | gain> <"var" snvar | "expr" snexpr |
+    SNlimit>
+        ["outcbeam" cbeam_outdir]
+    ["outcspec" cspec_outdir]
+    ["findcleanpeaks" Npeaks ["clip" <"var" cvar | "expr" cexpr | clip>
+    clipiter]]]
     ["useampspec"] ["verboseout"] ["maskpoints" maskvar]
 ```
 
@@ -582,10 +575,12 @@ vartools -i EXAMPLES/4 -oneline -ascii \
 
 **Syntax**
 ```
--wwz
-    < "maxfreq" < "auto" | maxfreq > > < "freqsamp" freqsamp >
-    < "tau0" < "auto" | tau0 > > < "tau1" < "auto" | tau1 > >
-    < "dtau" < "auto" | dtau > > ["c" cval]
+-wwz <"maxfreq" <"auto" | "var" v | "expr" e | maxfreq>>
+    <"freqsamp" <"var" v | "expr" e | freqsamp>>
+    <"tau0" <"auto" | "var" v | "expr" e | tau0>>
+    <"tau1" <"auto" | "var" v | "expr" e | tau1>>
+    <"dtau" <"auto" | "var" v | "expr" e | dtau>>
+    ["c" <"var" v | "expr" e | cval>]
     ["outfulltransform" outdir ["fits" | "pm3d"] ["format" format]]
     ["outmaxtransform" outdir ["format" format]]
     ["maskpoints" maskvar]
@@ -710,21 +705,3 @@ LS_AmplitudeScaleFactor_2            =   0.02473
 LS_MinimumAmplitude_2                =   0.00248
 ```
 
----
-
-### `-Phase` — Phase-Folding
-
-The `-Phase` command is documented in full on the [Light Curve Manipulation](manipulation.md#-phase) page. Here is a brief summary from the period-finding perspective.
-
-After running a period-finding command (e.g. `-LS`, `-aov`, `-BLS`), use `-Phase` to replace the time axis with the phase-folded coordinate. This is the standard first step before plotting a phased light curve or applying phase-binned operations.
-
-```bash
-vartools -i lc.txt \
-    -LS 0.1 30.0 0.1 1 0 \
-    -Phase ls \
-    -binlc weightedaverage binsize 0.02 tcenter \
-    -o ./phased_lc \
-    -oneline
-```
-
-The period source for `-Phase` can be `"ls"`, `"aov"`, `"bls"`, a fixed value, a list column, or any previously computed output column via `"fixcolumn"`.

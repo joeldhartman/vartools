@@ -80,10 +80,25 @@ from .misc import (
     match,
     o,
     ifcmd,
+    elifcmd,
+    elsecmd,
+    ficmd,
     binlc,
     columnsuffix,
     Raw,
     UserCommand,
+)
+
+# Typed wrappers for USERLIB extension commands
+from .userlibs import (
+    fastchi2,
+    ftuneven,
+    hatpiflag,
+    jktebop,
+    macula,
+    magadd,
+    splinedetrend,
+    stitch,
 )
 
 __all__ = [
@@ -103,8 +118,12 @@ __all__ = [
     "TFA", "TFA_SR", "SYSREM", "MandelAgolTransit", "SoftenedTransit",
     "Starspot", "microlens", "nonlinfit", "addnoise", "findblends",
     # misc
-    "addfitskeyword", "converttime", "R", "match", "o", "ifcmd",
+    "addfitskeyword", "converttime", "R", "match", "o",
+    "ifcmd", "elifcmd", "elsecmd", "ficmd",
     "binlc", "columnsuffix", "Raw",
     # user extensions
     "UserCommand",
+    # typed USERLIB wrappers
+    "fastchi2", "ftuneven", "hatpiflag", "jktebop", "macula",
+    "magadd", "splinedetrend", "stitch",
 ]

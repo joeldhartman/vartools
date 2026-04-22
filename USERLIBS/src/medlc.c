@@ -140,7 +140,7 @@ void medlc_ShowExample(FILE *outfile)
 	  "   gawk '{for(i=1; i <= 10; i += 1) print $1;}' | \\\n"
 	  "   ./vartools -l - -L USERLIB/src/medlc.so \\\n"
           "      -expr 'mag=10.0+err*gauss()' \\\n"
-          "      -o EXAMPLES/OUTDIR1/ nameformat \"sim%d.txt\" \\\n"
+          "      -o EXAMPLES/OUTDIR1/ nameformat \"sim%%d.txt\" \\\n"
           "      -medlc EXAMPLES/OUTDIR1/testmedlc.txt \\\n"
           "      -quiet\n\n"
           "Example use of the -medlc command. We read in the light curve EXAMPLES/1 ten times (this is done with the initial gawk command). Then in each case the light curve magnitudes are replaced with gaussian random noise, simply for the purpose of simulating 10 noisy light curves with the same time sampling. The simulated light curves are output to EXAMPLES/OUTDIR1/sim1.txt ... EXAMPLES/OUTDIR1/sim10.txt. We then compute the median of these simulated light curves, with the result written to EXAMPLES/OUTDIR1/testmedlc.txt.\n\n");

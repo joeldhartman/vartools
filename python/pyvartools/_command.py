@@ -148,6 +148,31 @@ class VartoolsCommand:
         return {}
 
     # ------------------------------------------------------------------
+    # Back-reference resolution for chained calls
+    # ------------------------------------------------------------------
+
+    def _resolve_back_references(self, prev) -> None:
+        """Substitute CLI back-reference keywords with literal values from *prev*.
+
+        When a command is issued as a continuation from a prior Result /
+        BatchResult, string keywords like ``"ls"``, ``"aov"``, ``"bls"``,
+        ``"both"``, ``"injectharm"``, and ``"fixcolumn <NAME>"`` that the
+        vartools CLI would resolve against earlier commands in the same
+        invocation cannot work out of the box — each chain step is a separate
+        vartools invocation, so the "prior command" does not exist in the
+        current one.
+
+        Subclasses override this hook to rewrite their own parameters into
+        numeric values pulled from *prev*.  The hook is called once, after
+        ``__init__`` but before the command is placed in a Pipeline.  When
+        *prev* is a ``BatchResult`` the substituted value may be a ``PerLC``
+        array (one value per LC).
+
+        The default implementation does nothing.
+        """
+        return None
+
+    # ------------------------------------------------------------------
     # Requested output files tracking (set by Pipeline)
     # ------------------------------------------------------------------
 

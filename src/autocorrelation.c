@@ -63,7 +63,7 @@ void autocorrelation(double *t_in, double *mag_in, double *sig_in, int N_in, dou
       if((t_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
 	 (mag_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
 	 (sig_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       N = 0;
       for(i = 0; i < N_in; i++) {
 	if(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {

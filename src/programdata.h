@@ -263,6 +263,16 @@ typedef struct {
   int randseed;
   int numbercolumns;
   int oneline;
+  /* -startcommandnumber N: offset added to every command's auto-generated
+     output-column suffix.  Primary use case: pyvartools chained-command
+     communication, so that re-invoking commands in a continued chain does
+     not collide with prior results injected as scalar variables. */
+  int startcommandnumber;
+  /* -printallscalars: when set, the -oneline output block for each LC is
+     extended with "VARTOOLS_SCALAR:name = value" lines for every user-
+     defined per-star variable (SCALAR / PERSTARDATA / INLIST), enabling
+     round-tripping of scalar state across chained vartools invocations. */
+  int printallscalars;
   int *col_commandstart;
   int *col_commandstop;
   int max_colcommand;

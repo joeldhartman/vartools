@@ -7,8 +7,9 @@ Commands for removing outliers, applying smoothing filters, restricting the time
 ## `-clip`
 
 ```
--clip
-    sigclip iter ["niter" n] ["median"]
+-clip <"var" sigclipvar | "expr" sigclipexpr | sigclip>
+    <"var" itervar | "expr" iterexpr | iter>
+    ["niter" <"var" nvar | "expr" nexpr | n>] ["median"]
     ["markclip" var ["noinitmark"]]
 ```
 
@@ -95,48 +96,6 @@ Weighted_Mean_Mag_7  =  10.24440
 
 ---
 
-## `-decorr`
-
-```
--decorr
-    correctlc zeropointterm subtractfirstterm
-    Nglobalterms globalfile1 order1 ... globalfileN orderN
-    Nlcterms lccolumn1 lcorder1 ... lccolumnN lcorderN
-    omodel [modeloutdir] ["maskpoints" maskvar]
-```
-
-!!! warning "Deprecated"
-    This command is deprecated as of VARTOOLS 1.3. Use [`-linfit`](model-fitting.md#-linfit) instead.
-
-Decorrelate the light curves against specified external or light-curve-specific signals using polynomial regression.
-
-**Parameters**
-
-- `correctlc` — `1` to apply the decorrelation to the light curve; `0` to compute and output the coefficients and χ² without modifying the light curve.
-- `zeropointterm` — `1` to include a zero-point offset term in the fit; `0` to omit it.
-- `subtractfirstterm` — `1` to decorrelate against `(signal - signal[0])` rather than `signal` directly (useful for detrending against JD).
-- `Nglobalterms` — Number of global signal files.
-- `globalfile1 ... globalfileN` — Names of global signal files (format: `JD signal_value`).
-- `order1 ... orderN` — Polynomial orders for each global signal (must be ≥ 1).
-- `Nlcterms` — Number of light-curve-specific signals.
-- `lccolumn1 ... lccolumnN` — Column indices in the light curve for each light-curve-specific signal.
-- `lcorder1 ... lcorderN` — Polynomial orders for each light-curve-specific signal.
-- `omodel` — `1` to output the decorrelation model to `modeloutdir`. Suffix: `.decorr.model`.
-- `"maskpoints" maskvar` — Optional. Only points with `maskvar > 0` contribute to the fit.
-
-**Examples**
-
-**Example 1.** Fit quadratic polynomials to light curves using a JD-based light-curve term (column 1), including a zero-point offset, with the first term subtracted to reduce rounding errors. Report RMS before and after decorrelation.
-
-```bash
-vartools -l EXAMPLES/lc_list -header \
-    -rms \
-    -decorr 1 1 1 0 1 1 2 0 \
-    -rms
-```
-
----
-
 ## `-restricttimes`
 
 ```
@@ -194,45 +153,111 @@ Restore observations that were filtered out by a prior `-restricttimes` command.
 !!! note
     Cannot be used with a `-restricttimes` command that used the `"markrestrict"` keyword.
 
----
-
-## `-savelc`
-
-```
--savelc
-```
-
-Save the current state of the light curve in memory. Use in conjunction with `-restorelc` to return the light curve to this state later. Multiple `-savelc` calls create a numbered sequence of checkpoints.
-
-**Example**
-
-Apply TFA with three different template lists without re-reading the original light curve:
-
-```bash
-vartools -l lclist ... -savelc \
-    -TFA trendlist1 ... -LS ... \
-    -restorelc 1 -TFA trendlist2 ... -LS ... \
-    -restorelc 1 -TFA trendlist3 ... -LS ...
-```
-
-!!! caution
-    Conditional constructs (`-if`/`-elif`/`-else`/`-fi`) are ignored by `-savelc`.
 
 ---
 
-## `-restorelc`
+## `-SYSREM`
 
 ```
--restorelc
-    savenumber ["vars" var1,var2,...]
+-SYSREM
+    Ninput_color ["column" col1]
+    Ninput_airmass initial_airmass_file
+    sigma_clip1 sigma_clip2 saturation correctlc
+    omodel [model_outdir] otrends [trend_outfile]
+    useweights
 ```
 
-Restore the light curve to a state saved by a prior `-savelc` call.
+Run the SYSREM PCA-like algorithm to identify and remove ensemble trends from a set of light curves. This command requires a light curve list and automatically sets the `-readall` option.
 
 **Parameters**
 
-- `savenumber` — Which checkpoint to restore: `1` for the first `-savelc`, `2` for the second, etc.
-- `"vars" var1,var2,...` — Optional. Restore only the listed light curve vectors instead of the entire light curve. Partial restoration only proceeds if the saved vectors are the same length as the current light curve; otherwise a warning is printed to stderr.
+- `Ninput_color` — Number of initial color-term trends; their values are read from the input light curve list.
+- `"column" col1` — Column in the input list for the first color term (subsequent terms follow in order).
+- `Ninput_airmass` — Number of initial airmass-term trends.
+- `initial_airmass_file` — File with initial airmass trends (column 1: JD; subsequent columns: trend values).
+- `sigma_clip1` — σ-clipping for computing mean magnitudes.
+- `sigma_clip2` — σ-clipping for determining which points contribute to the airmass/color terms.
+- `saturation` — Points with magnitude below this value do not contribute to the fit.
+- `correctlc` — `1` to subtract the model; `0` to compute without subtracting.
+- `omodel` — `1` to output model light curves to `model_outdir`. Output format: `JD mag mag_model sig clip`. Suffix: `.sysrem.model`.
+- `otrends` — `1` to output the final trend signals to `trend_outfile` (column 1: JD, subsequent columns: trend values).
+- `useweights` — Include this flag to weight observations by their formal uncertainties.
 
-!!! caution
-    Conditional constructs (`-if`/`-elif`/`-else`/`-fi`) are ignored by `-restorelc`.
+**Citation:** Tamuz, Mazeh and Zucker, 2005, MNRAS, 356, 1466.
+
+---
+
+## `-TFA`
+
+```
+-TFA
+    trendlist ["readformat" Nskip jdcol magcol]
+    ["trend_coeff_priors" trend_coeff_prior_file
+        ["use_lc_errors" | "weight_by_template_stddev"]]
+    dates_file pixelsep ["xycol" xcol ycol]
+    correctlc ocoeff [coeff_outdir] omodel [model_outdir]
+    ["clip" sigclipfactor ["usemedian"] ["useMAD"]]
+    ["fitmask" maskvar] ["outfitmask" outmaskvar]
+```
+
+Run the Trend Filtering Algorithm (TFA) on the light curves. TFA fits each light curve as a linear combination of a set of template (basis) light curves and subtracts the fit, yielding a filtered, detrended light curve.
+
+A light curve list (`-l`) is required. The `x` and `y` pixel positions of each light curve must be given as columns in the list.
+
+**Parameters**
+
+- `trendlist` — File containing a list of basis vector files in the format: `trendname trendx trendy`. Files can be ASCII or binary FITS. Use `"readformat" Nskip jdcol magcol` to specify the format (defaults: `Nskip=0`, `jdcol=1`, `magcol=2`).
+- `"trend_coeff_priors" trend_coeff_prior_file` — File containing Gaussian priors for the trend coefficients (columns: `trendname prior_mean prior_stddev`).
+  - `"use_lc_errors"` — Weight light curve points by `1/err[i]` (more correct but slower).
+  - `"weight_by_template_stddev"` — Weight points by `1/ave_template_stddev`.
+- `dates_file` — File with the complete set of JDs for all light curves (column 1: filename/string-id, column 2: JD).
+- `pixelsep` — Basis vectors with coordinates within `pixelsep` of the target are excluded from its detrending (to avoid self-filtering).
+- `"xycol" xcol ycol` — Columns in the input list giving x and y positions (default: next two available columns).
+- `correctlc` — `1` to apply the filter; `0` to compute but not subtract.
+- `ocoeff` — `1` to output trend coefficients to `coeff_outdir`. Output suffix: `.tfa.coeff`.
+- `omodel` — `1` to output the TFA model to `model_outdir`. Output suffix: `.tfa.model`.
+- `"clip" sigclipfactor` — Clipping level for outlier rejection before fitting (default: 5σ). Add `"usemedian"` and/or `"useMAD"` to change the reference statistic.
+- `"fitmask" maskvar` — Restrict points included in the trend fit (1 = include, 0 = exclude). Model is still evaluated and subtracted at excluded points.
+- `"outfitmask" outmaskvar` — Store the actual fit mask (after clipping) in this variable.
+
+**Citation:** Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557.
+
+---
+
+## `-TFA_SR`
+
+```
+-TFA_SR
+    trendlist ["readformat" Nskip jdcol magcol] dates_file
+    ["decorr" iterativeflag Nlcterms lccolumn1 lcorder1 ...]
+    pixelsep ["xycol" colx coly]
+    correctlc ocoeff [coeff_outdir] omodel [model_outdir]
+    dotfafirst tfathresh maxiter
+    < "bin" nbins
+            ["period" < "aov" | "ls" | "bls" | "list" ["column" col] | "fix" period >]
+        | "signal" filename
+        | "harm" Nharm Nsubharm
+            ["period" < "aov" | "ls" | "bls" | "list" ["column" col] | "fix" period >] >
+    ["clip" sigclipfactor ["usemedian"] ["useMAD"]]
+    ["fitmask" maskvar] ["outfitmask" outmaskvar]
+```
+
+Run TFA in Signal Reconstruction (SR) mode. TFA-SR iteratively applies TFA and fits a signal model to the light curve, allowing the algorithm to preserve astrophysical signal that would otherwise be partially filtered by TFA.
+
+Most syntax is identical to [`-TFA`](#-tfa). Parameters specific to TFA-SR are described below.
+
+**Parameters**
+
+- `"decorr" iterativeflag Nlcterms lccolumn1 lcorder1 ...` — Simultaneously decorrelate against `Nlcterms` light-curve-specific signals. `iterativeflag=1` for iterative decorrelation and TFA (faster); `iterativeflag=0` for simultaneous (more correct but slower).
+- `dotfafirst` — `1` to apply TFA first in each iteration, then fit the signal to the residual; `0` to subtract the signal first, then apply TFA to the residual.
+- `tfathresh` — Stop iterating when the fractional change in RMS falls below this threshold.
+- `maxiter` — Maximum number of iterations.
+- Signal model (choose one):
+  - `"bin" nbins` — Mean binned light curve with `nbins` bins. Use optional `"period"` keyword for phase-folding.
+  - `"signal" filename` — Fixed signal form read from a file. The file contains a list of signal files (one per light curve), with the signal magnitude in the second column. Fits `a*signal + b`.
+  - `"harm" Nharm Nsubharm` — Fourier series fit simultaneously with TFA (no iteration in this case). Use optional `"period"` to specify the period source.
+
+**Citation:** Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557.
+
+---
+

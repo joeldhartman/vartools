@@ -139,10 +139,59 @@ lc = vt.LightCurve.from_timeseries(ts, mag_col="sap_flux", err_col="sap_flux_err
 | `.mag` | `np.ndarray` or `None` | Magnitude (or flux) values, or `None` if absent. |
 | `.err` | `np.ndarray` or `None` | Per-point magnitude uncertainties, or `None` if absent. |
 | `.name` | `str` | String label for this light curve. |
+| `.scalars` | `dict[str, float]` | Per-star scalar variables (see below). |
 
 All three array properties return `None` when the corresponding column is not
 present in the underlying DataFrame. To modify data, create a new `LightCurve`
 from the modified arrays.
+
+### `.scalars`
+
+The canonical per-star scalar store.  A dictionary of scalar variables
+associated with this light curve, populated automatically by pyvartools
+when a run captures its output LC (`capture_lc=True`) and used as input
+to the next segment in a chain.
+
+`Result.lcscalars` and `BatchResult.lcscalars` are shortcuts for reading from
+this dict — the values live here, not in the `Result`.  Writing to
+`result.lcscalars` does nothing persistent; mutate `result.lc.scalars` (or
+build a new `LightCurve` with a different `scalars=` kwarg) to change
+what flows into subsequent chain segments.
+
+Its primary role is to carry state across chained pyvartools commands:
+when a `Result.LS(...).expr(...)` chain runs, the prior segment's
+output columns (and any user-defined scalars) are attached to the next
+segment's input LightCurve via this dict, so downstream analytic
+expressions can reference them by name.
+
+Keys are the raw vartools variable names (for OUTCOLUMN values carried
+forward this is the name *with* the `_N` suffix, e.g.
+`"LS_Period_1_0"`; for user-defined scalars it is the bare name, e.g.
+`"myvar"`). Values are Python `float` / `int` scalars.
+
+```python
+# Typical flow — users rarely touch .scalars directly; it's populated
+# by the chain machinery and harvested from -printallscalars output.
+r1 = lc.LS(0.5, 10.0, 0.1)              # r1.lc.scalars is empty on first run
+r2 = r1.expr("doubled=2*LS_Period_1_0", vartype="scalar")
+# Inside the .expr() call, pyvartools attaches r1's output values to the
+# input LightCurve's .scalars and injects them into the new vartools run
+# via `-expr const`.  See the Fluent API docs for details.
+
+r2.lc.scalars["doubled"]       # == 2 * r1.vars["LS_Period_1_0"]
+```
+
+You can also construct a LightCurve with an explicit `scalars` dict — useful
+for manual chaining or for seeding values in tests:
+
+```python
+lc = vt.LightCurve.from_arrays(
+    t=t, mag=mag, err=err,
+    scalars={"P0": 1.234, "offset": 0.05},
+)
+# Subsequent commands referencing "P0" or "offset" in expressions will
+# resolve to these values.
+```
 
 ---
 

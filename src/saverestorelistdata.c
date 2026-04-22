@@ -140,37 +140,37 @@ void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid)
       if(s->Ndblterms[threadid] > 0)
 	{
 	  if((s->dblterms[threadid] = (double *) malloc(s->Ndblterms[threadid] * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Nsterms[threadid] > 0)
 	{
 	  if((s->sterms[threadid] = (char *) malloc(s->Nsterms[threadid])) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Niterms[threadid] > 0)
 	{
 	  if((s->iterms[threadid] = (int *) malloc(s->Niterms[threadid] * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Nlterms[threadid] > 0)
 	{
 	  if((s->lterms[threadid] = (long *) malloc(s->Nlterms[threadid] * sizeof(long))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Nshterms[threadid] > 0)
 	{
 	  if((s->shterms[threadid] = (short *) malloc(s->Nshterms[threadid] * sizeof(short))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Nfterms[threadid] > 0)
 	{
 	  if((s->fterms[threadid] = (float *) malloc(s->Nfterms[threadid] * sizeof(float))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       if(s->Ncterms[threadid] > 0)
 	{
 	  if((s->cterms[threadid] = (char *) malloc(s->Ncterms[threadid] * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 
       s->runyet[threadid] = 1;
@@ -218,7 +218,7 @@ void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid)
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
       else if (p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
@@ -259,7 +259,7 @@ void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid)
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     }
@@ -307,7 +307,7 @@ void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid)
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
       } else if(Nc != 0) {
 	for(u=0; u < abs(Nc); u++) {
@@ -345,7 +345,7 @@ void dosavelistdata(ProgramData *p, _SaveListData *s, int threadid, int lcid)
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -406,7 +406,7 @@ void dorestorelistdata(ProgramData *p, _SaveListData *s, int sthreadid, int rthr
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
       else if (p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
@@ -447,7 +447,7 @@ void dorestorelistdata(ProgramData *p, _SaveListData *s, int sthreadid, int rthr
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     }
@@ -495,7 +495,7 @@ void dorestorelistdata(ProgramData *p, _SaveListData *s, int sthreadid, int rthr
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
       } else if(Nc != 0) {
 	for(u=0; u < abs(Nc); u++) {
@@ -533,7 +533,7 @@ void dorestorelistdata(ProgramData *p, _SaveListData *s, int sthreadid, int rthr
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }

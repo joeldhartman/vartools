@@ -1,6 +1,6 @@
 # vartools
 
-VARTOOLS is an astronomical time series analysis program providing a wide range of operations on light curves: period finding (Lomb-Scargle, BLS, AOV, WWZ, DFT-CLEAN, autocorrelation), signal injection and recovery, harmonic fitting, transit modeling (Mandel-Agol, trapezoidal), TFA/SYSREM detrending, microlensing, and more.
+VARTOOLS is an astronomical time-series analysis program providing a wide range of operations on light curves: period finding (Lomb-Scargle, BLS, AOV, WWZ, DFT-CLEAN, autocorrelation), signal injection and recovery, harmonic fitting, transit modeling (Mandel-Agol, trapezoidal), TFA/SYSREM detrending, microlensing, and more.
 
 ## Documentation
 
@@ -9,16 +9,24 @@ Full documentation and examples are at https://www.astro.princeton.edu/~jhartman
 ## Building from source
 
 ```bash
-./configure --bindir=/usr/local/bin
+./configure --prefix=$HOME/.local
 make
 make install
 ```
 
-See `INSTALL` for detailed build options including optional dependencies (CFITSIO, R, Python, CSPICE).
+See `README` for the full list of dependencies, `--with-*` configure flags, and build options; see `README.linux`, `README.mac`, or `README.windows` for platform-specific instructions (package-manager commands, CSPICE setup, compiler quirks, WSL recommendations for Windows).
+
+Optional dependencies — each enables additional features and is autodetected when installed in standard locations:
+- CFITSIO (FITS file I/O)
+- GSL (numerical routines used by `-addnoise`, `-microlens`, `-resample`, `-FFT`, `-IFFT`)
+- pthread (parallel processing via `-parallel`)
+- CSPICE (BJD/UTC conversion via `-converttime`)
+- Python 3 + NumPy (embedded `-python` command)
+- R (embedded `-R` command)
 
 ## Python API
 
-A Python package `pyvartools` is included in the `python/` subdirectory. It wraps the vartools binary (and optionally the in-process `libvartoolspipeline` library) as a Python API, returning results as pandas DataFrames and `LightCurve` objects with no manual parsing required.
+A Python package `pyvartools` is included in the `python/` subdirectory. It wraps the vartools binary (and the in-process `libvartoolspipeline` library installed alongside it) as a Python API, returning results as pandas objects and `LightCurve` wrappers with no manual parsing required.
 
 ```python
 import pyvartools as vt
@@ -26,11 +34,11 @@ from pyvartools import commands as cmd
 
 lc = vt.LightCurve.from_file("EXAMPLES/2")
 result = vt.Pipeline([cmd.LS(0.1, 10.0, 1e-3)]).run(lc)
-print(result.stats["LS_Period_1_0"])
+print(result.vars["LS_Period_1_0"])
 
 # Batch processing from disk
 batch = vt.Pipeline([cmd.rms()]).run_filelist("EXAMPLES/lc_list", nthreads=4)
-print(batch.stats)
+print(batch.vars)
 ```
 
 ### Installing the Python package

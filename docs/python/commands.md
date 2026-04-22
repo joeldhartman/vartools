@@ -103,7 +103,7 @@ cmd.LS(minp, maxp, subsample, npeaks=5, save_periodogram=False,
 | `clip` | `float` | Sigma-clipping threshold applied during whitening iterations. |
 | `bootstrap` | `int` | Number of bootstrap resamples for false-alarm probability estimation. |
 | `maskpoints` | `str` or `None` | Name of a mask variable; points where the variable is non-zero are excluded from the periodogram. |
-| `fixperiod_snr` | `float`, `int`, `str`, or `None` | Evaluate the periodogram at a known period and report its significance. See [fixperiod_snr — fixed-period significance](#fixperiod_snr--fixed-period-significance) below. |
+| `fixperiod_snr` | `float`, `int`, `str`, or `None` | Evaluate the periodogram at a known period and report its significance. See [fixperiod_snr — fixed-period significance](#fixperiod_snr-fixed-period-significance) below. |
 
 Output statistics include `LS_Period_1_N`, `LS_Amplitude_1_N`, `Log10_LS_Prob_1_N` (log₁₀ of the false-alarm probability) for each of the `npeaks` peaks (N = 0-based command index, or the `columnsuffix` string).
 
@@ -134,7 +134,9 @@ The accepted forms and the CLI tokens they emit:
 
 #### Variable and expression parameters
 
-`minp`, `maxp`, and `subsample` each accept four forms:
+Most numeric parameters throughout pyvartools now accept variable names and expressions in addition to fixed numeric values. This includes parameters on commands such as `clip`, `fluxtomag`, `difffluxtomag`, `medianfilter`, `Killharm`, `linfit`, `Injectharm`, `Injecttransit`, `MandelAgolTransit`, `Starspot`, `nonlinfit`, `BLSFixDurTc`, `BLSFixPerDurTc`, `autocorrelation`, `dftclean`, `wwz`, `binlc`, `addnoise`, `microlens`, and `Phase`.
+
+As an example, `minp`, `maxp`, and `subsample` on `LS` each accept four forms:
 
 | Value | Emitted CLI tokens | When to use |
 |-------|--------------------|-------------|
@@ -146,10 +148,10 @@ The accepted forms and the CLI tokens they emit:
 The identifier rule is: if the string matches `[A-Za-z_]\w*` it is treated as a variable name; otherwise it is treated as an expression.
 
 !!! note "Defining variables for the `expr` form"
-    The `expr` keyword evaluates an expression against vartools' internal variable registry at the time each light curve is processed. Variables such as `tspan` are *not* built-in; they must be defined by prior commands in the same pipeline. Use `cmd.stats` to compute per-star statistics and `cmd.expr` to derive new variables from them:
+    The `expr` keyword evaluates an expression against vartools' internal variable registry at the time each light curve is processed. Variables such as `tspan` are *not* built-in; they must be defined by prior commands in the same pipeline. Use `cmd.var` to compute per-star statistics and `cmd.expr` to derive new variables from them:
 
     ```python
-    cmd.stats("t", "min,max")                         # → STATS_t_MIN_0, STATS_t_MAX_0
+    cmd.var("t", "min,max")                         # → STATS_t_MIN_0, STATS_t_MAX_0
     cmd.expr("tspan=STATS_t_MAX_0-STATS_t_MIN_0")     # → tspan
     ```
 
@@ -168,19 +170,19 @@ result = vt.Pipeline([
     cmd.LS(0.1, 10.0, 0.1, npeaks=5, whiten=True, clip=5.0, clipiter=1,
            save_periodogram=True),
 ]).run(lc)
-print(result.stats["LS_Period_1_0"])       # 1.23440877
-print(result.stats["Log10_LS_Prob_1_0"])   # -4000.59209
+print(result.vars["LS_Period_1_0"])       # 1.23440877
+print(result.vars["Log10_LS_Prob_1_0"])   # -4000.59209
 pgram = result.files["LS_periodogram_0"]   # pd.DataFrame: frequency vs power
 
 # Expression form — set period range relative to the time baseline of each LC.
-# First compute min/max time with cmd.stats, then define tspan with cmd.expr,
+# First compute min/max time with cmd.var, then define tspan with cmd.expr,
 # then pass expressions to LS.  LS is at pipeline index 2, so keys end in "_2".
 result = vt.Pipeline([
-    cmd.stats("t", "min,max"),                              # → STATS_t_MIN_0, STATS_t_MAX_0
+    cmd.var("t", "min,max"),                              # → STATS_t_MIN_0, STATS_t_MAX_0
     cmd.expr("tspan=STATS_t_MAX_0-STATS_t_MIN_0"),          # → tspan
     cmd.LS("tspan/200", "tspan/2", 1e-3, npeaks=1),         # expr tspan/200, expr tspan/2
 ]).run(lc)
-print(result.stats["LS_Period_1_2"])       # 1.23534018
+print(result.vars["LS_Period_1_2"])       # 1.23534018
 
 # Variable form — minp and maxp are per-star variables read from a list file.
 # Each row in the list file supplies different search bounds for each LC.
@@ -189,36 +191,36 @@ print(result.stats["LS_Period_1_2"])       # 1.23534018
 # Batch: run on many light curves in parallel
 lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 11)]
 batch = vt.Pipeline([cmd.LS(0.1, 10.0, 0.1, npeaks=1)]).run_batch(lcs, nthreads=4)
-print(batch.stats[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]])
+print(batch.vars[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]])
 
 # fixperiod_snr — evaluate LS at a known period
 lc = vt.LightCurve.from_file("EXAMPLES/2")
 
 # Fixed number form: evaluate at period = 1.234
 r = vt.Pipeline([cmd.LS(0.1, 10.0, 0.1, fixperiod_snr=1.234)]).run(lc)
-print(r.stats["LS_SNR_PeriodFix_0"])            # SNR at period 1.234
+print(r.vars["LS_SNR_PeriodFix_0"])            # SNR at period 1.234
 
 # "ls" form: evaluate at the best peak from a prior LS search
 r = vt.Pipeline([
     cmd.LS(0.1, 10.0, 0.1, npeaks=1),
     cmd.LS(0.1, 10.0, 0.1, fixperiod_snr="ls"),
 ]).run(lc)
-print(r.stats["LS_SNR_PeriodFix_1"])            # SNR at period found by first LS
+print(r.vars["LS_SNR_PeriodFix_1"])            # SNR at period found by first LS
 
 # "aov" form: evaluate LS at the best period from a prior AOV search
 r = vt.Pipeline([
     cmd.aov(0.1, 10.0, 0.1, 0.01, npeaks=1),
     cmd.LS(0.1, 10.0, 0.1, fixperiod_snr="aov"),
 ]).run(lc)
-print(r.stats["LS_SNR_PeriodFix_1"])
+print(r.vars["LS_SNR_PeriodFix_1"])
 
 # "fixcolumn" form: read the period from a named per-star column
 r = vt.Pipeline([
     cmd.LS(0.1, 10.0, 0.1, npeaks=1),
     cmd.LS(0.1, 10.0, 0.1, fixperiod_snr="fixcolumn LS_Period_1_0"),
 ]).run(lc)
-print(r.stats["LS_PeriodFix_1"])
-print(r.stats["Log10_LS_Prob_PeriodFix_1"])
+print(r.vars["LS_PeriodFix_1"])
+print(r.vars["Log10_LS_Prob_PeriodFix_1"])
 ```
 
 ---
@@ -254,7 +256,7 @@ result = vt.Pipeline([
     cmd.aov(0.1, 10.0, 0.1, 0.01, npeaks=5, nbin=20,
             whiten=True, clip=5.0, clipiter=1, save_periodogram=True),
 ]).run(lc)
-print(result.stats["AOV_Period_1_0"])   # 1.23583047
+print(result.vars["AOV_Period_1_0"])   # 1.23583047
 pgram = result.files["aov_periodogram_0"]   # pd.DataFrame: frequency vs AOV statistic
 
 # fixperiod_snr — evaluate AOV at a known period
@@ -262,7 +264,7 @@ result = vt.Pipeline([
     cmd.aov(0.1, 10.0, 0.1, 0.01, npeaks=1),
     cmd.aov(0.1, 10.0, 0.1, 0.01, fixperiod_snr="aov"),
 ]).run(lc)
-print(result.stats["aov_SNR_PeriodFix_1"])
+print(result.vars["aov_SNR_PeriodFix_1"])
 ```
 
 ---
@@ -295,7 +297,7 @@ result = vt.Pipeline([
     cmd.aov_harm(1, 0.1, 10.0, 0.1, 0.01, npeaks=2,
                  whiten=True, clip=5.0, clipiter=1, save_periodogram=True),
 ]).run(lc)
-print(result.stats["AOV_HARM_Period_1_0"])   # 1.23533969
+print(result.vars["AOV_HARM_Period_1_0"])   # 1.23533969
 pgram = result.files["aov_harm_periodogram_0"]
 
 # fixperiod_snr — evaluate AOV_HARM at the period found by a prior LS search
@@ -303,7 +305,7 @@ result = vt.Pipeline([
     cmd.LS(0.1, 10.0, 0.1, npeaks=1),
     cmd.aov_harm(2, 0.1, 10.0, 0.1, 0.01, fixperiod_snr="ls"),
 ]).run(lc)
-print(result.stats["aov_SNR_PeriodFix_1"])
+print(result.vars["aov_SNR_PeriodFix_1"])
 ```
 
 ---
@@ -372,9 +374,9 @@ result = vt.Pipeline([
             extraparams=True,
             save_periodogram=True, save_model=True),
 ]).run(lc)
-print(result.stats["BLS_Period_1_0"])    # 2.12334706
-print(result.stats["BLS_SN_1_0"])        # signal-to-noise
-print(result.stats["BLS_SDE_1_0"])       # signal detection efficiency
+print(result.vars["BLS_Period_1_0"])    # 2.12334706
+print(result.vars["BLS_SN_1_0"])        # signal-to-noise
+print(result.vars["BLS_SDE_1_0"])       # signal detection efficiency
 pgram = result.files["BLS_periodogram_0"]   # pd.DataFrame: frequency vs BLS power
 
 # stellar_density can also be a per-star variable name read from the list file
@@ -431,9 +433,9 @@ pipe = vt.Pipeline([
     cmd.rms(),
 ])
 result = pipe.run(lc)
-print(result.stats["BLSFixPer_Period_1"])    # 2.12345
-print(result.stats["BLSFixPer_Depth_1"])     # transit depth
-print(result.stats["BLSFixPer_Qtran_1"])     # fractional duration
+print(result.vars["BLSFixPer_Period_1"])    # 2.12345
+print(result.vars["BLSFixPer_Depth_1"])     # transit depth
+print(result.vars["BLSFixPer_Qtran_1"])     # fractional duration
 ```
 
 ---
@@ -502,9 +504,9 @@ pipe = vt.Pipeline([
                     timezone=0, npeaks=1),
 ])
 result = pipe.run(lc)
-print(result.stats["BLSFixDurTc_Period_1_0"])     # best-fit period
-print(result.stats["BLSFixDurTc_SN_1_0"])         # signal-to-noise
-print(result.stats["BLSFixDurTc_Depth_1_0"])      # transit depth
+print(result.vars["BLSFixDurTc_Period_1_0"])     # best-fit period
+print(result.vars["BLSFixDurTc_SN_1_0"])         # signal-to-noise
+print(result.vars["BLSFixDurTc_Depth_1_0"])      # transit depth
 ```
 
 ---
@@ -567,9 +569,9 @@ pipe = vt.Pipeline([
                        timezone=0, correct_lc=False),
 ])
 result = pipe.run(lc)
-print(result.stats["BLSFixPerDurTc_Depth_0"])      # transit depth
-print(result.stats["BLSFixPerDurTc_deltaChi2_0"])  # Δχ² of signal
-print(result.stats["BLSFixPerDurTc_SN_0"])         # signal-to-noise
+print(result.vars["BLSFixPerDurTc_Depth_0"])      # transit depth
+print(result.vars["BLSFixPerDurTc_deltaChi2_0"])  # Δχ² of signal
+print(result.vars["BLSFixPerDurTc_SN_0"])         # signal-to-noise
 ```
 
 ---
@@ -694,7 +696,7 @@ lc = vt.LightCurve.from_file("EXAMPLES/2")
 result = vt.Pipeline([
     cmd.dftclean(4, maxfreq=10.0, npeaks=1, save_dspec=True),
 ]).run(lc)
-print(result.stats["DFTCLEAN_DSPEC_PEAK_FREQ_0_0"])  # 0.81189711 cycles/day
+print(result.vars["DFTCLEAN_DSPEC_PEAK_FREQ_0_0"])  # 0.81189711 cycles/day
 dspec = result.files["dftclean_dspec_0"]   # pd.DataFrame: frequency vs power
 ```
 
@@ -762,8 +764,8 @@ pipe = vt.Pipeline([
     cmd.GetLSAmpThresh("ls", minp=0.1, thresh=-100.0, nharm=0, nsubharm=0),
 ])
 result = pipe.run(lc)
-print(result.stats["LS_Period_1_0"])           # 1.23440877
-print(result.stats["LS_MinimumAmplitude_2"])   # 0.00248 mag
+print(result.vars["LS_Period_1_0"])           # 1.23440877
+print(result.vars["LS_MinimumAmplitude_2"])   # 0.00248 mag
 ```
 
 ---
@@ -779,13 +781,13 @@ cmd.clip(sigclip, iterative=True, niter=None, median=False,
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `sigclip` | `float` | Clipping threshold in units of standard deviation. |
+| `sigclip` | `float` or `str` | Clipping threshold in units of standard deviation. Accepts a number, variable name, or expression string. |
 | `iterative` | `bool` | Repeat clipping until no points are removed (default `True`). |
-| `niter` | `int` or `None` | Clip at most this many times (overrides `iterative`). |
+| `niter` | `int`, `str`, or `None` | Clip at most this many times (overrides `iterative`). Accepts a number, variable name, or expression. |
 | `median` | `bool` | Clip relative to the median instead of the mean. |
 | `markclip` | `str` or `None` | Variable name to record clipping mask (1 = kept, 0 = clipped). |
 
-CLI equivalent: `-clip sigclip 1|0 [niter N] [median] ...`
+CLI equivalent: `-clip <sigclip|var|expr> <iter|var|expr> [niter <N|var|expr>] [median] ...`
 
 **Examples**
 
@@ -799,8 +801,8 @@ pipe = vt.Pipeline([
     cmd.rms(),
 ])
 result = pipe.run(lc)
-print(result.stats["Nclip_1"])    # 51 points removed
-print(result.stats["RMS_2"])      # RMS after clipping
+print(result.vars["Nclip_1"])    # 51 points removed
+print(result.vars["RMS_2"])      # RMS after clipping
 ```
 
 ---
@@ -819,13 +821,13 @@ Computes the RMS and weighted RMS of the light curve. Output statistics: `Mean_M
 # Single light curve
 lc = vt.LightCurve.from_file("EXAMPLES/2")
 result = vt.Pipeline([cmd.rms()]).run(lc)
-print(result.stats["Mean_Mag_0"])
-print(result.stats["RMS_0"])
+print(result.vars["Mean_Mag_0"])
+print(result.vars["RMS_0"])
 
 # Batch: compute RMS for all 10 example light curves
 lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 11)]
 batch = vt.Pipeline([cmd.rms()]).run_batch(lcs)
-print(batch.stats[["Name", "Mean_Mag_0", "RMS_0", "Expected_RMS_0"]])
+print(batch.vars[["Name", "Mean_Mag_0", "RMS_0", "Expected_RMS_0"]])
 ```
 
 ---
@@ -848,7 +850,7 @@ bintimes_days = [5/1440, 10/1440, 60/1440, 1.0, 10.0]
 batch = vt.Pipeline([
     cmd.rmsbin(5, bintimes_days),
 ]).run_batch(lcs)
-print(batch.stats)
+print(batch.vars)
 ```
 
 ---
@@ -867,7 +869,7 @@ Computes the chi-squared statistic of the light curve. Output: `Chi2_N`, `Chi2_p
 # Batch: chi-squared for all example light curves
 lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 11)]
 batch = vt.Pipeline([cmd.chi2()]).run_batch(lcs)
-print(batch.stats[["Name", "Chi2_0", "Weighted_Mean_Mag_0"]])
+print(batch.vars[["Name", "Chi2_0", "Weighted_Mean_Mag_0"]])
 ```
 
 ---
@@ -888,7 +890,7 @@ bintimes_days = [5/1440, 10/1440, 60/1440, 1.0, 10.0]
 batch = vt.Pipeline([
     cmd.chi2bin(5, bintimes_days),
 ]).run_batch(lcs)
-print(batch.stats)
+print(batch.vars)
 ```
 
 ---
@@ -896,7 +898,7 @@ print(batch.stats)
 ### `stats` — Generic statistics
 
 ```python
-cmd.stats(variables, statistics, maskpoints=None)
+cmd.var(variables, statistics, maskpoints=None)
 ```
 
 | Parameter | Type | Description |
@@ -905,8 +907,8 @@ cmd.stats(variables, statistics, maskpoints=None)
 | `statistics` | `str` or list of `str` | Statistics to compute: `"mean"`, `"median"`, `"stddev"`, `"min"`, `"max"`, etc. |
 
 ```python
-cmd.stats("mag", "mean,median,stddev")
-cmd.stats(["mag", "err"], ["mean", "stddev"])
+cmd.var("mag", "mean,median,stddev")
+cmd.var(["mag", "err"], ["mean", "stddev"])
 ```
 
 **Examples**
@@ -917,16 +919,16 @@ lc = vt.LightCurve.from_file("EXAMPLES/3")
 # Compute percentile and distribution statistics after adding Gaussian noise
 pipe = vt.Pipeline([
     cmd.expr("mag2=mag+0.01*gauss()"),
-    cmd.stats(
+    cmd.var(
         ["mag", "mag2"],
         ["mean", "weightedmean", "median", "stddev", "MAD",
          "kurtosis", "skewness", "pct10", "pct90", "max", "min"],
     ),
 ])
 result = pipe.run(lc)
-print(result.stats["STATS_mag_MEAN_1"])
-print(result.stats["STATS_mag_MEDIAN_1"])
-print(result.stats["STATS_mag2_STDDEV_1"])
+print(result.vars["STATS_mag_MEAN_1"])
+print(result.vars["STATS_mag_MEDIAN_1"])
+print(result.vars["STATS_mag2_STDDEV_1"])
 ```
 
 ---
@@ -961,16 +963,16 @@ lc = vt.LightCurve.from_file("EXAMPLES/3")
 
 # Restrict to a JD window, compute stats, then restore
 pipe = vt.Pipeline([
-    cmd.stats("t", ["min", "max"]),
+    cmd.var("t", ["min", "max"]),
     cmd.restricttimes(mode="JDrange", minJD=53740, maxJD=53750),
-    cmd.stats("t", ["min", "max"]),
+    cmd.var("t", ["min", "max"]),
     cmd.restoretimes(prior_command=1),
-    cmd.stats("t", ["min", "max"]),
+    cmd.var("t", ["min", "max"]),
 ])
 result = pipe.run(lc)
-print(result.stats["STATS_t_MIN_0"])   # original time range
-print(result.stats["STATS_t_MIN_2"])   # restricted range
-print(result.stats["STATS_t_MIN_4"])   # restored (original again)
+print(result.vars["STATS_t_MIN_0"])   # original time range
+print(result.vars["STATS_t_MIN_2"])   # restricted range
+print(result.vars["STATS_t_MIN_4"])   # restored (original again)
 
 # Restrict using a boolean expression on magnitude
 pipe2 = vt.Pipeline([
@@ -1024,10 +1026,25 @@ phase_binned_lc = result.lc
 ### `expr` — Analytic expression
 
 ```python
-cmd.expr(expression, outputcolumns=None)
+cmd.expr(expression, vartype=None, outputcolumns=None)
 ```
 
-Evaluate an analytic expression to create or update a variable. The expression string has the form `varname=formula`, e.g. `"residual=mag-model"`. Variables defined with `expr` can be passed to subsequent commands via `outputcolumns`.
+Evaluate an analytic expression to create or update a variable. The expression string has the form `varname=formula`, e.g. `"residual=mag-model"`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `expression` | `str` | Expression of the form `varname=formula`. |
+| `vartype` | `str` or `None` | Type of the LHS variable: `None` (per-observation, default), `"listvar"` (per-star), `"scalar"` (per-thread), or `"const"` (global constant). |
+| `outputcolumns` | `str` or `None` | Comma-separated list of column names to output. |
+
+The `vartype` parameter controls what kind of variable is created on the left-hand side:
+
+- **`None`** (default) — per-observation light-curve vector, one value per point.
+- **`"listvar"`** — per-star variable that persists across all light curves. LC vectors on the RHS are evaluated at the first observation (index 0). Useful with aggregate functions.
+- **`"scalar"`** — per-thread scalar value.
+- **`"const"`** — global constant, same value for all LCs.
+
+The expression engine supports aggregate functions like `mean(mag)`, `stddev(mag)`, `pct(mag, 95.0)`, and filtering like `mean(mag, t>53730)`. See the [Analytic Expressions](../cli/expressions.md) reference for the complete list of operators, functions, and constants.
 
 **Examples**
 
@@ -1039,16 +1056,30 @@ result = vt.Pipeline([
     cmd.expr("mag=sqrt(mag+5)"),
 ]).run(lc, capture_lc=True)
 
+# Compute per-star mean magnitude using an aggregate function
+pipe = vt.Pipeline([
+    cmd.expr("avg=mean(mag)", vartype="listvar"),
+    cmd.expr("dmag=mag-avg"),
+    cmd.rms(),
+])
+result = pipe.run(lc)
+
+# Define a global constant and use it
+pipe = vt.Pipeline([
+    cmd.expr("zp=25.0", vartype="const"),
+    cmd.expr("flux=10^(-0.4*(mag-zp))"),
+])
+
 # Convert to flux, normalise by median, then compute statistics
 pipe = vt.Pipeline([
     cmd.expr("flux=10^(-0.4*(mag-25.0))"),
-    cmd.stats("flux", ["median"]),
+    cmd.var("flux", ["median"]),
     cmd.expr("flux=flux/STATS_flux_MEDIAN_1"),
-    cmd.stats(["flux", "mag"], ["median", "stddev"]),
+    cmd.var(["flux", "mag"], ["median", "stddev"]),
 ])
 result = pipe.run(lc)
-print(result.stats["STATS_flux_MEDIAN_1"])   # original median flux
-print(result.stats["STATS_flux_MEDIAN_3"])   # ≈ 1.0 after normalisation
+print(result.vars["STATS_flux_MEDIAN_1"])   # original median flux
+print(result.vars["STATS_flux_MEDIAN_3"])   # ≈ 1.0 after normalisation
 ```
 
 ---
@@ -1076,7 +1107,7 @@ pipe = vt.Pipeline([
     cmd.rms(),
 ])
 batch = pipe.run_batch(lcs)
-print(batch.stats[["Name", "RMS_0", "RMS_2"]])
+print(batch.vars[["Name", "RMS_0", "RMS_2"]])
 ```
 
 ---
@@ -1163,7 +1194,7 @@ cmd.difffluxtomag(mag_constant, offset=0.0, magcolumn=None)
 cmd.fluxtomag(mag_constant, offset=0.0)
 ```
 
-Convert differential or absolute flux to magnitude. `mag_constant` is the zero-point magnitude. `offset` is added to the flux before conversion.
+Convert differential or absolute flux to magnitude. `mag_constant` and `offset` accept numbers, variable names, or expression strings.
 
 **Examples**
 
@@ -1204,9 +1235,9 @@ pipe = vt.Pipeline([
     cmd.chi2(),
 ])
 result = pipe.run(lc)
-print(result.stats["Chi2_0"])   # original
-print(result.stats["Chi2_3"])   # after high-pass filter
-print(result.stats["Chi2_7"])   # after low-pass filter
+print(result.vars["Chi2_0"])   # original
+print(result.vars["Chi2_3"])   # after high-pass filter
+print(result.vars["Chi2_7"])   # after low-pass filter
 ```
 
 ---
@@ -1232,8 +1263,8 @@ pipe = vt.Pipeline([
     cmd.chi2(),
 ])
 result = pipe.run(lc)
-print(result.stats["Chi2_0"])   # 5.19874 (original)
-print(result.stats["Chi2_2"])   # ≈ 1.0 (after rescaling errors to RMS)
+print(result.vars["Chi2_0"])   # 5.19874 (original)
+print(result.vars["Chi2_2"])   # ≈ 1.0 (after rescaling errors to RMS)
 
 # Use changevariable to store LS phase then revert to time
 pipe2 = vt.Pipeline([
@@ -1276,7 +1307,7 @@ pipe = vt.Pipeline([
     cmd.changeerror(),
 ])
 batch = pipe.run_batch(lcs, nthreads=4)
-print(batch.stats)
+print(batch.vars)
 
 # copylc: bootstrap false-alarm probability via noise copies
 lc = vt.LightCurve.from_file("EXAMPLES/2")
@@ -1306,8 +1337,42 @@ lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 11)]
 batch = vt.Pipeline([
     cmd.Jstet(0.5, "EXAMPLES/dates_tfa"),
 ]).run_batch(lcs)
-print(batch.stats[["Name", "Jstet_0", "Kurtosis_0", "Lstet_0"]])
+print(batch.vars[["Name", "Jstet_0", "Kurtosis_0", "Lstet_0"]])
 ```
+
+---
+
+### `alarm` — Alarm statistic
+
+```python
+cmd.alarm(maskpoints=None)
+```
+
+Computes the alarm statistic of Kovacs, Bakos & Noyes (2005) — a detection statistic for coherent signals that penalizes long run-lengths of positive or negative deviations from the mean more heavily than random scatter.
+
+**Parameters**
+
+- `maskpoints : str, optional` — Name of a mask variable; only points with `mask > 0` contribute to the statistic.
+
+**Output columns**: `Alarm_N`.
+
+---
+
+### `rescalesig` / `ensemblerescalesig` — Rescale per-point uncertainties
+
+```python
+cmd.rescalesig(maskpoints=None)
+cmd.ensemblerescalesig(sigclip=5.0, maskpoints=None)
+```
+
+Rescale the formal per-point magnitude uncertainties so that the reduced χ² (relative to the weighted mean magnitude) equals 1. `rescalesig` operates on each light curve independently. `ensemblerescalesig` computes a single rescaling factor from the full collection of light curves, which is more robust for batches dominated by well-behaved constant sources and is the more common choice for survey-scale photometry pipelines.
+
+**Parameters**
+
+- `sigclip : float` (ensemblerescalesig only) — σ-clipping threshold for identifying outlier stars during the ensemble factor determination. Default 5.0.
+- `maskpoints : str, optional` — Mask-variable name; only points with `mask > 0` contribute.
+
+**Output columns**: `RescaleFactor_N` (`rescalesig`); `SigmaRescaleFactor_N` (`ensemblerescalesig`).
 
 ---
 
@@ -1346,8 +1411,8 @@ pipe = vt.Pipeline([
     cmd.chi2(),                                  # index 5
 ])
 result = pipe.run(lc)
-print(result.stats["Chi2_2"])         # before: 1709.50
-print(result.stats["Chi2_5"])         # after:    6.51
+print(result.vars["Chi2_2"])         # before: 1709.50
+print(result.vars["Chi2_5"])         # after:    6.51
 model = result.files["Killharm_model_3"]   # pd.DataFrame of the fitted harmonic curve
 ```
 
@@ -1382,14 +1447,14 @@ lc = vt.LightCurve.from_file("EXAMPLES/1")
 
 # Fit a quadratic polynomial, using minimum time as reference epoch
 pipe = vt.Pipeline([
-    cmd.stats("t", ["min"]),
+    cmd.var("t", ["min"]),
     cmd.expr("t0=STATS_t_MIN_0"),
     cmd.linfit("a*(t-t0)^2+b*(t-t0)+c", "a,b,c"),
 ])
 result = pipe.run(lc)
-print(result.stats["Linfit_a_2"])   # quadratic coefficient
-print(result.stats["Linfit_b_2"])   # linear coefficient
-print(result.stats["Linfit_c_2"])   # constant offset
+print(result.vars["Linfit_a_2"])   # quadratic coefficient
+print(result.vars["Linfit_b_2"])   # linear coefficient
+print(result.vars["Linfit_c_2"])   # constant offset
 ```
 
 ---
@@ -1452,7 +1517,7 @@ result = vt.Pipeline([
         save_model=True,
     ),
 ]).run(lc)
-print(result.stats["Nonlinfit_P_BestFit_0"])   # best-fit period
+print(result.vars["Nonlinfit_P_BestFit_0"])   # best-fit period
 model = result.files["nonlinfit_model_0"]
 
 # MCMC posterior sampling (chains written to disk via mcmc_outchains)
@@ -1466,7 +1531,7 @@ result2 = vt.Pipeline([
         mcmc_outchains="EXAMPLES/OUTDIR1",
     ),
 ]).run(lc)
-print(result2.stats["Nonlinfit_P_MEDIAN_0"])   # posterior median period
+print(result2.var["Nonlinfit_P_MEDIAN_0"])   # posterior median period
 ```
 
 ---
@@ -1525,8 +1590,8 @@ pipe = vt.Pipeline([
     ),
 ])
 result = pipe.run(lc)
-print(result.stats["MandelAgolTransit_Period_1"])   # 2.12328176
-print(result.stats["MandelAgolTransit_r_1"])        # Rp/R* ≈ 0.098
+print(result.vars["MandelAgolTransit_Period_1"])   # 2.12328176
+print(result.vars["MandelAgolTransit_r_1"])        # Rp/R* ≈ 0.098
 model   = result.files["MandelAgolTransit_model_1"]    # fitted model LC
 phcurve = result.files["MandelAgolTransit_phcurve_1"]  # phase-folded model
 ```
@@ -1565,8 +1630,8 @@ pipe = vt.Pipeline([
                         correct_lc=False, save_model=True),
 ])
 result = pipe.run(lc)
-print(result.stats["SoftenedTransit_Period_1"])     # 2.12322112
-print(result.stats["SoftenedTransit_chi2perdof_1"])
+print(result.vars["SoftenedTransit_Period_1"])     # 2.12322112
+print(result.vars["SoftenedTransit_chi2perdof_1"])
 model = result.files["SoftenedTransit_model_1"]   # SoftenedTransit is at index 1
 ```
 
@@ -1617,8 +1682,8 @@ pipe = vt.Pipeline([
     ),
 ])
 result = pipe.run(lc)
-print(result.stats["Starspot_Period_1"])
-print(result.stats["Starspot_chi2perdof_1"])
+print(result.vars["Starspot_Period_1"])
+print(result.vars["Starspot_chi2perdof_1"])
 model = result.files["Starspot_model_1"]   # Starspot is at index 1
 ```
 
@@ -1647,9 +1712,9 @@ result = vt.Pipeline([
     cmd.microlens(f0="auto", f1="auto", u0="auto",
                   t0="auto", tmax="auto", save_model=True),
 ]).run(lc)
-print(result.stats["Microlens_u0_0"])
-print(result.stats["Microlens_tmax_0"])
-print(result.stats["Microlens_chi2perdof_0"])
+print(result.vars["Microlens_u0_0"])
+print(result.vars["Microlens_tmax_0"])
+print(result.vars["Microlens_chi2perdof_0"])
 model = result.files["microlens_model_0"]
 ```
 
@@ -1789,8 +1854,8 @@ pipe = vt.Pipeline([
     cmd.LS(0.5, 10.0, 0.1, npeaks=1),
 ])
 result = pipe.run(lc)
-print(result.stats["Injectharm_Period_0"])   # injected period
-print(result.stats["LS_Period_1_1"])         # recovered period
+print(result.vars["Injectharm_Period_0"])   # injected period
+print(result.vars["LS_Period_1_1"])         # recovered period
 ```
 
 ---
@@ -1844,8 +1909,8 @@ pipe = vt.Pipeline([
     cmd.BLS(0.1, 5.0, rmin=0.01, rmax=0.1, nbins=200, nfreq=20000, npeaks=1),
 ])
 result = pipe.run(lc)
-print(result.stats["Injecttransit_Period_0"])   # injected period
-print(result.stats["BLS_Period_1_1"])           # recovered period
+print(result.vars["Injecttransit_Period_0"])   # injected period
+print(result.vars["BLS_Period_1_1"])           # recovered period
 ```
 
 ---
@@ -1888,7 +1953,7 @@ pipe = vt.Pipeline([
     cmd.LS(0.5, 10.0, 1e-3),
 ])
 result = pipe.run(lc)
-period = float(result.stats["LS_Period_1_ls"])
+period = float(result.vars["LS_Period_1_ls"])
 ```
 
 If your pipeline contains multiple period-search commands with different suffixes, you can read each result unambiguously:
@@ -1902,8 +1967,8 @@ pipe = vt.Pipeline([
     cmd.aov(0.5, 10.0, 1e-3, 4.0),
 ])
 result = pipe.run(lc)
-ls_period  = float(result.stats["LS_Period_1_ls"])
-aov_period = float(result.stats["Period_1_aov"])
+ls_period  = float(result.vars["LS_Period_1_ls"])
+aov_period = float(result.vars["Period_1_aov"])
 ```
 
 ---
@@ -1995,7 +2060,7 @@ Match each light curve against rows in a catalog file and add columns from the c
 ### `o` — Output light curve
 
 ```python
-cmd.o(filename=None, nameformat=None, columnformat=None,
+cmd.o(filename=None, nameformat=None, columnformat=None, allcols=False,
       fits=False, noclobber=False, copyheader=False,
       namecommand=None, namefromlist=None, delimiter=None,
       logcommandline=False, capture=False, key="o")
@@ -2006,6 +2071,7 @@ cmd.o(filename=None, nameformat=None, columnformat=None,
 | `filename` | `str` or `None` | Output file path (or directory in batch mode). Required unless `capture=True`. |
 | `nameformat` | `str` or `None` | Format string for output filenames in batch mode, e.g. `"file_%s_%05d.txt"` (`%s` = LC basename, `%d` = sequence number). |
 | `columnformat` | `str` or `None` | Output column spec, e.g. `"t:%17.9f,mag:%9.5f,err:%9.5f"`. |
+| `allcols` | `bool` | Write every light-curve-vector variable defined by commands *before* this `cmd.o` in the pipeline, with a type-appropriate default `printf` format and a `# name1 name2 …` header line for ASCII output. Mutually exclusive with `columnformat`. Handy when a prior command has created new vectors (e.g. `cmd.Phase(..., phasevar="ph")`, `cmd.linfit(..., modelvar="m")`) that you want to capture without listing each one. Default `False`. |
 | `fits` | `bool` | Write output in FITS binary table format. |
 | `noclobber` | `bool` | Do not overwrite an existing output file. |
 | `copyheader` | `bool` | Copy the FITS header from the input file to the output file. |
@@ -2021,6 +2087,8 @@ cmd.o(filename=None, nameformat=None, columnformat=None,
 - **Write to disk only** (`filename="path"`, `capture=False`): existing behaviour; the LC is saved to disk.
 - **Capture only** (`capture=True`, `filename=None`): the LC is written to a temp file, captured into `result.files[key]`, and the temp file is cleaned up automatically.
 - **Write and capture** (`capture=True`, `filename="path"`): the LC is both saved to disk and captured into `result.files[key]`.
+
+When `capture=True` and no explicit `columnformat` is given, pyvartools passes the `allcols` flag to `-o` so the captured DataFrame contains every LC-vector variable registered up to that point in the pipeline (matching the library-mode fast path). If `columnformat` is given, the captured DataFrame uses the variable names listed in it.
 
 **Examples**
 
@@ -2038,7 +2106,7 @@ pipe = vt.Pipeline([
 ])
 result = pipe.run(lc)
 clipped_lc = result.files["clipped"]     # LightCurve after sigma-clipping
-print(result.stats["LS_Period_1_2"])     # clip=0, o=1, LS=2
+print(result.vars["LS_Period_1_2"])     # clip=0, o=1, LS=2
 
 # Write to disk AND capture
 result2 = vt.Pipeline([
@@ -2099,22 +2167,55 @@ pipe = vt.Pipeline([
     cmd.rms(),
     cmd.ifcmd("RMS_0>10*Expected_RMS_0"),
         cmd.ifcmd("RMS_0 > 0.1"),
-            cmd.stats("mag", "stddev"),
+            cmd.var("mag", "stddev"),
         cmd.ifcmd("else"),
-            cmd.stats("mag", "pct30"),
+            cmd.var("mag", "pct30"),
         cmd.ifcmd("fi"),
     cmd.ifcmd("elif Npoints_0>3900"),
-        cmd.stats("mag", "kurtosis"),
+        cmd.var("mag", "kurtosis"),
     cmd.ifcmd("else"),
         cmd.rms(),
     cmd.ifcmd("fi"),
 ])
 batch = pipe.run_batch(lcs)
-print(batch.stats)
+print(batch.vars)
 ```
 
 !!! note
     Pass `"else"`, `"elif <condition>"`, and `"fi"` as the `condition` argument of `cmd.ifcmd` for those control-flow roles.
+
+    The class is named `ifcmd` (rather than `if`) because `if` is a reserved word in Python.
+
+---
+
+### `print` — Emit user-computed variables to the output table
+
+```python
+cmd.print(variables, columnnames=None, fmt=None)
+```
+
+Include the values of one or more user-computed variables (e.g. results of `-expr` commands, or carried-forward scalars) as additional columns in the statistics table. Corresponds to `-print` in the CLI.
+
+**Parameters**
+
+- `variables : str or list[str]` — Variable names to print. Pass a comma-separated string or a list.
+- `columnnames : str or list[str], optional` — Override the auto-generated column names (default: `Print_<var>_<idx>_<cmd>`).
+- `fmt : str or list[str], optional` — Printf-style format specifiers (e.g. `"%.6f"`).
+
+**Examples**
+
+```python
+# Print a vartools output column along with a derived expression
+pipe = vt.Pipeline([
+    cmd.LS(0.5, 20.0, 4.0, npeaks=1),
+    cmd.expr("doubled=2*LS_Period_1_0"),
+    cmd.print("LS_Period_1_0,doubled",
+              columnnames="Period,Doubled",
+              fmt="%.6f,%.6f"),
+])
+batch = pipe.run_batch(lcs)
+print(batch.vars[["Period_2", "Doubled_2"]])
+```
 
 ---
 
@@ -2138,7 +2239,7 @@ batch = vt.Pipeline([
     cmd.R("b <- sd(mag)", invars="mag", outvars="b",
           outputcolumns="b"),
 ]).run_batch(lcs)
-print(batch.stats[["Name", "R_b_0"]])
+print(batch.vars[["Name", "R_b_0"]])
 
 # Same computation but send all light curves to R at once
 batch2 = vt.Pipeline([
@@ -2286,7 +2387,7 @@ class Stitch(vt.load_userlib("USERLIBS/src/stitch.so", name="stitch")):
 
 ### Output statistics
 
-Output statistics produced by user commands appear in `result.stats` automatically — vartools writes them to its standard output just like built-in commands, and pyvartools parses them in the same way. No special configuration is needed.
+Output statistics produced by user commands appear in `result.vars` automatically — vartools writes them to its standard output just like built-in commands, and pyvartools parses them in the same way. No special configuration is needed.
 
 ### Pipeline execution mode
 

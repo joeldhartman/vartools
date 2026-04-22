@@ -23,12 +23,12 @@ _IfStack *CreateIfStack(void) {
   int j;
   _IfStack *ifs;
   if((ifs = (_IfStack *) malloc(sizeof(_IfStack))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   ifs->sizearray = 4;
   ifs->curpos = 0;
   if((ifs->IfPtrs = (_IfStruct **) malloc(ifs->sizearray * sizeof(_IfStruct *))) == NULL ||
      (ifs->istrue = (char *) malloc(ifs->sizearray * sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(j = 0; j < ifs->sizearray; j++) {
     ifs->IfPtrs[j] = NULL;
   }
@@ -43,7 +43,7 @@ void pushIfStack(_IfStack *stack, _IfStruct *IfStruct) {
     stack->sizearray *= 2;
     if((stack->IfPtrs = (_IfStruct **) realloc(stack->IfPtrs, stack->sizearray * sizeof(_IfStruct *))) == NULL ||
        (stack->istrue = (char *) realloc(stack->istrue, stack->sizearray*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=iold; j < stack->sizearray; j++) 
       stack->IfPtrs[j] = NULL;
   }
@@ -127,7 +127,7 @@ char TestIf(_IfStack *stack, ProgramData *p, Command *c, int lcindex, int thread
       return stack->istrue[stack->curpos - 1];
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 }
 
@@ -136,21 +136,21 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
   int i, cn2, ifcounter;
   i = *iret;
   if((c[cn].IfCommand = (_IfCommand *) malloc(sizeof(_IfCommand))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if(!strcmp(argv[i],"-if")) {
     p->isifcommands = 1;
     c[cn].IfCommand->iftype = VARTOOLS_IFTYPE_IF;
     c[cn].IfCommand->ifindex = 0;
     if((c[cn].IfCommand->ifs = (_IfStruct *) malloc(sizeof(_IfStruct))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     c[cn].IfCommand->ifs->sizearray = 4;
     if((c[cn].IfCommand->ifs->expressions = (_Expression **) malloc(c[cn].IfCommand->ifs->sizearray * sizeof(_Expression *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     c[cn].IfCommand->ifs->nterms = 1;
     i++;
     if(i >= argc) {*iret = i; return 1;}
     if((c[cn].IfCommand->exprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(c[cn].IfCommand->exprstring,"%s",argv[i]);
   }
   else if(!strcmp(argv[i],"-elif")) {
@@ -159,7 +159,7 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
     i++;
     if(i >= argc) {*iret = i; return 1;}
     if((c[cn].IfCommand->exprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(c[cn].IfCommand->exprstring,"%s",argv[i]);
     /* Find the if command corresponding to this object */
     for(cn2 = cn-1; cn2 >= 0; cn2--) {
@@ -171,7 +171,7 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
 	    if(c[cn].IfCommand->ifs->nterms >= c[cn].IfCommand->ifs->sizearray) {
 	      c[cn].IfCommand->ifs->sizearray *= 2;
 	      if((c[cn].IfCommand->ifs->expressions = (_Expression **) realloc(c[cn].IfCommand->ifs->expressions, c[cn].IfCommand->ifs->sizearray * sizeof(_Expression *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    c[cn].IfCommand->ifs->nterms += 1;
 	    break;
@@ -180,20 +180,20 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
 	}
 	else if(c[cn2].IfCommand->iftype == VARTOOLS_IFTYPE_ELSE) {
 	  if(!ifcounter) {
-	    error(ERR_BADIFTHENELSE);
+	    vt_error(ERR_BADIFTHENELSE);
 	  }
 	}
 	else if(c[cn2].IfCommand->iftype == VARTOOLS_IFTYPE_FI) ifcounter++;
       }
     }
     if(cn2 < 0)
-      error(ERR_BADIFTHENELSE);
+      vt_error(ERR_BADIFTHENELSE);
   }
   else if(!strcmp(argv[i],"-else")) {
     c[cn].IfCommand->iftype = VARTOOLS_IFTYPE_ELSE;
     ifcounter = 0;
     if((c[cn].IfCommand->exprstring = (char *) malloc(2*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(c[cn].IfCommand->exprstring,"1");
     /* Find the if command corresponding to this object */
     for(cn2 = cn-1; cn2 >= 0; cn2--) {
@@ -205,7 +205,7 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
 	    if(c[cn].IfCommand->ifs->nterms >= c[cn].IfCommand->ifs->sizearray) {
 	      c[cn].IfCommand->ifs->sizearray *= 2;
 	      if((c[cn].IfCommand->ifs->expressions = (_Expression **) realloc(c[cn].IfCommand->ifs->expressions, c[cn].IfCommand->ifs->sizearray * sizeof(_Expression *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    c[cn].IfCommand->ifs->nterms += 1;
 	    break;
@@ -214,14 +214,14 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
 	}
 	else if(c[cn2].IfCommand->iftype == VARTOOLS_IFTYPE_ELSE) {
 	  if(!ifcounter) {
-	    error(ERR_BADIFTHENELSE);
+	    vt_error(ERR_BADIFTHENELSE);
 	  }
 	}
 	else if(c[cn2].IfCommand->iftype == VARTOOLS_IFTYPE_FI) ifcounter++;
       }
     }
     if(cn2 < 0)
-      error(ERR_BADIFTHENELSE);
+      vt_error(ERR_BADIFTHENELSE);
   }
   else if(!strcmp(argv[i],"-fi")) {
     c[cn].IfCommand->iftype = VARTOOLS_IFTYPE_FI;
@@ -239,7 +239,7 @@ int ParseIfCommand(int *iret, int argc, char **argv, int cn, ProgramData *p, Com
       }
     }
     if(cn2 < 0)
-      error(ERR_BADIFTHENELSE);
+      vt_error(ERR_BADIFTHENELSE);
   }
   *iret = i;
   return 0;
@@ -261,11 +261,11 @@ void dosaveifstackcopy(ProgramData *p, _CopyLC *c, int threadid) {
   if(c->sizearray_IfStruct_wasfoundtrue_copy[threadid] < c->IfStack[threadid]->sizearray) {
     if(!c->sizearray_IfStruct_wasfoundtrue_copy[threadid]) {
       if((c->IfStruct_wasfoundtrue_copy[threadid] = (char *) malloc(c->IfStack[threadid]->sizearray*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       if((c->IfStruct_wasfoundtrue_copy[threadid] = (char *) realloc(c->IfStruct_wasfoundtrue_copy[threadid], c->IfStack[threadid]->sizearray*sizeof(char))) == NULL)
 	c->sizearray_IfStruct_wasfoundtrue_copy[threadid] = c->IfStack[threadid]->sizearray;
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
   for(j=0; j < p->IfStack[threadid]->curpos; j++) {

@@ -92,7 +92,7 @@ void FreeMatchDataVectors(_MatchCommand *m, _MatchData *md) {
       md[i].dataptr = NULL;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     md[i].sizevec = 0;
     md[i].Npoints = 0;
@@ -128,50 +128,50 @@ void MemAllocMatchData(_MatchData *md, int Nv, int Np) {
       case VARTOOLS_TYPE_CONVERTJD:
 	dblptr = (double **) malloc(sizeof(double *));
 	if((dblptr[0] = (double *) malloc(md[i].sizevec*sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) dblptr;
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ***) malloc(sizeof(double **));
 	if((stringptr[0] = (char **) malloc(md[i].sizevec*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < md[i].sizevec; j++) {
 	  if((stringptr[0][j] = (char *) malloc(MAXLEN*sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	md[i].dataptr = (void *) stringptr;
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int **) malloc(sizeof(int *));
 	if((intptr[0] = (int *) malloc(md[i].sizevec*sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) intptr;
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short **) malloc(sizeof(short *));
 	if((shortptr[0] = (short *) malloc(md[i].sizevec*sizeof(short))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) shortptr;
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float **) malloc(sizeof(float *));
 	if((floatptr[0] = (float *) malloc(md[i].sizevec*sizeof(float))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) floatptr;
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long **) malloc(sizeof(long *));
 	if((longptr[0] = (long *) malloc(md[i].sizevec*sizeof(long))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) longptr;
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char **) malloc(sizeof(char *));
 	if((charptr[0] = (char *) malloc(md[i].sizevec*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) charptr;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else {
       while(Np > md[i].sizevec)
@@ -181,50 +181,50 @@ void MemAllocMatchData(_MatchData *md, int Nv, int Np) {
       case VARTOOLS_TYPE_CONVERTJD:
 	dblptr = (double **) md[i].dataptr;
 	if((dblptr[0] = (double *) realloc(dblptr[0], md[i].sizevec*sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) dblptr;
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ***) md[i].dataptr;
 	if((stringptr[0] = (char **) realloc(stringptr[0],md[i].sizevec*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=md[i].sizevec/2; j < md[i].sizevec; j++) {
 	  if((stringptr[0][j] = (char *) malloc(MAXLEN*sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	md[i].dataptr = (void *) stringptr;
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int **) md[i].dataptr;
 	if((intptr[0] = (int *) realloc(intptr[0],md[i].sizevec*sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) intptr;
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short **) md[i].dataptr;
 	if((shortptr[0] = (short *) realloc(shortptr[0],md[i].sizevec*sizeof(short))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) shortptr;
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float **) md[i].dataptr;
 	if((floatptr[0] = (float *) realloc(floatptr[0],md[i].sizevec*sizeof(float))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) floatptr;
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long **) md[i].dataptr;
 	if((longptr[0] = (long *) realloc(longptr[0],md[i].sizevec*sizeof(long))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) longptr;
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char **) md[i].dataptr;
 	if((charptr[0] = (char *) realloc(charptr[0],md[i].sizevec*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	md[i].dataptr = (void *) charptr;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     }
   }
@@ -241,7 +241,7 @@ FILE *ExecMatchOpenCommand(char *open_command_str, char *infilename)
   FILE *return_pipe;
   lc_in_name_length = strlen(infilename);
   if((execcommand = (char *) malloc((size_execcommand+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   i = 0; i2 = 0;
 
   /* Parse the command string, substituting the input file name as needed */
@@ -252,7 +252,7 @@ FILE *ExecMatchOpenCommand(char *open_command_str, char *infilename)
 	  if(i >= (size_execcommand)) {
 	    size_execcommand *= 2;
 	    if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  execcommand[i] = open_command_str[i2];
 	  i++;
@@ -269,7 +269,7 @@ FILE *ExecMatchOpenCommand(char *open_command_str, char *infilename)
 		while((i + lc_in_name_length) >= (size_execcommand))
 		  size_execcommand *= 2;
 		if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      sprintf(&execcommand[i],"%s",infilename);
 	      i = strlen(execcommand);
@@ -280,14 +280,14 @@ FILE *ExecMatchOpenCommand(char *open_command_str, char *infilename)
 	      if(i >= (size_execcommand)) {
 		size_execcommand *= 2;
 		if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      execcommand[i] = '%';
 	      i++;
 	      execcommand[i] = '\0';
 	    }
 	  else
-	    error(ERR_INVALIDEXECCOMMANDSTRFORMAT);
+	    vt_error(ERR_INVALIDEXECCOMMANDSTRFORMAT);
 	}
     }
     
@@ -295,7 +295,7 @@ FILE *ExecMatchOpenCommand(char *open_command_str, char *infilename)
      return the handle to the pipe */
 
   if((return_pipe = popen(execcommand,"r")) == NULL) {
-    error2(ERR_CANNOTOPEN,execcommand);
+    vt_error2(ERR_CANNOTOPEN,execcommand);
   }
   return return_pipe;
 }
@@ -323,7 +323,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
   long **longptr;
 
   if((matchdata = (_MatchData *) malloc((m->Naddvars + 1)*sizeof(_MatchData))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
 #ifdef PARALLEL
   if(p->Nproc_allow > 1) {
@@ -335,7 +335,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
 
   if((fits_open_file(&infile,infilename,READONLY,&status)))
     {
-      error2(ERR_CANNOTOPEN,infilename);
+      vt_error2(ERR_CANNOTOPEN,infilename);
     }
   if(fits_get_hdu_num(infile, &hdunum) == 1)
     {
@@ -345,16 +345,16 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
     fits_get_hdu_type(infile, &hdutype, &status);
   
   if(hdutype == IMAGE_HDU) {
-    error2(ERR_IMAGEHDU,infilename);
+    vt_error2(ERR_IMAGEHDU,infilename);
   }
 
   fits_get_num_rows(infile, &nrows, &status);
   fits_get_num_cols(infile, &ncols, &status);
 
   if((nullarray = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((nullarraystore = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   anynulallcolumns = 0;
   
@@ -377,7 +377,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
       else {
 	fits_get_colnum(infile, 0, m->matchcolumn_header_name, &(matchdata[i].incol), &status);
 	if(status == COL_NOT_FOUND)
-	  error2(ERR_MISSING_MATCHFILE_HEADERNAME,
+	  vt_error2(ERR_MISSING_MATCHFILE_HEADERNAME,
 		 m->matchcolumn_header_name);
       }
     } else {
@@ -387,7 +387,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
       } else {
 	fits_get_colnum(infile, 0, m->addvar_incolumn_header_names[i-1], &(matchdata[i].incol), &status);
 	if(status == COL_NOT_FOUND)
-	  error2(ERR_MISSING_MATCHFILE_HEADERNAME,
+	  vt_error2(ERR_MISSING_MATCHFILE_HEADERNAME,
 		 m->addvar_incolumn_header_names[i-1]);
       }
       if(m->addvar_formats[i-1][0] != '\0')
@@ -443,7 +443,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
       fits_read_colnull(infile, TBYTE, matchdata[j].incol, 1, 1, nrows, &((*charptr)[0]), nullarray, &anynul, &status);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     if(anynul) {
       anynulallcolumns = 1;
@@ -453,7 +453,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
     }
     if(status) {
       fits_report_error(stderr, status);
-      error(ERR_FITSERROR);
+      vt_error(ERR_FITSERROR);
     }
     matchdata[j].Npoints = nrows;
   }
@@ -461,7 +461,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
   fits_close_file(infile, &status);
   if(status) {
     fits_report_error(stderr, status);
-    error(ERR_FITSERROR);
+    vt_error(ERR_FITSERROR);
   }
 
 #ifdef PARALLEL
@@ -507,7 +507,7 @@ _MatchData *ReadFitsMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thre
 		(*charptr)[j] = (*charptr)[i];
 		break;
 	      default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 	      }
 	    }
 	  }
@@ -547,7 +547,7 @@ _MatchData *ReadAsciiMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thr
   size_t line_size = MAXLEN;
 
   if((matchdata = (_MatchData *) malloc((m->Naddvars + 1)*sizeof(_MatchData))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < m->Naddvars+1; i++) {
     matchdata[i].sizevec = 0;
@@ -578,10 +578,10 @@ _MatchData *ReadAsciiMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thr
   line = malloc(line_size);
   if(m->opencommand != NULL) {
     infile = ExecMatchOpenCommand(m->opencommand, infilename);
-    if(infile == NULL) error2(ERR_FILENOTFOUND, infilename);
+    if(infile == NULL) vt_error2(ERR_FILENOTFOUND, infilename);
   } else {
     if((infile = fopen(infilename,"r")) == NULL) {
-      error2(ERR_FILENOTFOUND,infilename);
+      vt_error2(ERR_FILENOTFOUND,infilename);
     }
   }
 
@@ -593,10 +593,10 @@ _MatchData *ReadAsciiMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thr
   
   if(colmax > 0) {
     if((incols = (char **) malloc(colmax * sizeof(char *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < colmax; i++) {
       if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -673,7 +673,7 @@ _MatchData *ReadAsciiMatchFile(_MatchCommand *m, ProgramData *p, int lc, int thr
 	    sscanf(incols[k],matchdata[i].format,&((*charptr)[N]));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
       N++;
@@ -747,7 +747,7 @@ void SetupMatchCommandVariables(_MatchCommand *m, ProgramData *p)
       v = p->DefinedVariables[j];
       if(!strcmp(m->matchcolumnvarname, v->varname)) {
 	if(v->vectortype != VARTOOLS_VECTORTYPE_LC) {
-	  error2(ERR_INVALIDVARIABLELCVARIABLE, m->matchcolumnvarname);
+	  vt_error2(ERR_INVALIDVARIABLELCVARIABLE, m->matchcolumnvarname);
 	}
 	m->matchvar = v;
 	break;
@@ -755,7 +755,7 @@ void SetupMatchCommandVariables(_MatchCommand *m, ProgramData *p)
     }
     if(j == p->NDefinedVariables) {
       /* We cannot match on a variable that has not been set already for the light curve */
-      error2(ERR_MATCHCOMMAND_BADMATCHVARIABLE,m->matchcolumnvarname);
+      vt_error2(ERR_MATCHCOMMAND_BADMATCHVARIABLE,m->matchcolumnvarname);
     }
   }
 
@@ -769,7 +769,7 @@ void SetupMatchCommandVariables(_MatchCommand *m, ProgramData *p)
 	    /* This is an existing variable, make sure it is the correct type */
 	    if(v->vectortype != VARTOOLS_VECTORTYPE_LC ||
 	       v->datatype != m->addvar_datatypes[k]) {
-	      error2(ERR_INVALIDVARIABLELCVARIABLE,varname);
+	      vt_error2(ERR_INVALIDVARIABLELCVARIABLE,varname);
 	    }
 	    m->addvars[k] = v;
 	    break;
@@ -835,7 +835,7 @@ int ParseMatchInputFormatString(char *argv, _MatchCommand *m)
 	if((parsecopy = (char *) realloc(parsecopy, sizestring)) == NULL ||
 	   (format = (char *) realloc(format, sizestring)) == NULL ||
 	   (varname = (char *) realloc(varname, sizestring)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       parsecopy[j] = '\0';
       if(termscan == 0) {
@@ -930,7 +930,7 @@ int ParseMatchInputFormatString(char *argv, _MatchCommand *m)
 	     (m->addvar_datatypes = (int *) malloc(sizeof(int))) == NULL ||
 	     (m->addvar_formats = (char **) malloc(sizeof(char *))) == NULL ||
 	     (m->addvar_incolumn_header_names = (char **) malloc(sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  if((m->addvars = (_Variable **) realloc(m->addvars, (m->Naddvars+1)*sizeof(_Variable *))) == NULL ||
 	     (m->addvar_varnames = (char **) realloc(m->addvar_varnames, (m->Naddvars+1)*sizeof(char *))) == NULL ||
@@ -938,18 +938,18 @@ int ParseMatchInputFormatString(char *argv, _MatchCommand *m)
 	     (m->addvar_datatypes = (int *) realloc(m->addvar_datatypes, (m->Naddvars+1)*sizeof(int))) == NULL ||
 	     (m->addvar_formats = (char **) realloc(m->addvar_formats, (m->Naddvars+1)*sizeof(char *))) == NULL ||
 	     (m->addvar_incolumn_header_names = (char **) realloc(m->addvar_incolumn_header_names, (m->Naddvars+1)*sizeof(char *))) == NULL) 
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if((m->addvar_varnames[m->Naddvars] = (char *) malloc((strlen(varname)+1)*sizeof(char))) == NULL ||
 	   (m->addvar_formats[m->Naddvars] = (char *) malloc((strlen(format)+1)*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(m->addvar_varnames[m->Naddvars],"%s",varname);
 	m->addvar_columns[m->Naddvars] = column;
 	m->addvar_datatypes[m->Naddvars] = datatype;
 	sprintf(m->addvar_formats[m->Naddvars],"%s",format);
 	if(incolumn_header_name != NULL) {
 	   if((m->addvar_incolumn_header_names[m->Naddvars] = (char *) malloc((strlen(incolumn_header_name)+1)*sizeof(char))) == NULL)
-	     error(ERR_MEMALLOC);
+	     vt_error(ERR_MEMALLOC);
 	   sprintf(m->addvar_incolumn_header_names[m->Naddvars],"%s",incolumn_header_name);
 	} else
 	  m->addvar_incolumn_header_names[m->Naddvars] = NULL;
@@ -1015,7 +1015,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
     if(i >= argc)
       return 1;
     if((m->inputfilename = (char *) malloc(strlen(argv[i])+1)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(m->inputfilename, "%s", argv[i]);
   }
   else if(!strcmp(argv[i],"inlist")) {
@@ -1024,7 +1024,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
       return 1;
     m->inlistcolumn = atoi(argv[i]);
     if(m->inlistcolumn <= 0) {
-      error(ERR_MATCHCOMMAND_INLISTCOLUMNNOTPOSITIVE);
+      vt_error(ERR_MATCHCOMMAND_INLISTCOLUMNNOTPOSITIVE);
     }
     RegisterDataFromInputList(p,
 			      (void *) (&(m->inputfilenamelist)),
@@ -1042,7 +1042,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
       if(i >= argc)
 	return 1;
       if((m->opencommand = (char *) malloc(strlen(argv[i])+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(m->opencommand,"%s",argv[i]);
     }
     else
@@ -1120,7 +1120,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
       if(argv[i][j+1] == '\0')
 	return 1;
       if((m->matchcolumnvarname = (char *) malloc(j+2)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       memcpy(m->matchcolumnvarname, argv[i], (size_t) (j*sizeof(char)));
       m->matchcolumnvarname[j] = '\0';
       if(!isstringint(&(argv[i][j+1]))) {
@@ -1131,7 +1131,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
       } else {
 	m->matchcolumn = atoi(&(argv[i][j+1]));
 	if(m->matchcolumn <= 0) 
-	  error(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
+	  vt_error(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
       }
     } else {
       if(!j)
@@ -1144,7 +1144,7 @@ int ParseMatchCommand(int *iret, int argc, char **argv, ProgramData *p, _MatchCo
       } else {
 	m->matchcolumn = atoi(argv[i]);
 	if(m->matchcolumn <= 0)
-	  error(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
+	  vt_error(ERR_MATCHCOMMAND_MATCHCOLUMNNOTPOSITIVE);
       }
     }
   } else 
@@ -1198,7 +1198,7 @@ void SortMatchFileColumn(_MatchData *md, int **indxptr) {
 
   if((*indxptr) == NULL) {
     if((indx = (int *) malloc(md->Npoints * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     *indxptr = indx;
   } else {
     indx = *indxptr;
@@ -1229,7 +1229,7 @@ void SortMatchFileColumn(_MatchData *md, int **indxptr) {
     dataptr = (void *) (((short **) md->dataptr)[0]);
     break;
   default:
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
   }
 
   if(md->datatype == VARTOOLS_TYPE_STRING)
@@ -1282,7 +1282,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
   }
 
     if((match_indx = (int *) malloc(p->NJD[threadid]*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
     for(i=0; i < p->NJD[threadid]; i++) {
       match_indx[i] = -1;
@@ -1297,7 +1297,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
     /* We are matching on a variable specified by the USER */
 
     if((lc_indx = (int *) malloc(p->NJD[threadid]*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     
     for(i=0; i < p->NJD[threadid]; i++) {
       lc_indx[i] = i;
@@ -1332,7 +1332,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
       dataptr = (void *) ((*((char ****) m->matchvar->dataptr))[threadid]);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 
@@ -1360,7 +1360,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
     dataptr = (void *) (p->t[threadid]);
 
     if((lc_indx = (int *) malloc(p->NJD[threadid]*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     
     for(i=0; i < p->NJD[threadid]; i++) {
       lc_indx[i] = i;
@@ -1537,7 +1537,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
     }
   }
   else
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
     
   /* Now copy over the match data from the match file into the light curve */
   for(j=0; j < p->NJD[threadid]; j++) {
@@ -1567,7 +1567,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
 	  sprintf((*((char ****) m->addvars[i]->dataptr))[threadid][j],"%s",(*((char ***) md[i+1].dataptr))[match_indx[j]]);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     } else {
@@ -1602,7 +1602,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
 	    sprintf((*((char ****) m->addvars[i]->dataptr))[threadid][j],"NaN");
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -1632,7 +1632,7 @@ void RunMatchCommand(ProgramData *p, _MatchCommand *m, int lc, int threadid)
 	    sprintf((*((char ****) m->addvars[i]->dataptr))[threadid][j],"%.17g",m->missingvalue);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }

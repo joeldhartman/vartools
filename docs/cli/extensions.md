@@ -2,19 +2,28 @@
 
 Extension commands are additional VARTOOLS commands that are compiled as
 separate shared-object libraries (`.so` files) and loaded at runtime. They are
-distributed in the `USERLIB/src` subdirectory of the VARTOOLS source tree.
+distributed in the `USERLIBS/src` subdirectory of the VARTOOLS source tree.
 After running `make` in that directory, each extension produces a `.so` file
-that must be passed to VARTOOLS with the `-L` option before the command itself
-is issued:
+in `USERLIBS/src/.libs/` that must be passed to VARTOOLS with the `-L` option
+before the command itself is issued:
 
 ```bash
-vartools -L USERLIB/src/fastchi2.so \
+# Load the magadd extension and use its -magadd command to add a constant
+# offset to each light curve before measuring the RMS.
+vartools -L USERLIBS/src/.libs/magadd.so \
     -l EXAMPLES/lc_list \
-    -fastchi2 "Nharm" "fix" 2 "freqmax" "fix" 24.0 -tab
+    -magadd fix 0.5 \
+    -rms -tab
 ```
 
 The same `-L` flag can be given multiple times to load several extensions in a
 single call.
+
+!!! note "Installed extensions"
+    After `make install`, the compiled extension libraries are placed in
+    `$(PREFIX)/share/vartools/USERLIBS/` and VARTOOLS finds them automatically
+    — the explicit `-L` prefix is only needed when running from the source
+    tree or when the library lives outside the installed search directory.
 
 ---
 
@@ -392,172 +401,3 @@ VARTOOLS extensions.
 | `"fixcolumn" colname/colnum` | Take the offset from a previously computed output statistic. |
 
 ---
-
-## `-python`
-
-**Embed Python expressions or scripts in a VARTOOLS pipeline.**
-
-```
--python
-    < "fromfile" commandfile | commandstring >
-    ["init" <"file" initializationfile | initializationstring>
-        | "continueprocess" prior_python_command_number]
-    ["vars" variablelist
-        | ["invars" inputvariablelist] ["outvars" outputvariablelist]]
-    ["outputcolumns" variablelist] ["process_all_lcs"]
-```
-
-**Examples**
-
-**Example 1.** Use Python to calculate the variance in magnitudes for each light curve.
-
-```bash
-vartools -l EXAMPLES/lc_list \
-         -inputlcformat t:1,mag:2,err:3 \
-         -header \
-         -python 'b = numpy.var(mag)' \
-                  invars mag outvars b outputcolumns b
-```
-
-Output: table showing variance values for each light curve file.
-
-**Example 2.** Python script file `EXAMPLES/plotlc.py` containing matplotlib plotting function. Command executing Lomb-Scargle periodogram with conditional python execution for files meeting probability threshold. Uses the `-python` command in VARTOOLS to load initialization code and execute plotting on filtered light curves.
-
-**Example 3.** Similar to Example 2, but uses the `process_all_lcs` keyword to send all of the light curves to python at once. Variables supplied as lists of numpy arrays with for-loop iteration.
-
----
-
-## `-R`
-
-**Embed R expressions or scripts in a VARTOOLS pipeline.**
-
-```
--R
-    < "fromfile" commandfile | commandstring >
-    ["init" <"file" initializationfile | initializationstring>
-        | "continueprocess" prior_R_command_number]
-    ["vars" variablelist
-        | ["invars" inputvariablelist] ["outvars" outputvariablelist]]
-    ["outputcolumns" variablelist] ["process_all_lcs"]
-```
-
-**Examples**
-
-**Example 1.** Use R to calculate the standard deviation in magnitudes for each light curve.
-
-```bash
-vartools -l EXAMPLES/lc_list \
-         -inputlcformat t:1,mag:2,err:3 \
-         -header \
-         -R 'b <- sd(mag)' \
-             invars mag outvars b outputcolumns b
-```
-
-Output:
-```
-#Name R_b_0
-EXAMPLES/1 0.15946976931434592
-EXAMPLES/2 0.036640196913116818
-EXAMPLES/3 0.0048962905656505422
-EXAMPLES/4 0.0020915710522042882
-EXAMPLES/5 0.002880850234933455
-EXAMPLES/6 0.0020898736803245783
-EXAMPLES/7 0.003488095003079855
-EXAMPLES/8 0.0022502571019889705
-EXAMPLES/9 0.0018673694762206033
-EXAMPLES/10 0.0023627959129451301
-```
-
-**Example 2.** Same calculation using `process_all_lcs` to send all light curves to R simultaneously.
-
-```bash
-vartools -l EXAMPLES/lc_list \
-         -inputlcformat t:1,mag:2,err:3 \
-         -header \
-         -R 'b <- list();
-             for(i in 1:length(mag)) {
-                b[[i]] <- sd(mag[[i]]);
-             }' \
-             invars mag outvars b outputcolumns b process_all_lcs
-```
-
-Output: (same as Example 1)
-
-**Example 3.** Apply ARIMA modeling using the `forecast` package. After reading light curves, the process saves the original magnitude vector, bins the data temporally with 0.05-day bins, and resamples onto a uniform grid. The R command creates a time series object, performs ARIMA fitting, and generates modeled values. Libraries are loaded via the `init` parameter. Subsequent resampling restores data to the original timebase, and the original magnitude vector is restored before output.
-
-```bash
-vartools -l EXAMPLES/lc_list \
-    -inputlcformat t:1,mag:2,err:3 \
-    -header \
-    -savelc \
-    -binlc average binsize 0.05 taverage \
-    -resample linear delt fix 0.05 \
-    -R \
-       'mag_ts <- ts(mag, start=1, end=length(mag), frequency=1);
-          arima_model <- auto.arima(mag_ts);
-          mag_arima <- mag - as.vector(arima_model$residuals);' \
-       init 'library(tseries); library(forecast);' \
-       invars mag outvars mag_arima \
-    -resample linear file list listcolumn 1 tcolumn 1 \
-    -restorelc 1 vars mag \
-    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
-       columnformat t,mag,mag_arima \
-  2> /dev/null
-```
-
-Output (first 3 lines of `EXAMPLES/OUTDIR1/1.arimamodel`):
-```
-53725.173920000001 10.085000000000001 10.069214881731755
-53725.17654 10.0847 10.070167733349381
-53725.17772 10.0825 10.070596880260995
-```
-
-**Example 4.** Sources initialization code from an external R file defining a custom function that performs ARIMA modeling and generates PNG plots. A Python call extracts basenames by removing directory paths, demonstrating language interoperability.
-
-`EXAMPLES/Rexample4.R`:
-
-```r
-library(tseries)
-library(forecast)
-
-DoArimaFitPlot <- function(mag, plotoutdir, lcbasename) {
-    mag_ts <- ts(mag, start=1, end=length(mag), frequency=1)
-    arima_model <- auto.arima(mag_ts)
-    mag_arima <- mag - as.vector(arima_model$residuals)
-    mag_forecast <- forecast(arima_model)
-    png(paste(plotoutdir, lcbasename, ".arimaforecast.png", sep=""), width=640, height=480)
-    plot(mag_forecast)
-    dev.off()
-    png(paste(plotoutdir, lcbasename, ".arimaresiduals.png", sep=""), width=640, height=480)
-    checkresiduals(arima_model)
-    dev.off()
-    return(mag_arima)
-}
-```
-
-```bash
-vartools -l EXAMPLES/lc_list \
-    -inputlcformat t:1,mag:2,err:3 \
-    -header \
-    -savelc \
-    -binlc average binsize 0.05 taverage \
-    -resample linear delt fix 0.05 \
-    -python 'lcbasename = Name.split("/")[-1]' \
-        invars Name outvars lcbasename \
-    -R 'mag_arima <- DoArimaFitPlot(mag, "EXAMPLES/OUTDIR1/", lcbasename)' \
-        init file EXAMPLES/Rexample4.R \
-        invars mag,t,lcbasename outvars mag_arima \
-    -resample linear file list listcolumn 1 tcolumn 1 \
-    -restorelc 1 vars mag \
-    -o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \
-        columnformat t,mag,mag_arima \
-  2> /dev/null
-```
-
----
-
-## `-generic`
-
-**Template for writing user-defined VARTOOLS extension commands.**
-
-The `-generic` command is an incomplete documentation template demonstrating the structure required to implement a custom VARTOOLS extension. Refer to the USERLIB source tree for working examples such as `-magadd`.

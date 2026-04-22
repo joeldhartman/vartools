@@ -167,7 +167,7 @@ int gfasper(double *x, double *y, double *err, int n, double ofac, double hifac,
   double *wk3 = NULL;
 
   if(n > 0) {
-    if((w = (double *) malloc(n * sizeof(double))) == NULL) error(ERR_MEMALLOC);
+    if((w = (double *) malloc(n * sizeof(double))) == NULL) vt_error(ERR_MEMALLOC);
   }
 
 
@@ -192,7 +192,7 @@ int gfasper(double *x, double *y, double *err, int n, double ofac, double hifac,
   }
 
   if((wk3 = (double *) malloc(nwk * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   j = 0;
   ngood = 0;
   wsum = 0.;
@@ -475,7 +475,7 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
     if((t_mask = (double *) malloc(N_in*sizeof(double))) == NULL ||
        (mag_mask = (double *) malloc(N_in*sizeof(double))) == NULL ||
        (sig_mask = (double *) malloc(N_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     N = 0;
     for(i = 0; i < N_in; i++) {
@@ -540,7 +540,7 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
 	   (t_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	   (mag_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	   (sig_cpy2 = (double *) malloc(N * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	
 	memcpy(t_cpy2,t,N*sizeof(double));
 	for(i=0; i < Nbootstrap; i++) {
@@ -913,11 +913,11 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
       if((wk1 = (double *) malloc(ndim * sizeof(double))) == NULL ||
 	 (wk2_whiten = (double **) malloc((Npeaks + 1) * sizeof(double *))) == NULL ||
 	 (pbest_whiten = (double *) malloc((Npeaks + 1) * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Npeaks+1;i++)
 	{
 	  if((wk2_whiten[i] = (double *) malloc(ndim * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 
 
@@ -928,7 +928,7 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
 	   (t_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	   (mag_cpy2 = (double *) malloc(N * sizeof(double))) == NULL ||
 	   (sig_cpy2 = (double *) malloc(N * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	
 	memcpy(t_cpy2,t,N*sizeof(double));
 	for(i=0; i < Nbootstrap; i++) {
@@ -978,7 +978,7 @@ void Lombscargle (int N_in, double *t_in, double *mag_in, double *sig_in, double
       if((t_cpy = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (mag_cpy = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sig_cpy = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       memcpy(t_cpy,t,N*sizeof(double));
       memcpy(mag_cpy,mag,N*sizeof(double));
       memcpy(sig_cpy,sig,N*sizeof(double));

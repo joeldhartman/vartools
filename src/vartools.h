@@ -204,3 +204,34 @@ int vartools_process_lc(ProgramData *p,
 
 /* Release all resources held by the pipeline handle. */
 void vartools_free_pipeline(ProgramData *p);
+
+/* Information about a single variable in the pipeline. */
+typedef struct {
+    const char *name;       /* variable name (e.g. "t", "mag", "err", "myvar") */
+    int         datatype;   /* VARTOOLS_TYPE_DOUBLE, _INT, etc. */
+    int         vectortype; /* VARTOOLS_VECTORTYPE_LC, _SCALAR, _PERSTARDATA */
+    const void *dataptr;    /* pointer to raw data array for thread 0 */
+    int         length;     /* NJD for LC vars, 1 for scalars */
+} VartoolsVarInfo;
+
+/* Enumerate all light-curve and per-star variables after processing.
+ * Fills vars[0..min(count, max_vars)-1].  *n_vars is set to the number
+ * of entries written.  Returns 0 if all fit, or the total count if
+ * max_vars was too small.  Data pointers are valid until the next
+ * vartools_process_lc() or vartools_free_pipeline(). */
+int vartools_get_lc_variables(ProgramData *p,
+                              int *n_vars, VartoolsVarInfo *vars,
+                              int max_vars);
+
+/* Return the number of LC points after processing (may differ from input). */
+int vartools_get_njd(ProgramData *p);
+
+/* Inject a full set of LC columns before processing.
+ * col_names[0..2] must be "t", "mag", "err".  Additional columns are
+ * matched by name against DefinedVariables (VECTORTYPE_LC, TYPE_DOUBLE).
+ * Returns 0 on success, -1 if n_columns < 3. */
+int vartools_set_lc_data(ProgramData *p,
+                         int n_points, int n_columns,
+                         const char **col_names,
+                         const double **col_data,
+                         const char *lc_name);

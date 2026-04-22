@@ -157,12 +157,12 @@ double chi2microlensmodel(double *p, int ma, int N, double *t, double *mag, doub
       if(!size_newlc)
 	{
 	  if((newlc = (double *) malloc(N * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       else
 	{
 	  if((newlc = (double *) realloc(newlc, N * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       size_newlc = N;
     }
@@ -226,7 +226,7 @@ void microlens_initialparams(double *t, double *mag, double *sig, int N, double 
 
 
 /* This is the function to fit a microlens model to a light curve using downhill simplex. We use the functional form of a microlensing model given by Wozniak, P.R. 2001, AcA, 51, 175 */
-void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m, char *outname, double *f0_out, double *f1_out, double *u0_out, double *t0_out, double *tmax_out, double *chi2_)
+void microlens(double *t, double *mag, double *sig, int N, int lc, int threadid, _MicroLens *m, char *outname, double *f0_out, double *f1_out, double *u0_out, double *t0_out, double *tmax_out, double *chi2_)
 {
   int i, j, l, ma, ngood, k, nfunk;
   int *ia, amoeba_val;
@@ -248,7 +248,7 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
   if((ia = (int *) malloc(ma * sizeof(int))) == NULL ||
      (initialstep = (double *) malloc(ma * sizeof(double))) == NULL ||
      (mag_cpy = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(j=0,meanval1=0.0,meanval2 = 0.0; j<N;j++)
     {
@@ -278,12 +278,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
 
   if((p = (double **) malloc((nvar + 1) * sizeof(double *))) == NULL ||
      (y = (double *) malloc((nvar + 1) * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(j=0;j<nvar+1;j++)
     {
       if((p[j] = (double *) malloc(ma * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
 
   /* Get the initial parameters */
@@ -297,6 +297,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
       break;
     case PERTYPE_FIX:
       f0 = m->f00_fix;
+      break;
+    case PERTYPE_VAR:
+      f0 = EvaluateVariable_Double(lc, threadid, 0, m->f00_var);
+      break;
+    case PERTYPE_EXPR:
+      f0 = EvaluateExpression(lc, threadid, 0, m->f00_expr);
       break;
     case PERTYPE_AUTOFIND:
       Nautofind = 1;
@@ -312,6 +318,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
     case PERTYPE_FIX:
       f1 = m->f10_fix;
       break;
+    case PERTYPE_VAR:
+      f1 = EvaluateVariable_Double(lc, threadid, 0, m->f10_var);
+      break;
+    case PERTYPE_EXPR:
+      f1 = EvaluateExpression(lc, threadid, 0, m->f10_expr);
+      break;
     case PERTYPE_AUTOFIND:
       Nautofind = 1;
     }
@@ -325,6 +337,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
       break;
     case PERTYPE_FIX:
       u0 = m->u00_fix;
+      break;
+    case PERTYPE_VAR:
+      u0 = EvaluateVariable_Double(lc, threadid, 0, m->u00_var);
+      break;
+    case PERTYPE_EXPR:
+      u0 = EvaluateExpression(lc, threadid, 0, m->u00_expr);
       break;
     case PERTYPE_AUTOFIND:
       Nautofind = 1;
@@ -340,6 +358,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
     case PERTYPE_FIX:
       t0 = m->t00_fix;
       break;
+    case PERTYPE_VAR:
+      t0 = EvaluateVariable_Double(lc, threadid, 0, m->t00_var);
+      break;
+    case PERTYPE_EXPR:
+      t0 = EvaluateExpression(lc, threadid, 0, m->t00_expr);
+      break;
     case PERTYPE_AUTOFIND:
       Nautofind = 1;
     }
@@ -353,6 +377,12 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
       break;
     case PERTYPE_FIX:
       tmax = m->tmax0_fix;
+      break;
+    case PERTYPE_VAR:
+      tmax = EvaluateVariable_Double(lc, threadid, 0, m->tmax0_var);
+      break;
+    case PERTYPE_EXPR:
+      tmax = EvaluateExpression(lc, threadid, 0, m->tmax0_expr);
       break;
     case PERTYPE_AUTOFIND:
       Nautofind = 1;
@@ -439,7 +469,7 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
   if(m->correctlc || m->omodel)
     {
       if((model = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(!amoeba_val)
 	{
 	  microlensmodel(N, t, model, *f0_out, *f1_out, *u0_out, *t0_out, *tmax_out);
@@ -456,7 +486,7 @@ void microlens(double *t, double *mag, double *sig, int N, int lc, _MicroLens *m
 	  else
 	    {
 	      if((outfile = fopen(outname,"w")) == NULL)
-		error2(ERR_CANNOTWRITE,outname);
+		vt_error2(ERR_CANNOTWRITE,outname);
 	    }
 	  if(!amoeba_val)
 	    {

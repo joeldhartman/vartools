@@ -4,61 +4,12 @@ Commands for fitting analytic models to light curves, from simple harmonic serie
 
 ---
 
-## `-Killharm`
-
-```
--Killharm
-    < "aov" | "ls" | "both" | "injectharm"
-        | "fix" Nper per1 ... perN
-        | "list" Nper ["column" col1] >
-    Nharm Nsubharm
-    omodel [modeloutdir] ["fitonly"]
-    ["outampphase" | "outampradphase" | "outRphi" | "outRradphi"]
-    ["clip" val]
-```
-
-Fit and optionally subtract a harmonic series from the light curve (i.e., whiten the light curve against one or more periods). The model has the form:
-
-```
-sum_{i=1}^{Nper}(
-    sum_{k=0}^{Nharm_i}(a_i_k*sin(2*pi*(k+1)*f_i*t) + b_i_k*cos(2*pi*(k+1)*f_i*t))
-  + sum_{k=0}^{Nsubharm_i}(c_i_k*sin(2*pi*f_i*t/(k+1)) + d_i_k*cos(2*pi*f_i*t/(k+1)))
-)
-```
-
-The mean magnitude, the period(s), and all cosine and sine coefficients are output. By default the whitened light curve is passed to the next command; use `"fitonly"` to suppress subtraction.
-
-**Period source**
-
-| Keyword | Description |
-|---------|-------------|
-| `"aov"` | Period from the most recent `-aov` or `-aov_harm` command |
-| `"ls"` | Period from the most recent `-LS` command |
-| `"both"` | Two periods: one from `-aov`, one from `-LS` |
-| `"injectharm"` | Period from the most recent `-Injectharm` command |
-| `"fix" Nper per1...perN` | `Nper` fixed periods given on the command line |
-| `"list" Nper ["column" col1]` | `Nper` periods read from the input list file |
-
-**Parameters**
-
-- `Nharm` — Number of higher harmonics to include (frequencies `2f₀`, `3f₀`, ... `(Nharm+1)f₀`).
-- `Nsubharm` — Number of sub-harmonics (frequencies `f₀/2`, `f₀/3`, ... `f₀/(Nsubharm+1)`).
-- `omodel` — Flag (`1` or `0`) to output the model light curve to `modeloutdir`. Output suffix: `.killharm.model`.
-- `"fitonly"` — If given, the model is computed but not subtracted from the light curve.
-- `"outampphase"` — Output amplitudes `A_k = sqrt(a_k² + b_k²)` and phases `φ_k = atan2(-b_k, a_k)/(2π)` instead of raw coefficients.
-- `"outampradphase"` — Same as `"outampphase"` but phases in radians.
-- `"outRphi"` — Output relative amplitudes `R_k1 = A_k/A_1` and phases `φ_k1 = φ_k - k*φ_1` (in units of 0 to 1).
-- `"outRradphi"` — Same as `"outRphi"` but phases in radians.
-- `"clip" val` — Fit the model, clip residuals at `val` sigma, then refit to the surviving points.
-
----
-
 ## `-linfit`
 
 ```
--linfit
-    function paramlist ["modelvar" varname]
-    ["reject" sigclip ["useMAD"] ["iter" ["fixednum" number]]]
+-linfit function paramlist ["modelvar" varname]
+    ["reject" <"var" scvar | "expr" scexpr | sigclip> ["useMAD"]
+    ["iter" ["fixednum" number]]]
     ["correctlc"]
     ["omodel" model_outdir ["format" nameformat]]
     ["fitmask" maskvar]
@@ -108,20 +59,22 @@ Linfit_errc_2 = 3.2584974556662493e-05
 ## `-nonlinfit`
 
 ```
--nonlinfit
-    function paramlist ["linfit" linfitparams]
+-nonlinfit function paramlist ["linfit" linfitparams]
     ["errors" error_expr]
     ["covariance"
-        < "squareexp" amp_var rho_var
-        | "exp" amp_var rho_var
-        | "matern" amp_var rho_var nu_var >]
+        <"squareexp" amp_var rho_var
+         | "exp" amp_var rho_var
+         | "matern" amp_var rho_var nu_var>]
     ["priors" priorlist] ["constraints" constraintlist]
-    < "amoeba" ["tolerance" tol] ["maxsteps" steps]
-    | "mcmc" ["Naccept" N | "Nlinkstotal" N]
-              ["fracburnin" frac] ["eps" eps] ["skipamoeba"]
-              ["chainstats" exprlist statslist]
-              ["maxmemstore" maxmem]
-              ["outchains" outdir ["format" format] ["printevery" N]] >
+    <"amoeba" ["tolerance" <"var" v | "expr" e | tol>]
+              ["maxsteps" <"var" v | "expr" e | steps>]
+     | "mcmc" ["Naccept" <"var" v | "expr" e | N>
+              | "Nlinkstotal" <"var" v | "expr" e | N>]
+            ["fracburnin" <"var" v | "expr" e | frac>]
+            ["eps" <"var" v | "expr" e | eps>] ["skipamoeba"]
+            ["chainstats" exprlist statslist]
+            ["maxmemstore" maxmem]
+            ["outchains" outdir ["format" format] ["printevery" N]] >
     ["modelvar" varname] ["correctlc"]
     ["omodel" model_outdir ["format" nameformat]]
 ```
@@ -158,15 +111,68 @@ Fit a function that is nonlinear in its free parameters to each light curve.
 
 ---
 
+## `-Killharm`
+
+```
+-Killharm <"aov" | "ls" | "both" | "injectharm"
+    | "fix" Nper <"var" v | "expr" e | per1> ... <"var" v | "expr" e | perN>
+    | "list" Nper ["column" col1]> Nharm Nsubharm
+    omodel [model_outdir] ["fitonly"]
+    ["outampphase" | "outampradphase" | "outRphi" | "outRradphi"]
+    ["clip" <"var" cvar | "expr" cexpr | val>]
+```
+
+Fit and optionally subtract a harmonic series from the light curve (i.e., whiten the light curve against one or more periods). The model has the form:
+
+```
+sum_{i=1}^{Nper}(
+    sum_{k=0}^{Nharm_i}(a_i_k*sin(2*pi*(k+1)*f_i*t) + b_i_k*cos(2*pi*(k+1)*f_i*t))
+  + sum_{k=0}^{Nsubharm_i}(c_i_k*sin(2*pi*f_i*t/(k+1)) + d_i_k*cos(2*pi*f_i*t/(k+1)))
+)
+```
+
+The mean magnitude, the period(s), and all cosine and sine coefficients are output. By default the whitened light curve is passed to the next command; use `"fitonly"` to suppress subtraction.
+
+**Period source**
+
+| Keyword | Description |
+|---------|-------------|
+| `"aov"` | Period from the most recent `-aov` or `-aov_harm` command |
+| `"ls"` | Period from the most recent `-LS` command |
+| `"both"` | Two periods: one from `-aov`, one from `-LS` |
+| `"injectharm"` | Period from the most recent `-Injectharm` command |
+| `"fix" Nper per1...perN` | `Nper` fixed periods given on the command line |
+| `"list" Nper ["column" col1]` | `Nper` periods read from the input list file |
+
+**Parameters**
+
+- `Nharm` — Number of higher harmonics to include (frequencies `2f₀`, `3f₀`, ... `(Nharm+1)f₀`).
+- `Nsubharm` — Number of sub-harmonics (frequencies `f₀/2`, `f₀/3`, ... `f₀/(Nsubharm+1)`).
+- `omodel` — Flag (`1` or `0`) to output the model light curve to `modeloutdir`. Output suffix: `.killharm.model`.
+- `"fitonly"` — If given, the model is computed but not subtracted from the light curve.
+- `"outampphase"` — Output amplitudes `A_k = sqrt(a_k² + b_k²)` and phases `φ_k = atan2(-b_k, a_k)/(2π)` instead of raw coefficients.
+- `"outampradphase"` — Same as `"outampphase"` but phases in radians.
+- `"outRphi"` — Output relative amplitudes `R_k1 = A_k/A_1` and phases `φ_k1 = φ_k - k*φ_1` (in units of 0 to 1).
+- `"outRradphi"` — Same as `"outRphi"` but phases in radians.
+- `"clip" val` — Fit the model, clip residuals at `val` sigma, then refit to the surviving points.
+
+---
+
 ## `-MandelAgolTransit`
 
 ```
--MandelAgolTransit
-    < "bls" | "blsfixper"
-         | P0 T00 r0 a0 < "i" incl | "b" bimp > e0 omega0 mconst0 >
-    < "quad" | "nonlin" > ldcoeff1_0 ... ldcoeffn_0
-    fitephem fitr fita fitinclterm fite fitomega fitmconst fitldcoeff1 ... fitldcoeffn
-    fitRV [RVinputfile RVmodeloutfile K0 gamma0 fitK fitgamma]
+-MandelAgolTransit <bls | blsfixper
+        | <"var" v | "expr" e | P0> <"var" v | "expr" e | T00>
+          <"var" v | "expr" e | r0> <"var" v | "expr" e | a0>
+          <"i" <"var" v | "expr" e | inclination> | "b" <"var" v | "expr" e |
+          bimpact>>
+          <"var" v | "expr" e | e0> <"var" v | "expr" e | omega0>
+          <"var" v | "expr" e | mconst0>>
+    <"quad" | "nonlin"> <"var" v | "expr" e | ldcoeff1_0>
+        ... <"var" v | "expr" e | ldcoeffn_0> fitephem
+    fitr fita fitinclterm fite fitomega fitmconst fitldcoeff1 ... fitldcoeffn
+    fitRV [RVinputfile RVmodeloutfile <"var" v | "expr" e | K0>
+    <"var" v | "expr" e | gamma0> fitK fitgamma]
     correctlc omodel [model_outdir] ["modelvar" var]
     ["ophcurve" curve_outdir phmin phmax phstep]
     ["ojdcurve" curve_outdir jdstep]
@@ -294,62 +300,17 @@ SoftenedTransit_chi2perdof_1 = 27.04335183
 
 ---
 
-## `-Starspot`
-
-```
--Starspot
-    < "aov" | "ls" | "list" ["column" col] | "fix" period
-        | "fixcolumn" <colname | colnum> >
-    a0 b0 alpha0 i0 chi0 psi00 mconst0
-    fitP fita fitb fitalpha fiti fitchi fitpsi0 fitmconst
-    correctlc omodel [modeloutdir]
-```
-
-!!! warning "Deprecated"
-    This command is deprecated as of VARTOOLS 1.3. Use the `-macula` extension command instead.
-
-Fit a single, circular, uniform-temperature starspot model to the light curve using the Dorren (1987) model. Parameters `a0`, `b0`, `alpha0`, `i0`, `chi0`, `psi00` are as defined in Dorren 1987. Set `mconst0` negative to estimate it automatically from the data. Fit flags (`fitP`, `fita`, etc.) are `1` to vary and `0` to fix the corresponding parameter.
-
-**Citation:** Dorren 1987, ApJ, 320, 756.
-
-**Examples**
-
-**Example 1.** Determine the rotation period via AOV analysis, then apply Dorren 1987 single-starspot modeling. Initial parameters: a=0.0298, b=0.08745, spot radius=20°, inclination=85°, latitude=30°, longitude=0°. The unspotted magnitude is estimated automatically. Period, spot radius, inclination, latitude, longitude, and magnitude are varied; a and b remain fixed. The best-fit model is output to `EXAMPLES/OUTDIR1/`.
-
-```bash
-vartools -i EXAMPLES/3.starspot -oneline \
-    -aov Nbin 20 0.1 10. 0.1 0.01 5 0 \
-    -Starspot aov 0.0298 0.08745 20. 85. 30. 0. -1 \
-        1 0 0 1 1 1 1 1 0 1 EXAMPLES/OUTDIR1/
-```
-
-Output:
-```
-Name                   = EXAMPLES/3.starspot
-Period_1_0             = 3.07960303
-AOV_1_0                = 2861.35783
-AOV_SNR_1_0            = 605.83431
-AOV_NEG_LN_FAP_1_0    = 4755.85353
-Starspot_Period_1      = 3.12218969
-Starspot_a_1           = 0.02980
-Starspot_b_1           = 0.08745
-Starspot_alpha_1       = 22.51312
-Starspot_inclination_1 = 69.03963
-Starspot_chi_1         = 30.00411
-Starspot_psi0_1        = 0.00000
-Starspot_mconst_1      = 10.16641
-Starspot_chi2perdof_1  = 26.58796
-```
-
----
-
 ## `-microlens`
 
 ```
 -microlens
-    [< "f0" | "f1" | "u0" | "t0" | "tmax" >
-        ["fix" fixval | "list" ["column" col] | "fixcolumn" <colname | colnum> | "auto"]
+    ["f0"
+        ["fix" fixval | "var" varname | "expr" expression
+            | "list" ["column" col]
+            | "fixcolumn" <colname | colnum>
+            | "auto"]
         ["step" initialstepsize] ["novary"]]
+    ["f1" ... ] ["u0" ... ] ["t0" ... ] ["tmax" ... ]
     ["correctlc"] ["omodel" outdir]
 ```
 
@@ -394,158 +355,100 @@ Microlens_tmax_0       = 53740.494617109
 Microlens_chi2perdof_0 = 4.4674961258953
 ```
 
----
-
-## `-TFA`
-
-```
--TFA
-    trendlist ["readformat" Nskip jdcol magcol]
-    ["trend_coeff_priors" trend_coeff_prior_file
-        ["use_lc_errors" | "weight_by_template_stddev"]]
-    dates_file pixelsep ["xycol" xcol ycol]
-    correctlc ocoeff [coeff_outdir] omodel [model_outdir]
-    ["clip" sigclipfactor ["usemedian"] ["useMAD"]]
-    ["fitmask" maskvar] ["outfitmask" outmaskvar]
-```
-
-Run the Trend Filtering Algorithm (TFA) on the light curves. TFA fits each light curve as a linear combination of a set of template (basis) light curves and subtracts the fit, yielding a filtered, detrended light curve.
-
-A light curve list (`-l`) is required. The `x` and `y` pixel positions of each light curve must be given as columns in the list.
-
-**Parameters**
-
-- `trendlist` — File containing a list of basis vector files in the format: `trendname trendx trendy`. Files can be ASCII or binary FITS. Use `"readformat" Nskip jdcol magcol` to specify the format (defaults: `Nskip=0`, `jdcol=1`, `magcol=2`).
-- `"trend_coeff_priors" trend_coeff_prior_file` — File containing Gaussian priors for the trend coefficients (columns: `trendname prior_mean prior_stddev`).
-  - `"use_lc_errors"` — Weight light curve points by `1/err[i]` (more correct but slower).
-  - `"weight_by_template_stddev"` — Weight points by `1/ave_template_stddev`.
-- `dates_file` — File with the complete set of JDs for all light curves (column 1: filename/string-id, column 2: JD).
-- `pixelsep` — Basis vectors with coordinates within `pixelsep` of the target are excluded from its detrending (to avoid self-filtering).
-- `"xycol" xcol ycol` — Columns in the input list giving x and y positions (default: next two available columns).
-- `correctlc` — `1` to apply the filter; `0` to compute but not subtract.
-- `ocoeff` — `1` to output trend coefficients to `coeff_outdir`. Output suffix: `.tfa.coeff`.
-- `omodel` — `1` to output the TFA model to `model_outdir`. Output suffix: `.tfa.model`.
-- `"clip" sigclipfactor` — Clipping level for outlier rejection before fitting (default: 5σ). Add `"usemedian"` and/or `"useMAD"` to change the reference statistic.
-- `"fitmask" maskvar` — Restrict points included in the trend fit (1 = include, 0 = exclude). Model is still evaluated and subtracted at excluded points.
-- `"outfitmask" outmaskvar` — Store the actual fit mask (after clipping) in this variable.
-
-**Citation:** Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557.
 
 ---
 
-## `-TFA_SR`
+## `-Starspot`
 
 ```
--TFA_SR
-    trendlist ["readformat" Nskip jdcol magcol] dates_file
-    ["decorr" iterativeflag Nlcterms lccolumn1 lcorder1 ...]
-    pixelsep ["xycol" colx coly]
-    correctlc ocoeff [coeff_outdir] omodel [model_outdir]
-    dotfafirst tfathresh maxiter
-    < "bin" nbins
-            ["period" < "aov" | "ls" | "bls" | "list" ["column" col] | "fix" period >]
-        | "signal" filename
-        | "harm" Nharm Nsubharm
-            ["period" < "aov" | "ls" | "bls" | "list" ["column" col] | "fix" period >] >
-    ["clip" sigclipfactor ["usemedian"] ["useMAD"]]
-    ["fitmask" maskvar] ["outfitmask" outmaskvar]
+-Starspot
+    <aov | ls | list ["column" col] | "fix" period
+        | "var" varname | "expr" expression
+        | "fixcolumn" <colname | colnum>>
+    <"var" v | "expr" e | a0> <"var" v | "expr" e | b0>
+    <"var" v | "expr" e | alpha0> <"var" v | "expr" e | i0>
+    <"var" v | "expr" e | chi0> <"var" v | "expr" e | psi00>
+    <"var" v | "expr" e | mconst0> fitP fita fitb
+    fitalpha fiti fitchi fitpsi fitmconst correctlc omodel [model_outdir]
 ```
 
-Run TFA in Signal Reconstruction (SR) mode. TFA-SR iteratively applies TFA and fits a signal model to the light curve, allowing the algorithm to preserve astrophysical signal that would otherwise be partially filtered by TFA.
+!!! warning "Deprecated"
+    This command is deprecated as of VARTOOLS 1.3. Use the `-macula` extension command instead.
 
-Most syntax is identical to [`-TFA`](#-tfa). Parameters specific to TFA-SR are described below.
+Fit a single, circular, uniform-temperature starspot model to the light curve using the Dorren (1987) model. Parameters `a0`, `b0`, `alpha0`, `i0`, `chi0`, `psi00` are as defined in Dorren 1987. Set `mconst0` negative to estimate it automatically from the data. Fit flags (`fitP`, `fita`, etc.) are `1` to vary and `0` to fix the corresponding parameter.
 
-**Parameters**
+**Citation:** Dorren 1987, ApJ, 320, 756.
 
-- `"decorr" iterativeflag Nlcterms lccolumn1 lcorder1 ...` — Simultaneously decorrelate against `Nlcterms` light-curve-specific signals. `iterativeflag=1` for iterative decorrelation and TFA (faster); `iterativeflag=0` for simultaneous (more correct but slower).
-- `dotfafirst` — `1` to apply TFA first in each iteration, then fit the signal to the residual; `0` to subtract the signal first, then apply TFA to the residual.
-- `tfathresh` — Stop iterating when the fractional change in RMS falls below this threshold.
-- `maxiter` — Maximum number of iterations.
-- Signal model (choose one):
-  - `"bin" nbins` — Mean binned light curve with `nbins` bins. Use optional `"period"` keyword for phase-folding.
-  - `"signal" filename` — Fixed signal form read from a file. The file contains a list of signal files (one per light curve), with the signal magnitude in the second column. Fits `a*signal + b`.
-  - `"harm" Nharm Nsubharm` — Fourier series fit simultaneously with TFA (no iteration in this case). Use optional `"period"` to specify the period source.
+**Examples**
 
-**Citation:** Kovacs, Bakos and Noyes, 2005, MNRAS, 356, 557.
+**Example 1.** Determine the rotation period via AOV analysis, then apply Dorren 1987 single-starspot modeling. Initial parameters: a=0.0298, b=0.08745, spot radius=20°, inclination=85°, latitude=30°, longitude=0°. The unspotted magnitude is estimated automatically. Period, spot radius, inclination, latitude, longitude, and magnitude are varied; a and b remain fixed. The best-fit model is output to `EXAMPLES/OUTDIR1/`.
+
+```bash
+vartools -i EXAMPLES/3.starspot -oneline \
+    -aov Nbin 20 0.1 10. 0.1 0.01 5 0 \
+    -Starspot aov 0.0298 0.08745 20. 85. 30. 0. -1 \
+        1 0 0 1 1 1 1 1 0 1 EXAMPLES/OUTDIR1/
+```
+
+Output:
+```
+Name                   = EXAMPLES/3.starspot
+Period_1_0             = 3.07960303
+AOV_1_0                = 2861.35783
+AOV_SNR_1_0            = 605.83431
+AOV_NEG_LN_FAP_1_0    = 4755.85353
+Starspot_Period_1      = 3.12218969
+Starspot_a_1           = 0.02980
+Starspot_b_1           = 0.08745
+Starspot_alpha_1       = 22.51312
+Starspot_inclination_1 = 69.03963
+Starspot_chi_1         = 30.00411
+Starspot_psi0_1        = 0.00000
+Starspot_mconst_1      = 10.16641
+Starspot_chi2perdof_1  = 26.58796
+```
 
 ---
 
-## `-SYSREM`
+## `-decorr`
 
 ```
--SYSREM
-    Ninput_color ["column" col1]
-    Ninput_airmass initial_airmass_file
-    sigma_clip1 sigma_clip2 saturation correctlc
-    omodel [model_outdir] otrends [trend_outfile]
-    useweights
+-decorr
+    correctlc zeropointterm subtractfirstterm
+    Nglobalterms globalfile1 order1 ... globalfileN orderN
+    Nlcterms lccolumn1 lcorder1 ... lccolumnN lcorderN
+    omodel [modeloutdir] ["maskpoints" maskvar]
 ```
 
-Run the SYSREM PCA-like algorithm to identify and remove ensemble trends from a set of light curves. This command requires a light curve list and automatically sets the `-readall` option.
+!!! warning "Deprecated"
+    This command is deprecated as of VARTOOLS 1.3. Use [`-linfit`](model-fitting.md#-linfit) instead.
+
+Decorrelate the light curves against specified external or light-curve-specific signals using polynomial regression.
 
 **Parameters**
 
-- `Ninput_color` — Number of initial color-term trends; their values are read from the input light curve list.
-- `"column" col1` — Column in the input list for the first color term (subsequent terms follow in order).
-- `Ninput_airmass` — Number of initial airmass-term trends.
-- `initial_airmass_file` — File with initial airmass trends (column 1: JD; subsequent columns: trend values).
-- `sigma_clip1` — σ-clipping for computing mean magnitudes.
-- `sigma_clip2` — σ-clipping for determining which points contribute to the airmass/color terms.
-- `saturation` — Points with magnitude below this value do not contribute to the fit.
-- `correctlc` — `1` to subtract the model; `0` to compute without subtracting.
-- `omodel` — `1` to output model light curves to `model_outdir`. Output format: `JD mag mag_model sig clip`. Suffix: `.sysrem.model`.
-- `otrends` — `1` to output the final trend signals to `trend_outfile` (column 1: JD, subsequent columns: trend values).
-- `useweights` — Include this flag to weight observations by their formal uncertainties.
+- `correctlc` — `1` to apply the decorrelation to the light curve; `0` to compute and output the coefficients and χ² without modifying the light curve.
+- `zeropointterm` — `1` to include a zero-point offset term in the fit; `0` to omit it.
+- `subtractfirstterm` — `1` to decorrelate against `(signal - signal[0])` rather than `signal` directly (useful for detrending against JD).
+- `Nglobalterms` — Number of global signal files.
+- `globalfile1 ... globalfileN` — Names of global signal files (format: `JD signal_value`).
+- `order1 ... orderN` — Polynomial orders for each global signal (must be ≥ 1).
+- `Nlcterms` — Number of light-curve-specific signals.
+- `lccolumn1 ... lccolumnN` — Column indices in the light curve for each light-curve-specific signal.
+- `lcorder1 ... lcorderN` — Polynomial orders for each light-curve-specific signal.
+- `omodel` — `1` to output the decorrelation model to `modeloutdir`. Suffix: `.decorr.model`.
+- `"maskpoints" maskvar` — Optional. Only points with `maskvar > 0` contribute to the fit.
 
-**Citation:** Tamuz, Mazeh and Zucker, 2005, MNRAS, 356, 1466.
+**Examples**
+
+**Example 1.** Fit quadratic polynomials to light curves using a JD-based light-curve term (column 1), including a zero-point offset, with the first term subtracted to reduce rounding errors. Report RMS before and after decorrelation.
+
+```bash
+vartools -l EXAMPLES/lc_list -header \
+    -rms \
+    -decorr 1 1 1 0 1 1 2 0 \
+    -rms
+```
 
 ---
 
-## `-findblends`
-
-```
--findblends
-    matchrad ["radec"] ["xycol" xcol ycol]
-    < "fix" period | "list" ["column" col] | "fixcolumn" <colname | colnum> >
-    ["starlist" starlistfile] ["zeromag" zeromagval] ["nofluxconvert"]
-    ["Nharm" Nharm] ["omatches" outputmatchfile]
-```
-
-Determine whether a detected periodic signal is likely due to contamination (blending) from a nearby variable star. For each potential variable, the routine measures the flux amplitude of all nearby light curves and reports the one with the highest amplitude.
-
-A light curve list (`-l`) is required with x and y coordinates as additional columns.
-
-**Parameters**
-
-- `matchrad` — Matching radius for identifying potentially blended stars. In arcseconds if `"radec"` is given; in pixel units otherwise.
-- `"radec"` — Treat x and y coordinates as RA and Dec (in degrees) and use `matchrad` in arcseconds.
-- `"xycol" xcol ycol` — Columns in the input list for x and y coordinates (default: next two available columns).
-- Period source: `"fix" period`, `"list"`, or `"fixcolumn"`.
-- `"starlist" starlistfile` — Match the input list against this external catalog instead of itself. Format: `lcname x y`.
-- `"zeromag" zeromagval` — Zero-point magnitude for converting magnitudes to fluxes (default: 25.0).
-- `"nofluxconvert"` — Skip the magnitude-to-flux conversion (use if input is already in flux units).
-- `"Nharm" Nharm` — Number of harmonics for the Fourier series amplitude measurement (default: 2; use 0 for a pure sinusoid).
-- `"omatches" outputmatchfile` — Output names and flux amplitudes of all stars matching each target to this file.
-
----
-
-## `-GetLSAmpThresh`
-
-```
--GetLSAmpThresh
-    < "ls" | "list" ["column" col] > minp thresh < "harm" Nharm Nsubharm | "file" listfile > ["noGLS"]
-```
-
-Determine the minimum amplitude that a periodic signal must have to be detectable at a given period with a Generalized Lomb-Scargle (GLS) `-ln(FAP) > thresh`. Useful for characterizing detection sensitivity in injection-recovery tests.
-
-**Parameters**
-
-- `"ls"` — Use the period from the most recent `-LS` command.
-- `"list" ["column" col]` — Read the period from the input list.
-- `minp` — Minimum period in the search (sets the FAP scale).
-- `thresh` — GLS `-ln(FAP)` threshold for detection.
-- `"harm" Nharm Nsubharm` — Calculate the signal by fitting a Fourier series with `Nharm` harmonics and `Nsubharm` sub-harmonics.
-- `"file" listfile` — Read signals from files; `listfile` has two columns: `signal_file signal_amp`, one per light curve. `signal_file` contains the signal magnitude in column 3; `signal_amp` is the peak-to-peak amplitude.
-- `"noGLS"` — Compute the threshold for the traditional (non-Generalized) Lomb-Scargle periodogram instead.
-
-**Output:** The minimum scale factor by which the signal could be reduced and still be detectable, together with the corresponding minimum peak-to-peak amplitude.

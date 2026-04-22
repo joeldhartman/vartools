@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.52], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.6], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -306,7 +306,7 @@ AC_ARG_WITH([R-lib],
    fi],
   [])
 
-AS_IF([test "x$with_RHOME" = xcheck],
+AS_IF([test "x$RHOME" = xcheck],
   [AC_CHECK_PROG(ISRBIN,R,yes)
    AS_IF([test "x$ISRBIN" = xyes],
       [RHOME=`R RHOME`],

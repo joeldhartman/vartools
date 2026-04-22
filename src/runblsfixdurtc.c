@@ -220,7 +220,7 @@ int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u,
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -277,7 +277,7 @@ int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u,
 
   tot = t[n-1] - t[0];
   if(fmin < 1./tot) {
-    error(ERR_BLSFMINTOOSMALL);
+    vt_error(ERR_BLSFMINTOOSMALL);
   }
 
 
@@ -727,7 +727,7 @@ the periodogram, and then search it for peaks    *
   if(operiodogram)
     {
       if((outfile = fopen(outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
       if(ascii)
 	{
 	  for(i=0;i<nf;i++)
@@ -746,7 +746,7 @@ the periodogram, and then search it for peaks    *
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
@@ -791,7 +791,7 @@ the periodogram, and then search it for peaks    *
   if(ophcurve)
     {
       if((outfile2 = fopen(ophcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ophcurvename);
+	vt_error2(ERR_CANNOTWRITE,ophcurvename);
 
       fprintf(outfile2,"#Phase Mag_model\n");
       ph2 = phmin;
@@ -823,7 +823,7 @@ the periodogram, and then search it for peaks    *
   if(ojdcurve)
     {
       if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ojdcurvename);
+	vt_error2(ERR_CANNOTWRITE,ojdcurvename);
 
       fprintf(outfile2,"#Time Mag_model Phase\n");
       jdtmp = t[0];
@@ -956,7 +956,7 @@ int eeblsfixperdurtc(int n_in, double *t_in, double *x_in, double *e_in, double 
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -1124,7 +1124,7 @@ int eeblsfixperdurtc(int n_in, double *t_in, double *x_in, double *e_in, double 
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./inputper;
       phb1 = (*qingress)*(*qtran);
@@ -1169,7 +1169,7 @@ int eeblsfixperdurtc(int n_in, double *t_in, double *x_in, double *e_in, double 
   if(ophcurve)
     {
       if((outfile2 = fopen(ophcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ophcurvename);
+	vt_error2(ERR_CANNOTWRITE,ophcurvename);
 
       fprintf(outfile2,"#Phase Mag_model\n");
       ph2 = phmin;
@@ -1201,7 +1201,7 @@ int eeblsfixperdurtc(int n_in, double *t_in, double *x_in, double *e_in, double 
   if(ojdcurve)
     {
       if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ojdcurvename);
+	vt_error2(ERR_CANNOTWRITE,ojdcurvename);
 
       fprintf(outfile2,"#Time Mag_model Phase\n");
       jdtmp = t[0];

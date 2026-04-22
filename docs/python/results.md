@@ -10,9 +10,10 @@ wrote to disk (periodograms, model files, etc.).
 
 ## Result
 
-Returned by `pipe.run(lc)` and `pipe.run_file(path)`.
+Returned by `pipe.run(lc)`, `pipe.run_file(path)`, `lc.CMD(...)`,
+`vt.CMD(lc_input, ...)`, and similar single-LC execution methods.
 
-### `.stats` — `pd.Series`
+### `.vars` — `pd.Series`
 
 A pandas Series indexed by VARTOOLS column names. Each element corresponds to
 one column in the VARTOOLS output table for the single light curve that was
@@ -22,15 +23,57 @@ processed.
 result = pipe.run(lc)
 
 # Access by column name
-period  = float(result.stats["LS_Period_1_0"])
-log_fap = float(result.stats["Log10_LS_Prob_1_0"])
-snr     = float(result.stats["LS_SNR_1_0"])
+period  = float(result.vars["LS_Period_1_0"])
+log_fap = float(result.vars["Log10_LS_Prob_1_0"])
+snr     = float(result.vars["LS_SNR_1_0"])
 
 print(f"Best period: {period:.5f} d  (log FAP = {log_fap:.1f})")
 ```
 
 Column names follow the convention `CommandStat_peak_commandindex`; see
 [Output column naming](index.md#output-column-naming) for details.
+
+### `.varobjs` — `VarsNamespace`
+
+Structured, per-command access to output variables. Each command's results
+are grouped under a namespace attribute named after the command.
+
+```python
+result = vt.Pipeline([cmd.LS(0.5, 10.0, 1e-3)]).run(lc)
+
+# Access the top LS period directly
+period  = result.varobjs.LS.Period_1        # e.g. 1.23534
+log_fap = result.varobjs.LS.Log10_Prob_1   # e.g. -4222.3
+```
+
+When the same command appears more than once in the pipeline, index into
+the list explicitly:
+
+```python
+result = vt.Pipeline([
+    cmd.LS(0.5, 5.0, 1e-3),   # index 0
+    cmd.LS(5.0, 50.0, 0.1),   # index 1
+]).run(lc)
+
+p_short = result.varobjs.LS[0].Period_1   # from first LS call
+p_long  = result.varobjs.LS[1].Period_1   # from second LS call
+```
+
+For a single call, both `result.varobjs.LS.Period_1` and
+`result.varobjs.LS[0].Period_1` work.
+
+### Attribute shorthand
+
+Any VARTOOLS output key can also be accessed directly as an attribute on
+`result`:
+
+```python
+period  = result.LS_Period_1_0        # equivalent to result.vars["LS_Period_1_0"]  (attribute shorthand)
+log_fap = result.Log10_LS_Prob_1_0
+```
+
+This is convenient for interactive use. A clean `AttributeError` is raised
+for keys that do not exist.
 
 ### `.lc` — `LightCurve` or `None`
 
@@ -55,8 +98,7 @@ where `idx` is the zero-based position of the command in the pipeline
 from pyvartools import commands as cmd
 
 pipe = vt.Pipeline([
-    cmd.LS(minp=0.5, maxp=10.0, stepsize=0.01, Nharm=1, Nexp=0,
-           oper="periodogram"),
+    cmd.LS(0.5, 10.0, 0.01, save_periodogram=True),
 ])
 result = pipe.run(lc)
 
@@ -64,13 +106,49 @@ pgram = result.files["LS_periodogram_0"]   # pd.DataFrame with frequency/power c
 pgram.plot(x="Frequency", y="Power")
 ```
 
+### `.lcscalars` — `dict[str, float]`
+
+A convenience view of the captured light curve's per-star scalars —
+equivalent to `dict(result.lc.scalars)`.  Not a separate storage layer:
+[`LightCurve.scalars`](lightcurve.md#scalars) is the canonical home for
+these values, and `.lcscalars` is just a shorthand so callers don't have to
+chain through `result.lc`.
+
+Holds variables of vectortype `SCALAR`, `PERSTARDATA`, and `INLIST` —
+values created by `-expr scalar ...`, `-expr listvar ...`, or
+`-inlistvars`.  Keys are the raw variable names (no `_N` suffix), in
+contrast to `result.vars`, which holds OUTCOLUMN values whose names
+carry a `_N` suffix reflecting the command's position (e.g.
+`"LS_Period_1_0"`).
+
+pyvartools enables the underlying [`-printallscalars`](../cli/options.md#-printallscalars)
+option automatically when running chained commands, so user-defined
+scalars round-trip into `result.lc.scalars` (and hence `result.lcscalars`)
+with no extra configuration.
+
+```python
+# -expr scalar creates a SCALAR variable — it lives in .lcscalars, not .vars
+r = lc.LS(0.5, 10.0, 0.1).expr("doubled=2*LS_Period_1_0", vartype="scalar")
+r.vars["LS_Period_1_0"]     # 1.2344 — OUTCOLUMN, lives in .vars
+r.lcscalars["doubled"]          # 2.4688 — SCALAR; equivalent to r.lc.scalars["doubled"]
+```
+
+Returns an empty dict when `result.lc` is `None` (i.e. no LC captured);
+in that case the scalars were not captured and there is nothing to view.
+
+### `.ok` and `.error`
+
+`.ok` is `True` when the run completed without error. `.error` is `None` on
+success or a `RunError` instance if the run failed.
+
 ---
 
 ## BatchResult
 
-Returned by `pipe.run_batch(lcs)` and `pipe.run_filelist(paths)`.
+Returned by `pipe.run_batch(lcs)`, `pipe.run_filelist(paths)`, and
+`LightCurveBatch.run()`.
 
-### `.stats` — `pd.DataFrame`
+### `.vars` — `pd.DataFrame`
 
 A pandas DataFrame with one row per light curve. The `Name` column contains
 the light curve identifier; remaining columns are the VARTOOLS statistics.
@@ -80,17 +158,56 @@ Column names are identical to those produced by the CLI with `-header`.
 batch = pipe.run_batch(lcs)
 
 # Print the best period and log FAP for each light curve
-print(batch.stats[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]])
+print(batch.vars[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]])
 
 # Find the light curve with the strongest detection
-best = batch.stats.loc[batch.stats["Log10_LS_Prob_1_0"].idxmin()]
+best = batch.vars.loc[batch.vars["Log10_LS_Prob_1_0"].idxmin()]
 print(f"Most significant: {best['Name']}  P = {float(best['LS_Period_1_0']):.4f} d")
 ```
 
-### `.lcs` — `list[LightCurve]` or `None`
+### Per-LC access
 
-List of processed light curves in the same order as the input, or `None` if
-`capture_lc=False` (the default).
+Individual `Result` objects can be retrieved by index or by iteration.
+Slices return a new `BatchResult` containing only the selected light curves:
+
+```python
+batch = pipe.run_batch(lcs)
+
+# Index access
+r0 = batch[0]            # Result for the first LC
+print(r0.vars["LS_Period_1_0"])
+print(r0.varobjs.LS.Period_1)
+
+# Slice access — returns a sub-BatchResult
+sub = batch[1:4]         # LCs 1, 2, 3
+every_other = batch[::2]
+
+# Iteration
+for result in batch:
+    if result.ok:
+        print(result.varobjs.LS.Period_1)
+    else:
+        print("failed:", result.error)
+
+# Length
+print(len(batch))        # number of light curves
+```
+
+For runs produced by `LightCurveBatch`, per-LC errors are also captured:
+
+```python
+batch_result = vt.LightCurveBatch(lcs).LS(0.5, 10.0, 1e-3).run()
+for i, r in enumerate(batch_result):
+    if not r.ok:
+        print(f"LC {i} failed: {r.error}")
+```
+
+### `.lcs` — `list[LightCurve]`
+
+List of processed light curves in the same order as the input.  Returns an
+empty list when `capture_lc=False` was used (the default for
+`Pipeline.run_batch()`), so ``for lc in batch.lcs:`` is always safe.
+`LightCurveBatch.run()` defaults to `capture_lc=True`.
 
 ```python
 batch = pipe.run_batch(lcs, capture_lc=True)
@@ -110,14 +227,41 @@ for name, df in zip([lc.name for lc in lcs], batch.files["LS_periodogram_0"]):
         df.to_csv(f"{name}_pgram.csv", index=False)
 ```
 
+### `.lcscalars` — `pd.DataFrame`
+
+A convenience view of every captured LC's
+[`LightCurve.scalars`](lightcurve.md#scalars), packaged as a DataFrame
+with one row per LC (input order) and one column per scalar variable
+name.  Equivalent to building `pd.DataFrame([lc.scalars for lc in
+batch.lcs])` — the scalars themselves live on the `LightCurve`
+objects in `batch.lcs`, not in a separate store.
+
+Column names are the raw variable names (no `_N` suffix); column values
+may differ per LC (e.g. for a `listvar` that depends on the LC data).
+Batched counterpart of `Result.lcscalars` above.
+
+```python
+br = vt.LightCurveBatch(lcs).LS(0.5, 10.0, 0.1).run()
+br2 = br.expr("doubled=2*LS_Period_1_0", vartype="scalar").run()
+br2.lcscalars         # pd.DataFrame: one row per LC, column 'doubled' = 2 * LS_Period_1_0
+
+# Same data via the canonical path:
+br2.lcs[0].scalars["doubled"]   # same value as br2.lcscalars.iloc[0]["doubled"]
+```
+
+Returns an empty DataFrame when no LCs have scalars (e.g. `capture_lc=False`
+so the output LCs weren't captured, or the commands produced no scalar
+variables).
+
 ### `.ok` — `bool`
 
-`True` when the vartools subprocess exited with status 0. `False` if the run
-failed.
+`True` when the overall batch run completed without error.
 
 ### `.error` — `RunError` or `None`
 
-Set to a `RunError` instance when the run failed; `None` on success.
+Set to a `RunError` instance when the entire batch run failed; `None` on
+success.  For per-LC errors from `LightCurveBatch.run()`, check
+`batch[i].error` instead.
 
 ---
 
@@ -164,20 +308,21 @@ from pyvartools import commands as cmd
 
 # Build pipeline
 pipe = vt.Pipeline([
-    cmd.LS(minp=0.5, maxp=10.0, stepsize=0.01, Nharm=1, Nexp=0,
-           oper="ls_periodogram"),
-    cmd.Killharm(method="ls", nharmonics=0, nsubharmonics=0, npeaks=1,
-                 omodel="killharm_model"),
+    cmd.LS(0.5, 10.0, 1e-3),
+    cmd.Killharm(period="ls", nharm=2),
 ])
 
 # --- Single LC ---
 lc = vt.LightCurve.from_file("EXAMPLES/2")
 result = pipe.run(lc, capture_lc=True)
 
-print(result.stats["LS_Period_1_0"])           # best LS period
-print(result.stats["Killharm_Amplitude_1_1"])  # harmonic fit amplitude
-print(result.lc)                               # post-correction LightCurve
-print(result.files.keys())                     # {'ls_periodogram', 'killharm_model'}
+# Three equivalent ways to read the LS period:
+print(result.vars["LS_Period_1_0"])       # Series key access
+print(result.varobjs.LS.Period_1)           # structured namespace
+print(result.LS_Period_1_0)              # attribute shorthand
+
+print(result.lc)                         # post-correction LightCurve
+print(result.files.keys())               # auxiliary output files
 
 # --- Batch ---
 paths = [f"EXAMPLES/{i}" for i in range(1, 10)]
@@ -187,6 +332,6 @@ if not batch.ok:
     raise RuntimeError(str(batch.error))
 
 # Best-period summary
-summary = batch.stats[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]]
+summary = batch.vars[["Name", "LS_Period_1_0", "Log10_LS_Prob_1_0"]]
 summary.to_csv("ls_results.csv", index=False)
 ```

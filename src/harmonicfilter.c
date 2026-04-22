@@ -62,7 +62,7 @@ void RAG_alg31(int m, int n, Complex *z, double *phase, double *w,
 
   if((beta = (double *) malloc((n+1)*sizeof(double))) == NULL ||
      (alpha = (Complex *) malloc((n+1)*sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   sigma[0] = w[0];
   gamma[0].r = 1.; gamma[1].i = 0.;
@@ -152,7 +152,7 @@ void RAG_alg41(int n, Complex *gamma, double *sigma, Complex *b,
   if((r0 = (Complex *) malloc(n * sizeof(Complex))) == NULL ||
      (r1 = (Complex *) malloc(n * sizeof(Complex))) == NULL ||
      (r0_rev = (Complex *) malloc(n * sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(j=0; j < n; j++) {
     a[j].r = 0.0; a[j].i = 0.0;
@@ -251,7 +251,7 @@ void fit_harmonic_series_RAG(int N, double *t, double *mag, double *err, double 
      (weight = (double *) malloc(N * sizeof(double))) == NULL ||
      (g = (Complex *) malloc(N * sizeof(Complex))) == NULL ||
      (phase = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   sumweight = 0.;
   for(i=0; i < N; i++) {
@@ -276,7 +276,7 @@ void fit_harmonic_series_RAG(int N, double *t, double *mag, double *err, double 
      (sigma = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL ||
      (c_prime = (Complex *) malloc((sizeNharmvecs+1)*sizeof(Complex))) == NULL ||
      (c_hat = (Complex *) malloc((sizeNharmvecs+1)*sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* change the frequency to angular frequency for the computation, also double Nharm to account for the complex polynomials being of double the order of the real space polynomials */
   
@@ -348,7 +348,7 @@ void fit_harmonic_series_orthogonal_poly_complex2(int N, double *t, double *mag,
      (phi = (Complex *) malloc(N * sizeof(Complex))) == NULL ||
      (phiconj = (Complex *) malloc(N * sizeof(Complex))) == NULL ||
      (weight = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   sumweight = 0.;
   for(i=0; i < N; i++) {
@@ -375,13 +375,13 @@ void fit_harmonic_series_orthogonal_poly_complex2(int N, double *t, double *mag,
      (alpha = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (phi_norm = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL ||
      (zcoeff_final = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   if((aN = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (aN2 = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (aNconj = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (aNconj2 = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   for(i=0; i < sizeNharmvecs; i++) {
     aN[i].r = 0.0;
@@ -583,7 +583,7 @@ void fit_harmonic_series_orthogonal_poly_complex(int N, double *t, double *mag, 
      (zn = (Complex *) malloc(N * sizeof(Complex))) == NULL ||
      (phi = (Complex *) malloc(N * sizeof(Complex))) == NULL ||
      (weight = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   sumweight = 0.;
   for(i=0; i < N; i++) {
@@ -610,11 +610,11 @@ void fit_harmonic_series_orthogonal_poly_complex(int N, double *t, double *mag, 
      (alpha = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (phi_norm = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL ||
      (zcoeff_final = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   if((aN = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL ||
      (aN2 = (Complex *) malloc(sizeNharmvecs * sizeof(Complex))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   for(i=0; i < sizeNharmvecs; i++) {
     aN[i].r = 0.0;
@@ -859,7 +859,7 @@ void fit_harmonic_series_orthogonal_poly(int N, double *t, double *mag, double *
      (phi_r = (double *) malloc(N * sizeof(double))) == NULL ||
      (phi_i = (double *) malloc(N * sizeof(double))) == NULL ||
      (weight = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   sumweight = 0.;
   for(i=0; i < N; i++) {
@@ -889,16 +889,16 @@ void fit_harmonic_series_orthogonal_poly(int N, double *t, double *mag, double *
      (phi_norm = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL ||
      (zcoeff_final_r = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL ||
      (zcoeff_final_i = (double *) malloc(sizeNharmvecs * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   if((aN_r = (double **) malloc(sizeNharmvecs * sizeof(double *))) == NULL ||
      (aN_i = (double **) malloc(sizeNharmvecs * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   for(i=0; i < sizeNharmvecs; i++) {
     if((aN_r[i] = (double *) malloc((i+1) * sizeof(double))) == NULL ||
        (aN_i[i] = (double *) malloc((i+1) * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=0; j <= i; j++) {
       aN_r[i][j] = 0.0;
       aN_i[i][j] = 0.0;
@@ -1232,12 +1232,12 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     if((avals = (double *) malloc((Nfcalc + 1)*sizeof(double))) == NULL ||
        (bvals = (double *) malloc((Nfcalc + 1)*sizeof(double))) == NULL ||
        (mag_model = (double *) malloc(Njd * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
     if(c->filter_exprstring != NULL && c->ofourier) {
       if((avals_orig = (double *) malloc((Nfcalc + 1)*sizeof(double))) == NULL ||
 	 (bvals_orig = (double *) malloc((Nfcalc + 1)*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     
     fit_harmonic_series_RAG(Njd, t, mag, err, df, Nfcalc, avals, bvals);
@@ -1262,11 +1262,11 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     /* Output the Fourier Coefficients if requested */
     if(c->ofourier) {
       if((lcoutname = (char *) malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       GetOutputFilename(lcoutname, p->lcnames[lcid], c->ofourier_dir,
 			"fouriercoeffs", c->ofourier_format, lcid);
       if((outfile = fopen(lcoutname,"w")) == NULL) {
-	error2(ERR_CANNOTWRITE,lcoutname);
+	vt_error2(ERR_CANNOTWRITE,lcoutname);
       }
       fprintf(outfile,"#Frequency");
       if(avals_orig != NULL) {

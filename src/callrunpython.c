@@ -50,7 +50,7 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
 #ifdef _HAVE_PYTHON
   _PythonCommand *c;
   if((c = (_PythonCommand *) malloc(sizeof(_PythonCommand))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   c->Nvars = 0;
   c->vars = NULL;
@@ -69,7 +69,7 @@ _PythonCommand *CreatePythonCommandStruct(ProgramData *p, char *argv0) {
   RegisterScalarData(p, (void *) &(c->sockets), VARTOOLS_TYPE_INT, 2);
 
   if((c->progname = (char *) malloc((strlen(argv0)+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->progname, argv0);
 
   c->pythoninitializationtext = NULL;
@@ -140,7 +140,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
     if(jvarout > 0) {
       if((c->vars = (_Variable **) malloc(c->Nvars * sizeof(_Variable *))) == NULL ||
 	 (c->isvaroutput = (int *) malloc(c->Nvars * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       jvarout = 0;
       for(i=0; i < p->NDefinedVariables; i++) {
 	if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_OUTCOLUMN) {
@@ -161,7 +161,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
     c->Nvars_outonly = 0;
     if((c->vars = (_Variable **) malloc(c->Nvars * sizeof(_Variable *))) == NULL ||
        (c->isvaroutput = (int *) malloc(c->Nvars * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < c->Nvars; i++) {
       for(j=0; j < p->NDefinedVariables; j++) {
 	if(!strcmp(c->inoutvarnames[i],p->DefinedVariables[j]->varname)) {
@@ -209,7 +209,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
     if(c->Nvars > 0) {
       if((c->vars = (_Variable **) malloc(c->Nvars * sizeof(_Variable *))) == NULL ||
 	 (c->isvaroutput = (int *) malloc(c->Nvars * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     for(i=0; i < c->Ninvarnames; i++) {
       c->isvaroutput[i] = 0;
@@ -259,7 +259,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
     }
     if(c->Nvars_outonly > 0) {
       if((c->outonlyvars = (_Variable **) malloc(c->Nvars_outonly * sizeof(_Variable *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       ii = 0;
       for(i=0; i < c->Noutvarnames; i++) {
@@ -316,21 +316,21 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
 
   if(c->Noutcolumnvars > 0) {
     if((c->outcolumnvars = (_Variable **) malloc(c->Noutcolumnvars * sizeof(_Variable *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < c->Noutcolumnvars; i++) {
       for(j=0; j < p->NDefinedVariables; j++) {
 	if(!strcmp(c->outcolumnnames[i],p->DefinedVariables[j]->varname)) {
 	  if(p->DefinedVariables[j]->vectortype == VARTOOLS_VECTORTYPE_LC ||
 	     p->DefinedVariables[j]->datatype == VARTOOLS_TYPE_STRING ||
 	     p->DefinedVariables[j]->datatype == VARTOOLS_TYPE_CHAR) {
-	    error2(ERR_BADVECTORTYPEFOROUTPUTCOLUMNVARIABLE,c->outcolumnnames[i]);
+	    vt_error2(ERR_BADVECTORTYPEFOROUTPUTCOLUMNVARIABLE,c->outcolumnnames[i]);
 	  }
 	  c->outcolumnvars[i] = p->DefinedVariables[j];
 	  break;
 	}
       }
       if(j >= p->NDefinedVariables) {
-	error2(ERR_PYTHONOUTPUTUNDEFINEDVARIABLE,c->outcolumnnames[i]);
+	vt_error2(ERR_PYTHONOUTPUTUNDEFINEDVARIABLE,c->outcolumnnames[i]);
       }
     }
   }
@@ -361,7 +361,7 @@ void SetupRunPythonVariables(_PythonCommand *c, ProgramData *p) {
   }
   if(c->Nlcvars_nonupdate > 0) {
     if((c->lcvars_nonupdate = (_Variable **) malloc(c->Nlcvars_nonupdate * sizeof(_Variable *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     c->Nlcvars_nonupdate = 0;
     for(i=0; i < p->NDefinedVariables; i++) {
       if(p->DefinedVariables[i]->vectortype == VARTOOLS_VECTORTYPE_LC) {

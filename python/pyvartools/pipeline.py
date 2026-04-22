@@ -18,7 +18,8 @@ from ._command import VartoolsCommand
 from .commands._helpers import _norm_save, _should_emit
 from .lightcurve import LightCurve
 from .perlc import PerLC
-from .results import BatchResult, Result, RunError, parse_oneline_output
+from .results import (BatchResult, Result, RunError, parse_oneline_output,
+                      split_vars_and_scalars)
 
 
 def _library_enabled() -> bool:
@@ -41,6 +42,74 @@ LightCurveInput = Union[LightCurve, pd.DataFrame]
 
 # Type accepted as a file-path argument
 FilePath = Union[str, Path]
+
+# Unique per-star variable name injected when running with -parallel to
+# track the original list-file row number.  After vartools finishes we sort
+# by this column to restore input order, then strip it from the result.
+# The name is deliberately obscure to avoid clashing with user variables.
+_SEQ_VAR = "_vtpy_seq_"
+
+
+def _reorder_stats_by_seq(
+    stats: pd.DataFrame,
+    lc_names: List[str],
+) -> pd.DataFrame:
+    """Sort *stats* by the injected sequence variable and fix the Name column.
+
+    When ``_SEQ_VAR`` is present (injected for ``-parallel`` runs), rows are
+    sorted ascending by it so output order matches the input list, the Name
+    column is set from *lc_names* using the stored indices (correctly handling
+    any rows dropped by ``-skipmissing``), and the seq column is stripped.
+
+    When no seq column is found (single-threaded path), Name is assigned
+    positionally as before.
+    """
+    seq_cols = [c for c in stats.columns if _SEQ_VAR in c]
+    if seq_cols:
+        seq_col = seq_cols[0]
+        stats = stats.sort_values(seq_col).reset_index(drop=True)
+        if "Name" in stats.columns:
+            seq_indices = stats[seq_col].astype(int).tolist()
+            stats["Name"] = [
+                lc_names[i] if i < len(lc_names) else f"lc_{i}"
+                for i in seq_indices
+            ]
+        stats = stats.drop(columns=seq_cols)
+    elif not stats.empty and "Name" in stats.columns:
+        stats["Name"] = lc_names[:len(stats)]
+    return stats
+
+
+def _apply_columnformat_names(lc: LightCurve, command) -> None:
+    """Rename auto-generated ``col4``/``col5``/… columns on *lc* using the
+    names declared in a ``cmd.o(..., columnformat=...)`` spec.
+
+    When pyvartools captures a ``cmd.o``-written ASCII output file, any
+    extra column beyond ``t``/``mag``/``err`` lands in the DataFrame under
+    a placeholder name (``col4``, ``col5``, …).  The user already told us
+    what those columns are called by passing ``columnformat``; this helper
+    propagates those names so the captured DataFrame matches the
+    user-declared column layout.
+
+    No-op when the command has no columnformat or its declared names are
+    already present in the DataFrame.
+    """
+    names = command._columnformat_names() if hasattr(
+        command, "_columnformat_names") else None
+    if not names:
+        return
+    have = list(lc._df.columns)
+    # Build a rename map: for each user-declared name that isn't already a
+    # column, but where a positional col-N placeholder exists, map col-N → name.
+    rename: Dict[str, str] = {}
+    for pos, desired in enumerate(names):
+        if desired in have:
+            continue
+        placeholder = f"col{pos + 1}"
+        if placeholder in have:
+            rename[placeholder] = desired
+    if rename:
+        lc._df.rename(columns=rename, inplace=True)
 
 
 def _to_lc(obj: LightCurveInput) -> LightCurve:
@@ -260,12 +329,12 @@ class Pipeline:
         lc = vt.LightCurve.from_file("EXAMPLES/2")
         pipe = vt.Pipeline([vt.commands.LS(0.1, 10.0, 0.1, 5, 1)])
         result = pipe.run(lc)
-        print(result.stats)
+        print(result.vars)
 
     Batch::
 
         results = pipe.run_batch([lc1, lc2, lc3])
-        print(results.stats)  # one row per LC
+        print(results.vars)  # one row per LC
     """
 
     def __init__(self, commands: Sequence[VartoolsCommand]) -> None:
@@ -287,6 +356,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        _command_offset: int = 0,
     ) -> Result:
         """Run the pipeline on a single light curve.
 
@@ -347,9 +417,11 @@ class Pipeline:
         # when the pipeline contains UserCommand instances (dynamically loaded
         # extensions are not supported by the in-process library).
         if (_library_enabled() and timeout is None and not init_lc_vars
-                and not capture_lc and not self._has_output_reqs()
+                and not self._has_output_reqs()
                 and not self._has_user_commands() and not _has_global_opts):
-            return self._run_library(lc)
+            if capture_lc:
+                return self._run_library_capture(lc, command_offset=_command_offset)
+            return self._run_library(lc, command_offset=_command_offset)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Serialize LC to a string and pass via stdin (-i -).
@@ -376,30 +448,38 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                scalars=lc.scalars,
+                command_offset=_command_offset,
             )
             stdout, _ = self._execute(cmd, timeout=timeout, stdin_text=lc_csv)
-            stats = parse_oneline_output(stdout)
+            stats_full = parse_oneline_output(stdout)
+            stats, scalars_df = split_vars_and_scalars(stats_full)
 
             # Replace the "stdin" name vartools writes as Name with the
             # LightCurve's own name.
             if not stats.empty and "Name" in stats.columns:
                 stats["Name"] = lc.name
 
-            # For a single LC, expose stats as a Series so that
-            # result.stats["LS_Period_1_0"] returns a scalar directly.
+            # For a single LC, expose var as a Series so that
+            # result.vars["LS_Period_1_0"] returns a scalar directly.
             if not stats.empty:
                 stats = stats.iloc[0]
 
             out_lc = None
             if capture_lc and out_lc_path and os.path.isfile(out_lc_path):
+                merged_scalars = dict(lc.scalars)
+                if not scalars_df.empty:
+                    merged_scalars.update(scalars_df.iloc[0].to_dict())
                 out_lc = LightCurve.from_file(out_lc_path, name=lc.name)
+                out_lc.scalars = merged_scalars
 
             # When reading from stdin, vartools uses "stdin" as the LC name
             # for output file naming (e.g. periodograms become stdin.ls).
             files = self._collect_output_files("stdin", work_outdir, tmpdir)
             files.update(self._collect_o_captures_single(lc.name))
 
-        return Result(stats=stats, lc=out_lc, files=files)
+        return Result(var=stats, lc=out_lc, files=files,
+                      known_commands=[c._vt_name for c in self.commands])
 
     def run_file(
         self,
@@ -467,7 +547,8 @@ class Pipeline:
                 matchstringid=matchstringid,
             )
             stdout, _ = self._execute(cmd, timeout=timeout)
-            stats = parse_oneline_output(stdout)
+            stats_full = parse_oneline_output(stdout)
+            stats, scalars_df = split_vars_and_scalars(stats_full)
 
             if not stats.empty and "Name" in stats.columns:
                 stats["Name"] = lc_name
@@ -477,11 +558,14 @@ class Pipeline:
             out_lc = None
             if capture_lc and out_lc_path and os.path.isfile(out_lc_path):
                 out_lc = LightCurve.from_file(out_lc_path, name=lc_name)
+                if not scalars_df.empty:
+                    out_lc.scalars = dict(scalars_df.iloc[0].to_dict())
 
             files = self._collect_output_files(lc_path, work_outdir, tmpdir)
             files.update(self._collect_o_captures_single(lc_name))
 
-        return Result(stats=stats, lc=out_lc, files=files)
+        return Result(var=stats, lc=out_lc, files=files,
+                      known_commands=[c._vt_name for c in self.commands])
 
     def run_filelist(
         self,
@@ -603,10 +687,15 @@ class Pipeline:
                     for p in paths:
                         f.write(p + "\n")
 
-            # Merge user-supplied inlistvars with auto-generated per-LC vars
+            # Merge user-supplied inlistvars with auto-generated per-LC vars.
+            # When running in parallel, also inject the sequence-index variable
+            # so we can restore input order after vartools finishes.
             merged_inlistvars = dict(inlistvars) if inlistvars else {}
             if col_assignments:
                 merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
+            use_seq = nthreads > 1
+            if use_seq:
+                merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
             inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
@@ -623,26 +712,29 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                inject_print_var=_SEQ_VAR if use_seq else None,
             )
             try:
                 stdout, _ = self._execute(cmd, timeout=timeout)
             except RunError as exc:
                 if raise_on_error:
                     raise
-                return BatchResult(stats=pd.DataFrame(), error=exc)
+                return BatchResult(var=pd.DataFrame(), error=exc)
 
             stats = parse_oneline_output(stdout)
-
-            if not stats.empty and "Name" in stats.columns:
-                stats["Name"] = lc_names[:len(stats)]
+            stats = _reorder_stats_by_seq(stats, lc_names)
+            stats, scalars_df = split_vars_and_scalars(stats)
 
             out_lcs = None
             if capture_lc:
                 out_lcs = []
-                for lc_path, name in zip(paths, lc_names):
+                for i, (lc_path, name) in enumerate(zip(paths, lc_names)):
                     opath = os.path.join(out_lc_dir, Path(lc_path).name)
                     if os.path.isfile(opath):
-                        out_lcs.append(LightCurve.from_file(opath, name=name))
+                        new_lc = LightCurve.from_file(opath, name=name)
+                        if not scalars_df.empty and i < len(scalars_df):
+                            new_lc.scalars = dict(scalars_df.iloc[i].to_dict())
+                        out_lcs.append(new_lc)
                     else:
                         out_lcs.append(None)
 
@@ -654,7 +746,8 @@ class Pipeline:
             for key, lc_list in self._collect_o_captures_batch(paths, lc_names).items():
                 all_files[key] = lc_list
 
-        return BatchResult(stats=stats, lcs=out_lcs, files=all_files)
+        return BatchResult(var=stats, lcs=out_lcs, files=all_files,
+                               known_commands=[c._vt_name for c in self.commands])
 
     def run_combinelcs(
         self,
@@ -678,7 +771,7 @@ class Pipeline:
 
         Each entry in *groups* is a list of file paths that vartools combines
         into a single in-memory light curve.  The result contains one row in
-        ``result.stats`` per group.
+        ``result.vars`` per group.
 
         Parameters
         ----------
@@ -751,7 +844,11 @@ class Pipeline:
             nth_args = ["-parallel", str(nthreads)] if nthreads > 1 else []
             base_fmt = _inputlcformat_from_spec(columns) if columns is not None else None
             fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
-            inlistvars_str = _inlistvars_from_spec(inlistvars) if inlistvars else None
+            use_seq = nthreads > 1
+            merged_inlistvars_comb = dict(inlistvars) if inlistvars else {}
+            if use_seq:
+                merged_inlistvars_comb[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
+            inlistvars_str = _inlistvars_from_spec(merged_inlistvars_comb) if merged_inlistvars_comb else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
 
@@ -766,27 +863,30 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                inject_print_var=_SEQ_VAR if use_seq else None,
             )
             try:
                 stdout, _ = self._execute(cmd, timeout=timeout)
             except RunError as exc:
                 if raise_on_error:
                     raise
-                return BatchResult(stats=pd.DataFrame(), error=exc)
+                return BatchResult(var=pd.DataFrame(), error=exc)
 
             stats = parse_oneline_output(stdout)
-
-            if not stats.empty and "Name" in stats.columns:
-                stats["Name"] = lc_names[:len(stats)]
+            stats = _reorder_stats_by_seq(stats, lc_names)
+            stats, scalars_df = split_vars_and_scalars(stats)
 
             out_lcs = None
             if capture_lc:
                 out_lcs = []
-                for group, name in zip(groups, lc_names):
+                for i, (group, name) in enumerate(zip(groups, lc_names)):
                     # vartools names the combined output after the first file
                     opath = os.path.join(out_lc_dir, Path(group[0]).name)
                     if os.path.isfile(opath):
-                        out_lcs.append(LightCurve.from_file(opath, name=name))
+                        new_lc = LightCurve.from_file(opath, name=name)
+                        if not scalars_df.empty and i < len(scalars_df):
+                            new_lc.scalars = dict(scalars_df.iloc[i].to_dict())
+                        out_lcs.append(new_lc)
                     else:
                         out_lcs.append(None)
 
@@ -800,7 +900,8 @@ class Pipeline:
             for key, lc_list in self._collect_o_captures_batch(first_paths, lc_names).items():
                 all_files[key] = lc_list
 
-        return BatchResult(stats=stats, lcs=out_lcs, files=all_files)
+        return BatchResult(var=stats, lcs=out_lcs, files=all_files,
+                               known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
     # Batch run
@@ -820,6 +921,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        _command_offset: int = 0,
     ) -> BatchResult:
         """Run the pipeline on a list of light curves.
 
@@ -841,7 +943,7 @@ class Pipeline:
             ``raise_on_error=False``).
         raise_on_error : bool
             If False, a vartools failure is caught and stored in
-            ``result.error`` rather than raised.  ``result.stats`` will be
+            ``result.error`` rather than raised.  ``result.vars`` will be
             empty in that case.
         init_lc_vars : dict mapping str to LCVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
@@ -866,14 +968,25 @@ class Pipeline:
         _has_global_opts = (randseed is not None or skipmissing
                             or jdtol is not None or matchstringid)
 
+        # Collect per-LC carried-forward scalars.  These are injected via the
+        # -inlistvars mechanism (as INLIST variables) so each LC sees its own
+        # value in downstream expressions — using -expr const would apply a
+        # single value across the whole batch, which is wrong.
+        batch_scalars = self._collect_batch_scalars(lcs)
+
         # Fast path: in-process library mode when no output files are needed
         # and parallel processing is not requested (library mode is single-threaded).
         # Also skip when UserCommand instances are present — dynamically loaded
         # extension libraries are not supported by the in-process library.
+        # The library-mode fast path also does not support per-LC scalar
+        # injection (no list-file machinery), so we route any batch with
+        # carried-forward scalars or a non-zero chain offset to the subprocess
+        # path unconditionally.
         if (_library_enabled() and nthreads == 1 and not init_lc_vars
                 and not capture_lc and not self._has_output_reqs()
                 and not perlc_attrs and not self._has_user_commands()
-                and not _has_global_opts):
+                and not _has_global_opts
+                and not batch_scalars and _command_offset == 0):
             return self._run_batch_library(lcs, raise_on_error=raise_on_error)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -888,6 +1001,8 @@ class Pipeline:
 
             col_assignments = {}
             perlc_subs = {}
+            scalar_col_assignments: Dict[str, int] = {}
+            next_col = 2
             if perlc_attrs:
                 batch_size = len(lcs)
                 for (ci, name), perlc in perlc_attrs.items():
@@ -896,16 +1011,25 @@ class Pipeline:
                             f"PerLC parameter '{name}' in command {ci} has {len(perlc)} values "
                             f"but the batch has {batch_size} light curves."
                         )
-                next_col = 2
                 for key in sorted(perlc_attrs):
                     col_assignments[key] = next_col
                     next_col += 1
                 perlc_subs = self._build_perlc_subs(col_assignments)
-                self._write_perlc_list_file(list_path, lc_paths, perlc_attrs, col_assignments)
-            else:
-                with open(list_path, "w") as f:
-                    for p in lc_paths:
-                        f.write(p + "\n")
+
+            # Assign list-file columns for carried-forward scalars, continuing
+            # after any PerLC column allocations.
+            for name in batch_scalars:
+                scalar_col_assignments[name] = next_col
+                next_col += 1
+
+            # Build a single dict {col: per-LC values} that unifies PerLC and
+            # scalar columns, then write the list file.
+            col_to_values: Dict[int, list] = {}
+            for (ci, name), col in col_assignments.items():
+                col_to_values[col] = list(perlc_attrs[(ci, name)])
+            for name, col in scalar_col_assignments.items():
+                col_to_values[col] = batch_scalars[name]
+            self._write_extra_cols_list_file(list_path, lc_paths, col_to_values)
 
             work_outdir = outdir or tmpdir
             out_lc_dir = os.path.join(tmpdir, "lc_out") if capture_lc else None
@@ -917,9 +1041,17 @@ class Pipeline:
             base_fmt = _inputlcformat_from_df(lcs[0]._df.columns) if lcs else None
             fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
             # Merge user-supplied inlistvars with auto-generated per-LC vars
+            # and carried-forward scalars.  Scalars are registered by their
+            # actual variable names (e.g. "LS_Period_1_0") so downstream
+            # expressions can reference them directly.
             merged_inlistvars = dict(inlistvars) if inlistvars else {}
             if col_assignments:
                 merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
+            if scalar_col_assignments:
+                merged_inlistvars.update(scalar_col_assignments)
+            use_seq = nthreads > 1
+            if use_seq:
+                merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
             inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
@@ -936,27 +1068,43 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                inject_print_var=_SEQ_VAR if use_seq else None,
+                command_offset=_command_offset,
+                harvest_scalars=bool(scalar_col_assignments),
             )
             try:
                 stdout, _ = self._execute(cmd, timeout=timeout)
             except RunError as exc:
                 if raise_on_error:
                     raise
-                return BatchResult(stats=pd.DataFrame(), error=exc)
+                return BatchResult(var=pd.DataFrame(), error=exc)
 
             stats = parse_oneline_output(stdout)
+            # Restore input order (may be scrambled by -parallel) and replace
+            # temp-file paths in the Name column with the original LC names.
+            stats = _reorder_stats_by_seq(stats, [lc.name for lc in lcs])
+            stats, scalars_df = split_vars_and_scalars(stats)
 
-            # Replace temp-file paths in the Name column with the original LC names.
-            if not stats.empty and "Name" in stats.columns:
-                stats["Name"] = [lc.name for lc in lcs[:len(stats)]]
+            # Drop echoed INLIST values for scalars we injected — users
+            # already have those on the input LCs, and echoing them as
+            # "new" scalars would be noise.  Preserve genuinely new ones.
+            if scalar_col_assignments and not scalars_df.empty:
+                injected_names = set(scalar_col_assignments.keys())
+                keep_cols = [c for c in scalars_df.columns if c not in injected_names]
+                scalars_df = scalars_df[keep_cols] if keep_cols else pd.DataFrame(index=scalars_df.index)
 
             out_lcs = None
             if capture_lc:
                 out_lcs = []
-                for lc, lc_path in zip(lcs, lc_paths):
+                for i, (lc, lc_path) in enumerate(zip(lcs, lc_paths)):
                     opath = os.path.join(out_lc_dir, Path(lc_path).name)
                     if os.path.isfile(opath):
-                        out_lcs.append(LightCurve.from_file(opath, name=lc.name))
+                        new_lc = LightCurve.from_file(opath, name=lc.name)
+                        merged = dict(lc.scalars)
+                        if not scalars_df.empty and i < len(scalars_df):
+                            merged.update(scalars_df.iloc[i].to_dict())
+                        new_lc.scalars = merged
+                        out_lcs.append(new_lc)
                     else:
                         out_lcs.append(None)
 
@@ -970,42 +1118,139 @@ class Pipeline:
             for key, lc_list in self._collect_o_captures_batch(lc_paths, lc_names).items():
                 all_files[key] = lc_list
 
-        return BatchResult(stats=stats, lcs=out_lcs, files=all_files)
+        return BatchResult(var=stats, lcs=out_lcs, files=all_files,
+                               known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
     # Library mode helpers
     # ------------------------------------------------------------------
 
     def _has_output_reqs(self) -> bool:
-        """True if any command requests output files (save_* or cmd.o capture)."""
+        """True if any command needs the subprocess path for file I/O.
+
+        Any ``save_*`` directive that wants the file captured into
+        ``result.files`` forces subprocess mode.  So does any ``cmd.o(...)``
+        instance — the library-mode pipeline does not know how to construct
+        per-LC output filenames from array-backed LCs, so both
+        ``capture=True`` and plain ``filename=...`` forms of ``-o`` must run
+        through the subprocess path.
+        """
         from .commands.misc import o as OCommand
         for command in self.commands:
             if command._requested_outputs():
                 return True
-            if isinstance(command, OCommand) and command.capture:
+            if isinstance(command, OCommand):
                 return True
         return False
 
     def _has_user_commands(self) -> bool:
         """True if any command is a UserCommand (forces subprocess mode)."""
         from pyvartools.userlib import UserCommand
-        return any(isinstance(c, UserCommand) for c in self.commands)
+        from pyvartools.commands.userlibs import _UserLibCommand
+        return any(
+            isinstance(c, (UserCommand, _UserLibCommand))
+            for c in self.commands
+        )
 
-    def _commands_to_argv(self) -> List[str]:
-        """Build a CLI arg list from pipeline commands (for LibPipeline init)."""
+    def _scalar_injection_args(
+        self,
+        scalars: Optional[Dict[str, float]] = None,
+    ) -> List[str]:
+        """Return argv tokens that pre-register each scalar as -expr const.
+
+        Each ``(name, value)`` pair becomes the pair of tokens
+        ``["-expr", "const", "name=value"]`` (three tokens total per scalar
+        since ``-expr`` with the ``const`` qualifier takes the qualifier as a
+        separate argv word).  Emitted at the head of the command list so
+        subsequent commands can resolve the names during parsecommandline.
+        """
+        if not scalars:
+            return []
+        tokens: List[str] = []
+        for name, val in scalars.items():
+            tokens += ["-expr", "const", f"{name}={val!r}"]
+        return tokens
+
+    def _commands_to_argv(
+        self,
+        scalars: Optional[Dict[str, float]] = None,
+        command_offset: int = 0,
+    ) -> List[str]:
+        """Build a CLI arg list from pipeline commands (for LibPipeline init).
+
+        Parameters
+        ----------
+        scalars : dict, optional
+            Per-star scalars to pre-register (see :meth:`_scalar_injection_args`).
+        command_offset : int
+            When > 0, emit ``-columnsuffix <N>`` before each command so its
+            output columns end in ``_<command_offset + i>`` instead of ``_<i>``.
+            Used by chained calls to keep suffixes growing across segments and
+            to avoid collision with injected scalar names of the form
+            ``CMDNAME_descriptor_<i>``.
+        """
         args: List[str] = []
-        for command in self.commands:
+        args += self._scalar_injection_args(scalars)
+        for i, command in enumerate(self.commands):
+            if command_offset > 0:
+                args += ["-columnsuffix", str(command_offset + i)]
             args += command._to_cli_args()
+        # -printallscalars is harmless when no scalars exist and enables round-
+        # tripping of user-created scalars (from -expr scalar / listvar) into
+        # result.lcscalars.  Only emit when chained (command_offset > 0) or when
+        # scalars were injected, to avoid changing output for existing tests.
+        if command_offset > 0 or scalars:
+            args += ["-printallscalars"]
         args += ["-oneline"]
         return args
 
-    def _run_library(self, lc: LightCurve) -> Result:
-        """Execute one LC via LibPipeline (init-once, reused on subsequent calls)."""
+    def _lib_argv_with_format(
+        self,
+        lc: LightCurve,
+        scalars: Optional[Dict[str, float]] = None,
+        command_offset: int = 0,
+    ) -> list:
+        """Build LibPipeline argv including -inputlcformat for extra columns."""
+        argv = self._commands_to_argv(scalars=scalars, command_offset=command_offset)
+        fmt = _inputlcformat_from_df(lc._df.columns)
+        if fmt is not None:
+            argv = ["-inputlcformat", fmt] + argv
+        return argv
+
+    def _ensure_lib_pipeline(self, lc: LightCurve, command_offset: int = 0):
+        """Create or recreate the LibPipeline if needed.
+
+        The key covers both the LC column layout and the (scalars,
+        command_offset) used to build the argv, so a change in injected-
+        scalar names or in the chain position forces a rebuild.
+        """
         from pyvartools._libpipeline import LibPipeline
+        fmt = _inputlcformat_from_df(lc._df.columns)
+        scalars_key = tuple(sorted(lc.scalars.keys())) if lc.scalars else ()
+        key = (fmt, scalars_key, command_offset)
+        current_key = getattr(self, "_lib_pipeline_key", None)
+        if self._lib_pipeline is None or key != current_key:
+            self._lib_pipeline = LibPipeline(
+                self._lib_argv_with_format(
+                    lc, scalars=lc.scalars, command_offset=command_offset))
+            self._lib_pipeline_key = key
+            self._lib_pipeline_fmt = fmt  # kept for backward compat
+
+    def _run_library(self, lc: LightCurve, command_offset: int = 0) -> Result:
+        """Execute one LC via LibPipeline (init-once, reused on subsequent calls)."""
         try:
-            if self._lib_pipeline is None:
-                self._lib_pipeline = LibPipeline(self._commands_to_argv())
-            stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err, name=lc.name)
+            self._ensure_lib_pipeline(lc, command_offset=command_offset)
+            extra_cols = {}
+            for col in lc._df.columns:
+                if col not in ("t", "mag", "err"):
+                    extra_cols[col] = lc._df[col].values
+            if extra_cols:
+                stats, _, scalars = self._lib_pipeline.process_lc_capture(
+                    lc.t, lc.mag, lc.err, name=lc.name,
+                    extra_columns=extra_cols)
+            else:
+                stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err, name=lc.name)
+                scalars = {}
         except RuntimeError as exc:
             self._lib_pipeline = None  # allow retry after failure
             raise RunError(str(exc)) from exc
@@ -1015,7 +1260,56 @@ class Pipeline:
             data = stats.to_dict()
             data["Name"] = lc.name
             stats = pd.Series(data)
-        return Result(stats=stats, lc=None, files={})
+        # When capture_lc=False we still want prior scalars (carried on the
+        # input lc) to be recoverable — but since no output LC is built here,
+        # the scalars are dropped.  This matches capture_lc=False semantics
+        # for LC data.  Users who need scalar round-tripping should capture.
+        _ = scalars
+        return Result(var=stats, lc=None, files={},
+                      known_commands=[c._vt_name for c in self.commands])
+
+    def _run_library_capture(self, lc: LightCurve, command_offset: int = 0) -> Result:
+        """Execute one LC via LibPipeline and capture the modified LC."""
+        try:
+            self._ensure_lib_pipeline(lc, command_offset=command_offset)
+
+            extra_cols = {}
+            for col in lc._df.columns:
+                if col not in ("t", "mag", "err"):
+                    extra_cols[col] = lc._df[col].values
+
+            stats, lc_columns, scalars = self._lib_pipeline.process_lc_capture(
+                lc.t, lc.mag, lc.err, name=lc.name,
+                extra_columns=extra_cols if extra_cols else None,
+            )
+        except RuntimeError as exc:
+            self._lib_pipeline = None
+            raise RunError(str(exc)) from exc
+
+        if isinstance(stats, pd.Series) and "Name" in stats.index:
+            data = stats.to_dict()
+            data["Name"] = lc.name
+            stats = pd.Series(data)
+
+        # Merge input lc.scalars with harvested scalars so prior chain state
+        # flows through even when the new run doesn't redefine those names.
+        merged_scalars = dict(lc.scalars)
+        merged_scalars.update(scalars or {})
+
+        out_lc = None
+        if lc_columns and "t" in lc_columns and "mag" in lc_columns:
+            lc_df = pd.DataFrame(lc_columns)
+            col_order = ["t", "mag"]
+            if "err" in lc_columns:
+                col_order.append("err")
+            for c in sorted(lc_columns.keys()):
+                if c not in col_order:
+                    col_order.append(c)
+            lc_df = lc_df[col_order]
+            out_lc = LightCurve(lc_df, name=lc.name, scalars=merged_scalars)
+
+        return Result(var=stats, lc=out_lc, files={},
+                      known_commands=[c._vt_name for c in self.commands])
 
     def _run_batch_library(
         self, lcs: List[LightCurve], raise_on_error: bool = True
@@ -1030,7 +1324,7 @@ class Pipeline:
             err = RunError(str(exc))
             if raise_on_error:
                 raise err from exc
-            return BatchResult(stats=pd.DataFrame(), error=err)
+            return BatchResult(var=pd.DataFrame(), error=err)
         rows = []
         for lc in lcs:
             stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err, name=lc.name)
@@ -1040,7 +1334,8 @@ class Pipeline:
                 stats = pd.Series(data)
             rows.append(stats)
         df = pd.DataFrame(rows).reset_index(drop=True)
-        return BatchResult(stats=df, lcs=None, files={})
+        return BatchResult(var=df, lcs=None, files={},
+                           known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
     # Per-LC parameter helpers
@@ -1079,17 +1374,70 @@ class Pipeline:
                     parts.append(f"{perlc_attrs[key][j]:.10g}")
                 f.write(" ".join(parts) + "\n")
 
-    def _build_perlc_subs(self, col_assignments) -> dict:
-        """Return {cmd_idx: {attr_name: varname}} substitution map.
+    def _write_extra_cols_list_file(self, list_path, lc_paths, col_to_perlc_values):
+        """Write a list file with arbitrary extra columns appended per line.
 
-        Each per-LC attribute is replaced by a unique variable name that will
-        be defined via -inlistvars.  ``_varexpr(varname)`` then emits
-        ``["var", varname]`` so vartools reads the value from the list column.
+        Parameters
+        ----------
+        col_to_perlc_values : dict
+            Mapping of 1-based column number → list of per-LC values (length
+            must equal ``len(lc_paths)``).  Columns are written in ascending
+            column-number order.  Column numbers must start at 2 (column 1
+            is the LC path itself) and be contiguous; missing numbers are
+            not supported.
+        """
+        if not col_to_perlc_values:
+            with open(list_path, "w") as f:
+                for p in lc_paths:
+                    f.write(p + "\n")
+            return
+        sorted_cols = sorted(col_to_perlc_values.keys())
+        with open(list_path, "w") as f:
+            for j, p in enumerate(lc_paths):
+                parts = [p]
+                for col in sorted_cols:
+                    parts.append(f"{col_to_perlc_values[col][j]:.10g}")
+                f.write(" ".join(parts) + "\n")
+
+    def _collect_batch_scalars(self, lcs) -> dict:
+        """Collect per-LC scalar values, keyed by scalar name.
+
+        Every LightCurve in *lcs* must carry the same set of scalar names
+        (they all originate from the same prior chain segment, so this is
+        the expected invariant).  Returns ``{name: [per-LC values]}``.
+        Raises ``ValueError`` if the name sets differ.
+        """
+        if not lcs:
+            return {}
+        name_sets = [set(lc.scalars.keys()) for lc in lcs]
+        reference = name_sets[0]
+        for i, ns in enumerate(name_sets[1:], 1):
+            if ns != reference:
+                only_ref = reference - ns
+                only_other = ns - reference
+                raise ValueError(
+                    f"LC index {i} has a different set of carried-forward "
+                    f"scalar names than LC 0.  LC 0 extras: {sorted(only_ref)}; "
+                    f"LC {i} extras: {sorted(only_other)}.  All LCs in a batch "
+                    f"must share the same .scalars key set."
+                )
+        return {name: [lc.scalars[name] for lc in lcs] for name in sorted(reference)}
+
+    def _build_perlc_subs(self, col_assignments) -> dict:
+        """Return {cmd_idx: {attr_name: "expr varname"}} substitution map.
+
+        Each per-LC attribute is replaced by ``"expr <varname>"`` where
+        ``<varname>`` is a unique name defined via ``-inlistvars``.  We use
+        ``expr`` rather than ``var`` because a handful of vartools commands
+        accept ``expr`` on their value-spec parameters but not ``var`` —
+        e.g. ``-BLSFixPer`` on its period spec.  Passing a bare identifier
+        through ``expr`` is semantically equivalent to ``var`` for every
+        command that accepts both, so the change is safe across the board.
         """
         subs = {}
         for (ci, name), col in col_assignments.items():
             varname = f"_perlc_{ci}_{name}"
-            subs.setdefault(ci, {})[name] = varname
+            subs.setdefault(ci, {})[name] = f"expr {varname}"
         return subs
 
     def _build_perlc_inlistvars(self, col_assignments) -> dict:
@@ -1118,6 +1466,10 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        inject_print_var: Optional[str] = None,
+        scalars: Optional[Dict[str, float]] = None,
+        command_offset: int = 0,
+        harvest_scalars: bool = False,
     ) -> List[str]:
         """Assemble the full vartools command line."""
         binary = get_binary()
@@ -1136,6 +1488,9 @@ class Pipeline:
             cmd += ["-matchstringid"]
         if skipmissing:
             cmd += ["-skipmissing"]
+        # Pre-register carried-forward scalars as -expr const before any user
+        # command so subsequent commands can reference them by name.
+        cmd += self._scalar_injection_args(scalars)
         for idx, command in enumerate(self.commands):
             # Give each command that writes output files its own subdirectory
             # so that two commands of the same type don't overwrite each other.
@@ -1161,18 +1516,36 @@ class Pipeline:
             else:
                 command._outdir = outdir
                 command._outdir_map = {}
+            # Emit an explicit -columnsuffix for each user command so its
+            # output-column names end in "_<command_offset+idx>" rather than
+            # "_<idx>".  Required in chain continuations to avoid collision
+            # with injected scalar names like "LS_Period_1_0" that pyvartools
+            # carried forward from a previous segment.
+            if command_offset > 0:
+                cmd += ["-columnsuffix", str(command_offset + idx)]
             subs = perlc_subs.get(idx, {}) if perlc_subs else {}
             if subs:
                 cmd += command._to_cli_args_with_perlc(subs)
             else:
                 cmd += command._to_cli_args()
+        if inject_print_var:
+            cmd += ["-print", inject_print_var]
+        # -printallscalars rounds per-star scalar state (from -expr scalar /
+        # listvar and injected -expr const / -inlistvars values) into the
+        # stdout stream so pyvartools can re-capture it for the next chain
+        # segment.
+        if command_offset > 0 or scalars or harvest_scalars:
+            cmd += ["-printallscalars"]
         cmd += ["-oneline"]
         if out_lc_path:
-            # Single-LC mode: explicit output path.
-            cmd += ["-o", out_lc_path]
+            # Single-LC mode: explicit output path.  "allcols" writes every
+            # currently-registered LC-vector variable, mirroring the
+            # library-mode capture path which also includes new vectors
+            # (e.g. -Phase phasevar, -linfit modelvar).
+            cmd += ["-o", out_lc_path, "allcols"]
         elif out_lc_dir:
             # Batch mode: vartools writes <out_lc_dir>/<input_basename> for each LC.
-            cmd += ["-o", out_lc_dir]
+            cmd += ["-o", out_lc_dir, "allcols"]
         return cmd
 
     def _execute(
@@ -1311,6 +1684,7 @@ class Pipeline:
             elif os.path.isfile(path):
                 lc = LightCurve.from_file(path, name=lc_name)
             if lc is not None:
+                _apply_columnformat_names(lc, command)
                 files[command.key] = lc
         return files
 
@@ -1336,7 +1710,9 @@ class Pipeline:
             for lc_path, name in zip(lc_paths, lc_names):
                 out_path = os.path.join(base_dir, Path(lc_path).name)
                 if os.path.isfile(out_path):
-                    lc_list.append(LightCurve.from_file(out_path, name=name))
+                    one_lc = LightCurve.from_file(out_path, name=name)
+                    _apply_columnformat_names(one_lc, command)
+                    lc_list.append(one_lc)
                 else:
                     lc_list.append(None)
             files[command.key] = lc_list

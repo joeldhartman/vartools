@@ -1763,9 +1763,9 @@ void example(char *c, ProgramData *p)
 #endif
 
   if(!commandfound)
-    error2(ERR_EXAMPLE_BADCOMMAND,c);
+    vt_error2(ERR_EXAMPLE_BADCOMMAND,c);
   printtostring(&s, "\n");
-  fprintf(stderr,s.s);
+  fprintf(stderr, "%s", s.s);
   if(s.s != NULL)
     free(s.s);
   exit(ERR_USAGE);

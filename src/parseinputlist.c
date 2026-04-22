@@ -61,7 +61,7 @@ int ParseInListVarsString(char *argv, ProgramData *p)
 	if((parsecopy = (char *) realloc(parsecopy, sizestring)) == NULL ||
 	   (format = (char *) realloc(format, sizestring)) == NULL ||
 	   (varname = (char *) realloc(varname, sizestring)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       parsecopy[j] = '\0';
       if(termscan == 0) {
@@ -137,7 +137,7 @@ int ParseInListVarsString(char *argv, ProgramData *p)
 	   !strcmp(varname,"t") ||
 	   !strcmp(varname,"err") ||
 	   !strcmp(varname,"mag")) {
-	  error2(ERR_RESERVEDVARIABLENAME,varname);
+	  vt_error2(ERR_RESERVEDVARIABLENAME,varname);
 	}
 	if(!multilc) {
 	  SetupInListVariable(p, varname, column, datatype, format);
@@ -270,21 +270,21 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
     error(ERR_CODEERROR);*/
 
   if(disjointcolumns && Ncolumns < 0)
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   
   if(Ncolumns < 0 && !p->combinelcs)
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
 
 
   va_start(varlist, scanformat);
 
   if(!p->NDataFromInputList) {
     if((p->DataFromInputList = (_DataFromInputList *) malloc(sizeof(_DataFromInputList))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   else {
     if((p->DataFromInputList = (_DataFromInputList *) realloc(p->DataFromInputList, (p->NDataFromInputList + 1)*sizeof(_DataFromInputList))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   d = &(p->DataFromInputList[p->NDataFromInputList]);
@@ -306,14 +306,14 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
     Nmalloc = 1;
 
   if((d->incolumns = (int *) malloc(Nmalloc*sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if((d->incolumn_names = (char **) malloc(Nmalloc*sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < Nmalloc; i++) {
     if((d->incolumn_names[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if(Ncolumns < 0) {
@@ -322,12 +322,12 @@ void RegisterDataFromInputList(ProgramData *p, void *dataptr, int datatype,
       pclci->Nmultilcinputlistvals = 1;
       if((pclci->multilcinputlistvals = (void *) malloc(sizeof(void *))) == NULL ||
 	 (pclci->multilcinputlistvals_datatype = (int *) malloc(sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       pclci->Nmultilcinputlistvals += 1;
       if((pclci->multilcinputlistvals = (void *) realloc(pclci->multilcinputlistvals, pclci->Nmultilcinputlistvals*sizeof(void *))) == NULL ||
 	 (pclci->multilcinputlistvals_datatype = (int *) realloc(pclci->multilcinputlistvals_datatype, pclci->Nmultilcinputlistvals*sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     (((char **) pclci->multilcinputlistvals)[pclci->Nmultilcinputlistvals-1]) = (char *) dataptr;
     pclci->multilcinputlistvals_datatype[pclci->Nmultilcinputlistvals-1] = datatype;
@@ -424,51 +424,51 @@ void MemAllocMultiLCInputListData(ProgramData *p, int lcindx) {
     case VARTOOLS_TYPE_DOUBLE:
       dbl2ptr = ((double ****) pclci->multilcinputlistvals)[i];
       if((((*dbl2ptr)[lcindx]) = (double *) malloc(Nc * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*dbl2ptr)[lcindx][k] = 0.;
       break;
     case VARTOOLS_TYPE_STRING:
       string2ptr = ((char *****) pclci->multilcinputlistvals)[i];
       if((((*string2ptr)[lcindx]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) {
 	if((((*string2ptr)[lcindx][k]) = (char *) malloc(MAXLEN)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	(*string2ptr)[lcindx][k][0] = '\0';
       }
       break;
     case VARTOOLS_TYPE_INT:
       int2ptr = ((int ****) pclci->multilcinputlistvals)[i];
       if((((*int2ptr)[lcindx]) = (int *) malloc(Nc * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*int2ptr)[lcindx][k] = 0;
       break;
     case VARTOOLS_TYPE_SHORT:
       short2ptr = ((short ****) pclci->multilcinputlistvals)[i];
       if((((*short2ptr)[lcindx]) = (short *) malloc(Nc * sizeof(short))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*short2ptr)[lcindx][k] = 0;
       break;
     case VARTOOLS_TYPE_FLOAT:
       float2ptr = ((float ****) pclci->multilcinputlistvals)[i];
       if((((*float2ptr)[lcindx]) = (float *) malloc(Nc * sizeof(float))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*float2ptr)[lcindx][k] = 0.;
       break;
     case VARTOOLS_TYPE_LONG:
       long2ptr = ((long ****) pclci->multilcinputlistvals)[i];
       if((((*long2ptr)[lcindx]) = (long *) malloc(Nc * sizeof(long))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*long2ptr)[lcindx][k] = 0;
       break;
     case VARTOOLS_TYPE_CHAR:
       char2ptr = ((char ****) pclci->multilcinputlistvals)[i];
       if((((*char2ptr)[lcindx]) = (char *) malloc(Nc)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=0; k < Nc; k++) (*char2ptr)[lcindx][k] = 0;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
   }
 }
@@ -495,7 +495,7 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
     pclci = p->combinelcinfo;
     if(Nlc > 0) {
       if((pclci->Ncombinelcs = (int *) malloc(Nlc * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
   for(i=0; i < p->NDataFromInputList; i++) {
@@ -506,114 +506,114 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
       case VARTOOLS_TYPE_DOUBLE:
 	dblptr = (double **) d->dataptr;
 	if(((*dblptr) = (double *) malloc(Nlc * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*dblptr)[k] = 0.;
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ***) d->dataptr;
 	if(((*stringptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*stringptr)[j]) = (char *) malloc(MAXLEN)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  (*stringptr)[j][0] = '\0';
 	}
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int **) d->dataptr;
 	if(((*intptr) = (int *) malloc(Nlc * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*intptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short **) d->dataptr;
 	if(((*shortptr) = (short *) malloc(Nlc * sizeof(short))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*shortptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float **) d->dataptr;
 	if(((*floatptr) = (float *) malloc(Nlc * sizeof(float))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*floatptr)[k] = 0.;
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long **) d->dataptr;
 	if(((*longptr) = (long *) malloc(Nlc * sizeof(long))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*longptr)[k] = 0;
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char **) d->dataptr;
 	if(((*charptr) = (char *) malloc(Nlc)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Nlc; k++) (*charptr)[k] = 0;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else if (Nc < 0) {
       switch(d->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
 	dbl2ptr = (double ***) d->dataptr;
 	if(((*dbl2ptr) = (double **) malloc(Nlc * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_STRING:
 	string2ptr = (char ****) d->dataptr;
 	if(((*string2ptr) = (char ***) malloc(Nlc * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_INT:
 	int2ptr = (int ***) d->dataptr;
 	if(((*int2ptr) = (int **) malloc(Nlc * sizeof(int *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_SHORT:
 	short2ptr = (short ***) d->dataptr;
 	if(((*short2ptr) = (short **) malloc(Nlc * sizeof(short *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	float2ptr = (float ***) d->dataptr;
 	if(((*float2ptr) = (float **) malloc(Nlc * sizeof(float *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_LONG:
 	long2ptr = (long ***) d->dataptr;
 	if(((*long2ptr) = (long **) malloc(Nlc * sizeof(long *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CHAR:
 	char2ptr = (char ***) d->dataptr;
 	if(((*char2ptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else {
       switch(d->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
 	dbl2ptr = (double ***) d->dataptr;
 	if(((*dbl2ptr) = (double **) malloc(Nlc * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j<Nlc; j++) {
 	  if((((*dbl2ptr)[j]) = (double *) malloc(Nc * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*dbl2ptr)[j][k] = 0.;
 	}
 	break;
       case VARTOOLS_TYPE_STRING:
 	string2ptr = (char ****) d->dataptr;
 	if(((*string2ptr) = (char ***) malloc(Nlc * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*string2ptr)[j]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) {
 	    if((((*string2ptr)[j][k]) = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    (*string2ptr)[j][k][0] = '\0';
 	  }
 	}
@@ -621,55 +621,55 @@ void MemAllocDataFromInputList(ProgramData *p, int Nlc) {
       case VARTOOLS_TYPE_INT:
 	int2ptr = (int ***) d->dataptr;
 	if(((*int2ptr) = (int **) malloc(Nlc * sizeof(int *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*int2ptr)[j]) = (int *) malloc(Nc * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*int2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_SHORT:
 	short2ptr = (short ***) d->dataptr;
 	if(((*short2ptr) = (short **) malloc(Nlc * sizeof(short *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*short2ptr)[j]) = (short *) malloc(Nc * sizeof(short))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*short2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	float2ptr = (float ***) d->dataptr;
 	if(((*float2ptr) = (float **) malloc(Nlc * sizeof(float *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*float2ptr)[j]) = (float *) malloc(Nc * sizeof(float))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*float2ptr)[j][k] = 0.;
 	}
 	break;
       case VARTOOLS_TYPE_LONG:
 	long2ptr = (long ***) d->dataptr;
 	if(((*long2ptr) = (long **) malloc(Nlc * sizeof(long *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*long2ptr)[j]) = (long *) malloc(Nc * sizeof(long))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*long2ptr)[j][k] = 0;
 	}
 	break;
       case VARTOOLS_TYPE_CHAR:
 	char2ptr = (char ***) d->dataptr;
 	if(((*char2ptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nlc; j++) {
 	  if((((*char2ptr)[j]) = (char *) malloc(Nc)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) (*char2ptr)[j][k] = 0;
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 
       }
     }
@@ -687,7 +687,7 @@ void ParseLineToColumns(char *line, char **cols, int maxcols)
     i++;
   }
   if(i < maxcols) {
-    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+    vt_error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
 }
 
@@ -701,7 +701,7 @@ void ParseLineToColumns_GrowStrings(char *line, char **cols, int *colstrlen, int
     i++;
   }
   if(i < maxcols) {
-    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+    vt_error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
 }
 
@@ -742,7 +742,7 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 	if(d->scanformat != NULL) {
 	  Nc = d->Ncolumns;
 	  if(Nc != 0)
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    for(i=0; i < Nlcs; i += Nskip) {
@@ -775,7 +775,7 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 	    }
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
 	  Nc = d->Ncolumns;
@@ -818,7 +818,7 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	  else {
@@ -869,7 +869,7 @@ void EvaluateInputListVariables(ProgramData *p, int Nlcs)
 		}
 		break;
 	      default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 	      }
 	    }
 	  }
@@ -893,7 +893,7 @@ int DetermineNCombineLCs(ProgramData *p, char *incol)
       return(CountColumns_delimstring(incol, p->combinelcinfo->combinelcs_delimstring));
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
   return -1;
@@ -946,7 +946,7 @@ int ParseMultiLCInputListVal(ProgramData *p, int lcindx, char *incol, _DataFromI
       dataptr = (void *) (&((*char2ptr)[lcindx][k]));
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     switch(p->combinelcinfo->combinelcs_delimtype) {
     case VARTOOLS_LC_DELIMTYPE_CHAR:
@@ -956,7 +956,7 @@ int ParseMultiLCInputListVal(ProgramData *p, int lcindx, char *incol, _DataFromI
       delj = parseonedelimstring(&(incol[j]), dataptr, d->datatype, p->combinelcinfo->combinelcs_delimstring);
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
     if(!delj)
@@ -1006,11 +1006,11 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 
   if((incols = (char **) malloc(Np * sizeof(char *))) == NULL ||
      (incolstrlen = (int *) malloc(Np * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i = 0; i < Np; i++) {
     incolstrlen[i] = MAXLEN;
     if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if(p->inlist_lcnames_from_allcolumns) {
@@ -1037,7 +1037,7 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
       }
     }
     if(!checkallcolsok) {
-      error(ERR_CANNOTUSE_ALLCOLUMNS_INLIST);
+      vt_error(ERR_CANNOTUSE_ALLCOLUMNS_INLIST);
     }
   }
 
@@ -1088,7 +1088,7 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 	  (*charptr)[i] = incols[k][0];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if (Nc < 0) {
 	/* This is a multilcinputlistval term */
@@ -1096,7 +1096,7 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 	  continue;
 	k = d->incolumns[0] - 1;
 	if(ParseMultiLCInputListVal(p, i, incols[k], d)) {
-	  error2(ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL, inputlines[in_indx]);
+	  vt_error2(ERR_NOTENOUGHTERMS_MULTILCINPUTLISTCOL, inputlines[in_indx]);
 	}
       } else {
 	for(u = 0; u < Nc; u++) {
@@ -1133,7 +1133,7 @@ void ParseInputList(ProgramData *p, char **inputlines, int Nlcs)
 	    (*char2ptr)[i][u] = incols[k][0];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -1339,7 +1339,7 @@ void MoveInputListData(ProgramData *p, int isrc, int idest) {
 	(*charptr)[idest] = (*charptr)[isrc];
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else {
       switch(d->datatype) {
@@ -1372,7 +1372,7 @@ void MoveInputListData(ProgramData *p, int isrc, int idest) {
 	(*char2ptr)[idest] = (*char2ptr)[isrc];
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 
       }
     }

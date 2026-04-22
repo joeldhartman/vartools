@@ -82,7 +82,7 @@ void *ParallelProcessOneLC(void *arg)
       if(!t->p->combinelcs) {
 	readlc_retval = ReadSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber, 0);
       } else {
-	readlc_retval = ReadCombineSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber, 0);
+	readlc_retval = ReadCombineSingleLightCurve(t->p,t->c,t->lcnumber,t->threadnumber);
       }
       cnum_start = 0;
     }
@@ -226,6 +226,8 @@ int main(int argc, char **argv)
   p.randseed = 1;
   p.numbercolumns = 0;
   p.oneline = 0;
+  p.startcommandnumber = 0;
+  p.printallscalars = 0;
   p.Ncolstolink = 0;
   p.redirectstats = 0;
   p.redirectstatsappend = 0;
@@ -290,7 +292,7 @@ int main(int argc, char **argv)
   InitLinkedList(&(p.lcs_to_proc));
 
   if((c = (Command *) malloc(p.sizecommandvector * sizeof(Command))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < p.sizecommandvector; i++) {
     c[i].require_sort = 0;
     c[i].require_distinct = 0;
@@ -306,7 +308,7 @@ int main(int argc, char **argv)
 #ifdef DYNAMICLIB
 
   if(lt_dlinit()) {
-    error2(ERR_OPEN_LIBRARY,"Cannot initialize libtool for opening a library.\n");
+    vt_error2(ERR_OPEN_LIBRARY,"Cannot initialize libtool for opening a library.\n");
   }
 #ifdef VARTOOLSLIB_USERLIBSDIR
   if(lt_dladdsearchdir(VARTOOLSLIB_USERLIBSDIR)) {
@@ -351,12 +353,12 @@ int main(int argc, char **argv)
       if(!p.redirectstatsappend)
 	{
 	  if((outfile = fopen(p.redirectstatsname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,p.redirectstatsname);
+	    vt_error2(ERR_CANNOTWRITE,p.redirectstatsname);
 	}
       else
 	{
 	  if((outfile = fopen(p.redirectstatsname,"a")) == NULL)
-	    error2(ERR_CANNOTWRITE,p.redirectstatsname);
+	    vt_error2(ERR_CANNOTWRITE,p.redirectstatsname);
 	}
     }
 
@@ -407,7 +409,7 @@ int main(int argc, char **argv)
       }
     }
     if((p.cmdline = (char *) malloc((p.sizecmdline + 1))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     kk = 0;
     for(i=0; i < argc; i++) {
       k = 0;
@@ -509,7 +511,7 @@ int main(int argc, char **argv)
 	/*Cycle through the light curves, processing each command one at a time,
 	  Light curves are processed in parallel in this branch */
 	if((threaddata = (_threaddata *) malloc(p.Nproc_allow*sizeof(_threaddata))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 #if defined(__APPLE__) || defined(__MACH__)
 	k = 0;
 	while(1) {

@@ -113,7 +113,7 @@ def test_lightcurve_from_arrays_partial():
 
 def test_lightcurve_roundtrip_tempfile(tmp_path):
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
-    path = lc.to_tempfile(dir=str(tmp_path))
+    path = lc._to_tempfile(dir=str(tmp_path))
     lc2 = vt.LightCurve.from_file(path)
     np.testing.assert_allclose(lc.t, lc2.t, rtol=1e-8)
     np.testing.assert_allclose(lc.mag, lc2.mag, rtol=1e-8)
@@ -184,9 +184,9 @@ def test_pipeline_run_single_lc():
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
     pipe = vt.Pipeline([_RMSCommand()])
     result = pipe.run(lc)
-    assert isinstance(result.stats, pd.Series)
-    assert "Weighted_RMS" in result.stats.index or any(
-        "rms" in c.lower() or "RMS" in c for c in result.stats.index
+    assert isinstance(result.vars, pd.Series)
+    assert "Weighted_RMS" in result.vars.index or any(
+        "rms" in c.lower() or "RMS" in c for c in result.vars.index
     )
 
 
@@ -194,8 +194,8 @@ def test_pipeline_run_batch():
     lcs = [vt.LightCurve.from_file(EXAMPLE_LC) for _ in range(3)]
     pipe = vt.Pipeline([_RMSCommand()])
     result = pipe.run_batch(lcs)
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 def test_pipeline_bad_command_raises():
@@ -278,7 +278,7 @@ def test_run_batch_raise_on_error_false():
     assert not result.ok
     assert result.error is not None
     assert isinstance(result.error, vt.RunError)
-    assert result.stats.empty
+    assert result.vars.empty
 
 
 def test_run_batch_ok_true_on_success():
@@ -432,9 +432,9 @@ def test_run_with_extra_columns():
     lc = _make_lc_with_aux()
     assert "airmass" in lc._df.columns
     result = vt.Pipeline([vt.commands.rms()]).run(lc)
-    assert isinstance(result.stats, pd.Series)
-    assert "Weighted_RMS" in result.stats.index or any(
-        "rms" in c.lower() or "RMS" in c for c in result.stats.index
+    assert isinstance(result.vars, pd.Series)
+    assert "Weighted_RMS" in result.vars.index or any(
+        "rms" in c.lower() or "RMS" in c for c in result.vars.index
     )
 
 
@@ -442,8 +442,8 @@ def test_run_batch_with_extra_columns():
     """run_batch() auto-discovers extra columns from the first LC."""
     lcs = [_make_lc_with_aux(period=1.5 + i * 0.5) for i in range(3)]
     result = vt.Pipeline([vt.commands.rms()]).run_batch(lcs)
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 def test_run_file_with_columns_list(tmp_path):
@@ -455,7 +455,7 @@ def test_run_file_with_columns_list(tmp_path):
     result = vt.Pipeline([vt.commands.rms()]).run_file(
         p, columns=["t", "mag", "err", "airmass"]
     )
-    assert isinstance(result.stats, pd.Series)
+    assert isinstance(result.vars, pd.Series)
 
 
 def test_run_file_with_columns_dict(tmp_path):
@@ -467,7 +467,7 @@ def test_run_file_with_columns_dict(tmp_path):
     result = vt.Pipeline([vt.commands.rms()]).run_file(
         p, columns={"t": 1, "mag": 2, "err": 3, "airmass": 4}
     )
-    assert isinstance(result.stats, pd.Series)
+    assert isinstance(result.vars, pd.Series)
 
 
 def test_run_filelist_with_columns(tmp_path):
@@ -482,8 +482,8 @@ def test_run_filelist_with_columns(tmp_path):
     result = vt.Pipeline([vt.commands.rms()]).run_filelist(
         paths, columns=["t", "mag", "err", "airmass"]
     )
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -572,3 +572,107 @@ def test_o_multiple_captures_different_keys():
     assert "final" in result.files
     assert isinstance(result.files["after_clip"], vt.LightCurve)
     assert isinstance(result.files["final"], vt.LightCurve)
+
+
+# ---------------------------------------------------------------------------
+# FITS-header round-trip via LightCurve.fitsheader (.from_file / .to_file).
+# ---------------------------------------------------------------------------
+
+FITS_LC = os.path.join(EXAMPLES_DIR, "10.fits")
+
+
+def test_fitsheader_captured_on_read():
+    """Reading a FITS light curve populates `fitsheader` with a Header."""
+    from astropy.io import fits
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    assert isinstance(lc.fitsheader, fits.Header)
+
+
+def test_fitsheader_filters_structural_on_read():
+    """Structural keywords (TTYPE, TFORM, NAXIS, TFIELDS…) are removed."""
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    for structural in ("TFIELDS", "NAXIS1", "NAXIS2",
+                       "TTYPE1", "TFORM1", "TTYPE2", "TUNIT1",
+                       "XTENSION", "SIMPLE", "BITPIX"):
+        assert structural not in lc.fitsheader, (
+            f"{structural} leaked into preserved header"
+        )
+
+
+def test_fitsheader_ascii_source_is_none():
+    """Reading an ASCII light curve leaves fitsheader = None."""
+    lc = vt.LightCurve.from_file(EXAMPLE_LC)
+    assert lc.fitsheader is None
+
+
+def test_fitsheader_roundtrip(tmp_path):
+    """Round-trip of observational keywords + COMMENT + HISTORY."""
+    from astropy.io import fits
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    lc.fitsheader["TELESCOP"] = "HATPI"
+    lc.fitsheader["OBJECT"]   = "V1234 Cyg"
+    lc.fitsheader["EPOCH"]    = (2000.0, "J2000")
+    lc.fitsheader.add_comment("round-trip COMMENT")
+    lc.fitsheader.add_history("round-trip HISTORY")
+
+    out = str(tmp_path / "out.fits")
+    lc.to_file(out)
+
+    lc2 = vt.LightCurve.from_file(out, t_col="t",
+                                  mag_col="mag", err_col="err")
+    assert lc2.fitsheader["TELESCOP"] == "HATPI"
+    assert lc2.fitsheader["OBJECT"]   == "V1234 Cyg"
+    assert float(lc2.fitsheader["EPOCH"]) == 2000.0
+    comments = [str(c.value) for c in lc2.fitsheader.cards
+                if c.keyword == "COMMENT"]
+    histories = [str(c.value) for c in lc2.fitsheader.cards
+                 if c.keyword == "HISTORY"]
+    assert any("round-trip COMMENT" in c for c in comments)
+    assert any("round-trip HISTORY" in h for h in histories)
+
+
+def test_fitsheader_none_passthrough_to_fits(tmp_path):
+    """A LightCurve with fitsheader=None still writes to FITS correctly."""
+    from astropy.io import fits
+    t = np.linspace(0, 10, 50)
+    lc = vt.LightCurve.from_arrays(t, np.sin(t), np.full(50, 0.01))
+    assert lc.fitsheader is None
+    out = str(tmp_path / "blank.fits")
+    lc.to_file(out)
+    with fits.open(out) as hdul:
+        # No observational keywords injected; only the astropy default
+        # primary-HDU structure keywords.
+        keys = list(hdul[0].header.keys())
+        assert all(k in {"SIMPLE", "BITPIX", "NAXIS", "EXTEND", ""}
+                   for k in keys), f"unexpected primary header keys: {keys}"
+        # Data wrote correctly on the extension.
+        assert hdul[1].header["TFIELDS"] == 3
+        assert hdul[1].header["NAXIS2"] == 50
+
+
+def test_fitsheader_structural_keys_in_user_header_dropped_on_write(tmp_path):
+    """If the user attaches a Header that includes structural keys,
+    those are silently dropped on write (they'd otherwise collide with
+    astropy's auto-generated structure)."""
+    from astropy.io import fits
+    t = np.linspace(0, 10, 50)
+    lc = vt.LightCurve.from_arrays(t, np.sin(t), np.full(50, 0.01))
+    hdr = fits.Header()
+    hdr["TELESCOP"] = "HATPI"
+    hdr["TFIELDS"]  = 99           # structural — should be dropped
+    hdr["TTYPE1"]   = "should_not_be_preserved"
+    hdr["NAXIS2"]   = 999           # structural — should be dropped
+    lc.fitsheader = hdr
+
+    out = str(tmp_path / "out.fits")
+    lc.to_file(out)
+    with fits.open(out) as hdul:
+        assert hdul[0].header.get("TELESCOP") == "HATPI"
+        # The structural leaks must not appear in either HDU's header
+        # with the user's bogus values:
+        assert "TTYPE1" not in hdul[0].header
+        assert hdul[1].header["TFIELDS"] == 3      # astropy's real value
+        assert hdul[1].header["NAXIS2"] == 50

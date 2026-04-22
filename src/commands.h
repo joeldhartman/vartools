@@ -41,6 +41,7 @@
 #include <time.h>
 #include "outcolumn.h"
 #include "analytic.h"
+#include "vt_param_macros.h"
 #include "mysort.h"
 #include "ifelse.h"
 
@@ -199,6 +200,7 @@
 #define PERTYPE_FIXCOLUMN 11
 #define PERTYPE_AUTOFIND 12
 #define PERTYPE_EXPR 13
+#define PERTYPE_VAR 14
 
 #define KILLHARM_OUTTYPE_DEFAULT 0
 #define KILLHARM_OUTTYPE_AMPPHASE 1
@@ -287,9 +289,12 @@
 
 typedef struct {
   double sigclip;
+  VT_PARAM_COMPANIONS(sigclip);
   int *Nclip;
   int iter;
+  VT_PARAM_COMPANIONS(iter);
   int niter;
+  VT_PARAM_COMPANIONS(niter);
   int usemedian;
   int markclip;
   char *clipvarname;
@@ -369,8 +374,11 @@ typedef struct {
 
 typedef struct {
   double start;
+  VT_PARAM_COMPANIONS(start);
   double stop;
+  VT_PARAM_COMPANIONS(stop);
   double step;
+  VT_PARAM_COMPANIONS(step);
   double errsize;
   char outdir[MAXLEN];
   char suffix[10];
@@ -565,9 +573,13 @@ typedef struct {
 
 typedef struct {
   double gain;
+  VT_PARAM_COMPANIONS(gain);
   double SNlimit;
+  VT_PARAM_COMPANIONS(SNlimit);
   int nbeam;
+  VT_PARAM_COMPANIONS(nbeam);
   double maxfreq;
+  VT_PARAM_COMPANIONS(maxfreq);
   int outdspec;
   int finddirtypeaks;
   int outwspec;
@@ -587,7 +599,10 @@ typedef struct {
   int Npeaks_clean;
   int clipiter_dirty, clipiter_clean;
   int useampspec, verboseout;
-  double clip_dirty, clip_clean;
+  double clip_dirty;
+  VT_PARAM_COMPANIONS(clip_dirty);
+  double clip_clean;
+  VT_PARAM_COMPANIONS(clip_clean);
   double *aveper_dirty, *stdper_dirty;
   double *aveper_noclip_dirty, *stdper_noclip_dirty;
   double *aveper_clean, *stdper_clean;
@@ -608,6 +623,9 @@ typedef struct {
   int lastaovindex;
   double **periods;
   double *fixedperiods;
+  int *fixedperiods_source;
+  _Variable **fixedperiods_var;
+  _Expression **fixedperiods_expr;
   int Nper;
   int Nharm;
   int Nsubharm;
@@ -625,6 +643,7 @@ typedef struct {
   char modeloutdir[MAXLEN];
   char modelsuffix[16];
   double clip;
+  VT_PARAM_COMPANIONS(clip);
 } _Killharm;
 
 typedef struct {
@@ -632,10 +651,16 @@ typedef struct {
   int Nharm;
   int Nsubharm;
   double fixperiod;
+  _Variable *fixperiod_var;
+  _Expression *fixperiod_expr;
   double minp;
+  VT_PARAM_COMPANIONS(minp);
   double maxp;
+  VT_PARAM_COMPANIONS(maxp);
   double minf;
+  VT_PARAM_COMPANIONS(minf);
   double maxf;
+  VT_PARAM_COMPANIONS(maxf);
   double **periods;
   double *periodinject;
   int *harm_amptype;
@@ -647,16 +672,28 @@ typedef struct {
   int *subharm_phasetype;
   int *subharm_phaserel;
   double *harm_ampfix;
+  int *harm_ampfix_source;
+  _Variable **harm_ampfix_var;
+  _Expression **harm_ampfix_expr;
   double ***harm_ampspec;
   double *harm_minamp;
   double *harm_maxamp;
   double *harm_phasefix;
+  int *harm_phasefix_source;
+  _Variable **harm_phasefix_var;
+  _Expression **harm_phasefix_expr;
   double ***harm_phasespec;
   double *subharm_ampfix;
+  int *subharm_ampfix_source;
+  _Variable **subharm_ampfix_var;
+  _Expression **subharm_ampfix_expr;
   double ***subharm_ampspec;
   double *subharm_minamp;
   double *subharm_maxamp;
   double *subharm_phasefix;
+  int *subharm_phasefix_source;
+  _Variable **subharm_phasefix_var;
+  _Expression **subharm_phasefix_expr;
   double ***subharm_phasespec;
   double **harm_amp;
   double **harm_phase;
@@ -674,15 +711,24 @@ typedef struct {
   double *paraminject[14];
   double **paramspec[14];
   _Expression *paramexpr[14];
+  _Variable *paramvar[14];
   double paramfix[14];
   double minp;
+  VT_PARAM_COMPANIONS(minp);
   double maxp;
+  VT_PARAM_COMPANIONS(maxp);
   double minf;
+  VT_PARAM_COMPANIONS(minf);
   double maxf;
+  VT_PARAM_COMPANIONS(maxf);
   double minRp;
+  VT_PARAM_COMPANIONS(minRp);
   double maxRp;
+  VT_PARAM_COMPANIONS(maxRp);
   double minMp;
+  VT_PARAM_COMPANIONS(minMp);
   double maxMp;
+  VT_PARAM_COMPANIONS(maxMp);
   int eomegatype;
   int ldtype;
   int omodel;
@@ -694,7 +740,20 @@ typedef struct {
   int pertype;
   int lastlsindex;
   int lastaovindex;
-  double a0, b0, chi0, inclination0, alpha0, psi00, mconst0;
+  double a0;
+  VT_PARAM_COMPANIONS(a0);
+  double b0;
+  VT_PARAM_COMPANIONS(b0);
+  double chi0;
+  VT_PARAM_COMPANIONS(chi0);
+  double inclination0;
+  VT_PARAM_COMPANIONS(inclination0);
+  double alpha0;
+  VT_PARAM_COMPANIONS(alpha0);
+  double psi00;
+  VT_PARAM_COMPANIONS(psi00);
+  double mconst0;
+  VT_PARAM_COMPANIONS(mconst0);
   double **period;
   double *a;
   double *b;
@@ -710,6 +769,8 @@ typedef struct {
   char modeloutdir[MAXLEN];
   char modelsuffix[16];
   double fixedperiod;
+  _Variable *fixedperiod_var;
+  _Expression *fixedperiod_expr;
   OutColumn *linkedcolumn;
 } _Starspot;
 
@@ -843,17 +904,25 @@ typedef struct {
   double **u, **v, *fmin, df;
   int durtype;
   double fixdur;
+  _Variable *fixdur_var;
+  _Expression *fixdur_expr;
   OutColumn *fixdur_linkedcolumn;
   int TCtype;
   double fixTC;
+  _Variable *fixTC_var;
+  _Expression *fixTC_expr;
   OutColumn *fixTC_linkedcolumn;
   double *inputTC, *inputdur;
   int fixdepth;
   int depthtype;
   double fixdepthval;
+  _Variable *fixdepthval_var;
+  _Expression *fixdepthval_expr;
   OutColumn *fixdepth_linkedcolumn;
   int qgresstype;
   double qgressval;
+  _Variable *qgressval_var;
+  _Expression *qgressval_expr;
   OutColumn *fixqgress_linkedcolumn;
   double *inputdepth, *inputqgress;
   double **bper, **bt0, **bpow, **sde, **snval, **depth, **qtran;
@@ -861,13 +930,20 @@ typedef struct {
   int **nt, **Nt, **Nbefore, **Nafter;
   double **i1_ph, **i2_ph;
   int nf, *nf2, Npeak, **i1, **i2, operiodogram;
+  VT_PARAM_COMPANIONS(nf);
   int *sizeuv, rflag;
 #ifdef PARALLEL
   double **p;
+  int *size_p;
 #else
   double *p;
+  int size_p;
 #endif
-  double minper, maxper, timezone;
+  double minper;
+  VT_PARAM_COMPANIONS(minper);
+  double maxper;
+  VT_PARAM_COMPANIONS(maxper);
+  double timezone;
   char outdir[MAXLEN], suffix[14];
   int omodel;
   char modeloutdir[MAXLEN];
@@ -890,20 +966,30 @@ typedef struct {
   double **u, **v;
   int pertype;
   double fixper;
+  _Variable *fixper_var;
+  _Expression *fixper_expr;
   OutColumn *fixper_linkedcolumn;
   int durtype;
   double fixdur;
+  _Variable *fixdur_var;
+  _Expression *fixdur_expr;
   OutColumn *fixdur_linkedcolumn;
   int TCtype;
   double fixTC;
+  _Variable *fixTC_var;
+  _Expression *fixTC_expr;
   OutColumn *fixTC_linkedcolumn;
   double *inputTC, *inputdur, *inputper;
   int fixdepth;
   int depthtype;
   double fixdepthval;
+  _Variable *fixdepthval_var;
+  _Expression *fixdepthval_expr;
   OutColumn *fixdepth_linkedcolumn;
   int qgresstype;
   double qgressval;
+  _Variable *qgressval_var;
+  _Expression *qgressval_expr;
   OutColumn *fixqgress_linkedcolumn;
   double *inputdepth, *inputqgress;
   double *depth, *qtran;
@@ -936,7 +1022,11 @@ typedef struct {
   int lastblsindex;
   int t0type;
   double fixperiod;
+  _Variable *fixperiod_var;
+  _Expression *fixperiod_expr;
   double fixT0;
+  _Variable *fixT0_var;
+  _Expression *fixT0_expr;
   double phaseTc;
   double **period;
   double **T0;
@@ -949,7 +1039,11 @@ typedef struct {
 
 typedef struct {
   int medflag, binsize_Nbins_flag, Nbins, firstbinflag, tflag;
-  double binsize, firstbin;
+  VT_PARAM_COMPANIONS(Nbins);
+  double binsize;
+  VT_PARAM_COMPANIONS(binsize);
+  double firstbin;
+  VT_PARAM_COMPANIONS(firstbin);
   int Nvar;
   int *binstats;
   double *pctval;
@@ -961,6 +1055,7 @@ typedef struct {
   _Variable *maskvar;
   int T0source;
   double t0fixval;
+  _Variable *t0fixval_var;
   OutColumn *t0_linkedcolumn;
   double *t0listval;
   char *t0exprstring;
@@ -992,7 +1087,34 @@ typedef struct {
   int lastblsfixperindex;
   int frombls, fromblsfixper;
   int refititer;
-  double P0, T00, r0, a0, inc0, bimpact0, sin_i0, e0, omega0, mconst0, ldcoeffs0[4], K0, gamma0;
+  double P0;
+  VT_PARAM_COMPANIONS(P0);
+  double T00;
+  VT_PARAM_COMPANIONS(T00);
+  double r0;
+  VT_PARAM_COMPANIONS(r0);
+  double a0;
+  VT_PARAM_COMPANIONS(a0);
+  double inc0;
+  VT_PARAM_COMPANIONS(inc0);
+  double bimpact0;
+  VT_PARAM_COMPANIONS(bimpact0);
+  double sin_i0;
+  VT_PARAM_COMPANIONS(sin_i0);
+  double e0;
+  VT_PARAM_COMPANIONS(e0);
+  double omega0;
+  VT_PARAM_COMPANIONS(omega0);
+  double mconst0;
+  VT_PARAM_COMPANIONS(mconst0);
+  double ldcoeffs0[4];
+  int ldcoeffs0_source[4];
+  _Variable *ldcoeffs0_var[4];
+  _Expression *ldcoeffs0_expr[4];
+  double K0;
+  VT_PARAM_COMPANIONS(K0);
+  double gamma0;
+  VT_PARAM_COMPANIONS(gamma0);
   int type;
   int nldcoeff;
   double *period;
@@ -1032,12 +1154,16 @@ typedef struct {
 typedef struct {
   double **magstar;
   double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
   double offset;
+  VT_PARAM_COMPANIONS(offset);
 } _DiffFluxtomag;
 
 typedef struct {
   double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
   double offset;
+  VT_PARAM_COMPANIONS(offset);
 } _Fluxtomag;
 
 typedef struct {
@@ -1066,7 +1192,7 @@ typedef struct {
   int usefitmask;
   char *fitmaskvarname;
   _Variable *fitmaskvar;
-  char *outputfitmask;
+  int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
 } _TFA;
@@ -1096,7 +1222,7 @@ typedef struct {
   int usefitmask;
   char *fitmaskvarname;
   _Variable *fitmaskvar;
-  char *outputfitmask;
+  int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
 } _TFA_SR;
@@ -1130,6 +1256,16 @@ typedef struct {
   char **units;
   int namefrominlist;
   char **inputlistoutnames;
+  /* When set, writelightcurves emits every currently-registered
+     VARTOOLS_VECTORTYPE_LC variable using its name as the column name and
+     a default printf format chosen per datatype.  Populated in
+     CompileAllExpressions once the variable registry is complete. */
+  int allcols;
+  /* Snapshot of p->NDefinedVariables at the moment the "-o ... allcols"
+     argument was parsed, so the allcols expansion only emits variables
+     that were defined before this -o command (not ones created by later
+     commands on the same command line). */
+  int allcols_nvars_snapshot;
 } _Outputlcs;
 
 typedef struct {
@@ -1190,6 +1326,7 @@ typedef struct {
   int usemean;
   int replace;
   double time;
+  VT_PARAM_COMPANIONS(time);
 } _MedianFilter;
 
 typedef struct {
@@ -1220,6 +1357,8 @@ typedef struct {
   int f0_source, f1_source, u0_source, t0_source, tmax_source;
   double **f00, **f10, **u00, **t00, **tmax0;
   double f00_fix, f10_fix, u00_fix, t00_fix, tmax0_fix;
+  _Variable *f00_var, *f10_var, *u00_var, *t00_var, *tmax0_var;
+  _Expression *f00_expr, *f10_expr, *u00_expr, *t00_expr, *tmax0_expr;
   OutColumn *f0_linkedcolumn, *f1_linkedcolumn, *u0_linkedcolumn, *t0_linkedcolumn, *tmax_linkedcolumn;
   double *f0, *f1, *u0, *t0, *tmax, *chi2_;
   int f0_initialstep, f1_initialstep, u0_initialstep, t0_initialstep, tmax_initialstep;
@@ -1233,25 +1372,37 @@ typedef struct {
   int noise_type;
 
   double gammaval_fix;
+  _Variable *gammaval_var;
+  _Expression *gammaval_expr;
   double **gammaval;
   int gammaval_type;
   double sig_r_fix;
+  _Variable *sig_r_var;
+  _Expression *sig_r_expr;
   double **sig_r;
   int sig_r_type;
   double sig_w_fix;
+  _Variable *sig_w_var;
+  _Expression *sig_w_expr;
   double **sig_w;
   int sig_w_type;
-  
+
   double **rho_r;
   int rho_r_type;
   double rho_r_fix;
-  
+  _Variable *rho_r_var;
+  _Expression *rho_r_expr;
+
   double **nu_r;
   int nu_r_type;
   double nu_r_fix;
+  _Variable *nu_r_var;
+  _Expression *nu_r_expr;
 
   int bintime_type;
   double bintime_fix;
+  _Variable *bintime_var;
+  _Expression *bintime_expr;
   double **bintime;
 } _AddNoise;
 
@@ -1345,6 +1496,7 @@ typedef struct {
   char lhs_indx_range_startmin;
   char lhs_indx_range_stopmax;
   char initialize_output_var;
+  int lhs_vectortype_override;
 } _ExpressionCommand;
 
 typedef struct {
@@ -1370,6 +1522,7 @@ typedef struct {
   _Expression *constantexpression;
   int rejectoutliers;
   double rejsigclip;
+  VT_PARAM_COMPANIONS(rejsigclip);
   int rejuseMAD;
   int rejiterate;
   int rejfixnum;
@@ -1439,12 +1592,18 @@ typedef struct {
   _Expression **constraint_expressions;
 
   double amoeba_tol;
+  VT_PARAM_COMPANIONS(amoeba_tol);
   long amoeba_maxsteps;
+  VT_PARAM_COMPANIONS(amoeba_maxsteps);
 
   long mcmc_Naccept;
+  VT_PARAM_COMPANIONS(mcmc_Naccept);
   long mcmc_Nlinkstotal;
+  VT_PARAM_COMPANIONS(mcmc_Nlinkstotal);
   double mcmc_burninfrac;
+  VT_PARAM_COMPANIONS(mcmc_burninfrac);
   double mcmc_eps;
+  VT_PARAM_COMPANIONS(mcmc_eps);
   char *mcmc_chain_exprliststring;
   char **mcmc_chain_expr_strings;
   char *mcmc_chain_statsliststring;
@@ -1597,14 +1756,20 @@ typedef struct {
 
 typedef struct {
   double cterm;
+  VT_PARAM_COMPANIONS(cterm);
   double maxfreq;
+  VT_PARAM_COMPANIONS(maxfreq);
   double freq_sample_factor;
+  VT_PARAM_COMPANIONS(freq_sample_factor);
   int auto_tau0;
   int auto_tau1;
   int auto_dtau;
   double tau0;
+  VT_PARAM_COMPANIONS(tau0);
   double tau1;
+  VT_PARAM_COMPANIONS(tau1);
   double dtau;
+  VT_PARAM_COMPANIONS(dtau);
   int outfulltransform;
   int outfulltransform_usefits;
   int outfulltransform_usepm3d;

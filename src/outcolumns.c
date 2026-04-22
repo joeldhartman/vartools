@@ -59,7 +59,7 @@ void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int
       floatptr[lcnum] = EvaluateVariable_Float(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
       break;
     case VARTOOLS_TYPE_INT:
-      intptr = (float *) PrintCommand->dataptr[i];
+      intptr = (int *) PrintCommand->dataptr[i];
       intptr[lcnum] = EvaluateVariable_Int(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
       break;
     case VARTOOLS_TYPE_SHORT:
@@ -179,7 +179,7 @@ void addcolumn(ProgramData *p, Command *command, int cnum, int type, int strings
   c = &(p->outcolumns[p->Ncolumns-1]);
   va_start(varlist, lcdereferencecol);
   if((c->dereference = (int *) malloc(Ndereference * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   c->type = type;
   c->stringsize = stringsize;
   c->ptr = ptr;
@@ -224,9 +224,9 @@ void increaselinkedcols(ProgramData *p, OutColumn **c, char *s, int cmdidx)
       if((p->colnamestolink = (char **) malloc(sizeof(char *))) == NULL ||
 	 (p->outcolumnstolink = (OutColumn ***) malloc(sizeof(OutColumn **))) == NULL ||
 	 (p->columnstolink_cmdidx = (int *) malloc(sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((p->colnamestolink[0] = (char *) malloc(MAX_COLNAME_LENGTH)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   else
     {
@@ -234,9 +234,9 @@ void increaselinkedcols(ProgramData *p, OutColumn **c, char *s, int cmdidx)
       if((p->colnamestolink = (char **) realloc(p->colnamestolink, p->Ncolstolink * sizeof(char *))) == NULL ||
 	 (p->outcolumnstolink = (OutColumn ***) realloc(p->outcolumnstolink, p->Ncolstolink * sizeof(OutColumn **))) == NULL ||
 	 (p->columnstolink_cmdidx = (int *) realloc(p->columnstolink_cmdidx, p->Ncolstolink * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((p->colnamestolink[p->Ncolstolink - 1] = (char *) malloc(MAX_COLNAME_LENGTH)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   sprintf(p->colnamestolink[p->Ncolstolink - 1],"%s",s);
   p->outcolumnstolink[p->Ncolstolink - 1] = c;
@@ -264,7 +264,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
       colid = atoi(s);
       colid--;
       if(colid < 0 || colid >= p->Ncolumns)
-	error2(ERR_NOCOLUMN, s);
+	vt_error2(ERR_NOCOLUMN, s);
     }
   else
     {
@@ -308,7 +308,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
 	  }
       }
       if(colid < 0 || colid >= p->Ncolumns)
-	error2(ERR_NOCOLUMN, s);
+	vt_error2(ERR_NOCOLUMN, s);
     }
 
   /* Get the command index for the linked column */
@@ -321,7 +321,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
       l2++;
       i = atoi(&(p->outcolumns[colid].columnname[l2]));
       if(i >= commandidx)
-	error2(ERR_BADCOLUMNLINK, s);
+	vt_error2(ERR_BADCOLUMNLINK, s);
     }
   return &(p->outcolumns[colid]);
 }
@@ -476,7 +476,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf(*cptr,"%lf",(double *) outvalue);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -507,7 +507,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sprintf(((char *) outvalue),"%c",(*(charptr)));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -536,7 +536,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%d",((int *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -565,7 +565,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%f",((float *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -594,7 +594,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%hd",((short *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -623,7 +623,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%ld",((long *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -652,12 +652,12 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%c",((char *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 }
@@ -810,7 +810,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf(*cptr,"%lf",*((double *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -841,7 +841,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  *(charptr) = ((char *) invalue)[0];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -870,7 +870,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%d",*((int *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -899,7 +899,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%f",*((float *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -928,7 +928,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%d",*((short *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -957,7 +957,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%ld",*((long *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -986,12 +986,12 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%c",*((char *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 }
@@ -2087,12 +2087,12 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2147,12 +2147,12 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2162,6 +2162,64 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 	  }
 	fprintf(outfile,"\n");
       }
+
+    /* -printallscalars: append "VARTOOLS_SCALAR:name = value" for every
+       per-star variable that is not already emitted as an OUTCOLUMN.
+       Primary purpose is round-tripping of scalar state across chained
+       vartools invocations from pyvartools. */
+    if(p->printallscalars) {
+      int _si;
+      _Variable *_v;
+      for(_si = 0; _si < p->NDefinedVariables; _si++) {
+	_v = p->DefinedVariables[_si];
+	if(_v == NULL || _v->varname == NULL || _v->dataptr == NULL)
+	  continue;
+	if(_v->vectortype != VARTOOLS_VECTORTYPE_SCALAR &&
+	   _v->vectortype != VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	   _v->vectortype != VARTOOLS_VECTORTYPE_INLIST)
+	  continue;
+	/* SCALAR is per-thread; PERSTARDATA/INLIST are per-LC. */
+	{
+	  int _idx = (_v->vectortype == VARTOOLS_VECTORTYPE_SCALAR)
+	             ? lc : reallc;
+	  fprintf(outfile, "VARTOOLS_SCALAR:%s = ", _v->varname);
+	  switch(_v->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    fprintf(outfile, "%.17g",
+		    (*((double **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    fprintf(outfile, "%.9g",
+		    (double)(*((float **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    fprintf(outfile, "%d",
+		    (*((int **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    fprintf(outfile, "%ld",
+		    (*((long **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    fprintf(outfile, "%d",
+		    (int)(*((short **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    fprintf(outfile, "%s",
+		    (*((char ***) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    fprintf(outfile, "%c",
+		    (*((char **) _v->dataptr))[_idx]);
+	    break;
+	  default:
+	    fprintf(outfile, "?");
+	    break;
+	  }
+	  fprintf(outfile, "\n");
+	}
+      }
+    }
   }
   fprintf(outfile,"\n");
 }
@@ -2171,7 +2229,7 @@ void growbuffer(char **buf, int *sizebuf, int newlen)
   if(newlen + 1 >= (*sizebuf)) {
     (*sizebuf) = 2*(*sizebuf);
     if(((*buf) = (char *) realloc(*buf, (*sizebuf)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 }
 
@@ -2190,7 +2248,7 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
   if((*sizebuf) == 0) {
     *sizebuf = 256;
     if((*buf = (char *) malloc((*sizebuf)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   int indx=0;
   (*buf)[indx] = '\0';
@@ -2259,12 +2317,12 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2356,12 +2414,12 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2414,11 +2472,11 @@ _StringBuffer *popFreeBuffer(ProgramData *p) {
 void pushFullBuffer(ProgramData *p, _StringBuffer *buf) {
   if(!p->full_buffer_stack_alloclen) {
     if((p->full_buffer_stack = (_StringBuffer **) malloc(sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->full_buffer_stack_alloclen = 1;
   } else if(p->Nbuffs_full >= p->full_buffer_stack_alloclen-1) {
     if((p->full_buffer_stack = (_StringBuffer **) realloc(p->full_buffer_stack, (p->Nbuffs_full+1)*sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->full_buffer_stack_alloclen = p->Nbuffs_full+1;
   }
   p->full_buffer_stack[p->Nbuffs_full] = buf;
@@ -2428,11 +2486,11 @@ void pushFullBuffer(ProgramData *p, _StringBuffer *buf) {
 void pushFreeBuffer(ProgramData *p, _StringBuffer *buf) {
   if(!p->free_buffer_stack_alloclen) {
     if((p->free_buffer_stack = (_StringBuffer **) malloc(sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->free_buffer_stack_alloclen = 1;
   } else if(p->Nbuffs_free_stack >= p->free_buffer_stack_alloclen-1) {
     if((p->free_buffer_stack = (_StringBuffer **) realloc(p->free_buffer_stack, (p->Nbuffs_free_stack+1)*sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->free_buffer_stack_alloclen = p->Nbuffs_free_stack+1;
   }
   p->free_buffer_stack[p->Nbuffs_free_stack] = buf;

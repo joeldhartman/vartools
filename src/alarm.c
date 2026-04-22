@@ -64,7 +64,7 @@ double doalarm(int N_in, double *resid_in, double *err_in, int lcnum, int lclist
   } else {
     if((resid_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
        (err_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     N = 0;
     for(i=0; i < N_in; i++) {
       if(!isnan(resid_in[i]) && !isnan(err_in[i]) && err_in[i] > 0. &&

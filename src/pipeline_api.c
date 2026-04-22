@@ -28,6 +28,14 @@
 #include "programdata.h"
 #include "functions.h"
 
+typedef struct {
+    const char *name;
+    int         datatype;
+    int         vectortype;
+    const void *dataptr;
+    int         length;
+} VartoolsVarInfo;
+
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
@@ -117,7 +125,7 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
   /* Allocate the Command vector. */
   if ((s->c = (Command *) malloc(s->p.sizecommandvector * sizeof(Command)))
       == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for (i = 0; i < s->p.sizecommandvector; i++) {
     s->c[i].require_sort             = 0;
     s->c[i].require_distinct         = 0;
@@ -132,19 +140,19 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
 
 #ifdef DYNAMICLIB
   if (lt_dlinit()) {
-    error2(ERR_OPEN_LIBRARY,
+    vt_error2(ERR_OPEN_LIBRARY,
            "Cannot initialize libtool for opening a library.\n");
   }
 #ifdef VARTOOLSLIB_USERLIBSDIR
   if (lt_dladdsearchdir(VARTOOLSLIB_USERLIBSDIR)) {
     lt_dlerror();
-    error(ERR_OPEN_LIBRARY);
+    vt_error(ERR_OPEN_LIBRARY);
   }
 #endif
 #ifdef VARTOOLSLIB_USERFUNCSDIR
   if (lt_dladdsearchdir(VARTOOLSLIB_USERFUNCSDIR)) {
     lt_dlerror();
-    error(ERR_OPEN_LIBRARY);
+    vt_error(ERR_OPEN_LIBRARY);
   }
 #endif
 #endif /* DYNAMICLIB */
@@ -155,7 +163,7 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
   new_argc = argc + 2;
   new_argv = (char **) malloc((new_argc + 1) * sizeof(char *));
   if (!new_argv) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
     return NULL;  /* unreachable, but keeps static analysis happy */
   }
   new_argv[0] = argc > 0 ? argv[0] : (char *)"vartools";
@@ -313,4 +321,175 @@ void vartools_free_pipeline(ProgramData *p)
 
   free(s->c);
   free(s);
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_get_lc_variables
+ *
+ * After vartools_process_lc() has run, enumerate all light-curve variables
+ * and per-star scalars.  The caller provides an array of VartoolsVarInfo
+ * structs; this function fills them with metadata and a pointer to the
+ * raw data array for thread 0.
+ *
+ * The data pointers are valid until the next vartools_process_lc() call
+ * or vartools_free_pipeline().  The caller should copy any data it needs
+ * before the next call.
+ *
+ * Returns 0 on success.  *n_vars is set to the number of entries written.
+ * If max_vars is too small, only the first max_vars entries are written
+ * and the function returns the total number of variables available.
+ * ---------------------------------------------------------------------------
+ */
+int vartools_get_lc_variables(ProgramData  *p,
+                              int          *n_vars,
+                              VartoolsVarInfo *vars,
+                              int           max_vars)
+{
+  int i, count = 0;
+  _Variable *v;
+
+  for (i = 0; i < p->NDefinedVariables; i++) {
+    v = p->DefinedVariables[i];
+    if (v == NULL) continue;
+
+    if (v->vectortype == VARTOOLS_VECTORTYPE_LC) {
+      if (count < max_vars) {
+        vars[count].name = v->varname;
+        vars[count].datatype = v->datatype;
+        vars[count].vectortype = v->vectortype;
+        vars[count].length = p->NJD[0];
+        switch (v->datatype) {
+        case VARTOOLS_TYPE_DOUBLE:
+          vars[count].dataptr = (*((double ***) v->dataptr))[0];
+          break;
+        case VARTOOLS_TYPE_FLOAT:
+          vars[count].dataptr = (*((float ***) v->dataptr))[0];
+          break;
+        case VARTOOLS_TYPE_INT:
+          vars[count].dataptr = (*((int ***) v->dataptr))[0];
+          break;
+        case VARTOOLS_TYPE_LONG:
+          vars[count].dataptr = (*((long ***) v->dataptr))[0];
+          break;
+        case VARTOOLS_TYPE_SHORT:
+          vars[count].dataptr = (*((short ***) v->dataptr))[0];
+          break;
+        default:
+          vars[count].dataptr = NULL;
+          break;
+        }
+      }
+      count++;
+    }
+    else if (v->vectortype == VARTOOLS_VECTORTYPE_SCALAR ||
+             v->vectortype == VARTOOLS_VECTORTYPE_PERSTARDATA ||
+             v->vectortype == VARTOOLS_VECTORTYPE_INLIST) {
+      if (count < max_vars) {
+        vars[count].name = v->varname;
+        vars[count].datatype = v->datatype;
+        vars[count].vectortype = v->vectortype;
+        vars[count].length = 1;
+        switch (v->datatype) {
+        case VARTOOLS_TYPE_DOUBLE:
+          vars[count].dataptr = &((*((double **) v->dataptr))[0]);
+          break;
+        case VARTOOLS_TYPE_INT:
+          vars[count].dataptr = &((*((int **) v->dataptr))[0]);
+          break;
+        case VARTOOLS_TYPE_LONG:
+          vars[count].dataptr = &((*((long **) v->dataptr))[0]);
+          break;
+        default:
+          vars[count].dataptr = NULL;
+          break;
+        }
+      }
+      count++;
+    }
+  }
+
+  *n_vars = count < max_vars ? count : count;
+  return count > max_vars ? count : 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_get_njd
+ *
+ * Return the number of points in the light curve after processing
+ * (may differ from the input if clipping, binning, etc. were applied).
+ * ---------------------------------------------------------------------------
+ */
+int vartools_get_njd(ProgramData *p)
+{
+  return p->NJD[0];
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_set_lc_data
+ *
+ * Inject a full set of light-curve columns into the pipeline before
+ * calling vartools_process_lc().  This extends the basic t/mag/err
+ * injection to include additional named columns.
+ *
+ * col_names[0..n_columns-1] are the variable names.  The first three
+ * must be "t", "mag", "err" (or whatever the pipeline expects).
+ * col_data[i] points to n_points doubles for column i.
+ *
+ * For columns beyond t/mag/err, the function looks up each name in
+ * p->DefinedVariables.  If found and the variable is VECTORTYPE_LC,
+ * it copies the data in.  If not found, it is silently skipped
+ * (the variable does not exist in this pipeline's command set).
+ *
+ * Returns 0 on success, -1 if n_columns < 3.
+ * ---------------------------------------------------------------------------
+ */
+int vartools_set_lc_data(ProgramData     *p,
+                         int              n_points,
+                         int              n_columns,
+                         const char     **col_names,
+                         const double   **col_data,
+                         const char      *lc_name)
+{
+  int i, j;
+  _Variable *v;
+  double **arr;
+
+  if (n_columns < 3) return -1;
+
+  /* Grow internal arrays if needed */
+  MemAllocDataFromLightCurve(p, 0, n_points);
+  SetTimeMagSigPointers(p, 0);
+
+  /* Inject t, mag, err (first three columns) */
+  memcpy(p->t[0],   col_data[0], (size_t)n_points * sizeof(double));
+  memcpy(p->mag[0], col_data[1], (size_t)n_points * sizeof(double));
+  memcpy(p->sig[0], col_data[2], (size_t)n_points * sizeof(double));
+  p->NJD[0] = n_points;
+
+  /* Inject additional columns by variable name lookup */
+  for (i = 3; i < n_columns; i++) {
+    for (j = 0; j < p->NDefinedVariables; j++) {
+      v = p->DefinedVariables[j];
+      if (v == NULL) continue;
+      if (v->vectortype != VARTOOLS_VECTORTYPE_LC) continue;
+      if (v->datatype != VARTOOLS_TYPE_DOUBLE) continue;
+      if (strcmp(v->varname, col_names[i]) != 0) continue;
+      arr = *((double ***) v->dataptr);
+      memcpy(arr[0], col_data[i], (size_t)n_points * sizeof(double));
+      break;
+    }
+  }
+
+  /* Set the LC name */
+  if (lc_name != NULL) {
+    strncpy(p->lcnames[0], lc_name, MAXLEN - 1);
+    p->lcnames[0][MAXLEN - 1] = '\0';
+  } else {
+    strncpy(p->lcnames[0], "lc", MAXLEN - 1);
+  }
+
+  return 0;
 }

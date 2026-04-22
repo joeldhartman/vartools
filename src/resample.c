@@ -402,11 +402,11 @@ void InterpolateVec_Spline(int N_in, double *t_in, double *vec_in,
     if(!(*size_y2_in)) {
       if((*y2_in = (double *) malloc(N_in * sizeof(double))) == NULL ||
 	 (*u_in = (double *) malloc(N_in * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       if((*y2_in = (double *) realloc(*y2_in, N_in*sizeof(double))) == NULL ||
 	 (*u_in = (double *) realloc(*u_in, N_in*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     *size_y2_in = N_in;
   }
@@ -428,10 +428,10 @@ void InterpolateVec_SplineMonotonic(int N_in, double *t_in, double *vec_in,
   if(N_in > (*size_y2_in)) {
     if(!(*size_y2_in)) {
       if((*y2_in = (double *) malloc(N_in * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       if((*y2_in = (double *) realloc(*y2_in, N_in*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     *size_y2_in = N_in;
   }
@@ -536,13 +536,13 @@ void InterpolateVec_Gap_Extrap(int N_in, double *t_in, double *vec_in,
      (t_out_far = (double *) malloc(N_out*sizeof(double))) == NULL ||
      (t_out_extrap = (double *) malloc(N_out*sizeof(double))) == NULL ||
      (which_method = (char *) malloc(N_out*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   if(use_err) {
     if((err_out_close = (double *) malloc(N_out*sizeof(double))) == NULL ||
        (err_out_far = (double *) malloc(N_out*sizeof(double))) == NULL ||
        (err_out_extrap = (double *) malloc(N_out*sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   
   N_out_close = 0;
@@ -657,7 +657,7 @@ void InterpolateVec_Gap_Extrap(int N_in, double *t_in, double *vec_in,
 	break;
 #endif
       default:
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     }
   }
@@ -815,7 +815,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 
   N_in = p->NJD[threadid];
   if(N_in < 2) {
-    error(ERR_INTERP_NOTENOUGHPOINTS);
+    vt_error(ERR_INTERP_NOTENOUGHPOINTS);
   }
   if(Ninterp < 1) {
     /* The light curve is being deleted. Just set NJD to 0 and return */
@@ -824,7 +824,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
   }
   if((vec_out = (double *) malloc(Ninterp * sizeof(double))) == NULL ||
      (vec_in = (double *) malloc(N_in * sizeof(double))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
 
   /* Grow the light curve vectors to store the interpolated data if
@@ -867,7 +867,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
      the magnitude interpolation first */
   if(interp_mode == VARTOOLS_RESAMPLE_MULTIPLE) {
     if((vec_out_err = (double *) malloc(Ninterp * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N_in; i++) {
       vec_in[i] = p->mag[threadid][i];
     }
@@ -886,7 +886,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 #ifdef _HAVE_GSL
   else if(interp_mode == VARTOOLS_RESAMPLE_BSPLINE) {
     if((vec_out_err = (double *) malloc(Ninterp * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N_in; i++) {
       vec_in[i] = p->mag[threadid][i];
     }
@@ -998,7 +998,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	    charvec_in = ((*charptr)[threadid]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(Nc > 0) {
 	  switch(d->datatype) {
@@ -1075,7 +1075,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	    charvec_in = ((*charptr2)[threadid][u]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
 	/* Do the interpolation for any data that is not a special case */
@@ -1121,7 +1121,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	    }
 	    break;
 	  default:
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	  }
 
 	  if(is_mag_vec && interp_mode == VARTOOLS_RESAMPLE_MULTIPLE) continue;
@@ -1169,7 +1169,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  } else if(Nc > 0) {
 	    switch(d->datatype) {
@@ -1210,17 +1210,17 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
 	else if(d->datatype == VARTOOLS_TYPE_STRING) {
 	  if(!sizestringvec_out) {
 	    if((stringvec_out = (char **) malloc(Ninterp * sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < Ninterp; j++) {
 	      if((stringvec_out[j] = (char *) malloc(MAXLEN*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    sizestringvec_out = Ninterp;
 	  }
@@ -1233,7 +1233,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
 	else if(d->datatype == VARTOOLS_TYPE_CHAR) {
 	  if(!sizecharvec_out) {
 	    if((charvec_out = (char *) malloc(Ninterp * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sizestringvec_out = Ninterp;
 	  }
 	  InterpolateVec_Nearest_Char(N_in, p->t[threadid], charvec_in,
@@ -1267,7 +1267,7 @@ void InterpolateLC(ProgramData *p, int threadid, int lcid, int interp_mode, _Int
   case VARTOOLS_RESAMPLE_MULTIPLE:
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 
   /* Resample the times */
@@ -1330,7 +1330,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
   /* Check if the light curve is too short for interpolation */
   if(p->NJD[threadid] < 2) {
     /* Cannot interpolate */
-    error(ERR_INTERP_NOTENOUGHPOINTS);
+    vt_error(ERR_INTERP_NOTENOUGHPOINTS);
   }
 
 
@@ -1341,19 +1341,19 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
     if(c->resample_filename_source != VARTOOLS_SOURCE_FIXED) {
       /* Each light curve has its own file to use */
       if((infile = fopen(c->resample_filenames[lcid],"r")) == NULL) {
-	error2(ERR_CANNOTOPEN,c->resample_filenames[lcid]);
+	vt_error2(ERR_CANNOTOPEN,c->resample_filenames[lcid]);
       }
       line = malloc(line_size);
       size_tout = p->NJD[threadid];
       if((t_out = (double *) malloc(size_tout * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       Ninterp = 0;
       while(gnu_getline(&line,&line_size,infile) >= 0) {
 	if(line[0] != '#') {
 	  if(Ninterp >= size_tout) {
 	    size_tout *= 2;
 	    if((t_out = (double *) realloc(t_out, size_tout * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  k = 1;
 	  j = 0;
@@ -1366,7 +1366,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
 	      j += parseone(&line[j], (void *) (&(t_out[Ninterp])), VARTOOLS_TYPE_DOUBLE);
 	    }
 	  else {
-	    error2(ERR_INPUTMISSINGCOLUMN, c->resample_filenames[lcid]);
+	    vt_error2(ERR_INPUTMISSINGCOLUMN, c->resample_filenames[lcid]);
 	  }
 	  Ninterp++;
 	}
@@ -1459,7 +1459,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
     }
     Ninterp = floor((tstop - tstart)/delt) + 1;
     if((t_out = (double *) malloc(Ninterp * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=1, t_out[0] = tstart; i < Ninterp; i++) {
       t_out[i] = t_out[i-1] + delt;
     }
@@ -1480,7 +1480,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
     params.spline_order = c->bspline_order;
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
     break;
   }
   
@@ -1500,7 +1500,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
       params_far.spline_order = c->bspline_order_far;
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
 
@@ -1519,7 +1519,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
       /*** user gave the "frac_min_sep", "frac_med_sep" or "percentile_sep"
 	   option ****/
       if((delt_in_vals = (double *) malloc((p->NJD[threadid]-1)*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=1; i < p->NJD[threadid]; i++) {
 	delt_in_vals[i-1] = p->t[threadid][i] - p->t[threadid][i-1];
       }
@@ -1554,7 +1554,7 @@ void DoResample(ProgramData *p, _Resample *c, int threadid, int lcid)
       params_extrap.spline_order = c->bspline_order_extrap;
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
   }
@@ -1640,7 +1640,7 @@ int ParseResampleMethod(int *iret, int argc, char **argv, ProgramData *p,
 	if(i >= argc) {*iret = i; return 1;}
 	*bspline_order = atoi(argv[i]) + 1;
 	if(*bspline_order < 2) {
-	  error2(ERR_INVALID_PARAMETERVALUE,"-resample, the order for the bspline must be >= 1");
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"-resample, the order for the bspline must be >= 1");
 	}
       } else
 	i--;
@@ -1710,19 +1710,19 @@ int ParseResampleCommand(int *iret, int argc, char **argv, ProgramData *p,
 	} else i--;
 	/* Read in the input times from the file */
 	if((infile = fopen(c->resample_filename_fix,"r")) == NULL) {
-	  error2(ERR_CANNOTOPEN,c->resample_filename_fix);
+	  vt_error2(ERR_CANNOTOPEN,c->resample_filename_fix);
 	}
 	line = malloc(line_size);
 	size_tout = 1024;
 	if((c->t_resamp = (double *) malloc(size_tout * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	c->N_resamp = 0;
 	while(gnu_getline(&line,&line_size,infile) >= 0) {
 	  if(line[0] != '#') {
 	    if(c->N_resamp >= size_tout) {
 	      size_tout *= 2;
 	      if((c->t_resamp = (double *) realloc(c->t_resamp, size_tout * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    k = 1;
 	    j = 0;
@@ -1735,7 +1735,7 @@ int ParseResampleCommand(int *iret, int argc, char **argv, ProgramData *p,
 		j += parseone(&line[j], (void *) (&(c->t_resamp[c->N_resamp])), VARTOOLS_TYPE_DOUBLE);
 	      }
 	    else {
-	      error2(ERR_INPUTMISSINGCOLUMN, c->resample_filename_fix);
+	      vt_error2(ERR_INPUTMISSINGCOLUMN, c->resample_filename_fix);
 	    }
 	    c->N_resamp++;
 	  }

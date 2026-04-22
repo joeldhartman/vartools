@@ -105,6 +105,10 @@ class LS(VartoolsCommand):
         args += _flag("maskpoints", self.maskpoints)
         return args
 
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
+
     def _output_file_specs(self):
         return {"periodogram": (".ls", None)}
 
@@ -180,6 +184,10 @@ class aov(VartoolsCommand):
         args += _flag("maskpoints", self.maskpoints)
         return args
 
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
+
     def _output_file_specs(self):
         return {"periodogram": (".aov", None)}
 
@@ -247,6 +255,10 @@ class aov_harm(VartoolsCommand):
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
         args += _flag("maskpoints", self.maskpoints)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
 
     def _output_file_specs(self):
         return {"periodogram": (".aov_harm", None)}
@@ -505,6 +517,10 @@ class BLSFixPer(VartoolsCommand):
         args += _flag("maskpoints", self.maskpoints)
         return args
 
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
+
     def _output_file_specs(self):
         return {"model": (".blsfixper.model", None)}
 
@@ -607,7 +623,7 @@ class BLSFixDurTc(VartoolsCommand):
             args += ["fixdepth"] + _period_spec(self.fixdepth)
             if self.qgress is not None:
                 args += ["qgress"] + _period_spec(self.qgress)
-        args += [str(self.minper), str(self.maxper), str(self.nfreq)]
+        args += _varexpr(self.minper) + _varexpr(self.maxper) + _varexpr(self.nfreq)
         args += [str(self.timezone), str(self.npeaks)]
         args += _outtoken(self.save_periodogram, outdir)
         args += _outtoken(self.save_model, outdir)
@@ -794,8 +810,7 @@ class autocorrelation(VartoolsCommand):
         outdir = getattr(self, "_outdir", ".")
         spec = _norm_save(self.save_result)
         actual_outdir = spec.path if spec.path is not None else outdir
-        args = ["-autocorrelation", str(self.start), str(self.stop),
-                str(self.step), actual_outdir]
+        args = ["-autocorrelation"] + _varexpr(self.start) + _varexpr(self.stop) + _varexpr(self.step) + [actual_outdir]
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -878,16 +893,16 @@ class dftclean(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-dftclean", str(self.nbeam)]
+        args = ["-dftclean"] + _varexpr(self.nbeam)
         if self.maxfreq is not None:
-            args += ["maxfreq", str(self.maxfreq)]
+            args += ["maxfreq"] + _varexpr(self.maxfreq)
         dspec_spec = _norm_save(self.save_dspec)
         if _should_emit(dspec_spec):
             args += ["outdspec", dspec_spec.path or outdir]
         if self.finddirtypeaks is not None:
             args += ["finddirtypeaks", str(self.finddirtypeaks)]
             if self.finddirtypeaks_clip is not None:
-                args += ["clip", str(self.finddirtypeaks_clip)]
+                args += ["clip"] + _varexpr(self.finddirtypeaks_clip)
                 if self.finddirtypeaks_clipiter is not None:
                     args += [str(self.finddirtypeaks_clipiter)]
         wfunc_spec = _norm_save(self.save_wfunc)
@@ -896,7 +911,7 @@ class dftclean(VartoolsCommand):
         cspec_spec = _norm_save(self.save_cspec)
         cb_spec = _norm_save(self.outcbeam)
         if _should_emit(cspec_spec) or self.npeaks is not None or _should_emit(cb_spec):
-            args += ["clean", str(self.gain), str(self.SNlimit)]
+            args += ["clean"] + _varexpr(self.gain) + _varexpr(self.SNlimit)
             if _should_emit(cb_spec):
                 args += ["outcbeam", cb_spec.path or outdir]
             if _should_emit(cspec_spec):
@@ -975,13 +990,13 @@ class wwz(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-wwz",
-                "maxfreq", str(self.maxfreq),
-                "freqsamp", str(self.freqsamp if self.freqsamp is not None else "auto"),
-                "tau0", str(self.tau0),
-                "tau1", str(self.tau1),
-                "dtau", str(self.dtau),
-                "c", str(self.c)]
+        args = ["-wwz"]
+        args += ["maxfreq"] + _varexpr(self.maxfreq)
+        args += ["freqsamp"] + (_varexpr(self.freqsamp) if self.freqsamp is not None else ["auto"])
+        args += ["tau0"] + _varexpr(self.tau0)
+        args += ["tau1"] + _varexpr(self.tau1)
+        args += ["dtau"] + _varexpr(self.dtau)
+        args += ["c"] + _varexpr(self.c)
         tr_spec = _norm_save(self.save_transform)
         if _should_emit(tr_spec):
             args += ["outfulltransform", tr_spec.path or outdir]
@@ -1061,6 +1076,27 @@ class GetLSAmpThresh(VartoolsCommand):
         args += _bool("noGLS", self.noGLS)
         return args
 
+    def _resolve_back_references(self, prev) -> None:
+        # The -GetLSAmpThresh CLI only accepts "ls" or "list" as its period
+        # source.  Across a chain boundary the prior -LS command does not
+        # survive, so the "ls" keyword must be resolved.  We cannot convert
+        # to a bare number (the CLI rejects that), so we raise a clear error
+        # and point the user at the direct form.
+        if isinstance(self.period, str) and self.period.strip() == "ls":
+            from ._helpers import _most_recent_lookup
+            stats = _most_recent_lookup(prev, ["LS"])
+            if stats is None:
+                raise LookupError(
+                    "GetLSAmpThresh back-reference 'ls' has no prior -LS "
+                    "command in this chain"
+                )
+            raise NotImplementedError(
+                "GetLSAmpThresh with period='ls' is not supported across "
+                "chain boundaries (the CLI only accepts 'ls'/'list' period "
+                "sources).  Call it within a single Pipeline alongside the "
+                "-LS command."
+            )
+
 
 class Phase(VartoolsCommand):
     """Phase-fold the light curve on a period.
@@ -1101,3 +1137,39 @@ class Phase(VartoolsCommand):
         if self.startphase is not None:
             args += ["startphase", str(self.startphase)]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref, _most_recent_lookup
+
+        # period: resolve "ls"/"aov"/"bls"/"blsfixper"/"injectharm"/"fixcolumn"
+        self.period = _resolve_period_backref(prev, self.period)
+
+        # T0 accepts "bls <phaseTc>" — pull Tc from the prior BLS and add the
+        # phase offset.  Example: "bls 0.5" → bls_Tc - 0.5*bls_Period.
+        if isinstance(self.T0, str):
+            s = self.T0.strip()
+            if s.startswith("bls"):
+                parts = s.split()
+                phase_off = float(parts[1]) if len(parts) > 1 else 0.0
+                stats = _most_recent_lookup(prev, ["BLS"])
+                if stats is None:
+                    raise LookupError(
+                        "Back-reference T0='bls ...' has no prior -BLS "
+                        "command in this chain"
+                    )
+                from ._helpers import _coerce_to_numeric
+                period = _coerce_to_numeric(stats.Period_1)
+                tc = _coerce_to_numeric(stats.Tc_1)
+                # Scalar vs PerLC arithmetic
+                from pyvartools.perlc import PerLC
+                if isinstance(tc, PerLC) or isinstance(period, PerLC):
+                    tc_vals = tc if isinstance(tc, PerLC) else PerLC(
+                        [float(tc)] * len(period))
+                    per_vals = period if isinstance(period, PerLC) else PerLC(
+                        [float(period)] * len(tc_vals))
+                    self.T0 = PerLC([
+                        float(t) - phase_off * float(p)
+                        for t, p in zip(tc_vals, per_vals)
+                    ])
+                else:
+                    self.T0 = float(tc) - phase_off * float(period)

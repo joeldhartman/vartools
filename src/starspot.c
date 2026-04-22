@@ -55,7 +55,7 @@ double chisqstarspot(double *a_, int ma, int N, double *t, double *mag, double *
   double chisq, *newmag, temp;
   chisq = 0.;
   if((newmag = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   starspot_(N, t, newmag, a_[1], a_[2], a_[3], a_[4], a_[5], a_[6], a_[0]);
   for(j=0;j<N;j++)
     if(!isnan(mag[j]))
@@ -215,7 +215,7 @@ N is the number of data points
   double psi, T, delta, zeta, beta, cbeta, sbeta, calpha, salpha, s2alpha, ci, si, cchi, schi, cpsi, spsi, sdelta, cdelta, szeta, czeta, A, B, c3alpha, P, a, b, alpha, i, chi, psi0, mconst, dAdbeta, dBdbeta, dzetadbeta, dTdbeta, ddeltadbeta, dbetadi, dbetadchi, dbetadpsi, denom, dAdalpha, dBdalpha, dzetadalpha, dTdalpha, ddeltadalpha, cT;
 
   if(ma != 8)
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   P = a_[0];
   a = a_[1];
   b = a_[2];
@@ -459,7 +459,7 @@ correctlc is a flag denoting whether or not to subtract off the spot model from 
     }
 
   if((ia = (int *) malloc(ma * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(fitP) ia[0] = 1; else ia[0] = 0;
   if(fita) ia[1] = 1; else ia[1] = 0;
@@ -475,10 +475,10 @@ correctlc is a flag denoting whether or not to subtract off the spot model from 
 
   if((p = (double **) malloc((nvar + 1)*sizeof(double *))) == NULL ||
      (y = (double *) malloc((nvar + 1)*sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(j=0;j<nvar+1;j++)
     if((p[j] = (double *) malloc(ma * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
   /* estimate the minimum mag if mconst is less than zero */
   if(*mconst < 0)
@@ -549,13 +549,13 @@ correctlc is a flag denoting whether or not to subtract off the spot model from 
   if(correctlc || omodel)
     {
       if((delmag = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(!amoeba_val || nvar == 0)
 	starspot_(N, t, delmag, *a, *b, *alpha, *i, *chi, *psi0, *P);
       if(omodel)
 	{
 	  if((outfile = fopen(modelname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,modelname);
+	    vt_error2(ERR_CANNOTWRITE,modelname);
 	  if(!amoeba_val || nvar == 0)
 	    {
 	      for(j=0;j<N;j++)

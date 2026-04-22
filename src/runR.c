@@ -779,7 +779,7 @@ int WriteVariablesFromRToSocket(ProgramData *p, _RCommand *cparent,
   short tmpshortout;
   int lenvec;
 
-  char *tmpstr;
+  const char *tmpstr;
   char *tmpcharvec = NULL;
   int sizetmpcharvec = 0;
 
@@ -2056,12 +2056,12 @@ void StopRunningRCommand(ProgramData *p, int threadindex, _RCommand *c)
   int msg = VARTOOLS_R_MESSAGE_ENDPROCESS;
   if(!c->iscontinueprocess) {
     if(c->IsRRunning[threadindex]) {
-      write(c->sockets[threadindex][0], &msg, sizeof(int));
+      (void)write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
   } else {
     if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[threadindex]) {
-      write(c->sockets[threadindex][0], &msg, sizeof(int));
+      (void)write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
   }

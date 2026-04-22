@@ -701,12 +701,12 @@ void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid)
   char *line;
   size_t line_size = MAXLEN;
   int i, j, k;
-  void error2(int, char *);
+  void vt_error2(int, char *);
 
   line = malloc(line_size);
 
   if((dates = fopen(Sysrem->dates_name,"r")) == NULL)
-    error2(ERR_FILENOTFOUND,Sysrem->dates_name);
+    vt_error2(ERR_FILENOTFOUND,Sysrem->dates_name);
   Sysrem->Njd = 0;
   while(gnu_getline(&line,&line_size,dates) >= 0)
     Sysrem->Njd++;
@@ -716,44 +716,44 @@ void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid)
     {
       if((Sysrem->stringid = (char **) malloc(Sysrem->Njd * sizeof(char *))) == NULL ||
 	 (Sysrem->stringid_idx = (int *) malloc(Sysrem->Njd * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Sysrem->Njd;i++)
 	{
 	  if((Sysrem->stringid[i] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
     }
   else
     {
       if((Sysrem->JD = (double *) malloc(Sysrem->Njd * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if(Sysrem->Nsysrem_airmass > 0)
     {
       if((Sysrem->initial_X = (double **) malloc(Sysrem->Nsysrem_airmass * sizeof(double *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if(Sysrem->Nsysrem_color > 0)
     {
       if((Sysrem->initial_colors = (double **) malloc(Sysrem->Nsysrem_color * sizeof(double *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if((Sysrem->final_X = (double **) malloc(Sysrem->Nsysrem_total * sizeof(double *))) == NULL ||
      (Sysrem->mag_ave = (double *) malloc(numlcs * sizeof(double))) == NULL ||
      (Sysrem->rms_out = (double *) malloc(numlcs * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<Sysrem->Nsysrem_airmass;i++)
     if((Sysrem->initial_X[i] = (double *) malloc(Sysrem->Njd * sizeof(double))) == NULL ||
        (Sysrem->final_X[i] = (double *) malloc(Sysrem->Njd * sizeof(double))) == NULL ||
        (Sysrem->final_colors[i] = (double *) malloc(numlcs * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   for(;i<Sysrem->Nsysrem_total;i++)
     if((Sysrem->final_X[i] = (double *) malloc(Sysrem->Njd * sizeof(double))) == NULL ||
        (Sysrem->final_colors[i] = (double *) malloc(numlcs * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   for(i=0;i<Sysrem->Nsysrem_color;i++)
     if((Sysrem->initial_colors[i] = (double *) malloc(numlcs * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
   for(i=0;i<Sysrem->Nsysrem_color;i++)
     for(j=0;j<numlcs;j++)
@@ -775,7 +775,7 @@ void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid)
 	  if(line[j] != '\0' && line[j] != '\n')
 	    j += parseone(&line[j], (void *) (&Sysrem->initial_X[k][i]), VARTOOLS_TYPE_DOUBLE);
 	  else
-	    error2(ERR_INPUTMISSINGCOLUMN,Sysrem->dates_name);
+	    vt_error2(ERR_INPUTMISSINGCOLUMN,Sysrem->dates_name);
 	}
       i++;
     }
@@ -810,18 +810,18 @@ void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double *
      (Avector = (double *) malloc((Nsysrem_total + 1) * sizeof(double))) == NULL ||
      (A_errvector = (double *) malloc((Nsysrem_total + 1)* sizeof(double))) == NULL ||
      (order = (int *) malloc(Nsysrem_total * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<numlc;i++)
     {
       if((mag[i] = (double *) malloc(numjd * sizeof(double))) == NULL ||
 	 (sig[i] = (double *) malloc(numjd * sizeof(double))) == NULL ||
 	 (clip[i] = (int *) malloc(numjd * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   for(i=0;i<numjd;i++)
     {
       if((decorr[i] = (double *) malloc(Nsysrem_total * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   for(i=0;i<numjd;i++)
     numX[i] = 0;
@@ -1067,7 +1067,7 @@ void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double *
 	    }
 	  sprintf(outname,"%s/%s%s",Sysrem->model_outdir,&lcnames[k][i2],Sysrem->model_suffix);
 	  if((lcout = fopen(outname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,outname);
+	    vt_error2(ERR_CANNOTWRITE,outname);
 	}
       var1 = 0.;
       var2 = 0.;
@@ -1149,7 +1149,7 @@ void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double *
   if(Sysrem->otrend)
     {
       if((trendout = fopen(Sysrem->trends_outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,Sysrem->trends_outname);
+	vt_error2(ERR_CANNOTWRITE,Sysrem->trends_outname);
       for(k=0;k<numjd;k++)
 	{
 	  if(matchstringid)

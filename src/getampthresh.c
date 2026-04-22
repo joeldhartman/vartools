@@ -122,7 +122,7 @@ double gls_oneperiod(double *x, double *y, double *err, int n, double period)
 
   if(n <= 0) return -1.;
   if((w = (double *) malloc(n * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < n; i ++) {
     if(!isnan(y[i]) && !isnan(err[i]) && err[i] > 0.) {
@@ -201,7 +201,7 @@ Embedded in this routine is the zbrent algorithm (see Numerical Recipes in C) to
      (subharmB = (double *) malloc((Nsubharm + 1) * sizeof(double))) == NULL ||
      (harmA = (double *) malloc((Nharm + 1) * sizeof(double))) == NULL ||
      (harmB = (double *) malloc((Nharm + 1) * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* First Get the signal */
   /* Read the signal in from the file if we're doing that */

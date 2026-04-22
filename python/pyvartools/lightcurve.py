@@ -15,9 +15,10 @@ Accepts construction from:
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -26,12 +27,112 @@ import pandas as pd
 # even without it installed (though pyproject.toml lists it as a dependency).
 try:
     from astropy.timeseries import TimeSeries
-    import astropy.units as u
     _HAVE_ASTROPY = True
 except (ImportError, Exception):
     _HAVE_ASTROPY = False
 
+if TYPE_CHECKING:
+    from astropy.io.fits import Header as _FitsHeader
+
 _STANDARD_COLS = ("t", "mag", "err")
+
+
+def _read_ascii_header_names(path: Path):
+    """Return column names from the last ``# name1 name2 ...`` comment line
+    at the top of *path*, or ``None`` if no such line is present.
+
+    Only the contiguous block of leading comment lines is scanned, so a
+    ``#commandline`` log line (or any other `#...` line without space-
+    separated tokens that look like identifiers) is ignored unless it
+    happens to be the last header line and parses as a name list.
+    """
+    try:
+        with open(path, "r") as fh:
+            last_tokens = None
+            for raw in fh:
+                s = raw.lstrip()
+                if not s:
+                    continue
+                if not s.startswith("#"):
+                    break
+                stripped = s[1:].strip()
+                if not stripped:
+                    continue
+                tokens = stripped.split()
+                if all(tok.replace("_", "").replace(".", "").isalnum()
+                       and not tok[0].isdigit()
+                       for tok in tokens):
+                    last_tokens = tokens
+            return last_tokens
+    except OSError:
+        return None
+
+# -----------------------------------------------------------------------------
+# FITS-header helpers — shared between read and write.
+# -----------------------------------------------------------------------------
+
+# Structural FITS keywords that must be (re)derived from the current
+# DataFrame at write time.  These are filtered out on both read (when
+# capturing a header onto LightCurve.fitsheader) and write (when emitting
+# a preserved header back into an output file), so the user-visible
+# ``fitsheader`` only carries observational / provenance metadata.
+_STRUCTURAL_FIXED = frozenset({
+    "SIMPLE", "BITPIX", "EXTEND", "XTENSION", "END",
+    "NAXIS", "PCOUNT", "GCOUNT", "TFIELDS",
+    "EXTNAME", "EXTVER", "EXTLEVEL",
+})
+# Per-column and per-axis indexed keywords: TTYPE1, TFORM2, NAXIS1, …
+_STRUCTURAL_INDEXED_RE = re.compile(
+    r"^(NAXIS|TTYPE|TFORM|TDISP|TSCAL|TZERO|TNULL|TBCOL|TUNIT|"
+    r"TCTYP|TCRPX|TCRVL|TCDLT|TCUNI|TCROT|TDIM)\d+$"
+)
+
+
+def _is_structural_fits_key(keyword: str) -> bool:
+    """True for FITS header keywords that must be redetermined from the data."""
+    k = keyword.upper()
+    return k in _STRUCTURAL_FIXED or bool(_STRUCTURAL_INDEXED_RE.match(k))
+
+
+def _filter_structural(header: "_FitsHeader") -> "_FitsHeader":
+    """Return a copy of *header* with structural keywords stripped."""
+    from astropy.io.fits import Header
+    out = Header()
+    for card in header.cards:
+        # Allow blank / COMMENT / HISTORY cards through unchanged; they carry
+        # no structural meaning.
+        kw = (card.keyword or "").strip()
+        if not kw or kw in ("COMMENT", "HISTORY"):
+            out.append(card, end=True)
+            continue
+        if not _is_structural_fits_key(kw):
+            out.append(card, end=True)
+    return out
+
+
+def _coerce_fitsheader(value):
+    """Convert *value* into an ``astropy.io.fits.Header`` (or return None).
+
+    Accepts ``None`` (returns ``None``), an existing ``Header`` (returned as
+    a copy), or any dict-like whose items can be used as FITS keyword/value
+    pairs.  Raises ``TypeError`` for anything else.
+    """
+    if value is None:
+        return None
+    try:
+        from astropy.io import fits
+    except ImportError as exc:
+        raise ImportError(
+            "astropy is required to attach a FITS header to a LightCurve."
+        ) from exc
+    if isinstance(value, fits.Header):
+        return value.copy()
+    if isinstance(value, dict):
+        return fits.Header(list(value.items()))
+    raise TypeError(
+        f"fitsheader must be None, an astropy.io.fits.Header, or a dict; "
+        f"got {type(value).__name__}"
+    )
 
 
 class LightCurve:
@@ -52,9 +153,28 @@ class LightCurve:
         A label for this light curve (used as the vartools 'Name' field).
     """
 
-    def __init__(self, data: pd.DataFrame, name: str = "") -> None:
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
+    ) -> None:
         self._df = data.copy()
         self.name = name
+        # Per-star scalar variables (VARTOOLS_VECTORTYPE_SCALAR /
+        # PERSTARDATA / INLIST).  Canonical names, no ``_N`` suffix.
+        # Populated by pyvartools during capture; also carried across chained
+        # command invocations so subsequent commands can reference prior
+        # results in analytic expressions.
+        self.scalars: Dict[str, float] = dict(scalars or {})
+        # Optional FITS header preserved from the input file (merged primary +
+        # extension, structural keywords filtered).  Emitted back onto the
+        # primary HDU of FITS output via ``to_file``.  ``None`` if the light
+        # curve did not come from a FITS file.  Accepts an ``astropy.io.fits``
+        # ``Header`` instance or ``None``; other truthy values are converted
+        # to a ``Header`` when astropy is available.
+        self.fitsheader = _coerce_fitsheader(fitsheader)
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -68,6 +188,8 @@ class LightCurve:
         err: Optional[np.ndarray] = None,
         aux: Optional[Dict[str, np.ndarray]] = None,
         name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
     ) -> "LightCurve":
         """Construct from numpy arrays.
 
@@ -81,6 +203,9 @@ class LightCurve:
             Mapping of column name → array for additional columns.
         name : str, optional
             Light curve label.
+        fitsheader : astropy.io.fits.Header or dict, optional
+            FITS header to round-trip through :meth:`to_file`.  Normally set
+            automatically by :meth:`from_file` when reading a FITS file.
         """
         d = {}
         if t is not None:
@@ -92,17 +217,24 @@ class LightCurve:
         if aux:
             for k, v in aux.items():
                 d[k] = np.asarray(v)
-        return cls(pd.DataFrame(d), name=name)
+        return cls(pd.DataFrame(d), name=name, scalars=scalars,
+                   fitsheader=fitsheader)
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, name: str = "") -> "LightCurve":
+    def from_dataframe(
+        cls,
+        df: pd.DataFrame,
+        name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
+    ) -> "LightCurve":
         """Construct from a pandas DataFrame.
 
         Any DataFrame is accepted.  Columns named ``t``, ``mag``, and ``err``
         are treated as the standard vartools vectors when present; others are
         preserved as auxiliary columns.
         """
-        return cls(df, name=name)
+        return cls(df, name=name, scalars=scalars, fitsheader=fitsheader)
 
     @classmethod
     def from_timeseries(cls, ts: "TimeSeries", mag_col: str = "mag",
@@ -187,12 +319,12 @@ class LightCurve:
     def _from_ascii(cls, path: Path, name: str) -> "LightCurve":
         df = pd.read_csv(path, sep=r"\s+", comment="#", header=None)
         ncols = df.shape[1]
-        if ncols >= 3:
-            # Standard convention: first three columns are t, mag, err.
+        header_names = _read_ascii_header_names(path)
+        if header_names is not None and len(header_names) == ncols:
+            col_names = header_names
+        elif ncols >= 3:
             col_names = list(_STANDARD_COLS) + [f"col{i+4}" for i in range(ncols - 3)]
         else:
-            # Fewer than 3 columns — caller will need to supply column
-            # semantics via the Pipeline `columns` parameter.
             col_names = [f"col{i+1}" for i in range(ncols)]
         df.columns = col_names
         return cls(df, name=name)
@@ -234,7 +366,15 @@ class LightCurve:
                 for c in table.columns
                 if c.name.upper() not in skip
             }
-        return cls.from_arrays(t, mag, err, aux=aux or None, name=name)
+            # Merge primary + data-HDU headers into a single observational
+            # header, filtering out column/axis-structural keywords.  Primary
+            # first so extension-HDU keys can override on conflict.
+            merged = fits.Header(hdul[0].header.copy())
+            if hdu != 0:
+                merged.update(hdul[hdu].header)
+            header = _filter_structural(merged)
+        return cls.from_arrays(t, mag, err, aux=aux or None, name=name,
+                               fitsheader=header)
 
     # ------------------------------------------------------------------
     # Conversion helpers
@@ -264,6 +404,12 @@ class LightCurve:
         """Convert to an astropy TimeSeries."""
         if not _HAVE_ASTROPY:
             raise ImportError("astropy is required to use to_timeseries().")
+        if self.t is None:
+            raise ValueError(
+                "LightCurve has no 't' column; cannot construct a TimeSeries. "
+                "Supply a time array via from_arrays(t=...) or ensure the "
+                "source file has a time column."
+            )
         from astropy.time import Time
         ts = TimeSeries(time=Time(self.t, format="jd"))
         for col in self._df.columns:
@@ -272,13 +418,61 @@ class LightCurve:
         return ts
 
     # ------------------------------------------------------------------
-    # Serialisation (for passing to the vartools binary via temp files)
+    # Serialisation
     # ------------------------------------------------------------------
 
-    def to_tempfile(self, dir: Optional[str] = None) -> str:
+    def to_file(
+        self,
+        path: Union[str, Path],
+        format: Optional[str] = None,
+    ) -> None:
+        """Write the light curve to a file.
+
+        Parameters
+        ----------
+        path : str | Path
+        format : str, optional
+            ``"ascii"`` (default for most extensions) or ``"fits"``.
+            Auto-detected from the file extension when omitted.
+
+        Notes
+        -----
+        ASCII output is whitespace-separated with 10 decimal places of
+        precision and no header line, matching the vartools default format.
+        FITS output requires astropy.
+        """
+        path = Path(path)
+        if format is None:
+            fmt = path.suffix.lower()
+            if fmt in (".fits", ".fit", ".fts"):
+                format = "fits"
+            else:
+                format = "ascii"
+
+        if format == "fits":
+            try:
+                from astropy.io import fits
+                from astropy.table import Table
+            except ImportError as e:
+                raise ImportError("astropy is required to write FITS files.") from e
+            tbl = Table.from_pandas(self._df)
+            bin_hdu = fits.BinTableHDU(data=tbl)
+            primary = fits.PrimaryHDU()
+            # When a preserved header is available, inject its non-structural
+            # keywords onto the primary HDU.  Skip when fitsheader is None so
+            # the default write path is byte-for-byte unchanged from before.
+            if self.fitsheader is not None:
+                for card in _filter_structural(self.fitsheader).cards:
+                    primary.header.append(card, end=True)
+            fits.HDUList([primary, bin_hdu]).writeto(str(path), overwrite=True)
+        else:
+            self._df.to_csv(path, sep=" ", header=False, index=False,
+                            float_format="%.10f")
+
+    def _to_tempfile(self, dir: Optional[str] = None) -> str:
         """Write the light curve to a named temp file and return its path.
 
-        The caller is responsible for deleting the file when done.
+        Internal helper — callers are responsible for deleting the file.
         """
         fd, path = tempfile.mkstemp(suffix=".lc", dir=dir)
         try:
@@ -291,12 +485,79 @@ class LightCurve:
         return path
 
     # ------------------------------------------------------------------
+    # Visualisation
+    # ------------------------------------------------------------------
+
+    def plot(self, ax=None, **kwargs):
+        """Quick-look plot of the light curve.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to draw on.  A new figure and axes are created if omitted.
+        **kwargs
+            Passed to ``ax.errorbar`` (or ``ax.plot`` when there is no error
+            column).  Override defaults such as ``fmt``, ``markersize``, etc.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Notes
+        -----
+        The y-axis is inverted automatically (standard astronomical magnitude
+        convention).  Requires matplotlib.
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError as e:
+            raise ImportError("matplotlib is required for LightCurve.plot().") from e
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        kw = dict(fmt=".", markersize=3, elinewidth=0.5, capsize=0)
+        kw.update(kwargs)
+
+        t = self.t
+        mag = self.mag
+        err = self.err
+
+        if t is None or mag is None:
+            raise ValueError(
+                "LightCurve has no 't' or 'mag' column; cannot plot."
+            )
+
+        if err is not None:
+            ax.errorbar(t, mag, err, **kw)
+        else:
+            # Strip errorbar-specific keys that aren't valid for plot()
+            plot_kw = {k: v for k, v in kw.items()
+                       if k not in ("elinewidth", "capsize", "ecolor", "barsabove")}
+            fmt = plot_kw.pop("fmt", ".")
+            ax.plot(t, mag, fmt, **plot_kw)
+
+        ax.invert_yaxis()
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Magnitude")
+        if self.name:
+            ax.set_title(self.name)
+
+        return ax
+
+    # ------------------------------------------------------------------
     # Dunder
     # ------------------------------------------------------------------
+
+    @property
+    def shape(self) -> tuple:
+        """(n_points, n_columns) — mirrors ``DataFrame.shape``."""
+        return self._df.shape
 
     def __len__(self) -> int:
         return len(self._df)
 
     def __repr__(self) -> str:
+        extra = f", scalars={len(self.scalars)}" if self.scalars else ""
         return (f"LightCurve(name={self.name!r}, n={len(self)}, "
-                f"cols={list(self._df.columns)})")
+                f"cols={list(self._df.columns)}{extra})")

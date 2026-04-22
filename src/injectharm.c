@@ -53,23 +53,29 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
     case PERTYPE_FIX:
       c->periodinject[lc] = c->fixperiod;
       break;
+    case PERTYPE_VAR:
+      c->periodinject[lc] = EvaluateVariable_Double(lcreal, lc, 0, c->fixperiod_var);
+      break;
+    case PERTYPE_EXPR:
+      c->periodinject[lc] = EvaluateExpression(lcreal, lc, 0, c->fixperiod_expr);
+      break;
     case PERTYPE_UNIFORMRAND:
-      c->periodinject[lc] = c->minp + (c->maxp - c->minp)*(rand() / (RAND_MAX + 0.0));
+      c->periodinject[lc] = VT_EVAL_DOUBLE(c, minp, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxp, lcreal, lc) - VT_EVAL_DOUBLE(c, minp, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
       break;
     case PERTYPE_LOGRAND:
-      dval = log(c->minp) + (log(c->maxp) - log(c->minp))*(rand() / (RAND_MAX + 0.0));
+      dval = log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxp, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
       c->periodinject[lc] = exp(dval);
       break;
     case PERTYPE_UNIFORMRANDFREQ:
-      c->periodinject[lc] = c->minf + (c->maxf - c->minf)*(rand() / (RAND_MAX + 0.0));
+      c->periodinject[lc] = VT_EVAL_DOUBLE(c, minf, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxf, lcreal, lc) - VT_EVAL_DOUBLE(c, minf, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
       c->periodinject[lc] = 1./c->periodinject[lc];
       break;
     case PERTYPE_LOGRANDFREQ:
-      dval = log(c->minp) + (log(c->maxp) - log(c->minp))*(rand() / (RAND_MAX + 0.0));
+      dval = log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxp, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
       c->periodinject[lc] = 1./exp(dval);
       break;
     default:
-      error(-1);
+      vt_error(-1);
     }
 
   /* Now set each of the harmonics and sub-harmonics */
@@ -81,7 +87,12 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->harm_amp[lc][i] = c->harm_ampspec[i][lcreal][0];
 	  break;
 	case PERTYPE_FIX:
-	  c->harm_amp[lc][i] = c->harm_ampfix[i];
+	  if(c->harm_ampfix_source[i] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	    c->harm_amp[lc][i] = EvaluateExpression(lcreal, lc, 0, c->harm_ampfix_expr[i]);
+	  else if(c->harm_ampfix_source[i] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	    c->harm_amp[lc][i] = EvaluateVariable_Double(lcreal, lc, 0, c->harm_ampfix_var[i]);
+	  else
+	    c->harm_amp[lc][i] = c->harm_ampfix[i];
 	  break;
 	case PERTYPE_UNIFORMRAND:
 	  c->harm_amp[lc][i] = c->harm_minamp[i] + (c->harm_maxamp[i] - c->harm_minamp[i])*(rand() / (RAND_MAX + 0.0));
@@ -91,7 +102,7 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->harm_amp[lc][i] = exp(c->harm_amp[lc][i]);
 	  break;
 	default:
-	  error(-1);
+	  vt_error(-1);
 	}
       if(i && c->harm_amprel[i])
 	c->harm_amp[lc][i] *= c->harm_amp[lc][0];
@@ -101,13 +112,18 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->harm_phase[lc][i] = c->harm_phasespec[i][lcreal][0];
 	  break;
 	case PERTYPE_FIX:
-	  c->harm_phase[lc][i] = c->harm_phasefix[i];
+	  if(c->harm_phasefix_source[i] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	    c->harm_phase[lc][i] = EvaluateExpression(lcreal, lc, 0, c->harm_phasefix_expr[i]);
+	  else if(c->harm_phasefix_source[i] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	    c->harm_phase[lc][i] = EvaluateVariable_Double(lcreal, lc, 0, c->harm_phasefix_var[i]);
+	  else
+	    c->harm_phase[lc][i] = c->harm_phasefix[i];
 	  break;
 	case PERTYPE_UNIFORMRAND:
 	  c->harm_phase[lc][i] = (rand() / (RAND_MAX + 0.0));
 	  break;
 	default:
-	  error(-1);
+	  vt_error(-1);
 	}
       if(i && c->harm_phaserel[i])
 	c->harm_phase[lc][i] += ((double) (i + 1)) * c->harm_phase[lc][0];
@@ -120,7 +136,12 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->subharm_amp[lc][i] = c->subharm_ampspec[i][lcreal][0];
 	  break;
 	case PERTYPE_FIX:
-	  c->subharm_amp[lc][i] = c->subharm_ampfix[i];
+	  if(c->subharm_ampfix_source[i] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	    c->subharm_amp[lc][i] = EvaluateExpression(lcreal, lc, 0, c->subharm_ampfix_expr[i]);
+	  else if(c->subharm_ampfix_source[i] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	    c->subharm_amp[lc][i] = EvaluateVariable_Double(lcreal, lc, 0, c->subharm_ampfix_var[i]);
+	  else
+	    c->subharm_amp[lc][i] = c->subharm_ampfix[i];
 	  break;
 	case PERTYPE_UNIFORMRAND:
 	  c->subharm_amp[lc][i] = c->subharm_minamp[i] + (c->subharm_maxamp[i] - c->subharm_minamp[i])*(rand() / (RAND_MAX + 0.0));
@@ -130,7 +151,7 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->subharm_amp[lc][i] = exp(c->subharm_amp[lc][i]);
 	  break;
 	default:
-	  error(-1);
+	  vt_error(-1);
 	}
       if(c->subharm_amprel[i])
 	c->subharm_amp[lc][i] *= c->harm_amp[lc][0];
@@ -140,13 +161,18 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
 	  c->subharm_phase[lc][i] = c->subharm_phasespec[i][lcreal][0];
 	  break;
 	case PERTYPE_FIX:
-	  c->subharm_phase[lc][i] = c->subharm_phasefix[i];
+	  if(c->subharm_phasefix_source[i] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	    c->subharm_phase[lc][i] = EvaluateExpression(lcreal, lc, 0, c->subharm_phasefix_expr[i]);
+	  else if(c->subharm_phasefix_source[i] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	    c->subharm_phase[lc][i] = EvaluateVariable_Double(lcreal, lc, 0, c->subharm_phasefix_var[i]);
+	  else
+	    c->subharm_phase[lc][i] = c->subharm_phasefix[i];
 	  break;
 	case PERTYPE_UNIFORMRAND:
 	  c->subharm_phase[lc][i] = (rand() / (RAND_MAX + 0.0));
 	  break;
 	default:
-	  error(-1);
+	  vt_error(-1);
 	}
       if(c->subharm_phaserel[i])
 	c->subharm_phase[lc][i] += c->harm_phase[lc][0] / ((double) (i + 2));
@@ -156,7 +182,7 @@ void doinjectharm(int N, double *t, double *mag, double *sig, int lc, int lcreal
   if(c->omodel)
     {
       if((outfile = fopen(modeloutname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE, modeloutname);
+	vt_error2(ERR_CANNOTWRITE, modeloutname);
     }
 
   for(j=0;j<N;j++)

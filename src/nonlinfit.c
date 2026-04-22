@@ -38,11 +38,11 @@ void Nonlinfit_Initialize_DataCovarMat(int NJD, double *t, double ***Cov_base, d
       if((cov_tmp1 = (double **) malloc(NJD * sizeof(double *))) == NULL ||
 	 (cov_tmp2 = (double **) malloc(NJD * sizeof(double *))) == NULL ||
 	 (nvec_tmp = (int *) malloc(NJD * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < NJD; i++) {
 	if((cov_tmp1[i] = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	   (cov_tmp2[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       *sizemat = NJD;
       *Cov_base = cov_tmp1;
@@ -55,16 +55,16 @@ void Nonlinfit_Initialize_DataCovarMat(int NJD, double *t, double ***Cov_base, d
       if((cov_tmp1 = (double **) realloc(cov_tmp1, NJD * sizeof(double *))) == NULL ||
 	 (cov_tmp2 = (double **) realloc(cov_tmp2, NJD * sizeof(double *))) == NULL ||
 	 (nvec_tmp = (int *) realloc(nvec_tmp, NJD * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < s; i++) {
 	if((cov_tmp1[i] = (double *) realloc(cov_tmp1[i], NJD * sizeof(double))) == NULL ||
 	   (cov_tmp2[i] = (double *) realloc(cov_tmp2[i], NJD * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       for(i=s; i < NJD; i++) {
 	if((cov_tmp1[i] = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	   (cov_tmp2[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     }
     *sizemat = NJD;
@@ -101,7 +101,7 @@ void Nonlinfit_Initialize_DataCovarMat(int NJD, double *t, double ***Cov_base, d
     }
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 }
 
@@ -113,16 +113,16 @@ double Nonlinfit_Use_DataCovarMat(int NJD, double *t, double *obs, double *mod, 
   if((x = (double *) malloc(NJD*sizeof(double))) == NULL ||
      (p = (double *) malloc(NJD*sizeof(double))) == NULL ||
      (b = (double *) malloc(NJD*sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(Output_Pred) {
     if((CovK = (double *) malloc(NJD * sizeof(double))) == NULL ||
        (K = (double *) malloc(NJD * sizeof(double))) == NULL ||
        (Cov_calc_store = (double **) malloc(NJD * sizeof(double *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < NJD; i++) {
       if((Cov_calc_store[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -192,7 +192,7 @@ double Nonlinfit_Use_DataCovarMat(int NJD, double *t, double *obs, double *mod, 
     }
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
     break;
   }
 
@@ -311,7 +311,7 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
       if((t_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (mag_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (err_mask = (double *) malloc(NJD * sizeof(double))) == NULL) {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
     }
     NJD_mask = 0;
@@ -340,14 +340,14 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
     if(c->Corr_amp_expr != NULL) {
       initval = EvaluateExpression(lcid, threadid, 0, c->Corr_amp_expr);
       if(initval <= 0.0) {
-	error(ERR_NEGATIVE_COVAR_PARAM);
+	vt_error(ERR_NEGATIVE_COVAR_PARAM);
       }
       SetVariable_Value_Double(lcid, threadid, 0, c->Corr_amp_var, initval);
     }
     if(c->Corr_rho_expr != NULL) {
       initval = EvaluateExpression(lcid, threadid, 0, c->Corr_rho_expr);
       if(initval <= 0.0) {
-	error(ERR_NEGATIVE_COVAR_PARAM);
+	vt_error(ERR_NEGATIVE_COVAR_PARAM);
       }
       SetVariable_Value_Double(lcid, threadid, 0, c->Corr_rho_var, initval);
     }
@@ -355,7 +355,7 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
       if(c->Corr_nu_expr != NULL) {
 	initval = EvaluateExpression(lcid, threadid, 0, c->Corr_nu_expr);
 	if(initval <= 0.0) {
-	  error(ERR_NEGATIVE_COVAR_PARAM);
+	  vt_error(ERR_NEGATIVE_COVAR_PARAM);
 	}
 	SetVariable_Value_Double(lcid, threadid, 0, c->Corr_nu_var, initval);
       }
@@ -373,8 +373,8 @@ int Nonlinfit_RunAmoebaFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid
   amoeba_initializesimplexchi2(Nparam, Ntovary, simplex, &chi2vals, &EvaluateChi2NonLinFit, NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   /* Run the fit */
-  amoeba_val = amoeba(simplex, chi2vals, ia, Nparam, c->amoeba_tol,
-		      &EvaluateChi2NonLinFit, &nfunkeval, c->amoeba_maxsteps,
+  amoeba_val = amoeba(simplex, chi2vals, ia, Nparam, VT_EVAL_DOUBLE(c, amoeba_tol, lcid, threadid),
+		      &EvaluateChi2NonLinFit, &nfunkeval, VT_EVAL_LONG(c, amoeba_maxsteps, lcid, threadid),
 		      NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   if(c->fittype == VARTOOLS_NONLINFIT_FITTYPE_AMOEBA) {
@@ -438,7 +438,7 @@ double Nonlinfit_GetAmoeba_Uncertainties(double *param, int paramindx, int Npara
   double delp;
   double *ptrial;
   if((ptrial = (double *) malloc(Nparam * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Nparam; i++)
     ptrial[i] = param[i];
   if(!errval) {
@@ -492,20 +492,20 @@ void Nonlinfit_GetMCMC_ChainStats(ProgramData *p, _Nonlinfit *c, int threadid, i
   maxNchain = (chain->Nlinks_run < chain->Nlinks_allocated ? 
 	       chain->Nlinks_run : chain->Nlinks_allocated);
   istart = (chain->Nlinks_run < chain->Nlinks_allocated ?
-	    floor(c->mcmc_burninfrac*maxNchain) :
-	    (chain->activeindex + floor(c->mcmc_burninfrac*maxNchain) 
+	    floor(VT_EVAL_DOUBLE(c, mcmc_burninfrac, lcid, threadid)*maxNchain) :
+	    (chain->activeindex + floor(VT_EVAL_DOUBLE(c, mcmc_burninfrac, lcid, threadid)*maxNchain)
 	     < chain->Nlinks_allocated ?
-	     chain->activeindex + floor(c->mcmc_burninfrac*maxNchain) :
-	     chain->activeindex + floor(c->mcmc_burninfrac*maxNchain) -
+	     chain->activeindex + floor(VT_EVAL_DOUBLE(c, mcmc_burninfrac, lcid, threadid)*maxNchain) :
+	     chain->activeindex + floor(VT_EVAL_DOUBLE(c, mcmc_burninfrac, lcid, threadid)*maxNchain) -
 	     chain->Nlinks_allocated));
-  iend = istart + floor((1.0 - c->mcmc_burninfrac)*maxNchain);
+  iend = istart + floor((1.0 - VT_EVAL_DOUBLE(c, mcmc_burninfrac, lcid, threadid))*maxNchain);
   iend = iend < chain->Nlinks_allocated ? iend :
     iend - chain->Nlinks_allocated;
 
   Nlinks_stat = (istart <= iend ? iend - istart + 1 :
 		 iend + 1 + (chain->Nlinks_allocated - istart));
   if((statsvec = (double *) malloc(Nlinks_stat * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0, z=0; i < c->N_mcmc_chain_expressions; i++) {
     m=0;
     if(istart <= iend) {
@@ -581,7 +581,7 @@ void Nonlinfit_GetMCMC_ChainStats(ProgramData *p, _Nonlinfit *c, int threadid, i
 	c->mcmc_statsout[threadid][z] = getsum(m,statsvec);
 	break;
       default:
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     }
   }
@@ -639,7 +639,7 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
       if((t_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (mag_mask = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (err_mask = (double *) malloc(NJD * sizeof(double))) == NULL) {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
     }
     NJD_mask = 0;
@@ -667,14 +667,14 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
     if(c->Corr_amp_expr != NULL) {
       initval = EvaluateExpression(lcid, threadid, 0, c->Corr_amp_expr);
       if(initval <= 0.0) {
-	error(ERR_NEGATIVE_COVAR_PARAM);
+	vt_error(ERR_NEGATIVE_COVAR_PARAM);
       }
       SetVariable_Value_Double(lcid, threadid, 0, c->Corr_amp_var, initval);
     }
     if(c->Corr_rho_expr != NULL) {
       initval = EvaluateExpression(lcid, threadid, 0, c->Corr_rho_expr);
       if(initval <= 0.0) {
-	error(ERR_NEGATIVE_COVAR_PARAM);
+	vt_error(ERR_NEGATIVE_COVAR_PARAM);
       }
       SetVariable_Value_Double(lcid, threadid, 0, c->Corr_rho_var, initval);
     }
@@ -682,7 +682,7 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
       if(c->Corr_nu_expr != NULL) {
 	initval = EvaluateExpression(lcid, threadid, 0, c->Corr_nu_expr);
 	if(initval <= 0.0) {
-	  error(ERR_NEGATIVE_COVAR_PARAM);
+	  vt_error(ERR_NEGATIVE_COVAR_PARAM);
 	}
 	SetVariable_Value_Double(lcid, threadid, 0, c->Corr_nu_var, initval);
       }
@@ -755,13 +755,13 @@ int Nonlinfit_RunMCMCFit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid) 
   }
 
   /* Initialize the chain now that all parameters have been set */
-  MCMC_initialize_chain(chain, c->mcmc_eps, maxmemperchain, c->mcmc_outchains,
+  MCMC_initialize_chain(chain, VT_EVAL_DOUBLE(c, mcmc_eps, lcid, threadid), maxmemperchain, c->mcmc_outchains,
 			outfilename, outheader, c->mcmc_outchains_print_every,
 			Nauxil, auxil_params, &EvaluateChi2NonLinFit, 
 			NJD_touse, t_touse, mag_touse, err_touse, (void *) (&s));
 
   /* Run the MCMC procedure */
-  MCMC_DifferentialEvolution_RunMCMC(c->mcmc_Naccept, c->mcmc_Nlinkstotal, 
+  MCMC_DifferentialEvolution_RunMCMC(VT_EVAL_LONG(c, mcmc_Naccept, lcid, threadid), VT_EVAL_LONG(c, mcmc_Nlinkstotal, lcid, threadid),
 				     MCMC_DEFAULT_RECALC_COVAR, chain);
 
 
@@ -925,7 +925,7 @@ double EvaluateChi2NonLinFit_Final(double *param, int Nvar, int NJD, double *t, 
 	 (t_vec = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (GP_pred_mean = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (GP_pred_stddev = (double *) malloc(NJD * sizeof(double))) == NULL) {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
       for(j=0, Ngood=0; j < NJD; j++) {
 	model_vec[Ngood] = EvaluateExpression(f->lcid, f->threadid, j, f->c->functionexpression);
@@ -1048,7 +1048,7 @@ double EvaluateChi2NonLinFit(double *param, int Nvar, int NJD, double *t, double
 	 (err_vec = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (obs_vec = (double *) malloc(NJD * sizeof(double))) == NULL ||
 	 (t_vec = (double *) malloc(NJD * sizeof(double))) == NULL) {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
       for(j=0, Ngood=0; j < NJD; j++) {
 	model_vec[Ngood] = EvaluateExpression(f->lcid, f->threadid, j, f->c->functionexpression);
@@ -1135,7 +1135,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	if((v->vectortype != VARTOOLS_VECTORTYPE_INLIST &&
 	    v->vectortype != VARTOOLS_VECTORTYPE_SCALAR) ||
 	   v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	  error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
+	  vt_error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
 	}
 	c->params[i] = v;
 	break;
@@ -1153,7 +1153,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
       if(!strcmp(c->Corr_amp_varname, c->paramnames[i])) {
 	c->Corr_amp_var = c->params[i];
 	if(c->Corr_amp_exprstring[0] != '\0') {
-	  error2(ERR_INVALID_PARAMETERVALUE,"the amp_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"the amp_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
 	}
 	break;
       }
@@ -1167,7 +1167,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	  if((v->vectortype != VARTOOLS_VECTORTYPE_INLIST &&
 	      v->vectortype != VARTOOLS_VECTORTYPE_SCALAR) ||
 	     v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	    error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
+	    vt_error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
 	  }
 	  c->Corr_amp_var = v;
 	  break;
@@ -1178,7 +1178,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	c->Corr_amp_var = SetupScalarVariable(p, c->Corr_amp_varname, VARTOOLS_TYPE_DOUBLE);
       }
       if(c->Corr_amp_exprstring[0] == '\0') {
-	error2(ERR_INVALID_PARAMETERVALUE,"the amp_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
+	vt_error2(ERR_INVALID_PARAMETERVALUE,"the amp_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
       }
     }
 
@@ -1187,7 +1187,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
       if(!strcmp(c->Corr_rho_varname, c->paramnames[i])) {
 	c->Corr_rho_var = c->params[i];
 	if(c->Corr_rho_exprstring[0] != '\0') {
-	  error2(ERR_INVALID_PARAMETERVALUE,"the rho_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"the rho_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
 	}
 	break;
       }
@@ -1201,7 +1201,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	  if((v->vectortype != VARTOOLS_VECTORTYPE_INLIST &&
 	      v->vectortype != VARTOOLS_VECTORTYPE_SCALAR) ||
 	     v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	    error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
+	    vt_error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
 	  }
 	  c->Corr_rho_var = v;
 	  break;
@@ -1212,7 +1212,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	c->Corr_rho_var = SetupScalarVariable(p, c->Corr_rho_varname, VARTOOLS_TYPE_DOUBLE);
       }
       if(c->Corr_rho_exprstring[0] == '\0') {
-	error2(ERR_INVALID_PARAMETERVALUE,"the rho_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
+	vt_error2(ERR_INVALID_PARAMETERVALUE,"the rho_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
       }
     }
 
@@ -1222,7 +1222,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	if(!strcmp(c->Corr_nu_varname, c->paramnames[i])) {
 	  c->Corr_nu_var = c->params[i];
 	  if(c->Corr_nu_exprstring[0] != '\0') {
-	    error2(ERR_INVALID_PARAMETERVALUE,"the nu_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
+	    vt_error2(ERR_INVALID_PARAMETERVALUE,"the nu_var covariance parameter provided in the -nonlinfit was given an initialization expression, but this variable also appears in the -nonlinfit parameter list. The initialization expression should not be provided in this case.");
 	  }
 	  break;
 	}
@@ -1236,7 +1236,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	    if((v->vectortype != VARTOOLS_VECTORTYPE_INLIST &&
 		v->vectortype != VARTOOLS_VECTORTYPE_SCALAR) ||
 	       v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	      error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
+	      vt_error2(ERR_INVALIDVARIABLEFORNONLINFIT,v->varname);
 	    }
 	    c->Corr_nu_var = v;
 	    break;
@@ -1247,7 +1247,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	  c->Corr_nu_var = SetupScalarVariable(p, c->Corr_nu_varname, VARTOOLS_TYPE_DOUBLE);
 	}
 	if(c->Corr_nu_exprstring[0] == '\0') {
-	  error2(ERR_INVALID_PARAMETERVALUE,"the nu_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"the nu_var covariance parameter provided in the -nonlinfit must be given an initialization expression if it does not appear in the -nonlinfit parameter list.");
 	}
       }
     }
@@ -1256,21 +1256,21 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
   if(nparam > 0) {
     if((c->paraminit_expressions = (_Expression **) malloc(nparam * sizeof(_Expression *))) == NULL ||
        (c->paramerr_expressions = (_Expression **) malloc(nparam * sizeof(_Expression *))) == NULL) 
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(c->Npriors > 0) {
     if((c->prior_expressions = (_Expression **) malloc(c->Npriors * sizeof(_Expression *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(c->Nconstraints > 0) {
     if((c->constraint_expressions = (_Expression **) malloc(c->Nconstraints * sizeof(_Expression *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if(c->fittype == VARTOOLS_NONLINFIT_FITTYPE_DEMCMC) {
     if(c->N_mcmc_chain_statstot > 0) {
       if((c->mcmc_chain_stats_expressions = (_Expression **) malloc(c->N_mcmc_chain_expressions * sizeof(_Expression *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -1287,7 +1287,7 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
 	/* This is an existing variable, make sure it is the correct type */
 	if(v->vectortype != VARTOOLS_VECTORTYPE_LC ||
 	   v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	  error2(ERR_INVALIDVARIABLEFORNONLINFIT,c->modelvarname);
+	  vt_error2(ERR_INVALIDVARIABLEFORNONLINFIT,c->modelvarname);
 	}
 	c->modelvar = v;
 	break;
@@ -1365,7 +1365,7 @@ int nonlinfit_parse_paraminit_string(char *ins, char *s1, char *s2, char *s3) {
   int i, j;
   char *cpystring;
   if((cpystring = (char *) malloc((strlen(ins)+1))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   sprintf(cpystring,"%s",ins);
   i=0; j=0;
@@ -1407,7 +1407,7 @@ int nonlinfit_parse_paraminit_string(char *ins, char *s1, char *s2, char *s3) {
 }
 
 int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
-			  _Nonlinfit *c)
+			  _Nonlinfit *c, Command *cs)
 {
   int i, k, j, ii, nparam, s, nscan, Nstat;
   char oldval;
@@ -1425,7 +1425,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
     return(1);
 
   if((tmpstring = (char *) malloc(lentmp)) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   c->priorliststring = NULL;
   c->constraintliststring = NULL;
@@ -1455,13 +1455,13 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->maskvar = NULL;
 
   if((c->functionstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->functionstring,"%s",argv[i]);
 
   i++;
   if(i >= argc) {*iret = i; return 1;}
   if((c->paramliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->paramliststring,"%s",argv[i]);
 
   i++;
@@ -1472,13 +1472,13 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(i >= argc) {*iret = i; return 1;}
       /* Create a set of options to the linfit command */
       if((linfit_args = (char **) malloc(4*sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((linfit_args[0] = (char *) malloc((strlen(c->functionstring)+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((linfit_args[1] = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((linfit_args[2] = (char *) malloc(9)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(linfit_args[0],"%s",c->functionstring);
       sprintf(linfit_args[1],"%s",argv[i]);
     }
@@ -1495,7 +1495,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->errorstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->errorstring,"%s",argv[i]);
     } else
       i--;
@@ -1523,9 +1523,9 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->Corr_amp_varname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((c->Corr_amp_exprstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       nscan = nonlinfit_parse_paraminit_string(argv[i],c->Corr_amp_varname,c->Corr_amp_exprstring,c->Corr_amp_exprstring);
       if(nscan != 1 && nscan != 2) {
 	*iret = i; return 1;
@@ -1534,9 +1534,9 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->Corr_rho_varname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((c->Corr_rho_exprstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       nscan = nonlinfit_parse_paraminit_string(argv[i],c->Corr_rho_varname,c->Corr_rho_exprstring,c->Corr_rho_exprstring);
       if(nscan != 1 && nscan != 2) {
 	*iret = i; return 1;
@@ -1546,9 +1546,9 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
 	if((c->Corr_nu_varname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	if((c->Corr_nu_exprstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	nscan = nonlinfit_parse_paraminit_string(argv[i],c->Corr_nu_varname,c->Corr_nu_exprstring,c->Corr_nu_exprstring);
 	if(nscan != 1 && nscan != 2) {
 	  *iret = i; return 1;
@@ -1566,7 +1566,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->priorliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->priorliststring,"%s",argv[i]);
     } else
       i--;
@@ -1580,7 +1580,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->constraintliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->constraintliststring,"%s",argv[i]);
     } else
       i--;
@@ -1593,23 +1593,25 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   if(!strcmp(argv[i],"amoeba")) {
     c->fittype = VARTOOLS_NONLINFIT_FITTYPE_AMOEBA;
     c->amoeba_tol = VARTOOLS_NONLINFIT_DEFAULT_AMOEBA_TOLERANCE;
+    VT_INIT_PARAM(c, amoeba_tol);
     i++;
     if(i < argc) {
       if(!strcmp(argv[i],"tolerance")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->amoeba_tol = atof(argv[i]);
+	VT_PARSE_DOUBLE_CS(cs, c, amoeba_tol, argv, i);
       } else
 	i--;
     } else
       i--;
     c->amoeba_maxsteps = VARTOOLS_NONLINFIT_DEFAULT_AMOEBA_MAXSTEPS;
+    VT_INIT_PARAM(c, amoeba_maxsteps);
     i++;
     if(i < argc) {
       if(!strcmp(argv[i],"maxsteps")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->amoeba_maxsteps = atol(argv[i]);
+	VT_PARSE_LONG_CS(cs, c, amoeba_maxsteps, argv, i);
       } else
 	i--;
     } else
@@ -1618,51 +1620,57 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   else if(!strcmp(argv[i],"mcmc")) {
     c->fittype = VARTOOLS_NONLINFIT_FITTYPE_DEMCMC;
     c->mcmc_Naccept = -1;
+    VT_INIT_PARAM(c, mcmc_Naccept);
     c->mcmc_Nlinkstotal = VARTOOLS_NONLINFIT_DEFAULT_MCMC_NLINKSTOTAL;
+    VT_INIT_PARAM(c, mcmc_Nlinkstotal);
     c->mcmc_burninfrac = VARTOOLS_NONLINFIT_DEFAULT_MCMC_BURNIN;
+    VT_INIT_PARAM(c, mcmc_burninfrac);
     c->mcmc_eps = VARTOOLS_NONLINFIT_DEFAULT_MCMC_EPS;
+    VT_INIT_PARAM(c, mcmc_eps);
     c->mcmc_chain_exprliststring = NULL;
     c->mcmc_chain_statsliststring = NULL;
     c->mcmc_max_mem_store = VARTOOLS_NONLINFIT_DEFAULT_MAX_MEM_STORE;
     c->mcmc_outchains = 0;
     c->mcmc_outchains_print_every = 1;
     c->amoeba_maxsteps = VARTOOLS_NONLINFIT_DEFAULT_AMOEBA_MAXSTEPS;
+    VT_INIT_PARAM(c, amoeba_maxsteps);
     c->amoeba_tol = VARTOOLS_NONLINFIT_DEFAULT_AMOEBA_TOLERANCE;
+    VT_INIT_PARAM(c, amoeba_tol);
     i++;
     if(i < argc) {
       if(!strcmp(argv[i],"Naccept")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->mcmc_Naccept = atol(argv[i]);
-      } 
+	VT_PARSE_LONG_CS(cs, c, mcmc_Naccept, argv, i);
+      }
       else if(!strcmp(argv[i],"Nlinkstotal")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->mcmc_Nlinkstotal = atol(argv[i]);
+	VT_PARSE_LONG_CS(cs, c, mcmc_Nlinkstotal, argv, i);
       }
       else
 	i--;
     }
-    else 
+    else
       i--;
-    
+
     i++;
     if(i < argc) {
       if(!strcmp(argv[i],"fracburnin")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->mcmc_burninfrac = atof(argv[i]);
+	VT_PARSE_DOUBLE_CS(cs, c, mcmc_burninfrac, argv, i);
       } else
 	i--;
     } else
       i--;
-    
+
     i++;
     if(i < argc) {
       if(!strcmp(argv[i],"eps")) {
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
-	c->mcmc_eps = atof(argv[i]);
+	VT_PARSE_DOUBLE_CS(cs, c, mcmc_eps, argv, i);
       } else
 	i--;
     } else
@@ -1685,12 +1693,12 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
 	if((c->mcmc_chain_exprliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->mcmc_chain_exprliststring,"%s",argv[i]);
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
 	if((c->mcmc_chain_statsliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->mcmc_chain_statsliststring,"%s",argv[i]);
       } else
 	i--;
@@ -1704,7 +1712,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	if(i >= argc) {*iret = i; return 1;}
 	c->mcmc_max_mem_store = atof(argv[i]);
 	if(c->mcmc_max_mem_store <= 0)
-	  error(ERR_MCMCINVALIDMAXMEM);
+	  vt_error(ERR_MCMCINVALIDMAXMEM);
       } else
 	i--;
     } else
@@ -1717,11 +1725,11 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	i++;
 	if(i >= argc) {*iret = i; return 1;}
 	if((c->mcmc_outchains_dir = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->mcmc_outchains_dir,"%s",argv[i]);
 
 	if((c->mcmc_outchains_format = (char *) malloc(1)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	c->mcmc_outchains_format[0] = '\0';
 	  
 	/* Check if the user gave the "format" keyword */
@@ -1764,7 +1772,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->modelvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->modelvarname,"%s",argv[i]);
     } else
       i--;
@@ -1786,7 +1794,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->outdir = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->outdir,"%s",argv[i]);
       /* Check if the user gave the "format" keyword */
       i++;
@@ -1817,7 +1825,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	*iret = i; return 1;
       }
       if((c->maskvarname = (char *) malloc(strlen(argv[i]+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->maskvarname,"%s",argv[i]);
     }
     else
@@ -1828,7 +1836,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   
 
   if(c->uselinfit && c->use_covar) {
-    error2(ERR_INVALID_PARAMETERVALUE,"-nonlinfit, you cannot use both linear optimization and a non-diagonal covariance matrix at the same time.\n");
+    vt_error2(ERR_INVALID_PARAMETERVALUE,"-nonlinfit, you cannot use both linear optimization and a non-diagonal covariance matrix at the same time.\n");
   }
 
   /* Parse the parameter string to get the number of output parameters,
@@ -1843,22 +1851,22 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	if((c->paramnames = (char **) malloc(sizeof(char *))) == NULL ||
 	   (c->paraminitstrings = (char **) malloc(sizeof(char *))) == NULL ||
 	   (c->paramerrstrings = (char **) malloc(sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((c->paramnames = (char **) realloc(c->paramnames, (nparam + 1)*sizeof(char *))) == NULL ||
 	   (c->paraminitstrings = (char **) realloc(c->paraminitstrings, (nparam + 1)*sizeof(char *))) == NULL ||
 	   (c->paramerrstrings = (char **) realloc(c->paramerrstrings, (nparam + 1)*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       if((s = strlen(&(c->paramliststring[j]))) == 0)
-	error2(ERR_BADVARIABLENAME,"");
+	vt_error2(ERR_BADVARIABLENAME,"");
       if((c->paramnames[nparam] = (char *) malloc((s+1))) == NULL ||
 	 (c->paraminitstrings[nparam] = (char *) malloc((s+1))) == NULL ||
 	 (c->paramerrstrings[nparam] = (char *) malloc((s+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       nscan = nonlinfit_parse_paraminit_string(&(c->paramliststring[j]),c->paramnames[nparam],c->paraminitstrings[nparam],c->paramerrstrings[nparam]);
       if(nscan != 3) {
-	error2(ERR_BADNONLINFITPARAMINIT,&(c->paramliststring[j]));
+	vt_error2(ERR_BADNONLINFITPARAMINIT,&(c->paramliststring[j]));
       }
       j = k+1;
       c->paramliststring[k] = oldval;
@@ -1868,7 +1876,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   } while(c->paramliststring[k-1] != '\0');
   c->Nparams = nparam;
   if((c->params = (_Variable **) malloc(nparam * sizeof(_Variable *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* Parse the prior list string */
   if(c->priorliststring != NULL) {
@@ -1880,20 +1888,20 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	if(!nparam) {
 	  if((c->priorvarnames = (char **) malloc(sizeof(char *))) == NULL ||
 	     (c->priorstrings = (char **) malloc(sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  if((c->priorvarnames = (char **) realloc(c->priorvarnames, (nparam + 1)*sizeof(char *))) == NULL ||
 	     (c->priorstrings = (char **) realloc(c->priorstrings, (nparam + 1)*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if((s = strlen(&(c->priorliststring[j]))) == 0)
-	  error2(ERR_BADVARIABLENAME,"");
+	  vt_error2(ERR_BADVARIABLENAME,"");
 	if((c->priorvarnames[nparam] = (char *) malloc((s+1))) == NULL ||
 	   (c->priorstrings[nparam] = (char *) malloc((s+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	nscan = nonlinfit_parse_paraminit_string(&(c->priorliststring[j]),c->priorvarnames[nparam],c->priorstrings[nparam],c->priorstrings[nparam]);
 	if(nscan != 2) {
-	  error2(ERR_BADNONLINFITPRIORINIT,&(c->priorliststring[j]));
+	  vt_error2(ERR_BADNONLINFITPRIORINIT,&(c->priorliststring[j]));
 	}
 	/* Make sure that the variable given in the prior string is actually
 	   one of the variables fromt he parameter list */
@@ -1902,7 +1910,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	    break;
 	}
 	if(ii >= c->Nparams) {
-	  error2(ERR_BADNONLINFITPRIORINIT,&(c->priorliststring[j]));
+	  vt_error2(ERR_BADNONLINFITPRIORINIT,&(c->priorliststring[j]));
 	}	  
 	j = k+1;
 	c->priorliststring[k] = oldval;
@@ -1922,15 +1930,15 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	c->constraintliststring[k] = '\0';
 	if(!nparam) {
 	  if((c->constraintstrings = (char **) malloc(sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  if((c->constraintstrings = (char **) realloc(c->constraintstrings, (nparam + 1)*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if((s = strlen(&(c->constraintliststring[j]))) == 0)
-	  error2(ERR_BADVARIABLENAME,"");
+	  vt_error2(ERR_BADVARIABLENAME,"");
 	if((c->constraintstrings[nparam] = (char *) malloc((s+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->constraintstrings[nparam],"%s",&(c->constraintliststring[j]));
 	j = k+1;
 	c->constraintliststring[k] = oldval;
@@ -1945,14 +1953,14 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(c->Corr_nu_exprstring[0] == '\0') {
 	if(!c->Nconstraints) {
 	  if((c->constraintstrings = (char **) malloc(sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  if((c->constraintstrings = (char **) realloc(c->constraintstrings,(c->Nconstraints+1)*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	s = strlen(c->Corr_nu_varname) + 3;
 	if((c->constraintstrings[c->Nconstraints] = (char *) malloc(s*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->constraintstrings[c->Nconstraints],"%s>0",c->Corr_nu_varname);
 	c->Nconstraints += 1;
       }
@@ -1960,28 +1968,28 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
     if(c->Corr_amp_exprstring[0] == '\0') {
       if(!c->Nconstraints) {
 	if((c->constraintstrings = (char **) malloc(sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((c->constraintstrings = (char **) realloc(c->constraintstrings,(c->Nconstraints+1)*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       s = strlen(c->Corr_amp_varname) + 3;
       if((c->constraintstrings[c->Nconstraints] = (char *) malloc(s*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->constraintstrings[c->Nconstraints],"%s>0",c->Corr_amp_varname);
       c->Nconstraints += 1;
     }
     if(c->Corr_rho_exprstring[0] == '\0') {
       if(!c->Nconstraints) {
 	if((c->constraintstrings = (char **) malloc(sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((c->constraintstrings = (char **) realloc(c->constraintstrings,(c->Nconstraints+1)*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       s = strlen(c->Corr_rho_varname) + 3;
       if((c->constraintstrings[c->Nconstraints] = (char *) malloc(s*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->constraintstrings[c->Nconstraints],"%s>0",c->Corr_rho_varname);
       c->Nconstraints += 1;
     }
@@ -1996,7 +2004,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
     }
     nparam++;
     if((c->mcmc_chain_exprliststring = (char *) malloc(nparam)) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     c->mcmc_chain_exprliststring[0] = '\0';
     for(j=0; j < c->Nparams; j++) {
@@ -2008,7 +2016,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   }
   if(c->fittype == VARTOOLS_NONLINFIT_FITTYPE_DEMCMC && c->mcmc_chain_statsliststring == NULL) {
     if((c->mcmc_chain_statsliststring = (char *) malloc(14)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(c->mcmc_chain_statsliststring,"median,stddev");
   }
 
@@ -2022,15 +2030,15 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	c->mcmc_chain_exprliststring[k] = '\0';
 	if(!nparam) {
 	  if((c->mcmc_chain_expr_strings = (char **) malloc(sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  if((c->mcmc_chain_expr_strings = (char **) realloc(c->mcmc_chain_expr_strings, (nparam + 1)*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if((s = strlen(&(c->mcmc_chain_exprliststring[j]))) == 0)
-	  error2(ERR_BADVARIABLENAME,"");
+	  vt_error2(ERR_BADVARIABLENAME,"");
 	if((c->mcmc_chain_expr_strings[nparam] = (char *) malloc((s+1))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(c->mcmc_chain_expr_strings[nparam],"%s",&(c->mcmc_chain_exprliststring[j]));
 	j = k+1;
 	c->mcmc_chain_exprliststring[k] = oldval;
@@ -2051,7 +2059,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       j++;
     }
     if((c->mcmc_statstocalc = (int *) malloc(Nstat * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     i1 = 0;
     i2 = 0;
     for(k = 0; k < Nstat; k++) {
@@ -2062,7 +2070,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if((i2 - i1 + 1) > lentmp) {
 	lentmp *= 2;
 	if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       for(j=i1; j < i2; j++) {
 	tmpstring[j-i1] = c->mcmc_chain_statsliststring[j];
@@ -2129,7 +2137,7 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	c->mcmc_statstocalc[k] = VARTOOLS_STATSTYPE_SUM;
       }
       else {
-	error2(ERR_INVALIDSTATISTIC,tmpstring);
+	vt_error2(ERR_INVALIDSTATISTIC,tmpstring);
       }
 
       i1 = i2+1;
@@ -2146,17 +2154,17 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   /* Setup the linfit structure if it is being used */
   if(c->uselinfit) {
     if((c->linfit = (_Linfit *) malloc(sizeof(_Linfit))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if(c->modelvarname != NULL) {
       sprintf(linfit_args[2],"modelvar");
       linfit_args[3] = c->modelvarname;
       j = 0;
-      if(ParseLinfitCommand(&j, 4, linfit_args, p, c->linfit)) {
+      if(ParseLinfitCommand(&j, 4, linfit_args, p, c->linfit, cs)) {
 	*iret = i; return 1;}
     }
     else {
       j = 0;
-      if(ParseLinfitCommand(&j, 2, linfit_args, p, c->linfit)) {
+      if(ParseLinfitCommand(&j, 2, linfit_args, p, c->linfit, cs)) {
 	*iret = i; return 1;}
     }
     c->linfit->calcchi2out = 1;

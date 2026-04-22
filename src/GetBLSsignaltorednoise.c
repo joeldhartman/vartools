@@ -180,13 +180,13 @@ void subtractbls(int N, double *t, double *mag, double *sig, double P, double q,
     {
       sizeNpint = maxNt + 1;
       if((Npint = (int *) malloc(sizeNpint * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   else if(maxNt + 1 > sizeNpint)
     {
       sizeNpint = maxNt + 1;
       if((Npint = (int *) realloc(Npint, sizeNpint * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   for(i = 0; i<maxNt; i++)
     Npint[i] = 0;
@@ -337,7 +337,7 @@ void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double 
       if((tstore = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (magstore = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sigstore = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   else if(N > size_vec)
     {
@@ -345,7 +345,7 @@ void getsignaltopinknoiseforgivenblsmodel(int N, double *t, double *mag, double 
       if((tstore = (double *) realloc(tstore, N * sizeof(double))) == NULL ||
 	 (magstore = (double *) realloc(magstore, N * sizeof(double))) == NULL ||
 	 (sigstore = (double *) realloc(sigstore, N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   
   /* Copy the light curve to the temporary light curve */

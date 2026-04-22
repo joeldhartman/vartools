@@ -1,66 +1,11 @@
 # VARTOOLS
 
-**Light curve analysis for astronomers — command-line C program and Python API.**
+**Light curve analysis tools — command-line C program and Python API.**
 
-VARTOOLS is a fast, flexible program for analyzing astronomical photometric time series (light curves). It is written in C and runs from the command line, processing one or many light curves through a user-defined pipeline of statistical, filtering, period-finding, and model-fitting operations. A Python package, **pyvartools**, wraps the same binary so that the full command set is available from within Python scripts and notebooks, with results returned as structured objects instead of text output.
-
----
-
-## Key Features
-
-<div class="grid cards" markdown>
-
--   **Period Finding**
-
-    ---
-
-    Lomb-Scargle, BLS (box-fitting least squares), phase-folding, and more — all optimised for speed on large light curve sets.
-
--   **Model Fitting**
-
-    ---
-
-    Harmonic series, trapezoid transit, Mandel-Agol transit, eclipsing-binary, and user-supplied model fitting with robust statistics.
-
--   **Filtering & Detrending**
-
-    ---
-
-    Sigma clipping, TFA (Trend Filtering Algorithm), EPD, SysRem, polynomial detrending, and moving-average smoothing.
-
--   **Statistics**
-
-    ---
-
-    RMS, median absolute deviation, Stetson indices, percentile ratios, autocorrelation function, and many more variability metrics.
-
--   **Batch Processing**
-
-    ---
-
-    Process thousands of light curves in a single call using `-l`; output is one row per light curve for easy downstream analysis.
-
--   **Python API**
-
-    ---
-
-    `pyvartools` exposes every command as a Python object, returning results as pandas DataFrames and structured `Result` objects.
-
--   **FITS Support**
-
-    ---
-
-    Read and write FITS binary tables when compiled with cfitsio. Native support for Kepler, TESS, and HATNet formats.
-
--   **Extensible**
-
-    ---
-
-    Add custom commands in C or call external Python/R scripts inline with `-python` and `-R`.
-
-</div>
+VARTOOLS is a collection of tools for analyzing astronomical photometric time series (light curves). It is written in C and runs from the command line, or via the Python package, **pyvartools**, processing one or many light curves through a user-defined pipeline of statistical, filtering, period-finding, and model-fitting operations. The tool is designed to enable efficient batch processing of a large collection of light curves.
 
 ---
+
 
 ## Quick Start
 
@@ -76,24 +21,26 @@ VARTOOLS is a fast, flexible program for analyzing astronomical photometric time
 
     ```python
     import pyvartools as vt
-    from pyvartools import commands as cmd
 
-    lc = vt.LightCurve.from_file("EXAMPLES/2")
-    result = vt.Pipeline([cmd.LS(1.0, 2.0, 0.01)]).run(lc)
-    print(f"Best period: {float(result.stats['LS_Period_1_0']):.5f} d")
+    # Simplest form — pass a filename directly to the command
+    result = vt.LS("EXAMPLES/2", 1.0, 2.0, 0.01)
+    print(f"Best period: {result.varobjs.LS.Period_1:.5f} d")
     ```
 
-    The same Lomb-Scargle search is expressed as a `Pipeline` of `cmd.LS` objects. The `result.stats` dictionary maps output column names to their values.
+    Every vartools command is available as `vt.CMD(lc_input, ...)`, where
+    `lc_input` can be a filename, a `LightCurve` object, a pandas DataFrame,
+    a 2-D numpy array, or a `(t, mag, err)` tuple.  For chaining multiple
+    commands use `lc.LS(...).rms()` — see the [Python API docs](python/index.md).
 
 ---
 
 ## Download
 
-!!! note "Current release: vartools 1.52"
+!!! note "Current release: vartools 1.6"
 
     | Format | Link |
     |--------|------|
-    | Source tarball | [vartools-1.52.tar.gz](http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.52.tar.gz) |
+    | Source tarball | [vartools-1.6.tar.gz](http://www.astro.princeton.edu/~jhartman/vartools/vartools-1.6.tar.gz) |
     | GitHub | [github.com/joeldhartman/vartools](https://github.com/joeldhartman/vartools) |
 
 See the [Installation](install.md) page for build instructions, optional dependencies, and platform-specific notes.
@@ -117,6 +64,12 @@ If you use VARTOOLS in published research, please cite:
   doi     = {10.1016/j.ascom.2016.05.006}
 }
 ```
+
+---
+
+## AI Usage
+
+This website and recent versions of VARTOOLS (1.6+) have been developed with the assistance of [Claude Code](https://claude.com/claude-code) using the Claude Opus 4.7 (1M context) model. The file [`python/llms.txt`](https://github.com/joeldhartman/vartools/blob/master/python/llms.txt) (a plain-text API overview) included in the distribution can be used to provide context to an LLM to understand the usage of this package.
 
 ---
 

@@ -706,6 +706,23 @@ class TestCLIArgsManipulation:
                         outputcolumns="flux")._to_cli_args()
         assert "outputcolumns" in args
 
+    def test_expr_listvar(self):
+        args = cmd.expr("avg=mean(mag)", vartype="listvar")._to_cli_args()
+        assert args == ["-expr", "listvar", "avg=mean(mag)"]
+
+    def test_expr_const(self):
+        args = cmd.expr("pi=3.14159", vartype="const")._to_cli_args()
+        assert args == ["-expr", "const", "pi=3.14159"]
+
+    def test_expr_scalar(self):
+        args = cmd.expr("x=mag[0]", vartype="scalar")._to_cli_args()
+        assert args == ["-expr", "scalar", "x=mag[0]"]
+
+    def test_expr_invalid_vartype(self):
+        import pytest
+        with pytest.raises(ValueError):
+            cmd.expr("x=1", vartype="invalid")
+
     def test_print_cols_basic(self):
         args = cmd.print_cols("t,mag,err")._to_cli_args()
         assert args[0] == "-print"
@@ -938,7 +955,9 @@ class TestCLIArgsFitting:
                            signal_period=1.23)._to_cli_args()
         assert "period" in args
         idx = args.index("period")
-        assert args[idx+1] == "1.23"
+        # The CLI requires "fix <val>" for a fixed numeric signal period.
+        assert args[idx+1] == "fix"
+        assert args[idx+2] == "1.23"
 
     def test_tfa_sr_signal_period_harm(self):
         args = cmd.TFA_SR("trends.txt", "dates.txt", 1.0,
@@ -1462,28 +1481,28 @@ class TestEndToEndPipelines:
             cmd.chi2(),
             cmd.alarm(),
         ]).run(lc)
-        assert "RMS_0" in result.stats.index
-        assert any("Chi2" in k or "chi2" in k for k in result.stats.index)
-        assert any("Alarm" in k or "alarm" in k for k in result.stats.index)
+        assert "RMS_0" in result.vars.index
+        assert any("Chi2" in k or "chi2" in k for k in result.vars.index)
+        assert any("Alarm" in k or "alarm" in k for k in result.vars.index)
 
     def test_stats_multiple_variables(self):
         lc = make_lc()
         result = vt.Pipeline([
             cmd.stats(["mag", "err"], "mean,median,stddev"),
         ]).run(lc)
-        assert any("mean" in k.lower() for k in result.stats.index)
+        assert any("mean" in k.lower() for k in result.vars.index)
 
     def test_stats_MAD(self):
         lc = make_lc()
         result = vt.Pipeline([cmd.stats("mag", "MAD")]).run(lc)
-        assert any("MAD" in k for k in result.stats.index)
+        assert any("MAD" in k for k in result.vars.index)
 
     def test_rmsbin(self):
         lc = make_lc()
         result = vt.Pipeline([
             cmd.rmsbin(2, [0.5, 1.0]),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # autocorrelation file capture
@@ -1522,8 +1541,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("ls"),
             cmd.LS(0.5, 5.0, 1e-3),
         ]).run(lc)
-        assert "LS_Period_1_ls" in result.stats.index
-        best = float(result.stats["LS_Period_1_ls"])
+        assert "LS_Period_1_ls" in result.vars.index
+        best = float(result.vars["LS_Period_1_ls"])
         assert abs(best - 2.3) < 0.05, f"Expected ~2.3, got {best}"
 
     def test_aov_period_search(self):
@@ -1532,14 +1551,14 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("aov"),
             cmd.aov(0.5, 5.0, 0.1, finetune=2),
         ]).run(lc)
-        assert any("Period" in k for k in result.stats.index)
+        assert any("Period" in k for k in result.vars.index)
 
     def test_aov_harm_period_search(self):
         lc = make_lc(period=1.8)
         result = vt.Pipeline([
             cmd.aov_harm(3, 0.5, 5.0, 0.1, finetune=2),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_ls_save_periodogram(self):
         lc = make_lc(period=2.3)
@@ -1555,7 +1574,7 @@ class TestEndToEndPipelines:
         result = vt.Pipeline([
             cmd.LS(0.5, 5.0, 1e-3, noGLS=True),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Phase-folding
@@ -1567,7 +1586,7 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("s"),
             cmd.LS(0.5, 5.0, 1e-3),
         ]).run(lc)
-        best = float(result.stats["LS_Period_1_s"])
+        best = float(result.vars["LS_Period_1_s"])
         result2 = vt.Pipeline([
             cmd.Phase(period=best),
         ]).run(lc, capture_lc=True)
@@ -1588,7 +1607,7 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("ls"),
             cmd.LS(0.5, 5.0, 5e-4),
         ]).run(lc)
-        best = float(result.stats["LS_Period_1_ls"])
+        best = float(result.vars["LS_Period_1_ls"])
         assert abs(best - 2.5) < 0.05, f"Expected ~2.5, got {best}"
 
     def test_injectharm_killharm_rms(self):
@@ -1605,8 +1624,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("after"),
             cmd.rms(),
         ]).run(lc)
-        rms_before = float(result_before.stats["RMS_before"])
-        rms_after = float(result_after.stats["RMS_after"])
+        rms_before = float(result_before.vars["RMS_before"])
+        rms_after = float(result_after.vars["RMS_after"])
         assert rms_after < rms_before, "Killharm should reduce RMS"
 
     # -----------------------------------------------------------------------
@@ -1634,9 +1653,9 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("r3"),
             cmd.rms(),
         ]).run(lc)
-        n1 = float(result.stats["Npoints_r1"])
-        n2 = float(result.stats["Npoints_r2"])
-        n3 = float(result.stats["Npoints_r3"])
+        n1 = float(result.vars["Npoints_r1"])
+        n2 = float(result.vars["Npoints_r2"])
+        n3 = float(result.vars["Npoints_r3"])
         assert n2 < n1
         assert n3 == n1
 
@@ -1651,8 +1670,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("restored"),
             cmd.rms(),
         ]).run(lc)
-        n_clipped = float(result.stats["Npoints_clipped"])
-        n_restored = float(result.stats["Npoints_restored"])
+        n_clipped = float(result.vars["Npoints_clipped"])
+        n_restored = float(result.vars["Npoints_restored"])
         assert n_restored == 300
 
     def test_sortlc_reverse(self):
@@ -1670,9 +1689,9 @@ class TestEndToEndPipelines:
             cmd.expr("mag=mag-0.5"),
             cmd.stats("mag", "mean"),
         ]).run(lc)
-        mean_key = next(k for k in result.stats.index
+        mean_key = next(k for k in result.vars.index
                         if "mean" in k.lower() and "mag" in k.lower())
-        new_mean = float(result.stats[mean_key])
+        new_mean = float(result.vars[mean_key])
         assert abs(new_mean - (orig_mean - 0.5)) < 1e-4
 
     def test_clip_non_iterative(self):
@@ -1681,7 +1700,7 @@ class TestEndToEndPipelines:
             cmd.clip(sigclip=3.0, iterative=False),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_clip_niter(self):
         lc = make_lc(n=200)
@@ -1689,7 +1708,7 @@ class TestEndToEndPipelines:
             cmd.clip(sigclip=3.0, niter=2),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_medianfilter(self):
         lc = make_lc(n=200)
@@ -1697,7 +1716,7 @@ class TestEndToEndPipelines:
             cmd.medianfilter(time=0.5),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Noise injection
@@ -1714,8 +1733,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("after"),
             cmd.rms(),
         ]).run(lc)
-        rms_before = float(result_before.stats["RMS_before"])
-        rms_after = float(result_after.stats["RMS_after"])
+        rms_before = float(result_before.vars["RMS_before"])
+        rms_after = float(result_after.vars["RMS_after"])
         assert rms_after > rms_before
 
     def test_addnoise_squareexp(self):
@@ -1725,7 +1744,7 @@ class TestEndToEndPipelines:
                          sig_white=0.001, rho=1.0, sig_red=0.01),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Time conversion
@@ -1761,7 +1780,7 @@ class TestEndToEndPipelines:
             cmd.binlc(binsize=0.5, method="median"),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_binlc_weightedaverage(self):
         lc = make_lc(n=300)
@@ -1769,7 +1788,7 @@ class TestEndToEndPipelines:
             cmd.binlc(binsize=0.5, method="weightedaverage"),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # columnsuffix in complex pipelines
@@ -1784,8 +1803,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("b"),
             cmd.rms(),
         ]).run(lc)
-        assert "RMS_a" in result.stats.index
-        assert "RMS_b" in result.stats.index
+        assert "RMS_a" in result.vars.index
+        assert "RMS_b" in result.vars.index
 
     # -----------------------------------------------------------------------
     # LC name in stats
@@ -1795,7 +1814,7 @@ class TestEndToEndPipelines:
         lc = vt.LightCurve.from_arrays(
             *make_lc()._df.values.T, name="my_star")
         result = vt.Pipeline([cmd.rms()]).run(lc)
-        assert result.stats["Name"] == "my_star"
+        assert result.vars["Name"] == "my_star"
 
     # -----------------------------------------------------------------------
     # Batch runs
@@ -1807,21 +1826,21 @@ class TestEndToEndPipelines:
             cmd.rms(),
             cmd.stats("mag", "mean,stddev"),
         ]).run_batch(lcs)
-        assert len(result.stats) == 4
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 4
+        assert "RMS_0" in result.vars.columns
 
     def test_batch_names(self):
         lcs = [make_lc() for i in range(3)]
         for i, lc in enumerate(lcs):
             lc._df  # just access; name already set in make_lc
         result = vt.Pipeline([cmd.rms()]).run_batch(lcs)
-        assert "Name" in result.stats.columns
+        assert "Name" in result.vars.columns
 
     def test_batch_nthreads(self):
         lcs = [make_lc(period=1.0 + i * 0.3) for i in range(4)]
         result = vt.Pipeline([cmd.rms()]).run_batch(lcs, nthreads=2)
-        assert len(result.stats) == 4
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 4
+        assert "RMS_0" in result.vars.columns
 
     # -----------------------------------------------------------------------
     # Capture LC
@@ -1863,10 +1882,10 @@ class TestDiskFilePipeline:
         result_disk = vt.Pipeline([cmd.rms()]).run_file(lc_file)
         result_mem  = vt.Pipeline([cmd.rms()]).run(lc)
 
-        assert result_disk.stats is not None
-        assert "RMS_0" in result_disk.stats.index
-        assert abs(float(result_disk.stats["RMS_0"]) -
-                   float(result_mem.stats["RMS_0"])) < 1e-6
+        assert result_disk.vars is not None
+        assert "RMS_0" in result_disk.vars.index
+        assert abs(float(result_disk.vars["RMS_0"]) -
+                   float(result_mem.vars["RMS_0"])) < 1e-6
 
     def test_run_file_name_from_stem(self, tmp_path):
         """Name in stats comes from the file stem, not a temp-file path."""
@@ -1875,7 +1894,7 @@ class TestDiskFilePipeline:
         self._write_lc(str(lc_file), lc)
 
         result = vt.Pipeline([cmd.rms()]).run_file(lc_file)
-        assert result.stats["Name"] == "mystar"
+        assert result.vars["Name"] == "mystar"
 
     def test_run_file_capture_lc(self, tmp_path):
         """capture_lc=True returns the modified LC when using run_file."""
@@ -1896,15 +1915,15 @@ class TestDiskFilePipeline:
         self._write_lc(str(lc_file), lc)
 
         result = vt.Pipeline([cmd.rms()]).run_file(str(lc_file))
-        assert "RMS_0" in result.stats.index
+        assert "RMS_0" in result.vars.index
 
     def test_run_file_example_lc(self):
         """run_file() works on the real EXAMPLES/2 file shipped with vartools."""
         if not os.path.isfile(EXAMPLE_LC):
             pytest.skip("EXAMPLES/2 not found")
         result = vt.Pipeline([cmd.rms()]).run_file(EXAMPLE_LC)
-        assert result.stats is not None
-        assert "RMS_0" in result.stats.index
+        assert result.vars is not None
+        assert "RMS_0" in result.vars.index
 
     def test_run_filelist_list_of_paths(self, tmp_path):
         """run_filelist() with a list of paths processes all LCs."""
@@ -1916,9 +1935,9 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths)
-        assert result.stats is not None
-        assert len(result.stats) == 3
-        assert "RMS_0" in result.stats.columns
+        assert result.vars is not None
+        assert len(result.vars) == 3
+        assert "RMS_0" in result.vars.columns
 
     def test_run_filelist_names_from_stems(self, tmp_path):
         """Name column is populated from file stems."""
@@ -1930,7 +1949,7 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths)
-        assert list(result.stats["Name"]) == ["alpha", "beta"]
+        assert list(result.vars["Name"]) == ["alpha", "beta"]
 
     def test_run_filelist_existing_list_file(self, tmp_path):
         """run_filelist() with a path to an existing list file."""
@@ -1945,7 +1964,7 @@ class TestDiskFilePipeline:
         list_file.write_text("\n".join(lc_files) + "\n")
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(list_file)
-        assert len(result.stats) == 3
+        assert len(result.vars) == 3
 
     def test_run_filelist_nthreads(self, tmp_path):
         """run_filelist() with nthreads > 1 still returns correct results."""
@@ -1957,7 +1976,7 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths, nthreads=2)
-        assert len(result.stats) == 4
+        assert len(result.vars) == 4
 
     def test_run_filelist_pipeline(self, tmp_path):
         """run_filelist() works with a multi-command pipeline."""
@@ -1972,8 +1991,8 @@ class TestDiskFilePipeline:
             cmd.clip(sigclip=5.0),
             cmd.rms(),
         ]).run_filelist(paths)
-        assert len(result.stats) == 3
-        assert "RMS_1" in result.stats.columns
+        assert len(result.vars) == 3
+        assert "RMS_1" in result.vars.columns
 
 
 # ===========================================================================
@@ -2316,9 +2335,12 @@ class TestPerLC:
         pipe = vt.Pipeline([cmd.LS(0.1, 10.0, 0.001)])
         col_assignments = {(0, "minp"): 2, (0, "maxp"): 3}
         subs = pipe._build_perlc_subs(col_assignments)
-        # Each attr is substituted with a unique variable name (bare identifier)
-        assert subs[0]["minp"] == "_perlc_0_minp"
-        assert subs[0]["maxp"] == "_perlc_0_maxp"
+        # Each attr is substituted with an ``"expr <varname>"`` string.  The
+        # "expr" form is portable across every command's value-spec parser
+        # (some commands — notably ``-BLSFixPer`` on its period slot — do
+        # not accept the bare ``"var NAME"`` form).
+        assert subs[0]["minp"] == "expr _perlc_0_minp"
+        assert subs[0]["maxp"] == "expr _perlc_0_maxp"
 
     def test_build_perlc_inlistvars(self):
         pipe = vt.Pipeline([cmd.LS(0.1, 10.0, 0.001)])
@@ -2422,8 +2444,8 @@ class TestPerLCEndToEnd:
         result = vt.Pipeline([
             cmd.LS(minp=minps, maxp=maxps, subsample=0.001, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "LS_Period_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "LS_Period_1_0" in result.vars.columns
 
     def test_perlc_explicit_wrapper(self):
         """Explicit PerLC([...]) wrapper works identically to numpy array."""
@@ -2434,7 +2456,7 @@ class TestPerLCEndToEnd:
             cmd.LS(minp=PerLC([0.1, 0.5]), maxp=10.0,
                    subsample=0.001, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
+        assert len(result.vars) == 2
 
     def test_perlc_run_filelist_paths(self):
         """run_filelist with a list of paths + per-LC array works."""
@@ -2443,7 +2465,7 @@ class TestPerLCEndToEnd:
             cmd.LS(minp=np.array([0.1, 0.5]), maxp=10.0,
                    subsample=0.001, npeaks=1)
         ]).run_filelist(paths)
-        assert len(result.stats) == 2
+        assert len(result.vars) == 2
 
     def test_perlc_aov_batch(self):
         """Per-LC minp values are correctly passed to aov for each LC."""
@@ -2453,8 +2475,8 @@ class TestPerLCEndToEnd:
             cmd.aov(minp=np.array([0.1, 0.5]), maxp=10.0,
                     subsample=0.001, finetune=2, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "AOV_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "AOV_1_0" in result.vars.columns
 
     def test_perlc_bls_batch(self):
         """Per-LC minper/maxper values are correctly passed to BLS for each LC."""
@@ -2464,8 +2486,8 @@ class TestPerLCEndToEnd:
             cmd.BLS(minper=np.array([0.1, 0.5]), maxper=np.array([5.0, 10.0]),
                     rmin=0.01, rmax=0.5, nbins=200, npeaks=1, nfreq=5000)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "BLS_Period_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "BLS_Period_1_0" in result.vars.columns
 
 
 # ===========================================================================
@@ -2806,8 +2828,8 @@ class TestRunCombinelcsIntegration:
     def test_run_combinelcs_basic(self):
         groups = [[EXAMPLE_LC, EXAMPLE_LC]]
         result = vt.Pipeline([cmd.rms()]).run_combinelcs(groups)
-        assert len(result.stats) == 1
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 1
+        assert "RMS_0" in result.vars.columns
 
 
 class TestPipelineUserCommandSubprocessFallback:

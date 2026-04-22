@@ -9,27 +9,44 @@ Commands for injecting signals and noise into light curves, and for replicating 
 ```
 -addnoise
     <   "white"
-                <"sig_white" <"fix" val | "list" ["column" col]>>
+            <"sig_white" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
       | "squareexp"
-                <"rho" <"fix" val | "list" ["column" col]>>
-                <"sig_red" <"fix" val | "list" ["column" col]>>
-                <"sig_white" <"fix" val | "list" ["column" col]>>
-                ["bintime" <"fix" val | "list" ["column" col]>]
+            <"rho" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_red" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_white" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            ["bintime" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>]
       | "exp"
-                <"rho" <"fix" val | "list" ["column" col]>>
-                <"sig_red" <"fix" val | "list" ["column" col]>>
-                <"sig_white" <"fix" val | "list" ["column" col]>>
-                ["bintime" <"fix" val | "list" ["column" col]>]
+            <"rho" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_red" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_white" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            ["bintime" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>]
       | "matern"
-                <"nu" <"fix" val | "list" ["column" col]>>
-                <"rho" <"fix" val | "list" ["column" col]>>
-                <"sig_red" <"fix" val | "list" ["column" col]>>
-                <"sig_white" <"fix" val | "list" ["column" col]>>
-                ["bintime" <"fix" val | "list" ["column" col]>]
+            <"nu" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"rho" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_red" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_white" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            ["bintime" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>]
       | "wavelet"
-                <"gamma" <"fix" val | "list" ["column" col]>>
-                <"sig_red" <"fix" val | "list" ["column" col]>>
-                <"sig_white" <"fix" val | "list" ["column" col]>>
+            <"gamma" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_red" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
+            <"sig_white" <"fix" val | "var" varname | "expr" expression
+                | "list" ["column" col]>>
     >
 ```
 
@@ -38,6 +55,8 @@ Add time-correlated Gaussian noise to the light curve. The user must choose one 
 For every numerical parameter, supply the value using one of:
 
 - `"fix" val` — Fixed value for all light curves.
+- `"var" varname` — Read the value from a named per-star variable.
+- `"expr" expression` — Evaluate an analytic expression per light curve.
 - `"list" ["column" col]` — Read the value from the input light curve list. By default the next available column is used; use `"column" col` to specify explicitly.
 
 ### Noise models
@@ -130,22 +149,26 @@ gawk '{print $1, 0., 0.005}' EXAMPLES/1 | \
 ## `-Injectharm`
 
 ```
--Injectharm
-    < "list" ["column" col] | "fix" per
-        | "rand" minp maxp | "logrand" minp maxp
-        | "randfreq" minf maxf | "lograndfreq" minf maxf >
-    Nharm
-        (< "amplist" ["column" col] | "ampfix" amp
-            | "amprand" minamp maxamp | "amplogrand" minamp maxamp >
-         ["amprel"]
-         < "phaselist" ["column" col] | "phasefix" phase | "phaserand" >
-         ["phaserel"]) 0...Nharm
-    Nsubharm
-        (< "amplist" ["column" col] | "ampfix" amp
-            | "amprand" minamp maxamp | "amplogrand" minamp maxamp >
-         ["amprel"]
-         < "phaselist" ["column" col] | "phasefix" phase | "phaserand" >
-         ["phaserel"]) 1...Nsubharm
+-Injectharm <"list" ["column" col] | "fix" per
+    | "var" varname | "expr" expression
+    | "rand" <"var" v | "expr" e | minp> <"var" v | "expr" e | maxp>
+    | "logrand" <"var" v | "expr" e | minp> <"var" v | "expr" e | maxp>
+    | "randfreq" <"var" v | "expr" e | minf> <"var" v | "expr" e | maxf>
+    | "lograndfreq" <"var" v | "expr" e | minf> <"var" v | "expr" e | maxf>>
+    Nharm (<"amplist" ["column" col]
+    | "ampfix" amp | "ampvar" varname | "ampexpr" expression
+    | "amprand" minamp maxamp
+    | "amplogrand" minamp maxamp> ["amprel"]
+    <"phaselist" ["column" col]
+    | "phasefix" phase | "phasevar" varname | "phaseexpr" expression
+    | "phaserand"> ["phaserel"])0...Nharm Nsubharm
+    (<"amplist" ["column" col] | "ampfix" amp
+    | "ampvar" varname | "ampexpr" expression
+    | "amprand" minamp maxamp
+    | "amplogrand" minamp maxamp> ["amprel"]
+    <"phaselist" ["column" col]
+    | "phasefix" phase | "phasevar" varname | "phaseexpr" expression
+    | "phaserand"> ["phaserel"])1...Nsubharm
     omodel [modeloutdir]
 ```
 
@@ -206,34 +229,38 @@ For each of the `Nharm+1` harmonics (fundamental = harmonic 1) and `Nsubharm` su
 ## `-Injecttransit`
 
 ```
--Injecttransit
-    < "Plist" ["column" col] | "Pfix" per
-        | "Pexpr" expr | "Prand" minp maxp | "Plogrand" minp maxp
-        | "randfreq" minf maxf | "lograndfreq" minf maxf >
-    < "Rplist" ["column" col] | "Rpfix" Rp |
-        "Rpexpr" expr | "Rprand" minRp maxRp | "Rplogrand" minRp maxRp >
-    < "Mplist" ["column" col] | "Mpfix" Mp |
-        "Mpexpr" expr | "Mprand" minMp maxMp | "Mplogrand" minMp maxMp >
-    < "phaselist" ["column" col] | "phasefix" phase |
-        "phaseexpr" expr | "phaserand" >
-    < "sinilist" ["column" col] | "sinifix" sin_i |
-        "siniexpr" expr | "sinirand" >
-    < "eomega"
-            < "elist" ["column" col] | "efix" e |
-                "eexpr" expr | "erand" >
-            < "olist" ["column" col] | "ofix" omega |
-                "oexpr" expr | "orand" >
-        | "hk"
-            < "hlist" ["column" col] | "hfix" h |
-                "hexpr" expr | "hrand" >
-            < "klist" ["column" col] | "kfix" k |
-                "kexpr" expr | "krand" > >
-    < "Mstarlist" ["column" col] | "Mstarfix" Mstar | "Mstarexpr" expr >
-    < "Rstarlist" ["column" col] | "Rstarfix" Rstar | "Rstarexpr" expr >
-    < "quad" | "nonlin" >
-        < "ldlist" ["column" col] | "ldfix" ld1 ... ldn |
-            "ldexpr" ld1 ... ldn >
-    ["dilute" < "list" ["column" col] | "fix" dilute | "expr" diluteexpr >]
+-Injecttransit <"Plist" ["column" col] | "Pfix" per
+        | "Pvar" varname | "Pexpr" expr
+        | "Prand" <"var" v | "expr" e | minp> <"var" v | "expr" e | maxp>
+        | "Plogrand" <"var" v | "expr" e | minp> <"var" v | "expr" e | maxp>
+        | "randfreq" <"var" v | "expr" e | minf> <"var" v | "expr" e | maxf>
+        | "lograndfreq" <"var" v | "expr" e | minf> <"var" v | "expr" e | maxf>>
+    <"Rplist" ["column" col] | "Rpfix" Rp | "Rpvar" varname | "Rpexpr" expr
+        | "Rprand" <"var" v | "expr" e | minRp> <"var" v | "expr" e | maxRp>
+        | "Rplogrand" <"var" v | "expr" e | minRp> <"var" v | "expr" e | maxRp>>
+    <"Mplist" ["column" col] | "Mpfix" Mp | "Mpvar" varname | "Mpexpr" expr
+        | "Mprand" <"var" v | "expr" e | minMp> <"var" v | "expr" e | maxMp>
+        | "Mplogrand" <"var" v | "expr" e | minMp> <"var" v | "expr" e | maxMp>>
+    <"phaselist" ["column" col] | "phasefix" phase
+        | "phasevar" varname | "phasexpr" expr | "phaserand">
+    <"sinilist" ["column" col] | "sinifix" sin_i
+        | "sinivar" varname | "siniexpr" expr | "sinirand">
+    <"eomega" <"elist" ["column" col] | "efix" e | "evar" varname
+        | "eexpr" expr | "erand">
+        <"olist" ["column" col] | "ofix" omega | "ovar" varname
+        | "oexpr" expr | "orand">
+    | "hk" <"hlist" ["column" col] | "hfix" h | "hvar" varname
+        | "hexpr" expr | "hrand">
+        <"klist" ["column" col] | "kfix" k | "kvar" varname
+        | "kexpr" expr | "krand">>
+    <"Mstarlist" ["column" col] | "Mstarfix" Mstar | "Mstarvar" varname
+        | "Mstarexpr" expr>
+    <"Rstarlist" ["column" col] | "Rstarfix" Rstar | "Rstarvar" varname
+        | "Rstarexpr" expr>
+    <"quad" | "nonlin">
+        <"ldlist" ["column" col] | "ldfix" ld1 ... ldn
+        | "ldvar" ld1 ... ldn | "ldexpr" ld1 ... ldn>
+    ["dilute" <"list" ["column" col] | "fix" dilute | "expr" diluteexpr>]
     omodel [modeloutdir]
 ```
 
@@ -307,9 +334,13 @@ Each copy has the suffix `_copy$copycommandnum.$copynum` appended to its name, w
 Combine with `-addnoise` and a period-finding or signal-detection command to perform Monte Carlo false-alarm probability estimates:
 
 ```bash
-vartools -l lclist.txt \
-    -copylc 1000 \
+vartools -l EXAMPLES/lc_list \
+    -copylc 10 \
     -addnoise white "sig_white" fix 0.005 \
     -LS 0.5 20.0 4.0 1 0 \
-    -print LS_Period_1_1,LS_lnFAP_1_1
+    -header
 ```
+
+Each input LC yields `1 + copylc_N` output rows — the original plus each
+noise-realization copy — with the `_copyN.M` suffix on the `Name` column
+identifying which realization each row came from.

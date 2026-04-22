@@ -61,14 +61,14 @@ void mrqmin(double *x, double *y, double *sig, int ndata, double *a, int *ia, in
     if((atry = (double *) malloc(ma * sizeof(double))) == NULL ||
        (beta = (double *) malloc(ma * sizeof(double))) == NULL ||
        (da = (double *) malloc(ma * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(mfit=0,j=0;j<ma;j++)
       if(ia[j]) mfit++;
     if((oneda = (double **) malloc(mfit * sizeof(double *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=0;j<mfit;j++)
       if((oneda[j] = (double *) malloc(sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 #endif
     *alamda = 0.001;
     mrqcof(x,y,sig,ndata,a,ia,ma,alpha,beta,chisq,funcs, Nlin_coeff, Design_Matrix, lin_coeffs, varylin_coeffs, userparams);
@@ -122,10 +122,10 @@ void mrqcof(double *x, double *y, double *sig, int ndata, double *a, int *ia, in
   double *ymod, wt, sig2i, dy, **dyda;
   if((dyda = (double **) malloc(ndata * sizeof(double *))) == NULL ||
      (ymod = (double *) malloc(ndata * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(j=0;j<ndata;j++)
     if((dyda[j] = (double *) malloc(ma * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   for(j=0;j<ma;j++)
     if(ia[j]) mfit++;
   for(j=0;j<mfit;j++) {
@@ -206,7 +206,7 @@ This algorithm is taken from Press et al. 1992, it has been modified slightly to
   if((indxc = (int *) malloc(n * sizeof(int))) == NULL ||
      (indxr = (int *) malloc(n * sizeof(int))) == NULL ||
      (ipiv = (int *) malloc(n * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(j=0;j<n;j++) ipiv[j] = 0;
   for(i=0;i<n;i++) {

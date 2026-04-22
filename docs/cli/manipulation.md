@@ -8,15 +8,16 @@ This page documents the VARTOOLS commands that transform, filter, reformat, or i
 
 **Syntax**
 ```
--binlc
-    < "average" | "median" | "weightedaverage" >
-    < "binsize" binsize | "nbins" nbins >
+-binlc <"average" | "median" | "weightedaverage">
+    <"binsize" <"var" bsvar | "expr" bsexpr | binsize> | "nbins" <"var" nbvar |
+    "expr" nbexpr | nbins>>
     ["bincolumns" var1[:stats1][,var2[:stats2],...]]
     ["T0"
-        < "fix" T0val | "list" ["column" col] | "fixcolumn" <colname | colnum> |
-          "expr" expression >]
-    ["firstbinshift" firstbinshift]
-    < "tcenter" | "taverage" | "tmedian" | "tnoshrink" ["bincolumnsonly"] >
+        <"fix" T0val | "var" varname | "list" ["column" col] | "fixcolumn"
+        <colname | colnum> |
+         "expr" expression>]
+    ["firstbinshift" <"var" fbvar | "expr" fbexpr | firstbinshift>]
+    <"tcenter" | "taverage" | "tmedian" | "tnoshrink" ["bincolumnsonly"]>
     ["maskpoints" maskvar]
 ```
 
@@ -105,56 +106,6 @@ Weighted_Mean_Mag_2 =  10.35142
 
 ---
 
-### `-changevariable`
-
-**Syntax**
-```
--changevariable
-    < "t" | "mag" | "err" | "id" > var
-```
-
-**Description**
-
-Reassign the internal role of the time (`t`), magnitude (`mag`), magnitude uncertainty (`err`), or image-identifier (`id`) variable to a different named column. Subsequent commands will use the new assignment. The original variable still exists; to restore it, issue `-changevariable mag mag`.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `"t"` / `"mag"` / `"err"` / `"id"` | Which built-in role to reassign. |
-| `var` | Name of the existing light-curve column to promote to that role. |
-
-**Example**
-
-```bash
-vartools -i my.fits \
-    -inputlcformat t:1,pdcsap_flux:8,pdcsap_flux_err:9 \
-    -changevariable mag pdcsap_flux \
-    -changevariable err pdcsap_flux_err \
-    -fluxtomag 25.0 0 \
-    -rms -oneline
-```
-
-**Examples**
-
-**Example 1.** Run an LS period search, then use `-changevariable` to store the current time in a `phase` variable, phase-fold on the LS period, then swap `t` back before writing output so the light curve is sorted by time.
-
-```bash
-vartools -l EXAMPLES/lc_list \
-    -LS 0.1 100.0 0.1 1 0 \
-    -expr 'phase=t' \
-    -changevariable t phase \
-    -Phase ls \
-    -changevariable t t \
-    -o EXAMPLES/OUTDIR1 nameformat "%s.phase.txt" \
-        columnformat "t:%17.9f,mag:%9.5f,err:%9.5f,phase:%9.5f" \
-    -header
-```
-
-Output: a table with columns `Name`, `LS_Period_1_0`, `Log10_LS_Prob_1_0`, `LS_SNR_1_0` for each light curve in the list, plus one phase-folded output file per light curve.
-
----
-
 ### `-converttime`
 
 **Syntax**
@@ -205,20 +156,28 @@ Convert the time system of the light curve between Modified Julian Date (MJD), J
 ```bash
 vartools -i EXAMPLES/1 -quiet \
     -converttime input jd inputsubtract 2400000. output hjd \
-    radec 88.079166 32.5533 \
+    radec fix 88.079166 32.5533 \
     -o EXAMPLES/OUTDIR1/1.hjd
 ```
 
 **Example 2.** Convert from UTC timestamps to Barycentric Julian Date in the TDB reference frame, requiring CSPICE kernel files and an observatory specification.
 
+!!! note "Requires CSPICE kernel files"
+    This example reads the kernel file paths from the environment variables
+    `CSPICE_EPHEM_FILE`, `CSPICE_LEAPSEC_FILE`, and `CSPICE_PLANETDATA_FILE`.
+    Install the kernel files and set these variables as described in the
+    [CSPICE kernel files](../install.md#cspice-kernel-files) section before
+    running.
+
 ```bash
 vartools -i EXAMPLES/1.UTC -quiet \
-    -readformat 0 inpututc '%Y-%M-%DT%h:%m:%s' 1 2 3 \
-    -converttime input utc output bjd tdb \
-    radec 88.079166 32.5533 \
-    obs flwo \
-    leapsecfile /path/to/naif0012.tls \
-    spkfile /path/to/de430.bsp \
+    -inputlcformat t:1:utc:'%Y-%M-%DT%h:%m:%s',mag:2,err:3 \
+    -converttime input jd inputsys-utc output bjd outputsys-tdb \
+    radec fix 88.079166 32.5533 \
+    ephemfile "${CSPICE_EPHEM_FILE}" \
+    leapsecfile "${CSPICE_LEAPSEC_FILE}" \
+    planetdatafile "${CSPICE_PLANETDATA_FILE}" \
+    observatory flwo \
     -o EXAMPLES/OUTDIR1/1.bjd_tdb
 ```
 
@@ -228,8 +187,8 @@ vartools -i EXAMPLES/1.UTC -quiet \
 
 **Syntax**
 ```
--difffluxtomag
-    mag_constant offset ["magcolumn" col]
+-difffluxtomag <"var" mcvar | "expr" mcexpr | mag_constant>
+    <"var" offvar | "expr" offexpr | offset> ["magcolumn" col]
 ```
 
 **Description**
@@ -314,13 +273,23 @@ Output: table with columns Name, Chi2_0, Weighted_Mean_Mag_0, SigmaRescaleFactor
 
 **Syntax**
 ```
--expr
-    var"="expression
+-expr ["listvar" | "scalar" | "const"] var"="expression
 ```
 
 **Description**
 
-Evaluate an analytic expression and assign the result to a named variable. If the variable does not yet exist it is created; it can be a scalar or a per-point vector depending on the right-hand side. The expression can reference any existing light curve vectors (`t`, `mag`, `err`, other named columns), scalars from prior commands, or output columns identified by their header names (with leading digits and underscores stripped). Run `vartools -functionlist` for the full list of supported functions, operators, and constants.
+Evaluate an analytic expression and assign the result to a named variable. If the variable does not yet exist it is created as a per-observation light-curve vector by default. The optional keywords change the variable type:
+
+| Keyword | Variable type | Description |
+|---------|--------------|-------------|
+| *(none)* | Per-observation | One value per point in the light curve (default). |
+| `listvar` | Per-star | One value per light curve in the input list. Persists across all LCs. LC vectors on the RHS are evaluated at the first observation (index 0). |
+| `scalar` | Per-thread | One value per processing thread. |
+| `const` | Global constant | Single scalar value, same for all LCs. |
+
+If the variable already exists, its type is preserved regardless of the keyword.
+
+The expression can reference any existing light curve vectors (`t`, `mag`, `err`, other named columns), scalars from prior commands, or output columns identified by their header names. The expression engine supports aggregate functions like `mean(mag)`, `stddev(mag, t>53730)`, `pct(mag, 95.0)`, etc. See the [Analytic Expressions](expressions.md) reference for the full list of supported operators, scalar functions, aggregate functions, and constants.
 
 **Parameters**
 
@@ -333,7 +302,16 @@ Evaluate an analytic expression and assign the result to a named variable. If th
 
 ```bash
 # Convert magnitudes to linear flux and store as a new column
-vartools -i lc.txt -expr 'flux=10^(-0.4*(mag-25.0))' -rms -oneline
+vartools -i EXAMPLES/2 -expr 'flux=10^(-0.4*(mag-25.0))' -rms -oneline
+
+# Compute per-star mean magnitude using an aggregate function
+vartools -l EXAMPLES/lc_list -expr listvar 'avg=mean(mag)' -oneline
+
+# Compute mean of only bright observations (mag < 10)
+vartools -i EXAMPLES/2 -expr listvar 'bright_avg=mean(mag, mag<10)' -oneline
+
+# Define a global constant
+vartools -l EXAMPLES/lc_list -expr const 'zp=25.0' -expr 'flux=10^(-0.4*(mag-zp))' -oneline
 ```
 
 **Examples**
@@ -531,8 +509,8 @@ EXAMPLES/2  10.11155   0.02901   0.00028 66186
 
 **Syntax**
 ```
--fluxtomag
-    mag_constant offset
+-fluxtomag <"var" mcvar | "expr" mcexpr | mag_constant>
+    <"var" offvar | "expr" offexpr | offset>
 ```
 
 **Description**
@@ -557,10 +535,10 @@ This command produces no output to stdout.
 **Example 1.** Convert a Kepler public Q1 light curve from flux to magnitudes using a zero-point of 25.0 (1 ADU = magnitude 25).
 
 ```bash
-vartools -i Q1_public/kplr000757076-2009166043257_llc.fits \
+vartools -i EXAMPLES/kplr000757076-2009166043257_llc.fits \
     -readformat 0 1 10 11 \
     -fluxtomag 25.0 0 \
-    -o kplr000757076-2009166043257_llc.asc.txt
+    -o EXAMPLES/OUTDIR1/kplr000757076-2009166043257_llc.asc.txt
 ```
 
 ---
@@ -605,11 +583,12 @@ Perform a row-by-row match of an external data file to the light curve, merging 
 
 **Syntax**
 ```
--Phase
-    < "aov" | "ls" | "bls" | "fixcolumn" <colname | colnum>
-      | "list" ["column" col] | "fix" P >
-    ["T0" < "bls" phaseTc | "fixcolumn" <colname | colnum>
-           | "list" ["column" col] | "fix" T0 >]
+-Phase <"aov" | "ls" | "bls" | "fixcolumn" <colname | colnum>
+        | "list" ["column" col] | "fix" period
+        | "var" varname | "expr" expression>
+    ["T0" <"bls" phaseTc | "fixcolumn" <colname | colnum>
+        | "list" ["column" col] | "fix" T0
+        | "var" varname | "expr" expression>]
     ["phasevar" var] ["startphase" startphase]
 ```
 
@@ -783,276 +762,3 @@ Sort the light curve. By default it is sorted by time. If any subsequent command
 |-----------|-------------|
 | `"var" varname` | Sort by this named variable instead of time. |
 | `"reverse"` | Sort in descending order. |
-
----
-
-### `-restricttimes`
-
-**Syntax**
-```
--restricttimes
-    ["exclude"]
-    < "JDrange" minJD maxJD |
-      "JDrangebylc"
-          < "fix" minJD | "list" [...] | "fixcolumn" col | "expr" expr >
-          < "fix" maxJD | "list" [...] | "fixcolumn" col | "expr" expr >
-      "JDlist" JDfilename |
-      "imagelist" imagefilename |
-      "expr" expression >
-    ["markrestrict" markvar ["noinitmark"]]
-```
-
-**Description**
-
-Filter observations from the light curve based on their time values (or string IDs). By default, points **not** matching the specification are removed. If `"exclude"` is given, the **matching** points are removed instead.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `"exclude"` | Invert the filter: remove the specified times instead of keeping them. |
-| `"JDrange" minJD maxJD` | Keep points with `minJD ≤ t ≤ maxJD`. The same range applies to all light curves. |
-| `"JDrangebylc" ...` | Per-light-curve range. Each bound can be `"fix"`, `"list"`, `"fixcolumn"`, or `"expr"`. |
-| `"JDlist" file` | File with JDs (first column) to keep (or exclude). |
-| `"imagelist" file` | File with string image IDs (first column) to keep (or exclude). |
-| `"expr" expression` | Keep points where the expression evaluates to a value > 0. For example, `'(mag>9.0)&&(mag<9.5)'`. |
-| `"markrestrict" markvar` | Do not remove points; instead set `markvar = 1` for kept points and `markvar = 0` for filtered points. |
-| `"noinitmark"` | Combine with `"markrestrict"`: treat the existing values of `markvar` as a prior mask and only update points that would be newly removed. |
-
-**Examples**
-
-**Example 1.** Keep only observations between JD 53740 and 53750 and verify with `-stats`.
-
-```bash
-vartools -i EXAMPLES/3 -stats t min,max \
-    -restricttimes JDrange 53740 53750 \
-    -stats t min,max -oneline
-```
-
-Output:
-```
-Name                  = EXAMPLES/3
-STATS_t_MIN_0         = 53725.173920000001
-STATS_t_MAX_0         = 53756.281021000003
-RestrictTimes_MinJD_1 = 53740
-RestrictTimes_MaxJD_1 = 53750
-STATS_t_MIN_2         = 53740.336210000001
-STATS_t_MAX_2         = 53745.478681000001
-```
-
-**Example 2.** Keep only points where `10.16311 < mag < 10.17027` using an expression filter.
-
-```bash
-vartools -i EXAMPLES/3 -stats mag min,max \
-    -restricttimes expr '(mag>10.16311)&&(mag<10.17027)' \
-    -stats mag min,max -oneline
-```
-
-**Example 3.** Compute the 20th and 80th percentile magnitudes, then restrict to that range dynamically using computed column names.
-
-```bash
-vartools -i EXAMPLES/3 -stats mag pct20.0,pct80.0 \
-    -restricttimes expr \
-      '(mag>STATS_mag_PCT20_00_0)&&(mag<STATS_mag_PCT80_00_00)' \
-    -stats mag min,max -oneline
-```
-
-**Example 4.** Detect a transit with BLS, phase-fold, and *exclude* the in-transit points from the output light curve.
-
-```bash
-vartools -i EXAMPLES/3.transit -oneline \
-    -BLS q 0.01 0.1 0.1 20.0 100000 200 0 1 \
-         0 0 0 fittrap nobinnedrms \
-    -expr 'minph=0.5-BLS_Qtran_1_0/2.0' \
-    -expr 'maxph=0.5+BLS_Qtran_1_0/2.0' \
-    -expr 'ph=t' \
-    -changevariable t ph \
-    -Phase bls T0 bls 0.5 \
-    -restricttimes exclude JDrangebylc expr minph expr maxph \
-    -o EXAMPLES/3.cliptransit columnformat t,mag,err,ph
-```
-
----
-
-### `-restoretimes`
-
-**Syntax**
-```
--restoretimes
-    prior_restricttimes_command
-```
-
-**Description**
-
-Restore observations that were removed by a prior `-restricttimes` command. The restored points are appended to the current light curve and then sorted by time. This allows commands to be applied to isolated time windows.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `prior_restricttimes_command` | Integer index (1-based) identifying which `-restricttimes` command to restore from. `1` = first, `2` = second, etc. Cannot be used if that `-restricttimes` used the `"markrestrict"` option. |
-
-**Examples**
-
-**Example 1.** Compute RMS on the full light curve, then restrict to a time window, compute RMS again, then restore and confirm the full dataset is recovered.
-
-```bash
-vartools -i EXAMPLES/3 \
-    -rms \
-    -restricttimes JDrange 53740 53750 \
-    -rms \
-    -restoretimes 1 \
-    -rms -oneline
-```
-
-The full dataset contains 3417 points; the restricted window 738 points; after `-restoretimes 1` all 3417 points are recovered.
-
-**Example 2.** Shift magnitudes only within the restricted window, then restore — points outside the window retain their original values.
-
-```bash
-vartools -i EXAMPLES/3 \
-    -restricttimes JDrange 53740 53750 \
-    -expr 'mag=mag+0.05' \
-    -restoretimes 1 \
-    -o EXAMPLES/OUTDIR1/3.restoretimes.txt -oneline
-```
-
----
-
-### `-copylc`
-
-**Syntax**
-```
--copylc
-    Ncopies
-```
-
-**Description**
-
-Replicate the current light curve `Ncopies` times. Each copy is processed independently through all subsequent commands. Output rows for commands preceding the `-copylc` call are also replicated. Copy names are appended with the suffix `_copy<cmdnum>.<copynum>`. Cannot be used with the `-readall` option.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `Ncopies` | Number of copies to create (integer ≥ 1). |
-
-**Examples**
-
-**Example 1.** Run the LS periodogram on a light curve, then make 100 copies with Gaussian noise substituted for the magnitudes and run LS on each simulation to assess false-alarm rates.
-
-```bash
-vartools -i EXAMPLES/2 -LS 0.1 10. 0.1 1 0 \
-    -copylc 100 \
-    -expr 'mag=err*gauss()' \
-    -LS 0.1 10. 0.1 1 0 \
-    -header
-```
-
-Output:
-```
-#Name LS_Period_1_0 Log10_LS_Prob_1_0 LS_SNR_1_0 LS_Period_1_3 Log10_LS_Prob_1_3 LS_SNR_1_3
-EXAMPLES/2     1.23440877 -704.49194   58.45119     0.16051136   -0.65620    5.59463
-EXAMPLES/2_copy1.1     1.23440877 -704.49194   58.45119     0.20478671   -0.03436    4.89785
-EXAMPLES/2_copy1.2     1.23440877 -704.49194   58.45119     0.17224308   -0.00000    4.62340
-EXAMPLES/2_copy1.3     1.23440877 -704.49194   58.45119     0.43264396   -0.13495    6.51119
-EXAMPLES/2_copy1.4     1.23440877 -704.49194   58.45119     0.12629761   -1.21929    7.96670
-EXAMPLES/2_copy1.5     1.23440877 -704.49194   58.45119     6.48064604   -0.44006    6.40004
-...
-```
-
----
-
-### `-medianfilter`
-
-**Syntax**
-```
--medianfilter
-    time ["average" | "weightedaverage"] ["replace"]
-```
-
-**Description**
-
-Apply a running median (or mean) filter to the light curve. By default a **high-pass** filter is applied: the running median of all points within ±`time` days of each observation is subtracted from that observation. If `"replace"` is given, the command acts as a **low-pass** filter: each point is replaced by the running median (or mean) rather than having it subtracted.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `time` | Half-width of the running window in days. |
-| `"average"` | Use the running mean instead of the median. |
-| `"weightedaverage"` | Use the error-weighted running mean. |
-| `"replace"` | Low-pass mode: replace each point with the running statistic. |
-
----
-
-### `-decorr`
-
-**Syntax**
-```
--decorr
-    correctlc zeropointterm subtractfirstterm
-    Nglobalterms globalfile1 order1 ... globalfileN orderN
-    Nlcterms lccolumn1 lcorder1 ... lccolumnN lcorderN
-    omodel [modeloutdir] ["maskpoints" maskvar]
-```
-
-!!! warning "Deprecated"
-    As of VARTOOLS 1.3, `-decorr` is deprecated. Use `-linfit` instead for general linear decorrelation.
-
-**Description**
-
-Decorrelate light curves against external signals. Signals may be global (provided in separate files with columns `JD signal_value`) or light-curve-specific (additional columns in the light curve files).
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `correctlc` | `1` to subtract the fitted model from the light curve; `0` to output statistics only. |
-| `zeropointterm` | `1` to include a constant offset term in the fit. |
-| `subtractfirstterm` | `1` to decorrelate against `signal - signal[0]` rather than `signal` (avoids round-off when using JD). |
-| `Nglobalterms` | Number of global signal files. |
-| `globalfile1 ... globalfileN` | Names of global signal files. |
-| `order1 ... orderN` | Polynomial order for each global signal (must be ≥ 1). |
-| `Nlcterms` | Number of light-curve-specific signals. |
-| `lccolumn1 ... lccolumnN` | Column indices in the light curve for each signal. |
-| `lcorder1 ... lcorderN` | Polynomial order for each light-curve signal. |
-| `omodel` | `1` to output the model; `0` otherwise. |
-| `modeloutdir` | Directory for model output files (suffix: `.decorr.model`). |
-| `"maskpoints" maskvar` | Restrict the fit to points with `maskvar > 0`. |
-
----
-
-### `-print`
-
-**Syntax**
-```
--print
-    var1[,var2,var3...]
-    ["columnnames" col1[,col2,col3...]]
-    ["format" fmt1[,fmt2,fmt3...]]
-```
-
-**Description**
-
-Print the value of one or more variables to the output statistics table. One value per light curve is output. If a variable is a light-curve vector (per-point), only the value at the first time point is reported. This is useful for passing computed values (e.g. parameters from `-linfit` or custom scalars from `-expr`) into the output table.
-
-**Parameters**
-
-| Parameter | Description |
-|-----------|-------------|
-| `var1,...` | Comma-separated list of variable names to print. |
-| `"columnnames" col1,...` | Override the default column names (default pattern: `Print_<varname>_<varnum>_<cmdnum>`). The command index is still appended unless `-columnsuffix` is used. |
-| `"format" fmt1,...` | Printf-style format strings for each variable (e.g. `%.6f`). |
-
-**Example**
-
-```bash
-# Compute a custom statistic and include it in the output
-vartools -l lc_list \
-    -stats mag,mean \
-    -expr 'delta=mag-Stats_mag_mean_0' \
-    -stats delta,stddev \
-    -print Stats_mag_mean_0,Stats_delta_stddev_1 \
-    -header -tab
-```

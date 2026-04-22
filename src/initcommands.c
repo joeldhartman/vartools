@@ -70,116 +70,116 @@ void MemAllocScalarData(ProgramData *p, int Nthreads)
       case VARTOOLS_TYPE_DOUBLE:
 	dblptr = (double **) s->dataptr;
 	if(((*dblptr) = (double *) malloc(Nthreads * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ***) s->dataptr;
 	if(((*stringptr) = (char **) malloc(Nthreads * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*stringptr)[j]) = (char *) malloc(MAXLEN)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int **) s->dataptr;
 	if(((*intptr) = (int *) malloc(Nthreads * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short **) s->dataptr;
 	if(((*shortptr) = (short *) malloc(Nthreads * sizeof(short))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float **) s->dataptr;
 	if(((*floatptr) = (float *) malloc(Nthreads * sizeof(float))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long **) s->dataptr;
 	if(((*longptr) = (long *) malloc(Nthreads * sizeof(long))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char **) s->dataptr;
 	if(((*charptr) = (char *) malloc(Nthreads)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else {
       switch(s->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
 	dbl2ptr = (double ***) s->dataptr;
 	if(((*dbl2ptr) = (double **) malloc(Nthreads * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j<Nthreads; j++) {
 	  if((((*dbl2ptr)[j]) = (double *) malloc(Nc * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_STRING:
 	string2ptr = (char ****) s->dataptr;
 	if(((*string2ptr) = (char ***) malloc(Nthreads * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*string2ptr)[j]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=0; k < Nc; k++) {
 	    if((((*string2ptr)[j][k]) = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	break;
       case VARTOOLS_TYPE_INT:
 	int2ptr = (int ***) s->dataptr;
 	if(((*int2ptr) = (int **) malloc(Nthreads * sizeof(int *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*int2ptr)[j]) = (int *) malloc(Nc * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_SHORT:
 	short2ptr = (short ***) s->dataptr;
 	if(((*short2ptr) = (short **) malloc(Nthreads * sizeof(short *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*short2ptr)[j]) = (short *) malloc(Nc * sizeof(short))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	float2ptr = (float ***) s->dataptr;
 	if(((*float2ptr) = (float **) malloc(Nthreads * sizeof(float *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*float2ptr)[j]) = (float *) malloc(Nc * sizeof(float))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_LONG:
 	long2ptr = (long ***) s->dataptr;
 	if(((*long2ptr) = (long **) malloc(Nthreads * sizeof(long *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*long2ptr)[j]) = (long *) malloc(Nc * sizeof(long))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_CHAR:
 	char2ptr = (char ***) s->dataptr;
 	if(((*char2ptr) = (char **) malloc(Nthreads * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthreads; j++) {
 	  if((((*char2ptr)[j]) = (char *) malloc(Nc)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     }
   }
@@ -252,7 +252,7 @@ void InitCommands(ProgramData *p, Command *c)
       if(!p->readfromstdinflag)
 	{
 	  if((inlist = fopen(p->lclistname,"r")) == NULL)
-	    error2(ERR_FILENOTFOUND,p->lclistname);
+	    vt_error2(ERR_FILENOTFOUND,p->lclistname);
 	}
       else
 	inlist = stdin;
@@ -261,11 +261,11 @@ void InitCommands(ProgramData *p, Command *c)
 	/* Read the file first into a buffer */
 	if((inputlistlines = (char **) malloc(sizeinputlistvec * sizeof(char *))) == NULL ||
 	   (size_inputlistline = (size_t *) malloc(sizeinputlistvec * sizeof(size_t))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0;j<sizeinputlistvec;j++) {
 	  size_inputlistline[j] = MAXLEN;
 	  if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	
 	p->Nlcs = 0;
@@ -280,12 +280,12 @@ void InitCommands(ProgramData *p, Command *c)
 		sizeinputlistvec += 1000;
 		if((inputlistlines = (char **) realloc(inputlistlines, sizeinputlistvec * sizeof(char *))) == NULL ||
 		   (size_inputlistline = (size_t *) realloc(size_inputlistline, sizeinputlistvec * sizeof(size_t))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		for(j=sizeinputlistvec - 1000; j < sizeinputlistvec; j++)
 		  {
 		    size_inputlistline[j] = MAXLEN;
 		    if((inputlistlines[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 	      }
 	  }
@@ -294,11 +294,11 @@ void InitCommands(ProgramData *p, Command *c)
 	/* Recast all columns in each input line into a single list of files */
 	if((inputlistlines_tmp = (char **) malloc(sizeinputlistvec_tmp * sizeof(char *))) == NULL ||
 	   (size_inputlistline_tmp = (size_t *) malloc(sizeinputlistvec_tmp * sizeof(size_t))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0;j<sizeinputlistvec_tmp;j++) {
 	  size_inputlistline_tmp[j] = MAXLEN;
 	  if((inputlistlines_tmp[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	
 	i = 0;
@@ -312,12 +312,12 @@ void InitCommands(ProgramData *p, Command *c)
 		sizeinputlistvec_tmp += 1000;
 		if((inputlistlines_tmp = (char **) realloc(inputlistlines_tmp, sizeinputlistvec_tmp * sizeof(char *))) == NULL ||
 		   (size_inputlistline_tmp = (size_t *) realloc(size_inputlistline_tmp, sizeinputlistvec_tmp * sizeof(size_t))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		for(j=sizeinputlistvec_tmp - 1000; j < sizeinputlistvec_tmp; j++)
 		  {
 		    size_inputlistline_tmp[j] = MAXLEN;
 		    if((inputlistlines_tmp[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 	      }
 	  }
@@ -334,19 +334,19 @@ void InitCommands(ProgramData *p, Command *c)
 		sizeinputlistvec = p->Nlcs + k;
 		if((inputlistlines = (char **) malloc(sizeinputlistvec * sizeof(char *))) == NULL ||
 		   (size_inputlistline = (size_t *) malloc(sizeinputlistvec * sizeof(size_t))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      } else {
 		sizeinputlistvec = p->Nlcs + k;
 		if((inputlistlines = (char **) realloc(inputlistlines, sizeinputlistvec * sizeof(char *))) == NULL ||
 		   (size_inputlistline = (size_t *) realloc(size_inputlistline, sizeinputlistvec * sizeof(size_t))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	    }
 	  jj = 0;
 	  for(ii = 0; ii < k; ii++) {
 	    kk = GetNextColStringLength(&(inputlistlines_tmp[j][jj]));
 	    if((inputlistlines[p->Nlcs] = (char *) malloc((kk+1)*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    size_inputlistline[p->Nlcs] = kk+1;
 	    jj += parseone(&(inputlistlines_tmp[j][jj]),(void *) ((inputlistlines[p->Nlcs])), VARTOOLS_TYPE_STRING);
 	    p->Nlcs += 1;
@@ -373,12 +373,12 @@ void InitCommands(ProgramData *p, Command *c)
 	 (p->NJD = (int *) realloc(p->NJD,Nlcs * sizeof(int))) == NULL ||
 	 (p->is_inputlc_fits = (int *) realloc(p->is_inputlc_fits,Nlcs * sizeof(int))) == NULL ||
 	 (p->skipfaillc = (int *) realloc(p->skipfaillc,Nlcs * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(j=1; j < p->Nlcs; j++) {
 	p->is_inputlc_fits[j] = 0;
 	p->skipfaillc[j] = 0;
 	if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     }
   }
@@ -424,7 +424,7 @@ void InitCommands(ProgramData *p, Command *c)
     if((p->threadsinuse = (int *) malloc(p->Nproc_allow * sizeof(int))) == NULL ||
        (p->pth = (pthread_t *) malloc(p->Nproc_allow * sizeof(pthread_t))) == NULL ||
        (p->pth_init = (char *) malloc(p->Nproc_allow * sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < p->Nproc_allow; i++)
       p->threadsinuse[i] = 0;
 
@@ -457,14 +457,14 @@ void InitCommands(ProgramData *p, Command *c)
   MemAllocScalarData(p, Nlcs);
 
   if((p->sizesinglelc = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < Nlcs; i++)
     p->sizesinglelc[i] = 0;
 
   if(p->isifcommands) {
     if((p->IfStack = (_IfStack **) malloc(Nlcs * sizeof(_IfStack *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < Nlcs; i++) {
       p->IfStack[i] = CreateIfStack();
     }
@@ -472,11 +472,11 @@ void InitCommands(ProgramData *p, Command *c)
 
   if(p->NJD == NULL) {
     if((p->NJD = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(p->fits_header_adds == NULL) {
     if((p->fits_header_adds = (_vartools_outlcfits_header_additions *) malloc(Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i = 0; i < Nlcs; i++) {
       p->fits_header_adds[i].N_added_keywords = 0;
       p->fits_header_adds[i].size_added_keywords_vec = 0;
@@ -484,7 +484,7 @@ void InitCommands(ProgramData *p, Command *c)
     }
   } else if(p->Ncopycommands > 0 && Nlcs > 1 && p->fileflag) {
     if((p->fits_header_adds = (_vartools_outlcfits_header_additions *) realloc(p->fits_header_adds,Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=1; j < Nlcs; j++) {
       p->fits_header_adds[j].N_added_keywords = 0;
       p->fits_header_adds[j].size_added_keywords_vec = 0;
@@ -503,19 +503,19 @@ void InitCommands(ProgramData *p, Command *c)
 #endif
 	case CNUM_CLIP:
 	  if((c[i].Clip->Nclip = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_ENSEMBLERESCALESIG:
 	  if((c[i].Ensemblerescalesig->rescalefactor = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Ensemblerescalesig->chi2_old = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Ensemblerescalesig->chi2_new = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_RESCALESIG:
 	  if((c[i].Rescalesig->rescalefactor = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Rescalesig->chi2_old = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Rescalesig->chi2_new = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_COPYLC:
 	  if((c[i].CopyLC->SaveListData->lclistindx = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
@@ -537,7 +537,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].CopyLC->sizearray_IfStruct_wasfoundtrue_copy = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].CopyLC->IfStruct_wasfoundtrue_copy = (char **) malloc(Nlcs * sizeof(char *))) == NULL ||
 	     (c[i].CopyLC->IfStack = (_IfStack **) malloc(Nlcs * sizeof(_IfStack *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      c[i].CopyLC->sizearray_IfStruct_wasfoundtrue_copy[j] = 0;
@@ -569,7 +569,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Savelc->Ndblterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Savelc->Nsterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Savelc->runyet = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      c[i].Savelc->runyet[j] = 0;
@@ -589,16 +589,16 @@ void InitCommands(ProgramData *p, Command *c)
 	  if(c[i].RestrictTimes->restricttype == VARTOOLS_RESTRICTTIMES_JDRANGE) {
 	    if(c[i].RestrictTimes->minJDtype != PERTYPE_SPECIFIED){
 	      if((c[i].RestrictTimes->minJD = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    if(c[i].RestrictTimes->maxJDtype != PERTYPE_SPECIFIED){
 	      if((c[i].RestrictTimes->maxJD = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	  if(c[i].RestrictTimes->saveexcludedpoints) {
 	    if((c[i].RestrictTimes->s = (_Savelc *) malloc(sizeof(_Savelc))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((c[i].RestrictTimes->s->NJD = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	       (c[i].RestrictTimes->s->lclistindx = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	       (c[i].RestrictTimes->s->dblterms = (double ***) malloc(Nlcs * sizeof(double **))) == NULL ||
@@ -620,7 +620,7 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].RestrictTimes->s->Ndblterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	       (c[i].RestrictTimes->s->Nsterms = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	       (c[i].RestrictTimes->s->runyet = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0;j<Nlcs;j++)
 	      {
 		c[i].RestrictTimes->s->runyet[j] = 0;
@@ -640,48 +640,48 @@ void InitCommands(ProgramData *p, Command *c)
         case CNUM_CHI2_NOBIN:
 	  if((c[i].Chi2_NoBin->chi2val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Chi2_NoBin->wtave = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_CHI2_BIN:
 	  if((c[i].Chi2_Bin->chi2binvals = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].Chi2_Bin->wtavebin = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].Chi2_Bin->chi2binvals[j] = (double *) malloc(c[i].Chi2_Bin->Nbin * sizeof(double))) == NULL ||
 	       (c[i].Chi2_Bin->wtavebin[j] = (double *) malloc(c[i].Chi2_Bin->Nbin * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_CHANGEERROR:
 	  if((c[i].Changeerror->rmsval = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Changeerror->ave = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Changeerror->ngood = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_RMS_NOBIN:
 	  if((c[i].RMS_NoBin->rmsval = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].RMS_NoBin->ave = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].RMS_NoBin->rmsthy = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].RMS_NoBin->ngood = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_RMS_BIN:
 	  if((c[i].RMS_Bin->rmsbinvals = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].RMS_Bin->rmsthybin = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].RMS_Bin->rmsbinvals[j] = (double *) malloc(c[i].RMS_Bin->Nbin * sizeof(double))) == NULL ||
 	       (c[i].RMS_Bin->rmsthybin[j] = (double *) malloc(c[i].RMS_Bin->Nbin * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_JSTET:
 	  if((c[i].Jstet->jst = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Jstet->kur = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Jstet->lst = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_ALARM:
 	  if((c[i].Alarm->alarmvals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -697,7 +697,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Aov->finetune_vals = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->Nbin_vals = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Aov->peakFAP = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].Aov->peakperiods[j] = (double *) malloc(c[i].Aov->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].Aov->peakvalues[j] = (double *) malloc(c[i].Aov->Npeaks * sizeof(double))) == NULL ||
@@ -705,21 +705,21 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Aov->peakFAP[j] = (double *) malloc(c[i].Aov->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].Aov->aveaov_whiten[j] = (double *) malloc(c[i].Aov->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].Aov->rmsaov_whiten[j] = (double *) malloc(c[i].Aov->Npeaks * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  if(c[i].Aov->fixperiodSNR)
 	    {
 	      if((c[i].Aov->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].Aov->fixperiodSNR_peakSNR = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].Aov->fixperiodSNR_peakFAP = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if(c[i].Aov->fixperiodSNR_pertype != PERTYPE_SPECIFIED)
 		{
 		  if((c[i].Aov->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<Nlcs;j++)
 		    {
 		      if((c[i].Aov->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	    }
@@ -739,7 +739,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].AovHarm->finetune_vals = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].AovHarm->Nharm_vals = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].AovHarm->peakNharm = (int **) malloc(Nlcs * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].AovHarm->peakperiods[j] = (double *) malloc(c[i].AovHarm->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].AovHarm->peakvalues[j] = (double *) malloc(c[i].AovHarm->Npeaks * sizeof(double))) == NULL ||
@@ -748,21 +748,21 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].AovHarm->peakSNR[j] = (double *) malloc(c[i].AovHarm->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].AovHarm->peakFAP[j] = (double *) malloc(c[i].AovHarm->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].AovHarm->peakNharm[j] = (int *) malloc(c[i].AovHarm->Npeaks * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  if(c[i].AovHarm->fixperiodSNR)
 	    {
 	      if((c[i].AovHarm->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].AovHarm->fixperiodSNR_peakSNR = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].AovHarm->fixperiodSNR_peakFAP = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if(c[i].AovHarm->fixperiodSNR_pertype != PERTYPE_SPECIFIED)
 		{
 		  if((c[i].AovHarm->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<Nlcs;j++)
 		    {
 		      if((c[i].AovHarm->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	    }
@@ -775,27 +775,27 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Ls->maxp_vals = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Ls->subsample_vals = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Ls->SNRvalues = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].Ls->peakperiods[j] = (double *) calloc(c[i].Ls->Npeaks, sizeof(double))) == NULL ||
 	       (c[i].Ls->peakvalues[j] = (double *) calloc(c[i].Ls->Npeaks, sizeof(double))) == NULL ||
 	       (c[i].Ls->peakFAP[j] = (double *) calloc(c[i].Ls->Npeaks, sizeof(double))) == NULL ||
 	       (c[i].Ls->SNRvalues[j] = (double *) calloc(c[i].Ls->Npeaks, sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  if(c[i].Ls->fixperiodSNR)
 	    {
 	      if((c[i].Ls->fixperiodSNR_peakvalues = (double *) calloc(Nlcs, sizeof(double))) == NULL ||
 		 (c[i].Ls->fixperiodSNR_SNRvalues = (double *) calloc(Nlcs, sizeof(double))) == NULL ||
 		 (c[i].Ls->fixperiodSNR_FAPvalues = (double *) calloc(Nlcs, sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if(c[i].Ls->fixperiodSNR_pertype != PERTYPE_SPECIFIED)
 		{
 		  if((c[i].Ls->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<Nlcs;j++)
 		    {
 		      if((c[i].Ls->fixperiodSNR_periods[j] = (double *) calloc(1, sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	    }
@@ -804,34 +804,34 @@ void InitCommands(ProgramData *p, Command *c)
 	  if((c[i].Decorr->b = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].Decorr->b_err = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].Decorr->chi2val = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if(c[i].Decorr->N_decorrterms_total > 0)
 	      if((c[i].Decorr->b[j] = (double *) malloc(c[i].Decorr->N_decorrterms_total * sizeof(double))) == NULL ||
 		 (c[i].Decorr->b_err[j] = (double *) malloc(c[i].Decorr->N_decorrterms_total * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_GETLSAMPTHRESH:
 	  if(c[i].GetLSAmpThresh->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].GetLSAmpThresh->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].GetLSAmpThresh->period[j] = (double *) malloc(sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].GetLSAmpThresh->ampthresh_scale = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].GetLSAmpThresh->amp = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_KILLHARM:
 	  if(c[i].Killharm->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].Killharm->periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].Killharm->periods[j] = (double *) malloc(c[i].Killharm->Nper * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].Killharm->subharmA = (double ***) malloc(Nlcs * sizeof(double **))) == NULL ||
 	     (c[i].Killharm->subharmB = (double ***) malloc(Nlcs * sizeof(double **))) == NULL ||
@@ -841,7 +841,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Killharm->fundB = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].Killharm->mean = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Killharm->amp = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      if((c[i].Killharm->subharmA[j] = (double **) malloc(c[i].Killharm->Nper * sizeof(double *))) == NULL ||
@@ -851,40 +851,40 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].Killharm->fundA[j] = (double *) malloc(c[i].Killharm->Nper * sizeof(double))) == NULL ||
 		 (c[i].Killharm->fundB[j] = (double *) malloc(c[i].Killharm->Nper * sizeof(double))) == NULL ||
 		 (c[i].Killharm->amp[j] = (double *) malloc(c[i].Killharm->Nper * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0;k<c[i].Killharm->Nper;k++)
 		if((c[i].Killharm->subharmA[j][k] = (double *) malloc(c[i].Killharm->Nsubharm * sizeof(double))) == NULL ||
 		   (c[i].Killharm->subharmB[j][k] = (double *) malloc(c[i].Killharm->Nsubharm * sizeof(double))) == NULL ||
 		   (c[i].Killharm->harmA[j][k] = (double *) malloc(c[i].Killharm->Nharm * sizeof(double))) == NULL ||
 		   (c[i].Killharm->harmB[j][k] = (double *) malloc(c[i].Killharm->Nharm * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		}
 	  break;
 	case CNUM_INJECTHARM:
 	  if(c[i].Injectharm->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].Injectharm->periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].Injectharm->periods[j] = (double *) malloc(sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].Injectharm->periodinject = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Injectharm->harm_amp = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Injectharm->harm_phase = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Injectharm->subharm_amp = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Injectharm->subharm_phase = (double **) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      if((c[i].Injectharm->harm_amp[j] = (double *) malloc((c[i].Injectharm->Nharm + 1) * sizeof(double))) == NULL ||
 		 (c[i].Injectharm->harm_phase[j] = (double *) malloc((c[i].Injectharm->Nharm + 1) * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if(c[i].Injectharm->Nsubharm > 0)
 		{
 		  if((c[i].Injectharm->subharm_amp[j] = (double *) malloc((c[i].Injectharm->Nsubharm) * sizeof(double))) == NULL ||
 		     (c[i].Injectharm->subharm_phase[j] = (double *) malloc((c[i].Injectharm->Nsubharm) * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  break;
@@ -892,17 +892,17 @@ void InitCommands(ProgramData *p, Command *c)
 	  for(j=0;j<c[i].Injecttransit->Nparam;j++)
 	    {
 	      if((c[i].Injecttransit->paraminject[j] = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 	case CNUM_STARSPOT:
 	  if(c[i].Starspot->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].Starspot->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].Starspot->period[j] = (double *) malloc(sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].Starspot->a = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Starspot->b = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -912,13 +912,13 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Starspot->psi0 = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Starspot->mconst = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Starspot->chisq = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_BLS:
 #ifdef PARALLEL
 	  if((c[i].Bls->p = (double **) malloc(p->Nproc_allow*sizeof(double *))) == NULL ||
 	     (c[i].Bls->sizepvec = (int *) malloc(p->Nproc_allow*sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < p->Nproc_allow; j++) {
 	    c[i].Bls->p[j] = NULL;
 	    c[i].Bls->sizepvec[j] = 0;
@@ -931,7 +931,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Bls->v = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Bls->nf2 = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Bls->fmin = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlcs; j++)
 	    c[i].Bls->sizeuv[j] = 0;
 	  if((c[i].Bls->bper = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
@@ -966,22 +966,22 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Bls->nbins_val = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Bls->minper_val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Bls->maxper_val = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(c[i].Bls->rflag == 1 || c[i].Bls->rflag == 2) {
 	    if((c[i].Bls->rmin_val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	       (c[i].Bls->rmax_val = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if(c[i].Bls->rflag == 2) {
 	      if((c[i].Bls->rho_val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].Bls->minexpdurfrac_val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].Bls->maxexpdurfrac_val = (double *) malloc(Nlcs * sizeof(double))) == NULL) {
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      }
 	    }
 	  } else {
 	    if((c[i].Bls->qmin_val = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	       (c[i].Bls->qmax_val = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  for(j=0;j<Nlcs;j++)
 	    {
@@ -1007,7 +1007,7 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].Bls->sigtopink[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
 		 (c[i].Bls->qingress[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
 		 (c[i].Bls->OOTmag[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].Bls->extraparams) {
 	    if((c[i].Bls->srsum = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
@@ -1056,7 +1056,7 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Bls->harmB = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	       (c[i].Bls->harmamp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	       (c[i].Bls->harmdeltachi2 = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0;j<Nlcs;j++)
 	      {
 		if((c[i].Bls->srsum[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
@@ -1105,7 +1105,7 @@ void InitCommands(ProgramData *p, Command *c)
 		   (c[i].Bls->harmB[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
 		   (c[i].Bls->harmamp[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
 		   (c[i].Bls->harmdeltachi2[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	  }
 	  break;
@@ -1116,19 +1116,19 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].FindBlends->varnames = (char **) malloc(Nlcs * sizeof(char *))) == NULL ||
 	     (c[i].FindBlends->varblendnames = (char **) malloc(Nlcs * sizeof(char *))) == NULL ||
 	     (c[i].FindBlends->blendamps = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      if((c[i].FindBlends->varnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL ||
 		 (c[i].FindBlends->varblendnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].FindBlends->pertype != PERTYPE_SPECIFIED) {
 	    if((c[i].FindBlends->periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0;j<Nlcs;j++) {
 	      if((c[i].FindBlends->periods[j] = (double *) malloc(sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	  break;
@@ -1136,15 +1136,15 @@ void InitCommands(ProgramData *p, Command *c)
 	  if(c[i].BlsFixPer->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixPer->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].BlsFixPer->period[j] = (double *) malloc(sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].BlsFixPer->sizeuv = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].BlsFixPer->u = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].BlsFixPer->v = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j<Nlcs; j++)
 	    c[i].BlsFixPer->sizeuv[j] = 0;
 	  if((c[i].BlsFixPer->bpow = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1170,37 +1170,38 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].BlsFixPer->sigtopink = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixPer->qingress = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixPer->OOTmag = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_BLSFIXDURTC:
 	  if(c[i].BlsFixDurTc->durtype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixDurTc->inputdur = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].BlsFixDurTc->TCtype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixDurTc->inputTC = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].BlsFixDurTc->fixdepth) {
 	    if(c[i].BlsFixDurTc->depthtype != PERTYPE_SPECIFIED)
 	      {
 		if((c[i].BlsFixDurTc->inputdepth = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	    if(c[i].BlsFixDurTc->qgresstype != PERTYPE_SPECIFIED)
 	      {
 		if((c[i].BlsFixDurTc->inputqgress = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	  }
 #ifdef PARALLEL
-	  if((c[i].BlsFixDurTc->p = (double **) malloc(p->Nproc_allow*sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	  if((c[i].BlsFixDurTc->p = (double **) malloc(p->Nproc_allow*sizeof(double *))) == NULL ||
+	     (c[i].BlsFixDurTc->size_p = (int *) malloc(p->Nproc_allow*sizeof(int))) == NULL)
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < p->Nproc_allow; j++) {
-	    if((c[i].BlsFixDurTc->p[j] = (double *) malloc((c[i].BlsFixDurTc->nf+1)*sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	    c[i].BlsFixDurTc->p[j] = NULL;
+	    c[i].BlsFixDurTc->size_p[j] = 0;
 	  }
 #endif
 	  if((c[i].BlsFixDurTc->sizeuv = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
@@ -1208,7 +1209,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].BlsFixDurTc->v = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixDurTc->nf2 = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].BlsFixDurTc->fmin = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlcs; j++)
 	    c[i].BlsFixDurTc->sizeuv[j] = 0;
 	  if((c[i].BlsFixDurTc->bper = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
@@ -1232,7 +1233,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].BlsFixDurTc->sigtopink = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].BlsFixDurTc->qingress = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].BlsFixDurTc->OOTmag = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    {
 	      if((c[i].BlsFixDurTc->bper[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
@@ -1253,41 +1254,41 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].BlsFixDurTc->sigtopink[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
 		 (c[i].BlsFixDurTc->qingress[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
 		 (c[i].BlsFixDurTc->OOTmag[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 	case CNUM_BLSFIXPERDURTC:
 	  if(c[i].BlsFixPerDurTc->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixPerDurTc->inputper = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].BlsFixPerDurTc->durtype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixPerDurTc->inputdur = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].BlsFixPerDurTc->TCtype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].BlsFixPerDurTc->inputTC = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  if(c[i].BlsFixPerDurTc->fixdepth) {
 	    if(c[i].BlsFixPerDurTc->depthtype != PERTYPE_SPECIFIED)
 	      {
 		if((c[i].BlsFixPerDurTc->inputdepth = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	    if(c[i].BlsFixPerDurTc->qgresstype != PERTYPE_SPECIFIED)
 	      {
 		if((c[i].BlsFixPerDurTc->inputqgress = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	  }
 	  if((c[i].BlsFixPerDurTc->sizeuv = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].BlsFixPerDurTc->u = (double **) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixPerDurTc->v = (double **) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlcs; j++)
 	    c[i].BlsFixPerDurTc->sizeuv[j] = 0;
 	  if((c[i].BlsFixPerDurTc->depth = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1304,7 +1305,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].BlsFixPerDurTc->sigtopink = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixPerDurTc->qingress = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].BlsFixPerDurTc->OOTmag = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_SOFTENEDTRANSIT:
 	  if((c[i].SoftenedTransit->period = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1314,7 +1315,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].SoftenedTransit->delta = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].SoftenedTransit->mconst = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].SoftenedTransit->chisq = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(c[i].SoftenedTransit->dokillharm)
 	    {
 	      if((c[i].SoftenedTransit->subharmA = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
@@ -1324,14 +1325,14 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].SoftenedTransit->fundA = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].SoftenedTransit->fundB = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].SoftenedTransit->per_harm_out = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		{
 		  if((c[i].SoftenedTransit->subharmA[j] = (double *) malloc(c[i].SoftenedTransit->nsubharm * sizeof(double))) == NULL ||
 		     (c[i].SoftenedTransit->subharmB[j] = (double *) malloc(c[i].SoftenedTransit->nsubharm * sizeof(double))) == NULL ||
 		     (c[i].SoftenedTransit->harmA[j] = (double *) malloc(c[i].SoftenedTransit->nharm * sizeof(double))) == NULL ||
 		     (c[i].SoftenedTransit->harmB[j] = (double *) malloc(c[i].SoftenedTransit->nharm * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  break;
@@ -1350,10 +1351,10 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].MandelAgolTransit->mconst = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].MandelAgolTransit->ldcoeffs = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].MandelAgolTransit->chisq = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].MandelAgolTransit->ldcoeffs[j] = (double *) malloc(4*sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_MICROLENS:
 	  if((c[i].MicroLens->f0 = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -1362,7 +1363,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].MicroLens->t0 = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].MicroLens->tmax = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].MicroLens->chi2_ = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_SYSREM:
 	  /* We'll initialize Sysrem here, including reading in the initial airmass terms */
@@ -1380,7 +1381,7 @@ void InitCommands(ProgramData *p, Command *c)
 	      initialize_tfa(c[i].TFA,p);
 	      if((c[i].TFA->ave_out = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].TFA->rms_out = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 
@@ -1394,14 +1395,14 @@ void InitCommands(ProgramData *p, Command *c)
 	      initialize_tfa_sr(c[i].TFA_SR, Nlcs, p);
 	      if((c[i].TFA_SR->ave_out = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 		 (c[i].TFA_SR->rms_out = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if((c[i].TFA_SR->use_bin || c[i].TFA_SR->use_harm) && c[i].TFA_SR->use_period && c[i].TFA_SR->pertype != PERTYPE_SPECIFIED && c[i].TFA_SR->pertype != PERTYPE_FIX)
 		{
 		  if((c[i].TFA_SR->periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<Nlcs;j++)
 		    if((c[i].TFA_SR->periods[j] = (double *) malloc(sizeof(double))) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  break;
@@ -1410,10 +1411,10 @@ void InitCommands(ProgramData *p, Command *c)
 	  if(c[i].Phase->pertype != PERTYPE_SPECIFIED)
 	    {
 	      if((c[i].Phase->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<Nlcs;j++)
 		if((c[i].Phase->period[j] = (double *) malloc(sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 	case CNUM_PRINT:
@@ -1423,40 +1424,40 @@ void InitCommands(ProgramData *p, Command *c)
 	    case VARTOOLS_TYPE_CONVERTJD:
 	    case VARTOOLS_TYPE_DOUBLE:
 	      if((dblptr = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) dblptr;
 	      break;
 	    case VARTOOLS_TYPE_FLOAT:
 	      if((fltptr = (float *) malloc(Nlcs * sizeof(float))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) fltptr;
 	      break;
 	    case VARTOOLS_TYPE_INT:
 	      if((intptr = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) intptr;
 	      break;
 	    case VARTOOLS_TYPE_SHORT:
 	      if((shortptr = (short *) malloc(Nlcs * sizeof(short))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) shortptr;
 	      break;
 	    case VARTOOLS_TYPE_LONG:
 	      if((longptr = (long *) malloc(Nlcs * sizeof(long))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) longptr;
 	      break;
 	    case VARTOOLS_TYPE_CHAR:
 	      if((charptr = (char *) malloc(Nlcs * sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      c[i].PrintCommand->dataptr[j] = (void *) charptr;
 	      break;
 	    case VARTOOLS_TYPE_STRING:
 	      if((stringptr = (char **) malloc(Nlcs * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < Nlcs; k++) {
 		if((stringptr[k] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      c[i].PrintCommand->dataptr[j] = (void *) stringptr;
 	      break;
@@ -1478,7 +1479,7 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Dftclean->stdper_clean = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Dftclean->aveper_noclip_clean = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Dftclean->stdper_noclip_clean = (double *) malloc(Nlcs * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(c[i].Dftclean->Npeaks_dirty > 0)
 	    {
 	      for(j=0;j<Nlcs;j++)
@@ -1486,7 +1487,7 @@ void InitCommands(ProgramData *p, Command *c)
 		  if((c[i].Dftclean->peakfreqs_dirty[j] = (double *) malloc(c[i].Dftclean->Npeaks_dirty * sizeof(double))) == NULL ||
 		     (c[i].Dftclean->peakpows_dirty[j] = (double *) malloc(c[i].Dftclean->Npeaks_dirty * sizeof(double))) == NULL ||
 		     (c[i].Dftclean->SNR_dirty[j] = (double *) malloc(c[i].Dftclean->Npeaks_dirty * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  if(c[i].Dftclean->Npeaks_clean > 0)
@@ -1496,7 +1497,7 @@ void InitCommands(ProgramData *p, Command *c)
 		  if((c[i].Dftclean->peakfreqs_clean[j] = (double *) malloc(c[i].Dftclean->Npeaks_clean * sizeof(double))) == NULL ||
 		     (c[i].Dftclean->peakpows_clean[j] = (double *) malloc(c[i].Dftclean->Npeaks_clean * sizeof(double))) == NULL ||
 		     (c[i].Dftclean->SNR_clean[j] = (double *) malloc(c[i].Dftclean->Npeaks_clean * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  break;
@@ -1505,12 +1506,12 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Linfit->param_uncertainties = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
 	     (c[i].Linfit->numrej = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
 	     (c[i].Linfit->iternum = (int *) malloc(Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j = 0; j < Nlcs; j++)
 	    {
 	      if((c[i].Linfit->param_outvals[j] = (double *) malloc(c[i].Linfit->Nparams * sizeof(double))) == NULL ||
 		 (c[i].Linfit->param_uncertainties[j] = (double *) malloc(c[i].Linfit->Nparams * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 	case CNUM_NONLINFIT:
@@ -1520,7 +1521,7 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Nonlinfit->Corr_mat2 = (double ***) malloc(Nlcs * sizeof(double **))) == NULL ||
 	       (c[i].Nonlinfit->Corr_Nvec = (int **) malloc(Nlcs * sizeof(int *))) == NULL ||
 	       (c[i].Nonlinfit->Corr_store_NJD = (int *) malloc(Nlcs * sizeof(int))) == NULL) 
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < Nlcs; j++) {
 	      c[i].Nonlinfit->Corr_sizemat[j] = 0;
 	      c[i].Nonlinfit->Corr_store_NJD[j] = 0;
@@ -1537,17 +1538,17 @@ void InitCommands(ProgramData *p, Command *c)
 	  break;
 	case CNUM_STATS:
 	  if((c[i].Stats->statsout = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlcs; j++)
 	    {
 	      if((c[i].Stats->statsout[j] = (double *) malloc(c[i].Stats->Nstatstot * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  break;
 	case CNUM_IF:
 	  if(c[i].IfCommand->iftype == VARTOOLS_IFTYPE_IF) {
 	    if((c[i].IfCommand->ifs->wasfoundtrue = (char *) malloc(Nlcs * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 #ifdef _HAVE_PYTHON

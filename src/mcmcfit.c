@@ -65,13 +65,13 @@ void MCMC_GrowChain(_MCMC_Chain *c)
   if(Nnew > c->maxNalloc) Nnew = c->maxNalloc;
   if(Nnew > c->Nlinks_allocated) {
     if((c->links = (_MCMC_Link *) realloc(c->links, Nnew*sizeof(_MCMC_Link))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i = c->Nlinks_allocated; i < Nnew; i++) {
       if((c->links[i].p = (double *) malloc(c->Nparam * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(c->Nauxil > 0) {
 	if((c->links[i].auxil = (double *) malloc(c->Nauxil * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     }
     c->Nlinks_allocated = Nnew;
@@ -190,20 +190,20 @@ void MCMC_initialize_chain(_MCMC_Chain *c, double eps, double maxmem, int doprin
      (c->sample_covar_sum2 = (double **) malloc(Nparam * sizeof(double *))) == NULL ||
      (c->covar = (double **) malloc(Nparam * sizeof(double *))) == NULL ||
      (c->rvec = (double *) malloc(Nparam * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   for(i=0; i < c->Nlinks_allocated; i++) {
     if((c->links[i].p = (double *) malloc(Nparam*sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if(c->Nauxil > 0) {
       if((c->links[i].auxil = (double *) malloc(c->Nauxil * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
   for(i=0; i < Nparam; i++) {
     if((c->sample_covar_sum2[i] = (double *) malloc(Nparam * sizeof(double))) == NULL ||
        (c->covar[i] = (double *) malloc(Nparam * sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -406,7 +406,7 @@ void MCMC_DifferentialEvolution_RunMCMC(int maxNtrials_accepted, int maxNlinks_r
   int j, i;
   if(c->doprintchain) {
     if((outchainfile = fopen(c->outchainfilename,"w")) == NULL)
-      error2(ERR_CANNOTWRITE,c->outchainfilename);
+      vt_error2(ERR_CANNOTWRITE,c->outchainfilename);
     if(c->outchainheader != NULL) {
       if(c->outchainheader[0] != '\0') {
 	fprintf(outchainfile,"%s\n",c->outchainheader);
@@ -539,7 +539,7 @@ void MCMC_increment_parameter(_MCMC_Chain **cptr, double value, double delp)
   _MCMC_Chain *c;
   if(*cptr == NULL) {
     if(((*cptr) = (_MCMC_Chain *) malloc(sizeof(_MCMC_Chain))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     (*cptr)->delp = NULL;
     (*cptr)->ptrial = NULL;
     (*cptr)->pinit = NULL;
@@ -559,11 +559,11 @@ void MCMC_increment_parameter(_MCMC_Chain **cptr, double value, double delp)
   if(!c->Nparam) {
     if((c->delp = (double *) malloc(sizeof(double))) == NULL ||
        (c->pinit = (double *) malloc(sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     if((c->delp = (double *) realloc(c->delp, (c->Nparam + 1)*sizeof(double))) == NULL ||
        (c->pinit = (double *) realloc(c->pinit, (c->Nparam + 1)*sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   c->pinit[c->Nparam] = value;
   c->delp[c->Nparam] = delp;

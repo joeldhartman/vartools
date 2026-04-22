@@ -203,7 +203,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
     {
       if((harmA = (double *) malloc(c->Nharm * sizeof(double))) == NULL ||
 	 (harmB = (double *) malloc(c->Nharm * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
 
   if(c->sepstarlist)
@@ -212,7 +212,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
       Nstarlist = 0;
       if((starlist = fopen(c->starlistname,"r")) == NULL)
 	{
-	  error2(ERR_FILENOTFOUND,c->starlistname);
+	  vt_error2(ERR_FILENOTFOUND,c->starlistname);
 	}
       while(gnu_getline(&line,&line_size,starlist) >= 0)
 	{
@@ -222,11 +222,11 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
       if((starx = (double *) malloc(Nstarlist * sizeof(double))) == NULL ||
 	 (stary = (double *) malloc(Nstarlist * sizeof(double))) == NULL ||
 	 (starnames = (char **) malloc(Nstarlist * sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Nstarlist;i++)
 	{
 	  if((starnames[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       rewind(starlist);
       i=0;
@@ -247,11 +247,11 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
       if((starx = (double *) malloc(Nstarlist * sizeof(double))) == NULL ||
 	 (stary = (double *) malloc(Nstarlist * sizeof(double))) == NULL ||
 	 (starnames = (char **) malloc(Nstarlist * sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Nstarlist;i++)
 	{
 	  if((starnames[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  strcpy(starnames[i],c->varnames[i]);
 	  starx[i] = c->varx[i];
 	  stary[i] = c->vary[i];
@@ -265,7 +265,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
      (matchidvarlist = (int **) malloc(Nvars * sizeof(int *))) == NULL ||
      (matchamps = (double **) malloc(Nvars * sizeof(double *))) == NULL ||
      (Nmatchvars = (int *) calloc(Nvars, sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<Nvars;i++)
     sortvarid[i] = i;
   for(i=0;i<Nstarlist;i++)
@@ -384,13 +384,13 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 			{
 			  if((matchidvarlist[sortvarid[j]] = (int *) malloc(sizeof(int))) == NULL ||
 			     (matchamps[sortvarid[j]] = (double *) malloc(sizeof(double))) == NULL)
-			    error(ERR_MEMALLOC);
+			    vt_error(ERR_MEMALLOC);
 			}
 		      else
 			{
 			  if((matchidvarlist[sortvarid[j]] = (int *) realloc(matchidvarlist[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(int))) == NULL ||
 			     (matchamps[sortvarid[j]] = (double *) realloc(matchamps[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(double))) == NULL)
-			    error(ERR_MEMALLOC);
+			    vt_error(ERR_MEMALLOC);
 			}
 		      matchidvarlist[sortvarid[j]][Nmatchvars[sortvarid[j]]] = sortstarid[i];
 		      Nmatchvars[sortvarid[j]]++;
@@ -441,13 +441,13 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) malloc(sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) malloc(sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  else
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) realloc(matchidvarlist[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) realloc(matchamps[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  matchidvarlist[sortvarid[j]][Nmatchvars[sortvarid[j]]] = sortstarid[i];
 			  Nmatchvars[sortvarid[j]]++;
@@ -496,13 +496,13 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) malloc(sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) malloc(sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  else
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) realloc(matchidvarlist[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) realloc(matchamps[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  matchidvarlist[sortvarid[j]][Nmatchvars[sortvarid[j]]] = sortstarid[i];
 			  Nmatchvars[sortvarid[j]]++;
@@ -530,13 +530,13 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) malloc(sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) malloc(sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  else
 			    {
 			      if((matchidvarlist[sortvarid[j]] = (int *) realloc(matchidvarlist[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(int))) == NULL ||
 				 (matchamps[sortvarid[j]] = (double *) realloc(matchamps[sortvarid[j]], (Nmatchvars[sortvarid[j]] + 1) * sizeof(double))) == NULL)
-				error(ERR_MEMALLOC);
+				vt_error(ERR_MEMALLOC);
 			    }
 			  matchidvarlist[sortvarid[j]][Nmatchvars[sortvarid[j]]] = sortstarid[i];
 			  Nmatchvars[sortvarid[j]]++;
@@ -562,7 +562,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 	  if(c->sepstarlist)
 	    {
 	      if((inlc = fopen(starnames[sortstarid[i]],"r")) == NULL)
-		error2(ERR_FILENOTFOUND, starnames[sortstarid[i]]);
+		vt_error2(ERR_FILENOTFOUND, starnames[sortstarid[i]]);
 	      Npointsinlc = 0;
 	      while(gnu_getline(&line,&line_size,inlc) >= 0)
 		{
@@ -581,7 +581,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 		     (inmag = (double *) malloc(Npointsinlc * sizeof(double))) == NULL ||
 		     (influx = (double *) malloc(Npointsinlc * sizeof(double))) == NULL ||
 		     (inerr = (double *) malloc(Npointsinlc * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      else
 		{
@@ -589,7 +589,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
 		     (inmag = (double *) realloc(inmag, Npointsinlc * sizeof(double))) == NULL ||
 		     (influx = (double *) realloc(influx, Npointsinlc * sizeof(double))) == NULL ||
 		     (inerr = (double *) realloc(inerr, Npointsinlc * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      sizeinlc = Npointsinlc;
 	    }
@@ -665,7 +665,7 @@ void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _Find
   if(c->outputmatches)
     {
       if((outmatches = fopen(c->outmatchesfilename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,c->outmatchesfilename);
+	vt_error2(ERR_CANNOTWRITE,c->outmatchesfilename);
       for(i=0;i<Nvars;i++)
 	{
 	  fprintf(outmatches,"%s",c->varnames[i]);

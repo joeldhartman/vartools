@@ -164,7 +164,7 @@ int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, d
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -214,7 +214,7 @@ int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, d
   /***********************************************************/
 
   if(nb > nbmax) {
-    error(ERR_BLSNBMAX);
+    vt_error(ERR_BLSNBMAX);
   }
   tot = t[n-1] - t[0];
 
@@ -443,7 +443,7 @@ int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, d
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./(period[0]);
 
@@ -565,7 +565,7 @@ int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -615,7 +615,7 @@ int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *
   /***********************************************************/
 
   if(nb > nbmax) {
-    error(ERR_BLSNBMAX);
+    vt_error(ERR_BLSNBMAX);
   }
   tot = t[n-1] - t[0];
 
@@ -848,7 +848,7 @@ int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./(period[0]);
 
