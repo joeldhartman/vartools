@@ -26,9 +26,9 @@ void complex_conjugate_product(Complex *a, Complex *b, Complex *ret) {
 }
 
 void complex_division(Complex *a, Complex *b, Complex *ret) {
-  /* a / b */
+  /* a / b  =  a * conj(b) / |b|^2 */
   double amp;
-  amp = b->r*b->r + a->i*b->i;
+  amp = b->r*b->r + b->i*b->i;
   ret->r = (a->r*b->r + a->i*b->i)/amp;
   ret->i = (-a->r*b->i + a->i*b->r)/amp;
 }
@@ -65,7 +65,9 @@ void RAG_alg31(int m, int n, Complex *z, double *phase, double *w,
     vt_error(ERR_MEMALLOC);
 
   sigma[0] = w[0];
-  gamma[0].r = 1.; gamma[1].i = 0.;
+  /* gamma_0(z) = 1 + 0i  (constant polynomial) */
+  gamma[0].r = 1.; gamma[0].i = 0.;
+  /* gamma_1(z) = -z_0 + z  (coefficients stored low-order first) */
   gamma[1].r = -z[0].r; gamma[1].i = -z[0].i;
   sigma[1] = 0.0;
   c_prime[0].r = w[0]*g[0].r; c_prime[0].i = w[0]*g[0].i;
@@ -176,7 +178,6 @@ void RAG_alg41(int n, Complex *gamma, double *sigma, Complex *b,
       complex_product(&(b[j]),&(r1[k]),&s1);
       a[k].r += s1.r;
       a[k].i += s1.i;
-      fprintf(stderr,"%d %d %.17g %.17g\n", j, k, r1[k].r, r1[k].i);
       r0[k].r = r1[k].r;
       r0[k].i = r1[k].i;
     }
@@ -751,7 +752,6 @@ void fit_harmonic_series_orthogonal_poly_complex(int N, double *t, double *mag, 
 	aN[i].i = aN2[i].i/phi_norm[n];
 	if(fabs(aN[i].r) < 1.0e-10) aN[i].r = 0.;
 	if(fabs(aN[i].i) < 1.0e-10) aN[i].i = 0.;
-	fprintf(stderr,"%d %d %.17g %.17g\n",n,i,aN[i].r,aN[i].i);
       }
 
       /* Calculate the new alpha_n and c values */
@@ -1049,7 +1049,6 @@ void fit_harmonic_series_orthogonal_poly(int N, double *t, double *mag, double *
       zcoeff_final_r[i] += (c_r[j]*aN_r[j][i] - c_i[j]*aN_i[j][i])/phi_norm[j];
       zcoeff_final_i[i] += (c_r[j]*aN_i[j][i] + c_i[j]*aN_r[j][i])/phi_norm[j];
       */
-      fprintf(stderr,"%d %d %.17g %.17g\n", i, j, aN_r[j][i]/phi_norm[j], aN_i[j][i]/phi_norm[j]);
       zcoeff_final_r[i] += (c_r[j]*aN_r[j][i] - c_i[j]*aN_i[j][i]);
       zcoeff_final_i[i] += (c_r[j]*aN_i[j][i] + c_i[j]*aN_r[j][i]);
     }
@@ -1152,7 +1151,13 @@ void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) 
     maxfreq_calc = df*Nftot;
   }
 
-  isuniform = 0;
+  /* NOTE: the detection of uniform sampling above is preserved.  A
+     hard `isuniform = 0;` override was previously applied here because
+     the FFT branch is not yet implemented.  That's now handled by the
+     conditional around the RAG / FFT paths below instead, so the
+     detection result stays truthful — `forcefft` without an FFT
+     implementation still falls through to the RAG path as the only
+     option available. */
 
   maxfreq_model = maxfreq_calc;
 
@@ -1225,7 +1230,11 @@ void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) 
   
   Nfcalc = floor(maxfreq_calc/df);
 
-  if(!isuniform && !c->forcefft) {
+  /* Until the FFT branch is implemented (Phase E), run the RAG /
+     orthogonal-polynomial fit unconditionally.  Once the FFT branch
+     lands, the guard becomes `if(!isuniform && !c->forcefft)` so
+     uniform or forcefft-requested data takes the fast path. */
+  if(1) {
     /* For non-uniform sampling and not using forcefft, calculate the
        fourier series using the projection onto orthogonal
        polynomials */
@@ -1413,7 +1422,37 @@ int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
   size_t line_size = MAXLEN;
   int colnum;
   int size_tout = 0;
-  
+
+  /* Zero-initialize all optional struct fields before any parser branch
+     runs.  Without this they would hold arbitrary stack bytes when the
+     caller malloc()'s a fresh _FourierFilter, which is what used to
+     leave calc_full_spec / forcefft / ofourier / filter_expr /
+     freq_var garbage-valued when the user did not explicitly set
+     them.  filtertype is assigned by the filter-keyword branches below
+     and is always overwritten before return. */
+  c->filtertype = VARTOOLS_FOURIERFILTER_FULLSPEC;
+  c->maxfreq = NULL;
+  c->maxfreq_fix = 0.0;
+  c->maxfreq_source = 0;
+  c->maxfreq_linkedcolumn = NULL;
+  c->maxfreq_expr = NULL;
+  c->maxfreq_exprstring = NULL;
+  c->minfreq = NULL;
+  c->minfreq_fix = 0.0;
+  c->minfreq_source = 0;
+  c->minfreq_linkedcolumn = NULL;
+  c->minfreq_expr = NULL;
+  c->minfreq_exprstring = NULL;
+  c->filter_expr = NULL;
+  c->filter_exprstring = NULL;
+  c->calc_full_spec = 0;
+  c->forcefft = 0;
+  c->ofourier = 0;
+  c->ofourier_dir = NULL;
+  c->ofourier_formatflag = 0;
+  c->ofourier_format = NULL;
+  c->freq_var = NULL;
+
   i = *iret;
   if(i >= argc)
     return(1);
