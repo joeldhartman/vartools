@@ -463,14 +463,17 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-Jstet timescale dates [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
-  if(c == NULL || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
+  if(c == NULL || !strcmp(c,"-harmonicfilter")
+     || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
     {
-      printtostring(s,"-Killharm <\"aov\" | \"ls\" | \"both\" | \"injectharm\" \n");
+      printtostring(s,"-harmonicfilter <\"aov\" | \"ls\" | \"both\" | \"injectharm\" \n");
       printtostring(s,"\t| \"fix\" Nper <\"var\" v | \"expr\" e | per1> ... <\"var\" v | \"expr\" e | perN>\n");
       printtostring(s,"\t| \"list\" Nper [\"column\" col1]> Nharm Nsubharm\n");
       printtostring(s,"\tomodel [model_outdir] [\"fitonly\"]\n");
       printtostring(s,"\t[\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"]\n");
       printtostring(s,"\t[\"clip\" <\"var\" cvar | \"expr\" cexpr | val>]\n");
+      printtostring(s,"\t(-Killharm is accepted as a synonym for -harmonicfilter;\n");
+      printtostring(s,"\t the output-column prefix follows the invoking token.)\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-linfit")))
@@ -1625,9 +1628,11 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations. The dates file should contain JDs for all possible observations in the first columns - this is used to calculate the maximum possible weight. Note that the J statistic calculated here differs from Stetson's definition by including an extra factor of (sum(weights)/weight_max).\n\n Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
       commandfound = 1;
     }
-  if(all == 1 || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
+  if(all == 1 || !strcmp(c,"-harmonicfilter")
+     || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
     {
-      listcommands_noexit("-Killharm",p,&s);
+      listcommands_noexit("-harmonicfilter",p,&s);
+      printtostring(&s,"(-Killharm is accepted as a synonym for -harmonicfilter and is retained for backward compatibility; the output-column prefix follows the invoking token, so existing scripts that read Killharm_* columns continue to work unchanged.)\n\n");
       printtostring(&s,"This command whitens light curves against one or more periods. The mean value of the light curve, the period of the light curve and the cos and sin coefficients are output. The light curves passed to the next command are whitened light curves (unless the keyword \"fitonly\" is given). The origin of the period(s) is either from the most recent previous aov command (either aov, or aov_harm), from the most recent previous LS command, two periods one from aov, the other from LS, the period from the most recent injectharm command, Nper periods per1 through perN that are fixed for all light curves, or Nper periods specified in the input list (the periods are read off in order as additional columns in the input light curve list - a list must be used for this option; use the optional \"column\" keyword to specify the column for the first period, subsequent periods are read in order following that column). The light curves will be whitened using Nharm higher-harmonics (frequencies of 2*f0, 3*f0, ... (Nharm~+~1)*f0) and Nsubharm sub-harmonics (frequencies of f0/2, f0/3, ... f0/(Nsubharm~+~1)). omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".killharm.model\" will be appended to the filename. If \"fitonly\" is specified, then the model is not subtracted from the light curve (a keyword is used rather than a flag to maintain compatability with scripts written before this option was added). By default the a_k and b_k cos and sin coefficients are output. If the keyword \"outampphase\" or \"outampradphase\" is given, then the output will be the amplitudes A_k~=~sqrt(a_k^2~+~b_k^2) and the phases (phi_k~=~atan2(-b_k,~a_k)/2pi for \"outampphase\" or phi_k~=~atan2(-b_k,~a_k) for \"outampradphase\"). If the keyword \"outRphi\" or \"outRradphi\" is given then the output will be the relative amplitudes R_k1~=~A_k/A_1 and phases phi_k1~=~phi_k~-~k*phi_1 (in units of 0 to 1, or in radians for the two keywords respectively). Note that for sub-harmonics, k~=~1/2,~1/3, etc. For the fundamental mode the amplitude A_1 and the phase phi_1 will be given. Finally one can also fit the model, applying a clipping to the residuals, and refit the model to the points which passed the clipping. To do this give the \"clip\" keyword, followed by the number of sigma to use for the clipping.\n\n");
       commandfound = 1;
     }

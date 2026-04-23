@@ -249,8 +249,14 @@ class stats(VartoolsCommand):
                 + _flag("maskpoints", self.maskpoints))
 
 
-class Killharm(VartoolsCommand):
-    """Remove harmonic signals from the light curve.
+class harmonicfilter(VartoolsCommand):
+    """Fit (and optionally subtract) a truncated Fourier series at one or
+    more known periods — the ``-harmonicfilter`` vartools command.
+
+    Output columns are emitted under the ``HarmonicFilter_*`` prefix when
+    invoked via this class.  The legacy :class:`Killharm` subclass below
+    invokes the same command under the ``-Killharm`` synonym and produces
+    ``Killharm_*`` columns for backward compatibility.
 
     Parameters
     ----------
@@ -273,7 +279,10 @@ class Killharm(VartoolsCommand):
     maskpoints : str, optional
     """
 
-    _vt_name = "Killharm"
+    _vt_name = "harmonicfilter"
+    # CLI token emitted by this class — subclasses override to swap to a
+    # synonym (see Killharm).
+    _cli_token = "-harmonicfilter"
 
     def __init__(
         self,
@@ -297,7 +306,7 @@ class Killharm(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-Killharm"] + self._killharm_period_spec()
+        args = [self._cli_token] + self._killharm_period_spec()
         args += [str(self.nharm), str(self.nsubharm)]
         args += _outtoken(self.save_model, outdir)
         args += _bool("fitonly", self.fitonly)
@@ -386,7 +395,22 @@ class Killharm(VartoolsCommand):
         self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
-        return {"model": (".killharm.model", None)}
+        # Suffix follows the invoking CLI token — subclasses override.
+        suffix = (".harmonicfilter.model"
+                  if self._cli_token == "-harmonicfilter"
+                  else ".killharm.model")
+        return {"model": (suffix, None)}
+
+
+class Killharm(harmonicfilter):
+    """Legacy name for :class:`harmonicfilter`.  Accepted for backward
+    compatibility; emits ``-Killharm`` on the command line and produces
+    output columns under the ``Killharm_*`` prefix.  New code should use
+    :class:`harmonicfilter`.
+    """
+
+    _vt_name = "Killharm"
+    _cli_token = "-Killharm"
 
 
 class linfit(VartoolsCommand):

@@ -194,7 +194,7 @@ am__objects_1 = libvartoolspipeline_la-alarm.lo \
 	libvartoolspipeline_la-transit.lo \
 	libvartoolspipeline_la-GetBLSsignaltorednoise.lo \
 	libvartoolspipeline_la-autocorrelation.lo \
-	libvartoolspipeline_la-harmonicfilter.lo \
+	libvartoolspipeline_la-fourierfilter.lo \
 	libvartoolspipeline_la-injectharm.lo \
 	libvartoolspipeline_la-dftclean.lo \
 	libvartoolspipeline_la-injecttransit.lo \
@@ -287,8 +287,8 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-findblends.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo \
-	./$(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-help.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-initcommands.Plo \
@@ -575,7 +575,7 @@ PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
  parsecommandline.c processcommand.c rescalesig.c runblsfixdurtc.c \
  runblsfixper.c runbls_sn.c sigclip.c starspot.c statistics.c svdcmp.c \
  sysrem.c transitmodel.c util.c transit.c GetBLSsignaltorednoise.c \
- autocorrelation.c harmonicfilter.c injectharm.c dftclean.c injecttransit.c \
+ autocorrelation.c fourierfilter.c injectharm.c dftclean.c injecttransit.c \
  saverestorelc.c saverestorelistdata.c outcolumns.c medianfilter.c \
  findblends.c microlens.c fittrap.c addnoise.c example.c parseinputlist.c \
  parselc.c converttime.c userlib.c linfit.c help.c resample.c \
@@ -773,8 +773,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-findblends.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-help.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-initcommands.Plo@am__quote@ # am--include-marker
@@ -1139,12 +1139,12 @@ libvartoolspipeline_la-autocorrelation.lo: autocorrelation.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-autocorrelation.lo `test -f 'autocorrelation.c' || echo '$(srcdir)/'`autocorrelation.c
 
-libvartoolspipeline_la-harmonicfilter.lo: harmonicfilter.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-harmonicfilter.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Tpo -c -o libvartoolspipeline_la-harmonicfilter.lo `test -f 'harmonicfilter.c' || echo '$(srcdir)/'`harmonicfilter.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Tpo $(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Plo
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='harmonicfilter.c' object='libvartoolspipeline_la-harmonicfilter.lo' libtool=yes @AMDEPBACKSLASH@
+libvartoolspipeline_la-fourierfilter.lo: fourierfilter.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-fourierfilter.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-fourierfilter.Tpo -c -o libvartoolspipeline_la-fourierfilter.lo `test -f 'fourierfilter.c' || echo '$(srcdir)/'`fourierfilter.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-fourierfilter.Tpo $(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='fourierfilter.c' object='libvartoolspipeline_la-fourierfilter.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-harmonicfilter.lo `test -f 'harmonicfilter.c' || echo '$(srcdir)/'`harmonicfilter.c
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-fourierfilter.lo `test -f 'fourierfilter.c' || echo '$(srcdir)/'`fourierfilter.c
 
 libvartoolspipeline_la-injectharm.lo: injectharm.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-injectharm.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-injectharm.Tpo -c -o libvartoolspipeline_la-injectharm.lo `test -f 'injectharm.c' || echo '$(srcdir)/'`injectharm.c
@@ -1517,8 +1517,8 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-findblends.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo
-	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-help.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-initcommands.Plo
@@ -1635,8 +1635,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-findblends.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo
-	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-harmonicfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-help.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-initcommands.Plo

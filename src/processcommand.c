@@ -203,9 +203,9 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       vt_error(ERR_CODEERROR);
       break;
 
-    case CNUM_HARMONICFILTER:
+    case CNUM_FOURIERFILTER:
       /* Apply a fourier filter to the light curve */
-      doHarmonicFilter(p, c->HarmonicFilter, lc2, lc);
+      doFourierFilter(p, c->FourierFilter, lc2, lc);
       break;
 
     case CNUM_PRINT:
@@ -2121,10 +2121,10 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       free(ers3);
       break;
 
-    case CNUM_HARMONICFILTER:
+    case CNUM_FOURIERFILTER:
       /* Apply a fourier filter to the light curve */
       for(lc=0;lc<p->Nlcs;lc++)
-	doHarmonicFilter(p, c->HarmonicFilter, lc, lc);
+	doFourierFilter(p, c->FourierFilter, lc, lc);
       break;
 
     case CNUM_RESAMPLE:

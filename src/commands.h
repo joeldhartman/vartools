@@ -173,7 +173,7 @@
 #define CNUM_COPYLC 49
 #define CNUM_RESAMPLE 50
 #define CNUM_BLSFIXDURTC 51
-#define CNUM_HARMONICFILTER 52
+#define CNUM_FOURIERFILTER 52
 #define CNUM_PYTHON 53
 #define CNUM_RESTORETIMES 54
 #define CNUM_FFT 55
@@ -262,11 +262,11 @@
 #define VARTOOLS_RESAMPLE_BSPLINE 4
 #define VARTOOLS_RESAMPLE_MULTIPLE 5
 
-#define VARTOOLS_HARMONICFILTER_FULLSPEC 0
-#define VARTOOLS_HARMONICFILTER_HIGHPASS 1
-#define VARTOOLS_HARMONICFILTER_LOWPASS 2
-#define VARTOOLS_HARMONICFILTER_BANDPASS 3
-#define VARTOOLS_HARMONICFILTER_BANDCUT 4
+#define VARTOOLS_FOURIERFILTER_FULLSPEC 0
+#define VARTOOLS_FOURIERFILTER_HIGHPASS 1
+#define VARTOOLS_FOURIERFILTER_LOWPASS 2
+#define VARTOOLS_FOURIERFILTER_BANDPASS 3
+#define VARTOOLS_FOURIERFILTER_BANDCUT 4
 
 #define VARTOOLS_FREQSTEPTYPE_FREQ 0
 #define VARTOOLS_FREQSTEPTYPE_PERIOD 1
@@ -641,9 +641,16 @@ typedef struct {
   int fitonly;
   int outtype;
   char modeloutdir[MAXLEN];
-  char modelsuffix[16];
+  /* 32 bytes fits both legacy ".killharm.model" and the longer
+     ".harmonicfilter.model" emitted when invoked via the new name. */
+  char modelsuffix[32];
   double clip;
   VT_PARAM_COMPANIONS(clip);
+  /* Output-column prefix selected by the CLI token used to invoke this
+     command: "Killharm" if invoked as -Killharm (legacy), "HarmonicFilter"
+     if invoked as -harmonicfilter (preferred).  Column names are built as
+     "%s_Mean_Mag_%d", column_prefix, cnum etc. */
+  char column_prefix[32];
 } _Killharm;
 
 typedef struct {
@@ -1931,7 +1938,7 @@ typedef struct {
 
   _Variable *freq_var;
 
-} _HarmonicFilter;
+} _FourierFilter;
 
 #ifdef _HAVE_PYTHON
 typedef struct {
@@ -2204,7 +2211,7 @@ typedef struct {
   _WWZ *WWZ;
   _CopyLC *CopyLC;
   _Resample *Resample;
-  _HarmonicFilter *HarmonicFilter;
+  _FourierFilter *FourierFilter;
   _PythonCommand *PythonCommand;
   _RCommand *RCommand;
   _FFT *FFT;

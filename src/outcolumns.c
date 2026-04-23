@@ -1504,62 +1504,86 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 		}
 	    }
 	  break;
-	case CNUM_KILLHARM:
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, "Killharm_Mean_Mag_%d", l);
+	case CNUM_KILLHARM: {
+	  /* Output-column prefix follows the invoking CLI token: "Killharm"
+	     if invoked as -Killharm (legacy), "HarmonicFilter" if invoked
+	     as -harmonicfilter (preferred). */
+	  const char *kh_prefix = c[l].Killharm->column_prefix;
+	  sprintf(tmpstring, "%s_Mean_Mag_%%d", kh_prefix);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, tmpstring, l);
 	  for(j=1;j<=c[l].Killharm->Nper;j++)
 	    {
+	      sprintf(tmpstring, "%s_Period_%%d_%%d", kh_prefix);
 	      if(c[l].Killharm->pertype == PERTYPE_SPECIFIED)
-		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, tmpstring,j,l);
 	      else
-		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 	      for(i=2;i<=c[l].Killharm->Nsubharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Coscoeff_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_%%d_Sincoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_%%d_Coscoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Amp_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Phi_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_1_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_R_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Phi_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		}
 	      if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		{
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Sincoeff_%d",j,l);
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Coscoeff_%d",j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Sincoeff_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Coscoeff_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 		}
 	      else
 		{
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Amp_%d",j,l);
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Phi_%d",j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Amp_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Phi_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 		}
 	      for(i=2;i<=c[l].Killharm->Nharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Coscoeff_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_%%d_Sincoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_%%d_Coscoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Amp_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Phi_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_1_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_R_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Phi_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		}
-	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Amplitude_%d",j,l);
+	      sprintf(tmpstring, "%s_Per%%d_Amplitude_%%d", kh_prefix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 	    }
+	  }
 	  break;
 	case CNUM_INJECTHARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);

@@ -378,9 +378,9 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 				 int *iret, char **argv,
 				 int argc, const char *keyword, int Nvec,
 				 ...);
-void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid);
-int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
-			       _HarmonicFilter *c, int cnum);
+void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid);
+int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
+			       _FourierFilter *c, int cnum);
 void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv);
 void InitOutTextStruct(OutText *text);
 #ifdef _HAVE_PYTHON

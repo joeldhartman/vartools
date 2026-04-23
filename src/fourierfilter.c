@@ -1,4 +1,4 @@
-/* This file contains functions which implement the -harmonicfilter
+/* This file contains functions which implement the -fourierfilter
    command for VARTOOLS */
 #include "commands.h"
 #include "programdata.h"
@@ -1102,7 +1102,7 @@ void fit_harmonic_series_orthogonal_poly(int N, double *t, double *mag, double *
   free(phi_norm);
 }
 
-void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid) {
+void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) {
   double *avals, *avals_orig = NULL;
   double *bvals, *bvals_orig = NULL;
   int Njd;
@@ -1158,9 +1158,9 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
 
   /* Determine any upper or lower limits on the frequencies to compute */
   switch(c->filtertype) {
-  case VARTOOLS_HARMONICFILTER_FULLSPEC:
+  case VARTOOLS_FOURIERFILTER_FULLSPEC:
     break;
-  case VARTOOLS_HARMONICFILTER_LOWPASS:
+  case VARTOOLS_FOURIERFILTER_LOWPASS:
     GetDoubleParameterValue(threadid, lcid, &maxfreq, 
 			    c->maxfreq_source, c->maxfreq_fix,
 			    c->maxfreq, c->maxfreq_linkedcolumn,
@@ -1171,7 +1171,7 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     }
     maxfreq_model = maxfreq;
     break;
-  case VARTOOLS_HARMONICFILTER_HIGHPASS:
+  case VARTOOLS_FOURIERFILTER_HIGHPASS:
     GetDoubleParameterValue(threadid, lcid, &minfreq, 
 			    c->minfreq_source, c->minfreq_fix,
 			    c->minfreq, c->minfreq_linkedcolumn,
@@ -1184,7 +1184,7 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     }
     maxfreq_model = maxfreq_calc;
     break;
-  case VARTOOLS_HARMONICFILTER_BANDPASS:
+  case VARTOOLS_FOURIERFILTER_BANDPASS:
     GetDoubleParameterValue(threadid, lcid, &minfreq, 
 			    c->minfreq_source, c->minfreq_fix,
 			    c->minfreq, c->minfreq_linkedcolumn,
@@ -1200,7 +1200,7 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     minfreq_model = minfreq;
     maxfreq_model = maxfreq;
     break;
-  case VARTOOLS_HARMONICFILTER_BANDCUT:
+  case VARTOOLS_FOURIERFILTER_BANDCUT:
     GetDoubleParameterValue(threadid, lcid, &minfreq, 
 			    c->minfreq_source, c->minfreq_fix,
 			    c->minfreq, c->minfreq_linkedcolumn,
@@ -1289,8 +1289,8 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     }
 
     /* Calculate the time series from these fourier coefficients */
-    if(c->filtertype != VARTOOLS_HARMONICFILTER_BANDCUT ||
-       (c->filtertype == VARTOOLS_HARMONICFILTER_BANDCUT && minfreq_bandcut < 0 && maxfreq_bandcut < 0)) {
+    if(c->filtertype != VARTOOLS_FOURIERFILTER_BANDCUT ||
+       (c->filtertype == VARTOOLS_FOURIERFILTER_BANDCUT && minfreq_bandcut < 0 && maxfreq_bandcut < 0)) {
       for(i=0; i < Njd; i++) {
 	mag_model[i] = avals[0];
 	if(Nfcalc >= 1) {
@@ -1349,13 +1349,13 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
     /* Either replace the light curve with the model or subtract the
        model, depending on how the filter is to be applied */
     switch(c->filtertype) {
-    case VARTOOLS_HARMONICFILTER_FULLSPEC:
+    case VARTOOLS_FOURIERFILTER_FULLSPEC:
       /* Replace the light curve with the model */
 	for(i=0; i < Njd; i++) {
 	  mag[i] = mag_model[i];
 	}
 	break;
-    case VARTOOLS_HARMONICFILTER_HIGHPASS:
+    case VARTOOLS_FOURIERFILTER_HIGHPASS:
       if(c->filter_exprstring != NULL) {
 	/* Replace the light curve with the model */
 	for(i=0; i < Njd; i++) {
@@ -1368,19 +1368,19 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
 	}
       }
       break;
-    case VARTOOLS_HARMONICFILTER_LOWPASS:
+    case VARTOOLS_FOURIERFILTER_LOWPASS:
       /* Replace the light curve with the model */
       for(i=0; i < Njd; i++) {
 	mag[i] = mag_model[i];
       }
       break;
-    case VARTOOLS_HARMONICFILTER_BANDPASS:
+    case VARTOOLS_FOURIERFILTER_BANDPASS:
       /* Replace the light curve with the model */
       for(i=0; i < Njd; i++) {
 	mag[i] = mag_model[i];
       }
       break;
-    case VARTOOLS_HARMONICFILTER_BANDCUT:
+    case VARTOOLS_FOURIERFILTER_BANDCUT:
       if(minfreq_bandcut < 0 && maxfreq_bandcut < 0) {
 	/* Subtract the model from the light curve, but save the 0 term */
 	for(i=0; i < Njd; i++) {
@@ -1403,9 +1403,9 @@ void doHarmonicFilter(ProgramData *p, _HarmonicFilter *c, int threadid, int lcid
   /******* TBD: implement the FFT-based filter ********/
 }
 
-int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
-			       _HarmonicFilter *c, int cnum)
-/* Parse the command line for the "-harmonicfilter" command */
+int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
+			       _FourierFilter *c, int cnum)
+/* Parse the command line for the "-fourierfilter" command */
 {
   int i, j, k;
   FILE *infile;
@@ -1419,7 +1419,7 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
     return(1);
 
   if(!strcmp(argv[i],"highpass")) {
-    c->filtertype = VARTOOLS_HARMONICFILTER_HIGHPASS;
+    c->filtertype = VARTOOLS_FOURIERFILTER_HIGHPASS;
     i++;
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "minfreq", 1,
 				    VARTOOLS_TYPE_DOUBLE, &(c->minfreq_source),
@@ -1427,11 +1427,11 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->minfreq)),
 				    (void *) (&(c->minfreq_linkedcolumn)),
 				    (void *) (&(c->minfreq_exprstring)),
-				    "HARMONICFILTER_MINFREQ",
+				    "FOURIERFILTER_MINFREQ",
 				    0, NULL)) {
       *iret = i-1; return 1;}
   } else if(!strcmp(argv[i],"lowpass")) {
-    c->filtertype = VARTOOLS_HARMONICFILTER_LOWPASS;
+    c->filtertype = VARTOOLS_FOURIERFILTER_LOWPASS;
     i++;
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "maxfreq", 1,
 				    VARTOOLS_TYPE_DOUBLE, &(c->maxfreq_source),
@@ -1439,11 +1439,11 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->maxfreq)),
 				    (void *) (&(c->maxfreq_linkedcolumn)),
 				    (void *) (&(c->maxfreq_exprstring)),
-				    "HARMONICFILTER_MAXFREQ",
+				    "FOURIERFILTER_MAXFREQ",
 				    0, NULL)) {
       *iret = i-1; return 1;}
   } else if(!strcmp(argv[i],"bandpass")) {
-    c->filtertype = VARTOOLS_HARMONICFILTER_BANDPASS;
+    c->filtertype = VARTOOLS_FOURIERFILTER_BANDPASS;
     i++;
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "minfreq", 1,
 				    VARTOOLS_TYPE_DOUBLE, &(c->minfreq_source),
@@ -1451,7 +1451,7 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->minfreq)),
 				    (void *) (&(c->minfreq_linkedcolumn)),
 				    (void *) (&(c->minfreq_exprstring)),
-				    "HARMONICFILTER_MINFREQ",
+				    "FOURIERFILTER_MINFREQ",
 				    0, NULL)) {
       *iret = i; return 1;}
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "maxfreq", 1,
@@ -1460,11 +1460,11 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->maxfreq)),
 				    (void *) (&(c->maxfreq_linkedcolumn)),
 				    (void *) (&(c->maxfreq_exprstring)),
-				    "HARMONICFILTER_MAXFREQ",
+				    "FOURIERFILTER_MAXFREQ",
 				    0, NULL)) {
       *iret = i-1; return 1;}
   } else if(!strcmp(argv[i],"bandcut")) {
-    c->filtertype = VARTOOLS_HARMONICFILTER_BANDCUT;
+    c->filtertype = VARTOOLS_FOURIERFILTER_BANDCUT;
     i++;
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "minfreq", 1,
 				    VARTOOLS_TYPE_DOUBLE, &(c->minfreq_source),
@@ -1472,7 +1472,7 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->minfreq)),
 				    (void *) (&(c->minfreq_linkedcolumn)),
 				    (void *) (&(c->minfreq_exprstring)),
-				    "HARMONICFILTER_MINFREQ",
+				    "FOURIERFILTER_MINFREQ",
 				    0, NULL)) {
       *iret = i-1; return 1;}
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "maxfreq", 1,
@@ -1481,7 +1481,7 @@ int ParseHarmonicFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    (void *) (&(c->maxfreq)),
 				    (void *) (&(c->maxfreq_linkedcolumn)),
 				    (void *) (&(c->maxfreq_exprstring)),
-				    "HARMONICFILTER_MAXFREQ",
+				    "FOURIERFILTER_MAXFREQ",
 				    0, NULL)) {
       *iret = i-1; return 1;}
   } else {*iret = i-1; return 1;}

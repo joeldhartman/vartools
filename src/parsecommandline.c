@@ -1466,7 +1466,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -harmonicfilter <"full" |
+      /* -fourierfilter <"full" |
                           "highpass"
                              <"minfreq" <"fix" value | 
                                          "list" [\"column\" col] | 
@@ -1498,17 +1498,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
                         ["filterexpr" expr] ["fullspec"] ["forcefft"]
                         ["ofourier" outdir ["nameformat" format]] */
 
-      else if(!strcmp(argv[i],"-harmonicfilter"))
+      else if(!strcmp(argv[i],"-fourierfilter"))
 	{
 	  iterm = i;
 	  increaseNcommands(p,&c);
 	  c[cn].require_sort = 1;
 	  c[cn].require_distinct = 1;
-	  c[cn].cnum = CNUM_HARMONICFILTER;
-	  if((c[cn].HarmonicFilter = (_HarmonicFilter *) malloc(sizeof(_HarmonicFilter))) == NULL)
+	  c[cn].cnum = CNUM_FOURIERFILTER;
+	  if((c[cn].FourierFilter = (_FourierFilter *) malloc(sizeof(_FourierFilter))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  i++;
-	  if(ParseHarmonicFilterCommand(&i, argc, argv, p, c[cn].HarmonicFilter, cn))
+	  if(ParseFourierFilterCommand(&i, argc, argv, p, c[cn].FourierFilter, cn))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
@@ -6679,14 +6679,26 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -Killharm <\"aov\" | \"ls\" | \"both\" | \"injectharm\" | \"fix\" Nper per1 ... perN | \"list\" Nper [\"column\" col1]> Nharm Nsubharm omodel [modeloutdir] [\"fitonly\"] [\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"] [\"clip\" val]*/
-      else if(!strncmp(argv[i],"-Killharm",9) && strlen(argv[i]) == 9)
+      /* -harmonicfilter <\"aov\" | \"ls\" | \"both\" | \"injectharm\" | \"fix\" Nper per1 ... perN | \"list\" Nper [\"column\" col1]> Nharm Nsubharm omodel [modeloutdir] [\"fitonly\"] [\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"] [\"clip\" val]
+         (-Killharm is accepted as a synonym for -harmonicfilter; the output
+         column prefix follows the invoking token.) */
+      else if((!strncmp(argv[i],"-Killharm",9) && strlen(argv[i]) == 9)
+              || (!strcmp(argv[i],"-harmonicfilter")))
 	{
 	  iterm = i;
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_KILLHARM;
 	  if((c[cn].Killharm = (_Killharm *) malloc(sizeof(_Killharm))) == NULL)
 	    vt_error(ERR_MEMALLOC);
+	  /* Record the invoking token so output columns and the model-file
+	     suffix follow it. */
+	  if(!strcmp(argv[i],"-harmonicfilter")) {
+	    snprintf(c[cn].Killharm->column_prefix,
+	             sizeof(c[cn].Killharm->column_prefix), "HarmonicFilter");
+	  } else {
+	    snprintf(c[cn].Killharm->column_prefix,
+	             sizeof(c[cn].Killharm->column_prefix), "Killharm");
+	  }
 	  i++;
 	  if(i < argc)
 	    {
@@ -6869,7 +6881,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		sprintf(c[cn].Killharm->modeloutdir,"%s",argv[i]);
 	      else
 		listcommands(argv[iterm],p);
-	      sprintf(c[cn].Killharm->modelsuffix,".killharm.model");
+	      /* Suffix follows the invoking token (.killharm.model when
+	         invoked as -Killharm, .harmonicfilter.model otherwise). */
+	      if(!strcmp(c[cn].Killharm->column_prefix, "HarmonicFilter")) {
+	        sprintf(c[cn].Killharm->modelsuffix,".harmonicfilter.model");
+	      } else {
+	        sprintf(c[cn].Killharm->modelsuffix,".killharm.model");
+	      }
 	    }
 	  i++;
 	  if(i < argc)
