@@ -379,6 +379,7 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 				 int argc, const char *keyword, int Nvec,
 				 ...);
 void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid);
+void SetupFourierFilterExpression(ProgramData *p, _FourierFilter *c, int cnum);
 int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 			       _FourierFilter *c, int cnum);
 void ParseDefineAnalyticUserFunction(ProgramData *p, char *argv);

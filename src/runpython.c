@@ -1653,6 +1653,7 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
       case VARTOOLS_VECTORTYPE_CONSTANT:
 	ptrtosend = c->vars[i]->dataptr;
 	break;
+      case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
       case VARTOOLS_VECTORTYPE_SCALAR:
       case VARTOOLS_VECTORTYPE_INLIST:
 	if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_SCALAR)
@@ -1773,6 +1774,7 @@ int SendVariablesToChildPythonProcess(ProgramData *p, int lcindex,
 	  ptrtosend = (void *) &((*((char **)c->vars[i]->dataptr))[0]);
 	  strlentosend = strlen((char *)ptrtosend);
 	  break;
+	case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
 	case VARTOOLS_VECTORTYPE_SCALAR:
 	case VARTOOLS_VECTORTYPE_INLIST:
 	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_SCALAR)

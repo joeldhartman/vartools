@@ -1926,6 +1926,12 @@ typedef struct {
   
   _Expression *filter_expr;
   char *filter_exprstring;
+  /* User-visible name of the frequency variable referenced in
+     filter_exprstring (default "f").  Substituted at CompileAllExpressions
+     time with a unique internal stump name so multiple -fourierfilter
+     commands in the same pipeline do not collide and so there is no
+     conflict with same-named user variables. */
+  char freq_varname[64];
 
   int calc_full_spec;
 

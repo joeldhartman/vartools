@@ -476,6 +476,19 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t the output-column prefix follows the invoking token.)\n");
       commandfound = 1;
     }
+  if(c == NULL || !strcmp(c,"-fourierfilter"))
+    {
+      printtostring(s,"-fourierfilter\n");
+      printtostring(s,"\t<\"full\" |\n");
+      printtostring(s,"\t \"highpass\" \"minfreq\" <\"var\" v | \"expr\" e | \"fix\" value | \"fixcolumn\" <colname|colnum> | \"list\" [\"column\" col]> |\n");
+      printtostring(s,"\t \"lowpass\"  \"maxfreq\" <...> |\n");
+      printtostring(s,"\t \"bandpass\" \"minfreq\" <...> \"maxfreq\" <...> |\n");
+      printtostring(s,"\t \"bandcut\"  \"minfreq\" <...> \"maxfreq\" <...>>\n");
+      printtostring(s,"\t[\"filterexpr\" expr [\"freqvar\" name]]\n");
+      printtostring(s,"\t[\"fullspec\"] [\"forcefft\"]\n");
+      printtostring(s,"\t[\"ofourier\" outdir [\"nameformat\" fmt]]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strcmp(c,"-linfit")))
     {
       printtostring(s,
@@ -1633,6 +1646,18 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-harmonicfilter",p,&s);
       printtostring(&s,"(-Killharm is accepted as a synonym for -harmonicfilter and is retained for backward compatibility; the output-column prefix follows the invoking token, so existing scripts that read Killharm_* columns continue to work unchanged.)\n\n");
+      printtostring(&s,"Note that -harmonicfilter fits a Fourier series at one or more *known* periods and is distinct from -fourierfilter, which performs a full-band Fourier-domain high/low/band-pass/band-cut filter using Reichel-Ammar-Gragg orthogonal polynomials.  Use -fourierfilter when you want spectral filtering without specifying periods in advance.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || !strcmp(c,"-fourierfilter"))
+    {
+      listcommands_noexit("-fourierfilter",p,&s);
+      printtostring(&s,"Apply a Fourier-domain filter to the light curve.  The Fourier series is estimated from the (possibly non-uniformly sampled) data by the Reichel, Ammar & Gragg (1991, Math. Comp. 57, 273) orthogonal-polynomial projection; a band or analytic filter is then applied in frequency space and the light curve is reconstructed (or, for high-pass and band-cut modes, the filter response is subtracted from the original data).\n\n");
+      printtostring(&s,"The filter type is one of:\n\n\t\"full\"     — reconstruct the full Fourier series (use with \"filterexpr\" for an analytic filter).\n\t\"highpass\" — keep frequencies above minfreq.\n\t\"lowpass\"  — keep frequencies below maxfreq.\n\t\"bandpass\" — keep frequencies in [minfreq, maxfreq].\n\t\"bandcut\"  — remove frequencies in [minfreq, maxfreq].\n\nEach of minfreq / maxfreq may be specified as \"fix value\", \"list [column col]\", \"fixcolumn <name|num>\", \"expr expression\", or \"var <name>\", following the usual per-star parameter conventions.\n\n");
+      printtostring(&s,"\"filterexpr expr [freqvar name]\" applies an analytic filter f(freq) on top of the selected band; the expression is evaluated at each trial frequency and the Fourier coefficients at that frequency are multiplied by the result.  By default the expression references the frequency as the variable \"f\" (e.g. \"filterexpr 'exp(-(f/0.5)^2)'\").  Use \"freqvar name\" to rename it if it collides with another variable in scope.  The filter expression may reference constants and per-star scalars, but not light-curve-vector variables.\n\n");
+      printtostring(&s,"\"fullspec\" tells vartools to compute Fourier coefficients across the full Nyquist range even when the selected band is narrower.  Useful together with \"ofourier\" for writing the full coefficient file regardless of the filter.\n\n");
+      printtostring(&s,"\"forcefft\" requests the FFT path (uniformly-sampled data only).  If the current build does not yet implement the FFT branch, vartools falls back to the orthogonal-polynomial path.\n\n");
+      printtostring(&s,"\"ofourier outdir [nameformat fmt]\" writes the Fourier cos/sin coefficients to a file under outdir with suffix .fouriercoeffs (nameformat overrides the default filename pattern as for -o).\n\n");
       printtostring(&s,"This command whitens light curves against one or more periods. The mean value of the light curve, the period of the light curve and the cos and sin coefficients are output. The light curves passed to the next command are whitened light curves (unless the keyword \"fitonly\" is given). The origin of the period(s) is either from the most recent previous aov command (either aov, or aov_harm), from the most recent previous LS command, two periods one from aov, the other from LS, the period from the most recent injectharm command, Nper periods per1 through perN that are fixed for all light curves, or Nper periods specified in the input list (the periods are read off in order as additional columns in the input light curve list - a list must be used for this option; use the optional \"column\" keyword to specify the column for the first period, subsequent periods are read in order following that column). The light curves will be whitened using Nharm higher-harmonics (frequencies of 2*f0, 3*f0, ... (Nharm~+~1)*f0) and Nsubharm sub-harmonics (frequencies of f0/2, f0/3, ... f0/(Nsubharm~+~1)). omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".killharm.model\" will be appended to the filename. If \"fitonly\" is specified, then the model is not subtracted from the light curve (a keyword is used rather than a flag to maintain compatability with scripts written before this option was added). By default the a_k and b_k cos and sin coefficients are output. If the keyword \"outampphase\" or \"outampradphase\" is given, then the output will be the amplitudes A_k~=~sqrt(a_k^2~+~b_k^2) and the phases (phi_k~=~atan2(-b_k,~a_k)/2pi for \"outampphase\" or phi_k~=~atan2(-b_k,~a_k) for \"outampradphase\"). If the keyword \"outRphi\" or \"outRradphi\" is given then the output will be the relative amplitudes R_k1~=~A_k/A_1 and phases phi_k1~=~phi_k~-~k*phi_1 (in units of 0 to 1, or in radians for the two keywords respectively). Note that for sub-harmonics, k~=~1/2,~1/3, etc. For the fundamental mode the amplitude A_1 and the phase phi_1 will be given. Finally one can also fit the model, applying a clipping to the residuals, and refit the model to the points which passed the clipping. To do this give the \"clip\" keyword, followed by the number of sigma to use for the clipping.\n\n");
       commandfound = 1;
     }

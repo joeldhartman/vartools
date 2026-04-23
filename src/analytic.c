@@ -344,6 +344,16 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_MATCHCOMMAND) {
       SetupMatchCommandVariables(c[i].MatchCommand,p);
     }
+    else if(c[i].cnum == CNUM_FOURIERFILTER) {
+      /* If the user gave "filterexpr <expr>" to -fourierfilter, create a
+         per-command stump INTERNALSCALAR variable for the frequency and
+         substitute the user's freqvar name with the stump name before
+         parsing the expression.  Validation (no LC-vector references)
+         runs inside the helper. */
+      if(c[i].FourierFilter->filter_exprstring != NULL) {
+        SetupFourierFilterExpression(p, c[i].FourierFilter, i);
+      }
+    }
     else if(c[i].cnum == CNUM_SORTLC) {
       if(c[i].SortLC->issortvar) {
 	test = 0;
@@ -658,6 +668,7 @@ void RunExpressionCommand(int lcindex, int threadindex,
       vt_error(ERR_BADTYPE);
     }
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     dblval = EvaluateExpression(lcindex, threadindex, 0, c->expression);
     switch(c->outputvar->datatype) {
@@ -1307,6 +1318,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
 	vt_error(ERR_BADTYPE);
       }
       break;
+    case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
     case VARTOOLS_VECTORTYPE_SCALAR:
       switch(datatype) {
       case VARTOOLS_TYPE_DOUBLE:
@@ -1744,6 +1756,7 @@ void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variab
       break;
     }
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -1865,6 +1878,7 @@ void SetVariable_Value_Int(int lcindex, int threadindex, int jdindex, _Variable 
       break;
     }
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -1990,6 +2004,7 @@ double EvaluateVariable_Double(int lcindex, int threadindex, int jdindex, _Varia
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2141,6 +2156,7 @@ float EvaluateVariable_Float(int lcindex, int threadindex, int jdindex, _Variabl
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2292,6 +2308,7 @@ int EvaluateVariable_Int(int lcindex, int threadindex, int jdindex, _Variable *v
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2443,6 +2460,7 @@ short EvaluateVariable_Short(int lcindex, int threadindex, int jdindex, _Variabl
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2595,6 +2613,7 @@ long EvaluateVariable_Long(int lcindex, int threadindex, int jdindex, _Variable 
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2746,6 +2765,7 @@ char EvaluateVariable_Char(int lcindex, int threadindex, int jdindex, _Variable 
     }
     return val;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:
@@ -2898,6 +2918,7 @@ void EvaluateVariable_String(int lcindex, int threadindex, int jdindex, _Variabl
     }
     return;
     break;
+  case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
     switch(var->datatype) {
     case VARTOOLS_TYPE_DOUBLE:

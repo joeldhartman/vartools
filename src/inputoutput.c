@@ -1003,6 +1003,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	case VARTOOLS_VECTORTYPE_CONSTANT:
 	  maxlenstringvec[j] = strlen(((char **) variables[j]->dataptr)[0]);
 	  break;
+	case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
 	case VARTOOLS_VECTORTYPE_SCALAR:
 	case VARTOOLS_VECTORTYPE_INLIST:
 	  if(variables[j]->vectortype == VARTOOLS_VECTORTYPE_SCALAR) {
@@ -1265,6 +1266,7 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  vt_error(ERR_BADTYPE);
 	}
 	break;
+      case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
       case VARTOOLS_VECTORTYPE_SCALAR:
       case VARTOOLS_VECTORTYPE_INLIST:
 	if(variables[j]->vectortype == VARTOOLS_VECTORTYPE_SCALAR) {
@@ -1711,6 +1713,7 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 	    vt_error(ERR_BADTYPE);
 	  }
 	  break;
+	case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
 	case VARTOOLS_VECTORTYPE_SCALAR:
 	case VARTOOLS_VECTORTYPE_INLIST:
 	  if(variables[j]->vectortype == VARTOOLS_VECTORTYPE_SCALAR)

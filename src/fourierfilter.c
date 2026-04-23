@@ -3,6 +3,8 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include <ctype.h>
+#include <string.h>
 
 #ifndef TWOPI
 #define TWOPI 6.28318530717958647692528676656
@@ -1412,6 +1414,136 @@ void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) 
   /******* TBD: implement the FFT-based filter ********/
 }
 
+/* Recursive walk over a parsed expression tree that rejects any
+   reference to a variable of vectortype VARTOOLS_VECTORTYPE_LC.  The
+   filter expression is evaluated in frequency space with obs_index=0,
+   so LC-vector variables make no physical sense — silently using the
+   value at observation 0 would give surprising results. */
+static int _fourierfilter_expr_has_lc_var(_Expression *e, const char **badname)
+{
+  if(e == NULL) return 0;
+  if(e->op1type == VARTOOLS_OPERANDTYPE_VARIABLE && e->op1_variable != NULL) {
+    if(e->op1_variable->vectortype == VARTOOLS_VECTORTYPE_LC) {
+      if(badname) *badname = e->op1_variable->varname;
+      return 1;
+    }
+  }
+  if(e->op2type == VARTOOLS_OPERANDTYPE_VARIABLE && e->op2_variable != NULL) {
+    if(e->op2_variable->vectortype == VARTOOLS_VECTORTYPE_LC) {
+      if(badname) *badname = e->op2_variable->varname;
+      return 1;
+    }
+  }
+  if(e->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION
+     && _fourierfilter_expr_has_lc_var((_Expression *) e->op1_expression, badname))
+    return 1;
+  if(e->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION
+     && _fourierfilter_expr_has_lc_var((_Expression *) e->op2_expression, badname))
+    return 1;
+  /* Function-call arguments also need walking; exp(-mag*f), sin(mag), etc.
+     should all reject. */
+  if(e->op1type == VARTOOLS_OPERANDTYPE_FUNCTION
+     && e->op1_functioncall != NULL) {
+    _FunctionCall *fc = (_FunctionCall *) e->op1_functioncall;
+    int a;
+    for(a = 0; a < fc->Nexpr; a++) {
+      if(_fourierfilter_expr_has_lc_var(fc->arguments[a], badname))
+        return 1;
+    }
+  }
+  if(e->op2type == VARTOOLS_OPERANDTYPE_FUNCTION
+     && e->op2_functioncall != NULL) {
+    _FunctionCall *fc = (_FunctionCall *) e->op2_functioncall;
+    int a;
+    for(a = 0; a < fc->Nexpr; a++) {
+      if(_fourierfilter_expr_has_lc_var(fc->arguments[a], badname))
+        return 1;
+    }
+  }
+  return 0;
+}
+
+/* Whole-word in-place substring replacement on src, writing into dst
+   (length-dst_sz).  Only identifier characters (alnum or '_') on the
+   boundaries count as part of a word.  Returns 0 on success, -1 if
+   dst would overflow. */
+static int _fourierfilter_subst_whole_word(const char *src,
+                                           const char *from,
+                                           const char *to,
+                                           char *dst, size_t dst_sz)
+{
+  size_t flen = strlen(from), tlen = strlen(to);
+  size_t wr = 0;
+  const char *p = src;
+  while(*p) {
+    if(strncmp(p, from, flen) == 0) {
+      int before_ok = (p == src)
+                      || !(isalnum((unsigned char) *(p-1)) || *(p-1) == '_');
+      int after_ok = (p[flen] == '\0')
+                     || !(isalnum((unsigned char) p[flen]) || p[flen] == '_');
+      if(before_ok && after_ok) {
+        if(wr + tlen >= dst_sz) return -1;
+        memcpy(dst + wr, to, tlen);
+        wr += tlen;
+        p += flen;
+        continue;
+      }
+    }
+    if(wr + 1 >= dst_sz) return -1;
+    dst[wr++] = *p++;
+  }
+  dst[wr] = '\0';
+  return 0;
+}
+
+/* Called from analytic.c::CompileAllExpressions once per
+   -fourierfilter command that supplied a "filterexpr" string.  Builds
+   a unique stump variable, substitutes the user-visible frequency name
+   with the stump in the expression source, parses, and validates that
+   only per-star / scalar / constant inputs are referenced. */
+void SetupFourierFilterExpression(ProgramData *p, _FourierFilter *c, int cnum)
+{
+  char stump[64];
+  char substituted[4*MAXLEN];
+  const char *badname = NULL;
+
+  /* Unique stump name, keyed by command index.  Keep it short, all-
+     lowercase, starting with '__ff_' so it's recognizable in error
+     messages. */
+  snprintf(stump, sizeof(stump), "__ff_freq_%d", cnum);
+
+  /* Allocate the INTERNALSCALAR variable and its per-thread storage. */
+  c->freq_var = CreateVariable(p, stump, VARTOOLS_TYPE_DOUBLE,
+                               VARTOOLS_VECTORTYPE_INTERNALSCALAR, NULL);
+  RegisterDataFromLightCurve(p, c->freq_var->dataptr, VARTOOLS_TYPE_DOUBLE,
+                             0, 0, 0, 0, 0, NULL, c->freq_var, -1, stump);
+
+  /* Substitute whole-word occurrences of the user's freq variable name
+     with the stump name so the expression parser resolves to the
+     INTERNALSCALAR we just created — even if the user's name (default
+     "f") collides with another variable in scope. */
+  if(_fourierfilter_subst_whole_word(c->filter_exprstring,
+                                     c->freq_varname, stump,
+                                     substituted, sizeof(substituted))) {
+    vt_error2(ERR_CODEERROR,
+              "-fourierfilter filterexpr: substituted expression exceeds "
+              "internal buffer size");
+  }
+
+  c->filter_expr = ParseExpression(substituted, p);
+
+  if(_fourierfilter_expr_has_lc_var(c->filter_expr, &badname)) {
+    fprintf(stderr,
+            "\nError in -fourierfilter (command #%d): filterexpr may not "
+            "reference light-curve-vector variables.\n"
+            "'%s' has vectortype VECTORTYPE_LC.  Only per-star scalars, "
+            "constants, and the frequency variable (%s) are allowed.\n\n",
+            cnum, badname ? badname : "<unknown>", c->freq_varname);
+    vt_error(ERR_CODEERROR);
+  }
+}
+
+
 int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 			       _FourierFilter *c, int cnum)
 /* Parse the command line for the "-fourierfilter" command */
@@ -1453,11 +1585,22 @@ int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->ofourier_format = NULL;
   c->freq_var = NULL;
 
+  /* Default frequency-variable name for filterexpr; overridden by
+     "filterexpr <expr> freqvar <name>". */
+  snprintf(c->freq_varname, sizeof(c->freq_varname), "f");
+
   i = *iret;
   if(i >= argc)
     return(1);
 
-  if(!strcmp(argv[i],"highpass")) {
+  if(!strcmp(argv[i],"full") || !strcmp(argv[i],"fullspec")) {
+    /* "full" / "fullspec" filter type — reconstruct the full Fourier
+       series with no band limits.  Mostly useful paired with
+       "filterexpr" for an analytic filter applied across the whole
+       spectrum. */
+    c->filtertype = VARTOOLS_FOURIERFILTER_FULLSPEC;
+    i++;
+  } else if(!strcmp(argv[i],"highpass")) {
     c->filtertype = VARTOOLS_FOURIERFILTER_HIGHPASS;
     i++;
     if(ParseParameterBuiltInCommand(p, cnum, &i, argv, argc, "minfreq", 1,
@@ -1524,6 +1667,56 @@ int ParseFourierFilterCommand(int *iret, int argc, char **argv, ProgramData *p,
 				    0, NULL)) {
       *iret = i-1; return 1;}
   } else {*iret = i-1; return 1;}
+
+  /* Optional trailing keywords (any subset, any order):
+       "filterexpr" <expr> ["freqvar" <name>]
+       "fullspec"
+       "forcefft"
+       "ofourier" <outdir> ["nameformat" <fmt>]
+     Stop as soon as we see an argument that doesn't match any of these
+     keywords — the caller-level parser picks up from there. */
+  while(i < argc) {
+    if(!strcmp(argv[i],"filterexpr")) {
+      i++;
+      if(i >= argc) { *iret = i-1; return 1; }
+      if((c->filter_exprstring = (char *) malloc(strlen(argv[i])+1)) == NULL)
+        vt_error(ERR_MEMALLOC);
+      strcpy(c->filter_exprstring, argv[i]);
+      i++;
+      /* Optional "freqvar <name>" right after the expression. */
+      if(i < argc && !strcmp(argv[i],"freqvar")) {
+        i++;
+        if(i >= argc) { *iret = i-1; return 1; }
+        snprintf(c->freq_varname, sizeof(c->freq_varname), "%s", argv[i]);
+        i++;
+      }
+    } else if(!strcmp(argv[i],"fullspec")) {
+      c->calc_full_spec = 1;
+      i++;
+    } else if(!strcmp(argv[i],"forcefft")) {
+      c->forcefft = 1;
+      i++;
+    } else if(!strcmp(argv[i],"ofourier")) {
+      i++;
+      if(i >= argc) { *iret = i-1; return 1; }
+      c->ofourier = 1;
+      if((c->ofourier_dir = (char *) malloc(strlen(argv[i])+1)) == NULL)
+        vt_error(ERR_MEMALLOC);
+      strcpy(c->ofourier_dir, argv[i]);
+      i++;
+      if(i < argc && !strcmp(argv[i],"nameformat")) {
+        i++;
+        if(i >= argc) { *iret = i-1; return 1; }
+        c->ofourier_formatflag = 1;
+        if((c->ofourier_format = (char *) malloc(strlen(argv[i])+1)) == NULL)
+          vt_error(ERR_MEMALLOC);
+        strcpy(c->ofourier_format, argv[i]);
+        i++;
+      }
+    } else {
+      break;
+    }
+  }
 
   *iret = i-1;
   return 0;

@@ -30,6 +30,13 @@
 #define VARTOOLS_VECTORTYPE_OUTCOLUMN 4
 #define VARTOOLS_VECTORTYPE_PERSTARDATA 5
 #define VARTOOLS_VECTORTYPE_ANY 6
+/* INTERNALSCALAR: a scalar variable owned by a specific command for
+   internal bookkeeping (e.g. the frequency variable used by
+   -fourierfilter filterexpr).  Treated like SCALAR for read / write /
+   expression evaluation, but excluded from -printallscalars and from
+   the LightCurve.scalars mapping that pyvartools carries across
+   chained-pipeline segments. */
+#define VARTOOLS_VECTORTYPE_INTERNALSCALAR 7
 
 #define VARTOOLS_OPERANDTYPE_CONSTANT 0
 #define VARTOOLS_OPERANDTYPE_VARIABLE 1
