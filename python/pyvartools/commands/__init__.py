@@ -35,6 +35,7 @@ from .manipulation import (
     ensemblerescalesig,
     stats,
     harmonicfilter,
+    fourierfilter,
     Killharm,
     linfit,
     Injectharm,
@@ -110,8 +111,8 @@ __all__ = [
     "GetLSAmpThresh", "Phase",
     # manipulation
     "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm",
-    "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter", "Killharm",
-    "linfit",
+    "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
+    "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",
     "savelc", "restorelc", "difffluxtomag", "fluxtomag", "changeerror",
     "changevariable", "copylc", "medianfilter", "expr", "print_cols",

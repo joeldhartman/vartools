@@ -860,6 +860,13 @@ void InitCommands(ProgramData *p, Command *c)
 		  vt_error(ERR_MEMALLOC);
 		}
 	  break;
+	case CNUM_FOURIERFILTER:
+	  if((c[i].FourierFilter->mean_mag = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->rms_in   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->rms_out  = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->nfreq    = (int *)    malloc(Nlcs * sizeof(int))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_INJECTHARM:
 	  if(c[i].Injectharm->pertype != PERTYPE_SPECIFIED)
 	    {

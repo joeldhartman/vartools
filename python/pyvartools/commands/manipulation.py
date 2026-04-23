@@ -979,6 +979,112 @@ class medianfilter(VartoolsCommand):
         return args
 
 
+class fourierfilter(VartoolsCommand):
+    """Full-band Fourier-domain filter (``-fourierfilter``).
+
+    Fits a Fourier series to the (possibly non-uniformly sampled) light
+    curve via the Reichel-Ammar-Gragg orthogonal-polynomial projection,
+    then applies a band or analytic filter in frequency space and
+    reconstructs the filtered light curve.  This is distinct from
+    :class:`harmonicfilter`, which fits harmonics of one or more
+    *known* periods.
+
+    Parameters
+    ----------
+    mode : str
+        Filter type: ``"full"``, ``"highpass"``, ``"lowpass"``,
+        ``"bandpass"``, or ``"bandcut"``.
+    minfreq : float or str, optional
+        Low-frequency cutoff.  Required for ``highpass``, ``bandpass``,
+        ``bandcut``.  Accepts var/expr/fixcolumn forms.
+    maxfreq : float or str, optional
+        High-frequency cutoff.  Required for ``lowpass``, ``bandpass``,
+        ``bandcut``.  Accepts var/expr/fixcolumn forms.
+    filterexpr : str, optional
+        Analytic filter applied to each Fourier coefficient as a
+        function of frequency.  The frequency variable name defaults to
+        ``"f"`` (e.g. ``"exp(-(f/0.5)**2)"``) and may be renamed via
+        ``freqvar``.  The expression may only reference constants and
+        per-star scalars, not light-curve vectors.
+    freqvar : str, optional
+        Override the default frequency-variable name (``"f"``) used in
+        ``filterexpr``.
+    fullspec : bool
+        Compute Fourier coefficients across the full Nyquist range even
+        when the selected band is narrower.  Useful with ``save_fouriercoeffs``.
+    forcefft : bool
+        Request the FFT path (uniform sampling only; falls back to the
+        orthogonal-polynomial path if unsupported).
+    save_fouriercoeffs : bool, str, or :class:`pyvartools.Output`, optional
+        Write the Fourier cos/sin coefficients to a file.  Captures as
+        ``result.files["fourierfilter_fouriercoeffs_N"]`` when truthy.
+        See :doc:`Auxiliary output files <commands/index>`.
+    """
+
+    _vt_name = "fourierfilter"
+
+    def __init__(
+        self,
+        mode: str = "full",
+        minfreq: Union[float, str, None] = None,
+        maxfreq: Union[float, str, None] = None,
+        filterexpr: Optional[str] = None,
+        freqvar: Optional[str] = None,
+        fullspec: bool = False,
+        forcefft: bool = False,
+        save_fouriercoeffs=False,
+    ) -> None:
+        if mode not in ("full", "highpass", "lowpass", "bandpass", "bandcut"):
+            raise ValueError(
+                f"fourierfilter(): unknown mode {mode!r}; must be one of "
+                f"full, highpass, lowpass, bandpass, bandcut"
+            )
+        if mode in ("highpass", "bandpass", "bandcut") and minfreq is None:
+            raise ValueError(f"fourierfilter(mode={mode!r}): minfreq is required")
+        if mode in ("lowpass", "bandpass", "bandcut") and maxfreq is None:
+            raise ValueError(f"fourierfilter(mode={mode!r}): maxfreq is required")
+        if freqvar is not None and filterexpr is None:
+            raise ValueError(
+                "fourierfilter(): freqvar has no effect without filterexpr"
+            )
+        self.mode = mode
+        self.minfreq = minfreq
+        self.maxfreq = maxfreq
+        self.filterexpr = filterexpr
+        self.freqvar = freqvar
+        self.fullspec = fullspec
+        self.forcefft = forcefft
+        self.save_fouriercoeffs = save_fouriercoeffs
+
+    def _to_cli_args(self) -> List[str]:
+        outdir = getattr(self, "_outdir", ".")
+        args = ["-fourierfilter", self.mode]
+        # minfreq/maxfreq use the parser's keyword-prefixed form
+        # (fix/var/expr/fixcolumn/list); _pval(..., keyword="fix")
+        # prepends "fix" in front of bare numbers.
+        if self.mode in ("highpass", "bandpass", "bandcut"):
+            args += ["minfreq"] + _pval(self.minfreq, "fix")
+        if self.mode in ("lowpass", "bandpass", "bandcut"):
+            args += ["maxfreq"] + _pval(self.maxfreq, "fix")
+        if self.filterexpr is not None:
+            args += ["filterexpr", str(self.filterexpr)]
+            if self.freqvar is not None:
+                args += ["freqvar", str(self.freqvar)]
+        if self.fullspec:
+            args += ["fullspec"]
+        if self.forcefft:
+            args += ["forcefft"]
+        # ofourier is a keyword-gated output: `ofourier <outdir>` (no 0/1
+        # flag), so we emit it inline rather than using _outtoken.
+        spec = _norm_save(self.save_fouriercoeffs)
+        if _should_emit(spec):
+            args += ["ofourier", spec.path if spec.path is not None else outdir]
+        return args
+
+    def _output_file_specs(self):
+        return {"fouriercoeffs": (".fouriercoeffs", None)}
+
+
 class expr(VartoolsCommand):
     """Evaluate an analytic expression to create or update a variable.
 

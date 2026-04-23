@@ -56,6 +56,9 @@ EXAMPLES/results.csv
 /0.1
 /*_pgram.csv
 /4.injecttransit.model
+# Stray -fourierfilter output files left in the repo root when smoke-
+# testing with the default outdir.
+/*.fouriercoeffs
 
 # Ad-hoc Python/analysis outputs written to the repo root
 /ls_results.csv

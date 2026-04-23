@@ -1944,6 +1944,14 @@ typedef struct {
 
   _Variable *freq_var;
 
+  /* Per-LC output-column storage.  Allocated in initcommands.c once Nlcs
+     is known; written by doFourierFilter at runtime; registered as
+     FourierFilter_<name>_N output columns in outcolumns.c. */
+  double *mean_mag;          /* DC Fourier coefficient (a_0)            */
+  double *rms_in;            /* RMS of the input light curve            */
+  double *rms_out;           /* RMS after the filter is applied         */
+  int    *nfreq;             /* number of Fourier frequencies computed  */
+
 } _FourierFilter;
 
 #ifdef _HAVE_PYTHON

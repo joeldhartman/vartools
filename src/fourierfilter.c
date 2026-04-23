@@ -1123,8 +1123,32 @@ void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) 
   mag = p->mag[threadid];
   err = p->sig[threadid];
 
+  /* Initialize output columns to safe defaults so a short-LC early return
+     doesn't leave garbage in the per-LC output row. */
+  c->mean_mag[lcid] = 0.0;
+  c->rms_in[lcid] = 0.0;
+  c->rms_out[lcid] = 0.0;
+  c->nfreq[lcid] = 0;
+
   if(Njd < 3)
     return;
+
+  /* Record input RMS before any filtering (simple unweighted RMS of
+     non-NaN mag values, matching the convention of -rms). */
+  {
+    double _sm = 0, _sm2 = 0;
+    int _n = 0;
+    for(i = 0; i < Njd; i++) {
+      if(!isnan(mag[i])) {
+        _sm += mag[i]; _sm2 += mag[i]*mag[i]; _n++;
+      }
+    }
+    if(_n > 1) {
+      double _mean = _sm / _n;
+      double _var = _sm2 / _n - _mean*_mean;
+      c->rms_in[lcid] = (_var > 0) ? sqrt(_var) : 0.0;
+    }
+  }
 
   T = t[Njd-1] - t[0];
   /* Determine the frequency spacing and number of frequencies */
@@ -1405,6 +1429,28 @@ void doFourierFilter(ProgramData *p, _FourierFilter *c, int threadid, int lcid) 
 	}
       }
       break;
+    }
+
+    /* Output-column bookkeeping: DC Fourier term and number of
+       frequencies fit.  Do this before freeing the coefficient
+       arrays. */
+    c->mean_mag[lcid] = avals[0];
+    c->nfreq[lcid] = Nfcalc;
+
+    /* Post-filter RMS — recompute on the (now filtered) mag array. */
+    {
+      double _sm = 0, _sm2 = 0;
+      int _n = 0;
+      for(i = 0; i < Njd; i++) {
+        if(!isnan(mag[i])) {
+          _sm += mag[i]; _sm2 += mag[i]*mag[i]; _n++;
+        }
+      }
+      if(_n > 1) {
+        double _mean = _sm / _n;
+        double _var = _sm2 / _n - _mean*_mean;
+        c->rms_out[lcid] = (_var > 0) ? sqrt(_var) : 0.0;
+      }
     }
 
     free(avals);

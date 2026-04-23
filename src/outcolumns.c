@@ -1585,6 +1585,12 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    }
 	  }
 	  break;
+	case CNUM_FOURIERFILTER:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->mean_mag), "%9.5f", 1, 0, 0, 0, "FourierFilter_Mean_Mag_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_in),   "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_In_%d",   l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_out),  "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_Out_%d",  l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreq),    "%d",    1, 0, 0, 0, "FourierFilter_Nfreq_%d",    l);
+	  break;
 	case CNUM_INJECTHARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);
 	  for(i=2;i<=c[l].Injectharm->Nsubharm+1;i++)
