@@ -939,6 +939,24 @@ class TestCLIArgsFitting:
                           10.0)._to_cli_args()
         assert args[0] == "-TFA_SR"
 
+    def test_tfa_sr_xycol_after_pixelsep(self):
+        """``xycol`` is an optional keyword that must follow the positional
+        ``pixelsep`` argument; emitting it before ``pixelsep`` made vartools
+        treat the pixelsep value as the next positional argument and fail
+        with "Invalid command or option".
+        """
+        args = cmd.TFA_SR("/tmp/trends.txt", "/tmp/dates.txt", 25.0,
+                          xycol=(2, 3))._to_cli_args()
+        # pixelsep must appear before "xycol" in the token list.
+        idx_xycol = args.index("xycol")
+        idx_pixelsep = args.index("25.0")
+        assert idx_pixelsep < idx_xycol, (
+            f"pixelsep (25.0 at {idx_pixelsep}) must precede xycol "
+            f"(at {idx_xycol}); got {args}"
+        )
+        # And xycol's two integer args must come immediately after.
+        assert args[idx_xycol:idx_xycol + 3] == ["xycol", "2", "3"]
+
     # ------- TFA_SR decorr and signal_period (P2 batch) -------
 
     def test_tfa_sr_decorr(self):

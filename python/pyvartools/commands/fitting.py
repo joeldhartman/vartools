@@ -188,10 +188,9 @@ class TFA_SR(VartoolsCommand):
         args = ["-TFA_SR", self.trendlist]
         if self.readformat is not None:
             args += ["readformat"] + [str(x) for x in self.readformat]
-        args += [self.dates_file]
+        args += [self.dates_file, str(self.pixelsep)]
         if self.xycol is not None:
             args += ["xycol"] + [str(c) for c in self.xycol]
-        args += [str(self.pixelsep)]
         args += ["1" if self.correct_lc else "0"]
         args += _outtoken(self.save_coeffs, outdir)
         args += _outtoken(self.save_model, outdir)
