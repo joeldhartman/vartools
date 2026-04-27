@@ -150,22 +150,33 @@ def _inputlcformat_from_df(columns) -> Optional[str]:
 
 
 def _inputlcformat_from_spec(
-    columns: Union[List[str], Dict[str, Union[int, str]]]
+    columns,
 ) -> str:
     """Build an ``-inputlcformat`` string from a user-supplied spec.
 
     Parameters
     ----------
-    columns : list of str  **or**  dict mapping str → int | str
+    columns : list of str  **or**  dict
         * **list** — variable names in column order starting from 1, e.g.
           ``["t", "mag", "err", "airmass"]`` → ``"t:1,mag:2,err:3,airmass:4"``
-        * **dict** — explicit mapping of vartools variable name to 1-based
-          column number *or* FITS column name, e.g.
-          ``{"t": "BJD_TDB", "mag": "MAG", "err": "ERR"}`` (FITS)
-          or ``{"t": 1, "mag": 2, "err": 3, "airmass": 4}`` (ASCII).
+        * **dict** — explicit mapping of vartools variable name to a
+          column spec, where the value can be:
+
+          * an ``int`` (1-based column number for ASCII files);
+          * a ``str`` (FITS binary-table column name);
+          * an :class:`LCColumn` instance for non-default type/format
+            (e.g. ``LCColumn(col=4, type="string")``).
     """
+    def _emit(name, val):
+        if isinstance(val, LCColumn):
+            tail = f"{name}:{val.col}:{val.type}"
+            if val.format is not None:
+                tail += f":{val.format}"
+            return tail
+        return f"{name}:{val}"
+
     if isinstance(columns, dict):
-        parts = [f"{name}:{col}" for name, col in columns.items()]
+        parts = [_emit(name, col) for name, col in columns.items()]
     else:
         parts = [f"{name}:{i + 1}" for i, name in enumerate(columns)]
     return ",".join(parts)
@@ -206,6 +217,50 @@ class LCVar:
 
     type: str = "double"
     init: str = "0"
+
+
+@dataclass
+class LCColumn:
+    """Describe a column read from a light-curve file by ``-inputlcformat``.
+
+    Pass instances as values in the ``columns=`` dict of any Pipeline run
+    method when a light-curve column has a non-default type or needs an
+    explicit format string (e.g. UTC timestamps, string IDs).  Bare ``int``
+    and ``str`` values still work as before for the common case of
+    same-type ASCII or FITS columns.
+
+    Parameters
+    ----------
+    col : int or str
+        1-based column number for ASCII files, or column name for FITS
+        binary tables.
+    type : str
+        Variable type — one of ``"double"`` (default), ``"float"``,
+        ``"int"``, ``"long"``, ``"short"``, ``"string"``, ``"char"``,
+        or ``"utc"``.  ``"utc"`` requires ``format``.
+    format : str, optional
+        Format string for ``"utc"`` columns (e.g. ``"%Y-%M-%DT%h:%m:%s"``).
+
+    Examples
+    --------
+    Read a string-typed flag column::
+
+        pipe.run_filelist(
+            "lc_list.txt",
+            columns={"t": 1, "mag": 2, "err": 3,
+                     "fiphot_flag": vt.LCColumn(col=4, type="string")},
+        )
+
+    Read a UTC timestamp column with a format spec::
+
+        pipe.run(lc, columns={"t": vt.LCColumn(col=1, type="utc",
+                                               format="%Y-%M-%DT%h:%m:%s"),
+                              "mag": 2, "err": 3})
+    """
+
+    col: Union[int, str]
+    type: str = "double"
+    format: Optional[str] = None
 
 
 @dataclass

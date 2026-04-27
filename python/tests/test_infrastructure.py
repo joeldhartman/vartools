@@ -414,6 +414,51 @@ def test_inputlcformat_from_spec_dict_fits_names():
     assert fmt == "t:BJD_TDB,mag:MAG,err:ERR"
 
 
+def test_inputlcformat_from_spec_lccolumn_string_type():
+    """LCColumn lets the user attach a non-default type (e.g. ``"string"``)
+    to a column, which is required for things like the fiphot string flag
+    consumed by -hatpiflag.
+    """
+    fmt = _inputlcformat_from_spec({
+        "t": 1, "mag": 2, "err": 3,
+        "fiphot_flag": vt.LCColumn(col=4, type="string"),
+    })
+    assert fmt == "t:1,mag:2,err:3,fiphot_flag:4:string"
+
+
+def test_inputlcformat_from_spec_lccolumn_utc_with_format():
+    """LCColumn(type="utc", format=...) emits the format string as the
+    fourth ``:``-separated field, matching vartools' own grammar.
+    """
+    fmt = _inputlcformat_from_spec({
+        "t": vt.LCColumn(col=1, type="utc", format="%Y-%M-%DT%h:%m:%s"),
+        "mag": 2, "err": 3,
+    })
+    assert fmt == "t:1:utc:%Y-%M-%DT%h:%m:%s,mag:2,err:3"
+
+
+def test_inputlcformat_from_spec_lccolumn_default_type():
+    """LCColumn with the default type emits ``name:col:double`` so the
+    format string is unambiguous, not silently dropped.
+    """
+    fmt = _inputlcformat_from_spec({"airmass": vt.LCColumn(col=4)})
+    # default type field is preserved so callers see what gets emitted.
+    assert fmt == "airmass:4:double"
+
+
+def test_inputlcformat_from_spec_mixed_lccolumn_and_int():
+    """Bare ints/strings still work alongside LCColumn instances."""
+    fmt = _inputlcformat_from_spec({
+        "t": 1,
+        "mag": 2,
+        "err": 3,
+        "x": "XIC",                                 # FITS column name
+        "fiphot_flag": vt.LCColumn(col=4, type="string"),
+    })
+    assert fmt == ("t:1,mag:2,err:3,x:XIC,"
+                   "fiphot_flag:4:string")
+
+
 # ---------------------------------------------------------------------------
 # -inputlcformat integration tests (require binary)
 # ---------------------------------------------------------------------------
