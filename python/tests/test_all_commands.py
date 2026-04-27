@@ -2619,6 +2619,23 @@ class TestLoadUserlib:
             Cls = vt.load_userlib("/path/stitch.so", name="stitch")
         assert Cls.__doc__  # non-empty fallback
 
+    def test_load_userlib_preserves_symlink_basename(self, tmp_path):
+        """``load_userlib`` must not follow symlinks: libtool's dlopen
+        looks up ``<libbasename>_Initialize`` against the path passed to
+        ``-L``, and that lookup fails when the path's basename has the
+        versioned suffix (``stitch.so.0.0.0``).
+        """
+        from unittest.mock import patch
+        target = tmp_path / "stitch.so.0.0.0"
+        target.touch()
+        link = tmp_path / "stitch.so"
+        link.symlink_to(target.name)
+        with patch("pyvartools.userlib._fetch_userlib_text", return_value=""):
+            Cls = vt.load_userlib(str(link))
+        inst = Cls("mag err mask lcnum median")
+        assert inst._lib_path.endswith("stitch.so"), inst._lib_path
+        assert not inst._lib_path.endswith(".so.0.0.0"), inst._lib_path
+
 
 class TestDiscoverUserlibs:
     """Unit tests for discover_userlibs() — no binary required."""
