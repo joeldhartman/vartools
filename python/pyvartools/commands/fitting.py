@@ -1,6 +1,7 @@
 """Fitting, modeling, and systematics command wrappers."""
 
 from __future__ import annotations
+import os
 from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
@@ -291,18 +292,29 @@ class SYSREM(VartoolsCommand):
                  str(self.saturation),
                  "1" if self.correct_lc else "0"]
         args += _outtoken(self.save_model, outdir)
+        # save_trends is a single-file output (the CLI emits one trend table
+        # for the entire run, not one per LC).  Emit ``"1" <file>`` or
+        # ``"0"``; never the literal token "otrends" (vartools' grammar
+        # treats the next token as a file path, not a keyword).
         tr_spec = _norm_save(self.save_trends)
         if _should_emit(tr_spec):
-            args += ["otrends", tr_spec.path or outdir]
+            outdir_map = getattr(self, "_outdir_map", {})
+            default_path = os.path.join(
+                outdir_map.get("trends", outdir), "sysrem.trends"
+            )
+            args += ["1", tr_spec.path or default_path]
         else:
             args += ["0"]
         args += [str(self.useweights)]
         return args
 
     def _output_file_specs(self):
+        # ``"trends"`` is a single global file (not a per-LC directory),
+        # marked here so the pipeline runner skips ``os.makedirs`` on the
+        # user-supplied path.
         return {
             "model": (".sysrem.model", None),
-            "trends": (".sysrem.trends", None),
+            "trends": (".sysrem.trends", None, "file"),
         }
 
 

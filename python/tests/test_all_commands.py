@@ -989,6 +989,39 @@ class TestCLIArgsFitting:
         args = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._to_cli_args()
         assert args[0] == "-SYSREM"
 
+    def test_sysrem_save_trends_false(self):
+        """save_trends=False emits the bare ``"0"`` flag — no literal
+        "otrends" token, which the CLI grammar does not accept.
+        """
+        args = cmd.SYSREM(2, 1, "/tmp/airmass.txt",
+                          save_trends=False)._to_cli_args()
+        assert "otrends" not in args
+        # The "0" flag for trends sits immediately before useweights.
+        assert args[-2] == "0"
+
+    def test_sysrem_save_trends_path(self):
+        """save_trends="path" emits ``"1" <path>``, treating the path as a
+        single file (the CLI writes one global trend file, not a dir).
+        """
+        args = cmd.SYSREM(2, 1, "/tmp/airmass.txt",
+                          save_trends="/tmp/trends.txt")._to_cli_args()
+        assert "otrends" not in args
+        assert "/tmp/trends.txt" in args
+        i = args.index("/tmp/trends.txt")
+        # Trends path is preceded by the "1" emit-flag.
+        assert args[i - 1] == "1"
+
+    def test_sysrem_save_trends_marked_file_in_specs(self):
+        """The ``trends`` entry in ``_output_file_specs`` must declare
+        ``mode="file"`` so the pipeline runner does not ``os.makedirs`` the
+        user-supplied trend-output path.
+        """
+        specs = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._output_file_specs()
+        assert "trends" in specs
+        # 3-tuple form with the "file" mode marker.
+        assert len(specs["trends"]) == 3
+        assert specs["trends"][2] == "file"
+
     def test_mandel_agol_basic(self):
         args = cmd.MandelAgolTransit(P0=3.0, T00=1.0)._to_cli_args()
         assert args[0] == "-MandelAgolTransit"
@@ -2124,12 +2157,16 @@ class TestOutputAPICLI:
         assert "0" in args
 
     def test_sysrem_save_trends_path(self):
-        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends")
+        # save_trends is a single-file output (CLI grammar emits ``"1" path``,
+        # not the literal token "otrends" — that bug was fixed in fitting.py).
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends.txt")
         c._outdir = "/tmp"
         args = c._to_cli_args()
-        assert "otrends" in args
-        idx = args.index("otrends")
-        assert args[idx + 1] == "/data/trends"
+        assert "otrends" not in args
+        assert "/data/trends.txt" in args
+        i = args.index("/data/trends.txt")
+        # The path is preceded by the "1" emit-flag.
+        assert args[i - 1] == "1"
 
     def test_findblends_save_matches_path(self):
         c = cmd.findblends(matchrad=10.0, save_matches="/data/matches")

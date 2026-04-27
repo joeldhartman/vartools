@@ -1510,10 +1510,22 @@ class Pipeline:
                 base_cmd_outdir = os.path.join(outdir, f"cmd_{idx}")
                 outdir_map = {}
                 needs_base = False
-                for name in specs:
+                for name, spec_tuple in specs.items():
+                    # _output_file_specs entries are ``(suffix, parser)`` for
+                    # per-LC directory-style outputs (the default) or
+                    # ``(suffix, parser, "file")`` for commands like -SYSREM
+                    # that write a single global file (otrends).  In the file
+                    # case the user-supplied path *is* the output file and
+                    # must not be makedirs-ed.
+                    spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
                     save_spec = _norm_save(getattr(command, f"save_{name}", False))
                     if save_spec.path is not None:
-                        os.makedirs(save_spec.path, exist_ok=True)
+                        if spec_mode == "file":
+                            parent = os.path.dirname(save_spec.path)
+                            if parent:
+                                os.makedirs(parent, exist_ok=True)
+                        else:
+                            os.makedirs(save_spec.path, exist_ok=True)
                         outdir_map[name] = save_spec.path
                     else:
                         needs_base = True
@@ -1607,7 +1619,10 @@ class Pipeline:
             if not specs:
                 continue
             mandatory = getattr(command, "_mandatory_output", False)
-            for logical_name, (suffix, ncols) in specs.items():
+            for logical_name, spec_tuple in specs.items():
+                # Optional 3rd element is the spec mode (e.g. ``"file"``
+                # for SYSREM trends); not used for capture-side parsing.
+                suffix, ncols = spec_tuple[0], spec_tuple[1]
                 raw = getattr(command, f"save_{logical_name}", False)
                 spec = _norm_save(raw)
 
