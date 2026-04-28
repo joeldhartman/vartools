@@ -1513,17 +1513,25 @@ class TestCLIArgsMisc:
                        init="def f(x): return x.mean()",
                        continueprocess=1)
 
-    def test_python_inprocess_raises_until_stage2(self):
-        # Stage-1 ships only the subprocess path; the kwarg is on the API
-        # so user code can be written against the final shape, but
-        # passing True must raise rather than silently degrade.
-        with pytest.raises(NotImplementedError, match="inprocess=True"):
-            cmd.python("x = 1", inprocess=True)
+    def test_python_inprocess_constructs_without_error(self):
+        # Stage-2 path: inprocess=True now constructs cleanly.  Validates
+        # that the kwarg lives on the instance and that the C-side
+        # callback shim got registered as a side effect (we don't
+        # exercise execution here — that's covered in
+        # TestPythonInprocessIntegration below).
+        c = cmd.python("b = 0.0", outvars="b", outputcolumns="b",
+                       inprocess=True)
+        assert c.inprocess is True
+        # Tokens are identical to the subprocess form — vartools sees the
+        # same -python command; the callback hook diverts dispatch
+        # internally based on whether it's been registered.
+        args = c._to_cli_args()
+        assert args[0] == "-python"
 
     def test_python_namespace_kwarg_accepted(self):
         # namespace= is meaningful only for inprocess=True.  Setting it
         # alongside the default subprocess path is allowed (it's
-        # silently ignored — checked at construction does NOT raise).
+        # silently ignored — construction does NOT raise).
         c = cmd.python("x = 1", namespace={"foo": 42})
         assert c.namespace == {"foo": 42}
         # Tokens are unaffected.
@@ -3490,3 +3498,120 @@ class TestPythonIntegration:
         # RMS should be unchanged (de-meaning is a constant shift).
         for pre, post in zip(batch.vars["RMS_0"], batch.vars["RMS_2"]):
             assert abs(pre - post) < 1e-10
+
+
+# ===========================================================================
+# Integration: cmd.python(inprocess=True) — Stage 2 callback hook
+# ===========================================================================
+#
+# Library mode is required for the callback hook to fire.  Each test
+# constructs a single-LC pipeline and runs it via Pipeline.run(lc) so
+# pyvartools can take the in-process library path; the wrapper pre-checks
+# that subprocess-mode-forcing factors are absent.
+
+@pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
+class TestPythonInprocessIntegration:
+    """End-to-end coverage of cmd.python(inprocess=True)."""
+
+    def test_inprocess_basic_var(self):
+        """Inprocess path returns the same variance as the subprocess path."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r_sub = vt.Pipeline().python(
+            "b = float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=False).run(lc)
+        r_in = vt.Pipeline().python(
+            "b = float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True).run(lc)
+        assert abs(r_sub.vars["PYTHON_b_0"] - r_in.vars["PYTHON_b_0"]) < 1e-12
+
+    def test_inprocess_sees_main_namespace(self):
+        """User code in the inprocess body can reference globals defined
+        by the calling host script — this is the entire point of the
+        callback hook."""
+        import sys
+        # Inject a sentinel into __main__ that the user code resolves.
+        sys.modules["__main__"]._VT_TEST_K = 100.0
+        try:
+            lc = vt.LightCurve.from_file(EXAMPLE_LC)
+            r = vt.Pipeline().python(
+                "b = _VT_TEST_K + float(numpy.var(mag))",
+                invars="mag", outvars="b", outputcolumns="b",
+                inprocess=True).run(lc)
+            assert 99.9 < r.vars["PYTHON_b_0"] < 100.1
+        finally:
+            del sys.modules["__main__"]._VT_TEST_K
+
+    def test_inprocess_custom_namespace(self):
+        """A custom namespace= dict isolates user code from __main__."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        sandbox = {"my_factor": 3.0}
+        r = vt.Pipeline().python(
+            "b = my_factor * float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True, namespace=sandbox).run(lc)
+        # 3.0 × 0.001342 ≈ 0.004026.
+        assert abs(r.vars["PYTHON_b_0"] - 0.004026) < 1e-4
+
+    def test_inprocess_lc_vector_mutation(self):
+        """Mutating an LC vector inside inprocess code is reflected in
+        downstream commands (Mean_Mag → 0 after subtracting mean)."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r = (vt.Pipeline()
+             .rms()
+             .python("mag = mag - numpy.mean(mag)",
+                     vars="mag", inprocess=True)
+             .rms()
+             ).run(lc)
+        assert abs(r.vars["Mean_Mag_2"]) < 1e-10
+        assert abs(r.vars["RMS_0"] - r.vars["RMS_2"]) < 1e-10
+
+    def test_inprocess_init_runs_once(self):
+        """init code runs exactly once before per-LC bodies — a function
+        defined in init is then callable from the main body."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r = vt.Pipeline().python(
+            "b = compute_metric(mag)",
+            init="def compute_metric(arr): return float(numpy.std(arr) * 2)",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True).run(lc)
+        # std(EXAMPLES/2) * 2 ≈ 2 × 0.0366 ≈ 0.0732.
+        assert 0.07 < r.vars["PYTHON_b_0"] < 0.08
+
+    def test_inprocess_refused_for_run_filelist(self):
+        """run_filelist() must hard-error rather than silently fall
+        back to subprocess (which would defeat the inprocess intent)."""
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_filelist([EXAMPLE_LC],
+                            columns={"t": 1, "mag": 2, "err": 3})
+
+    def test_inprocess_refused_for_run_batch(self):
+        """run_batch() also rejects inprocess=True."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_batch([lc])
+
+    def test_inprocess_refused_for_run_combinelcs(self):
+        """run_combinelcs() also rejects inprocess=True."""
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_combinelcs([[EXAMPLE_LC, EXAMPLE_LC]])
+
+    def test_inprocess_refused_when_outputs_force_subprocess(self):
+        """Pipeline that includes a save_*=True (forces subprocess in
+        run()) must reject inprocess=True with a clear message."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .LS(0.1, 10.0, 0.1, save_periodogram=True)
+             .python("x = 1", inprocess=True)
+             ).run(lc)

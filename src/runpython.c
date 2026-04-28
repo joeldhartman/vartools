@@ -46,6 +46,53 @@
 
 #include "runpython.h"
 
+/* ------------------------------------------------------------------------ */
+/* In-process -python callback hook.                                        */
+/* When a callback is registered via vartools_register_python_callback(),   */
+/* RunPythonCommand bypasses StartPythonProcess + the socket I/O and calls  */
+/* the callback directly with C arrays describing the named in-/out-vars.  */
+/* The public typedef + registration prototypes live in vartools.h; we      */
+/* re-declare them here locally to avoid double-including commands.h via    */
+/* vartools.h (commands.h has no header guard).                             */
+/* ------------------------------------------------------------------------ */
+typedef int (*vartools_python_callback_t)(
+        void       *namespace_ptr,
+        int         command_id,
+        const char *code,
+        int         is_init,
+        int         n_invars,
+        const char *const *invar_names,
+        const int  *invar_types,
+        const int  *invar_lengths,
+        void *const *invar_data,
+        int         n_outvars,
+        const char *const *outvar_names,
+        const int  *outvar_types,
+        const int  *outvar_lengths,
+        void *const *outvar_data,
+        char       *error_buf,
+        int         error_buf_size);
+
+static vartools_python_callback_t g_python_callback = NULL;
+static void *g_python_namespace = NULL;
+/* Per-command bookkeeping: was init_code already executed for this cmd? */
+#define VT_PYINPROC_MAX_CMDS 256
+static int g_python_inprocess_init_done[VT_PYINPROC_MAX_CMDS] = {0};
+
+void vartools_register_python_callback(vartools_python_callback_t cb)
+{
+    g_python_callback = cb;
+    /* Reset init-done flags so a fresh registration re-initialises any
+     * subsequent cmd.python(init=…) call. */
+    int i;
+    for(i = 0; i < VT_PYINPROC_MAX_CMDS; i++)
+        g_python_inprocess_init_done[i] = 0;
+}
+
+void vartools_set_python_namespace(void *namespace_ptr)
+{
+    g_python_namespace = namespace_ptr;
+}
 
 /* Some functions we will need from the other files */
 void SetVariable_Value_Double(int lcindex, int threadindex, int jdindex, _Variable *var, double val);
@@ -2364,8 +2411,246 @@ void GetPythonCommandOutputColumnValues_all_lcs(ProgramData *p, _PythonCommand *
 }
 
 
+/* ------------------------------------------------------------------------ */
+/* In-process dispatch (callback-based).                                    */
+/*                                                                          */
+/* Walks c->vars / c->outonlyvars, builds C arrays of pointers describing   */
+/* the named in-/out-variables, and calls the registered callback to        */
+/* execute user code in the host Python interpreter.                        */
+/*                                                                          */
+/* v1 limitations (fall-through to subprocess if hit):                      */
+/*   * VARTOOLS_TYPE_STRING / _CHAR / _CONVERTJD / _SHORT not supported     */
+/*   * c->processallvariables (process_all_lcs=True) not supported          */
+/*   * c->iscontinueprocess (continueprocess=N) not supported               */
+/*                                                                          */
+/* Returns 0 on success, 1 on user error (caller should respect skipfail).  */
+/* ------------------------------------------------------------------------ */
+static int vt_python_run_inprocess(ProgramData *p, int lcindex, int threadindex,
+                                   _PythonCommand *c)
+{
+    int i;
+    int n_invars = c->Nvars;
+    int n_outvars = 0;
+    /* Count outvars: c->vars where isvaroutput[i] + all outonlyvars. */
+    for(i = 0; i < c->Nvars; i++) if(c->isvaroutput[i]) n_outvars++;
+    n_outvars += c->Nvars_outonly;
+
+    /* Allocate marshalling buffers on the stack — bounded by Nvars +
+     * Nvars_outonly which is small in practice. */
+    const char *invar_names[n_invars > 0 ? n_invars : 1];
+    int          invar_types[n_invars > 0 ? n_invars : 1];
+    int          invar_lengths[n_invars > 0 ? n_invars : 1];
+    void *       invar_data[n_invars > 0 ? n_invars : 1];
+
+    const char *outvar_names[n_outvars > 0 ? n_outvars : 1];
+    int          outvar_types[n_outvars > 0 ? n_outvars : 1];
+    int          outvar_lengths[n_outvars > 0 ? n_outvars : 1];
+    void *       outvar_data[n_outvars > 0 ? n_outvars : 1];
+
+    /* Helper to fill in name/type/length/data for one _Variable. */
+    int NJD = p->NJD[threadindex];
+    for(i = 0; i < c->Nvars; i++) {
+        _Variable *v = c->vars[i];
+        invar_names[i] = v->varname;
+        invar_types[i] = v->datatype;
+        switch(v->vectortype) {
+        case VARTOOLS_VECTORTYPE_CONSTANT:
+            invar_lengths[i] = 1;
+            invar_data[i]    = v->dataptr;
+            break;
+        case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
+        case VARTOOLS_VECTORTYPE_SCALAR:
+        case VARTOOLS_VECTORTYPE_INLIST: {
+            /* Indexing convention matches SetVariable_Value_Double /
+             * EvaluateVariable_Double in analytic.c: SCALAR and
+             * INTERNALSCALAR are indexed by threadindex; INLIST (per-LC
+             * input-list values) is indexed by lcindex. */
+            int idx = (v->vectortype == VARTOOLS_VECTORTYPE_INLIST)
+                       ? lcindex : threadindex;
+            invar_lengths[i] = 1;
+            switch(v->datatype) {
+            case VARTOOLS_TYPE_DOUBLE:
+            case VARTOOLS_TYPE_CONVERTJD:
+                invar_data[i] = (void *) &((*((double **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_FLOAT:
+                invar_data[i] = (void *) &((*((float **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_INT:
+                invar_data[i] = (void *) &((*((int **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_LONG:
+                invar_data[i] = (void *) &((*((long **) v->dataptr))[idx]);
+                break;
+            default:
+                /* Unsupported scalar type — fall back to subprocess. */
+                return -1;
+            }
+            break;
+        }
+        case VARTOOLS_VECTORTYPE_LC:
+            invar_lengths[i] = NJD;
+            switch(v->datatype) {
+            case VARTOOLS_TYPE_DOUBLE:
+            case VARTOOLS_TYPE_CONVERTJD:
+                invar_data[i] = (void *) (*((double ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_FLOAT:
+                invar_data[i] = (void *) (*((float ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_INT:
+                invar_data[i] = (void *) (*((int ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_LONG:
+                invar_data[i] = (void *) (*((long ***) v->dataptr))[threadindex];
+                break;
+            default:
+                /* Unsupported vector type (string/char) — fall back. */
+                return -1;
+            }
+            break;
+        default:
+            /* Unsupported vector kind (OUTCOLUMN / PERSTARDATA) — fall back. */
+            return -1;
+        }
+    }
+
+    /* Outvars: c->vars[i] where isvaroutput, then c->outonlyvars. */
+    int oi = 0;
+    for(i = 0; i < c->Nvars; i++) {
+        if(!c->isvaroutput[i]) continue;
+        outvar_names[oi]   = invar_names[i];
+        outvar_types[oi]   = invar_types[i];
+        outvar_lengths[oi] = invar_lengths[i];
+        outvar_data[oi]    = invar_data[i];
+        oi++;
+    }
+    for(i = 0; i < c->Nvars_outonly; i++) {
+        _Variable *v = c->outonlyvars[i];
+        outvar_names[oi] = v->varname;
+        outvar_types[oi] = v->datatype;
+        switch(v->vectortype) {
+        case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
+        case VARTOOLS_VECTORTYPE_SCALAR:
+        case VARTOOLS_VECTORTYPE_INLIST: {
+            int idx = (v->vectortype == VARTOOLS_VECTORTYPE_INLIST)
+                       ? lcindex : threadindex;
+            outvar_lengths[oi] = 1;
+            switch(v->datatype) {
+            case VARTOOLS_TYPE_DOUBLE:
+            case VARTOOLS_TYPE_CONVERTJD:
+                outvar_data[oi] = (void *) &((*((double **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_FLOAT:
+                outvar_data[oi] = (void *) &((*((float **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_INT:
+                outvar_data[oi] = (void *) &((*((int **) v->dataptr))[idx]);
+                break;
+            case VARTOOLS_TYPE_LONG:
+                outvar_data[oi] = (void *) &((*((long **) v->dataptr))[idx]);
+                break;
+            default:
+                return -1;
+            }
+            break;
+        }
+        case VARTOOLS_VECTORTYPE_LC:
+            outvar_lengths[oi] = NJD;
+            switch(v->datatype) {
+            case VARTOOLS_TYPE_DOUBLE:
+            case VARTOOLS_TYPE_CONVERTJD:
+                outvar_data[oi] = (void *) (*((double ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_FLOAT:
+                outvar_data[oi] = (void *) (*((float ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_INT:
+                outvar_data[oi] = (void *) (*((int ***) v->dataptr))[threadindex];
+                break;
+            case VARTOOLS_TYPE_LONG:
+                outvar_data[oi] = (void *) (*((long ***) v->dataptr))[threadindex];
+                break;
+            default:
+                return -1;
+            }
+            break;
+        default:
+            return -1;
+        }
+        oi++;
+    }
+
+    /* Run init exactly once per command — flagged so subsequent per-LC
+     * calls don't re-run it.  Keyed by c->cnum modulo VT_PYINPROC_MAX_CMDS;
+     * this is a simple bookkeeping cache that fits the common case
+     * (small number of -python commands per pipeline).  Init is run
+     * with no in/out-vars: the user's init body should set names in the
+     * shared namespace via plain assignment / global. */
+    char err_buf[2048] = {0};
+    int  cmd_id = c->cnum % VT_PYINPROC_MAX_CMDS;
+    if(c->pythoninitializationtext != NULL
+       && c->pythoninitializationtext[0] != '\0'
+       && !g_python_inprocess_init_done[cmd_id]) {
+        int rc = g_python_callback(g_python_namespace, cmd_id,
+                                   c->pythoninitializationtext, /*is_init=*/1,
+                                   /*n_invars=*/0, NULL, NULL, NULL, NULL,
+                                   /*n_outvars=*/0, NULL, NULL, NULL, NULL,
+                                   err_buf, sizeof(err_buf));
+        if(rc) {
+            fprintf(stderr,
+                    "Error running -python init code (in-process):\n%s\n",
+                    err_buf);
+            return 1;
+        }
+        g_python_inprocess_init_done[cmd_id] = 1;
+    }
+
+    /* Per-LC body. */
+    int rc = g_python_callback(g_python_namespace, cmd_id,
+                               c->pythoncommandstring, /*is_init=*/0,
+                               n_invars,  invar_names,  invar_types,
+                                          invar_lengths, invar_data,
+                               n_outvars, outvar_names, outvar_types,
+                                          outvar_lengths, outvar_data,
+                               err_buf, sizeof(err_buf));
+    if(rc) {
+        fprintf(stderr,
+                "Error running -python command (in-process) for LC %d:\n%s\n",
+                lcindex, err_buf);
+        return 1;
+    }
+
+    /* Propagate the just-written outvars into c->outcolumndata so
+     * GetPythonCommandOutputColumnValues / EvaluateVariable_Double pick
+     * them up as PYTHON_<name>_N output columns.  The subprocess path
+     * does this in RunPythonCommand right after ReadVariablesFromChild..
+     * — we mirror that here. */
+    GetPythonCommandOutputColumnValues(p, lcindex, threadindex, c);
+    return 0;
+}
+
+
 void RunPythonCommand(ProgramData *p, int lcindex, int threadindex, int pythreadindex, _PythonCommand *c)
 {
+  /* In-process callback path: bypass StartPythonProcess + socket I/O when
+   * pyvartools (or another caller) has registered a callback. */
+  if(g_python_callback != NULL
+     && !c->processallvariables
+     && !c->iscontinueprocess) {
+    int rc = vt_python_run_inprocess(p, lcindex, threadindex, c);
+    if(rc == 0) return;            /* success */
+    if(rc == 1) {                  /* user error */
+      if(!c->skipfail) exit(1);
+      p->skipfaillc[lcindex] = 1;
+      fprintf(stderr,"Warning, skipping further processing of LC %s\n",
+              p->lcnames[lcindex]);
+      return;
+    }
+    /* rc == -1: in-process path doesn't support this datatype/vectortype
+     * — fall through to the subprocess path below. */
+  }
+
   /* Check if the python process for this command is running for this
      thread; if not start it */
   int msg, retval;

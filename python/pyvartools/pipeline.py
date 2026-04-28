@@ -473,6 +473,43 @@ class Pipeline:
         _has_global_opts = (randseed is not None or skipmissing
                             or jdtol is not None or matchstringid)
 
+        # If any command requested cmd.python(inprocess=True), we MUST go
+        # through library mode — the host-namespace callback only fires when
+        # libvartoolspipeline.so is loaded into pyvartools' own process.
+        # Refuse subprocess fallback so the user's intent isn't silently
+        # downgraded.
+        _wants_inprocess = self._has_inprocess_python()
+        if _wants_inprocess:
+            obstacles = []
+            if not _library_enabled():
+                obstacles.append(
+                    "library mode is disabled (set VARTOOLS_USE_LIBRARY=1)"
+                )
+            if timeout is not None:
+                obstacles.append("timeout= is incompatible with library mode")
+            if init_lc_vars:
+                obstacles.append("init_lc_vars forces subprocess mode")
+            if self._has_output_reqs():
+                obstacles.append(
+                    "save_*=True / cmd.o(...) outputs force subprocess mode"
+                )
+            if self._has_user_commands():
+                obstacles.append(
+                    "UserCommand / userlib extensions force subprocess mode"
+                )
+            if _has_global_opts:
+                obstacles.append(
+                    "randseed/skipmissing/jdtol/matchstringid force subprocess mode"
+                )
+            if obstacles:
+                raise RuntimeError(
+                    "cmd.python(inprocess=True) requires library mode, but "
+                    "the following make subprocess mode mandatory for this "
+                    "pipeline:\n  - " + "\n  - ".join(obstacles) +
+                    "\nPass inprocess=False (the default) to use the "
+                    "isolated subprocess path instead."
+                )
+
         # Fast path: in-process library mode when no output files are needed.
         # Falls back to subprocess when a timeout is requested (library mode
         # has no timeout support), or when init_lc_vars are supplied (library
@@ -589,6 +626,7 @@ class Pipeline:
         -------
         Result
         """
+        self._refuse_inprocess_in_subprocess_only("run_file")
         lc_path = str(lc_path)
         lc_name = Path(lc_path).stem
 
@@ -714,6 +752,7 @@ class Pipeline:
         -------
         BatchResult
         """
+        self._refuse_inprocess_in_subprocess_only("run_filelist")
         perlc_attrs = self._collect_perlc_attrs()
         if combinelcs and perlc_attrs:
             params = [f"'{name}' in command {ci}" for (ci, name) in perlc_attrs]
@@ -1001,6 +1040,7 @@ class Pipeline:
         -------
         BatchResult
         """
+        self._refuse_inprocess_in_subprocess_only("run_combinelcs")
         perlc_attrs = self._collect_perlc_attrs()
         if perlc_attrs:
             batch_size = len(groups)
@@ -1181,6 +1221,7 @@ class Pipeline:
         -------
         BatchResult
         """
+        self._refuse_inprocess_in_subprocess_only("run_batch")
         perlc_attrs = self._collect_perlc_attrs()
         lcs = [_to_lc(lc) for lc in lcs]
 
@@ -1371,6 +1412,42 @@ class Pipeline:
             isinstance(c, (UserCommand, _UserLibCommand))
             for c in self.commands
         )
+
+    def _has_inprocess_python(self) -> bool:
+        """True if any cmd.python has ``inprocess=True``.
+
+        Used by the run-path dispatch to either honour the in-process
+        callback hook (library mode only) or refuse the subprocess
+        fallback so the user knows their host-namespace request can't
+        be satisfied.
+        """
+        from pyvartools.commands.misc import python as _PythonCmd
+        return any(
+            isinstance(c, _PythonCmd) and getattr(c, "inprocess", False)
+            for c in self.commands
+        )
+
+    def _refuse_inprocess_in_subprocess_only(self, run_path_name: str) -> None:
+        """Raise if the pipeline contains an inprocess=True cmd.python and
+        the caller has selected a run path that always goes through
+        subprocess mode (run_file / run_batch / run_filelist /
+        run_combinelc / run_combinelcs / run_combinelcs).
+
+        The host-namespace callback only fires from library mode, which
+        single-LC ``run()`` may take.  Batch paths build a list-file and
+        invoke vartools as a subprocess where the registered callback
+        never reaches the spawned process.
+        """
+        if self._has_inprocess_python():
+            raise RuntimeError(
+                f"cmd.python(inprocess=True) is not supported with "
+                f"{run_path_name}() — the host-namespace callback only "
+                f"fires through library-mode run() on a single "
+                f"LightCurve.  Either switch to "
+                f"`vt.Pipeline().…run(lc)` for a single LC, or pass "
+                f"inprocess=False (the default) to use the isolated "
+                f"subprocess path."
+            )
 
     def _scalar_injection_args(
         self,

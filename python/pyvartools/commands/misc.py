@@ -294,17 +294,21 @@ class python(VartoolsCommand):
         command (1-indexed), preserving its global state.  Mutually
         exclusive with ``init``.
     inprocess : bool
-        **Stage-2 feature** — when ``True`` and pyvartools is running in
-        library mode, the user code is executed in the host Python
-        interpreter rather than the per-thread vartools subprocess, so
-        it shares ``sys.modules`` and an explicit *namespace* dict with
-        the calling code.  Default ``False``.
+        When ``True`` and pyvartools is running in library mode, the
+        user code is executed in the host Python interpreter rather
+        than a per-thread vartools sub-process, so it shares
+        ``sys.modules`` and a caller-supplied globals dict with the
+        calling code.  Default ``False``.
 
-        .. note::
-           Stage-1 (current) only ships the subprocess path.
-           ``inprocess=True`` raises :class:`NotImplementedError`; the
-           kwarg exists today so user code can be written against the
-           final API surface.
+        Limitations of the in-process path (these fall through to the
+        sub-process path; you'll get the standard subprocess behaviour
+        rather than an error):
+
+        * ``process_all_lcs=True`` and ``continueprocess`` not yet
+          supported in-process.
+        * Only numeric vartools types are marshalled (``DOUBLE``,
+          ``FLOAT``, ``INT``, ``LONG``).  String LC columns or
+          string-typed per-star variables fall through.
     namespace : dict, optional
         Only meaningful with ``inprocess=True``.  Dict to use as globals
         for the user code (default: caller's ``__main__.__dict__``).
@@ -344,15 +348,18 @@ class python(VartoolsCommand):
         self.inprocess = inprocess
         self.namespace = namespace
         if inprocess:
-            # Stage-2 feature.  The kwarg lives on the API today so calling
-            # code can be written against the final shape; the
-            # implementation is deferred to a follow-up commit.
-            raise NotImplementedError(
-                "cmd.python(inprocess=True) is not yet implemented; the "
-                "subprocess path (inprocess=False, the default) is fully "
-                "supported.  See the in-process design discussion in the "
-                "vartools-site docs/python/commands/python-r.md page."
-            )
+            # In-process path — register the C callback and namespace now
+            # so the wrapper is ready by the time the pipeline executes.
+            # Importing _python_inprocess pulls in ctypes + numpy and
+            # dlopens libvartoolspipeline.so, so do it lazily here only
+            # when inprocess=True is actually requested.
+            from .. import _python_inprocess
+            _python_inprocess.register()
+            ns = namespace
+            if ns is None:
+                import sys as _sys
+                ns = _sys.modules["__main__"].__dict__
+            _python_inprocess.set_namespace(ns)
         if init is not None and continueprocess is not None:
             raise ValueError(
                 "cmd.python: pass either `init` (initialise a new Python "

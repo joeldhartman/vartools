@@ -235,3 +235,50 @@ int vartools_set_lc_data(ProgramData *p,
                          const char **col_names,
                          const double **col_data,
                          const char *lc_name);
+
+/* ------------------------------------------------------------------------ */
+/* In-process -python callback hook (libvartoolspipeline only).             */
+/*                                                                          */
+/* When a callback is registered via vartools_register_python_callback(),   */
+/* RunPythonCommand bypasses the per-thread Python sub-process / Unix-      */
+/* socket path and instead calls the callback directly.  The callback       */
+/* receives flat C arrays describing the named in-vars and out-vars.  This  */
+/* lets pyvartools (running in library mode) execute -python user code in   */
+/* the host Python interpreter, sharing a caller-supplied namespace dict.   */
+/*                                                                          */
+/* The interface is libpython-free at this boundary: namespace_ptr is an    */
+/* opaque void* that vartools never dereferences; types and lengths are     */
+/* primitives.  pyvartools' shim casts namespace_ptr back to PyObject* on   */
+/* its side using its own libpython.                                        */
+/*                                                                          */
+/* Variable types use the existing VARTOOLS_TYPE_* and VARTOOLS_VECTORTYPE_*/
+/* constants.  v1 supports DOUBLE/FLOAT/INT/LONG (scalar + LC vectors);     */
+/* STRING and process_all_lcs=1 are NOT yet wired through this hook —       */
+/* fall back to the subprocess path for those.                              */
+/*                                                                          */
+/* Returns 0 on success, 1 on user exception (error_buf populated).         */
+typedef int (*vartools_python_callback_t)(
+        void       *namespace_ptr,        /* opaque PyObject* */
+        int         command_id,           /* unique per -python command */
+        const char *code,                 /* code body to exec */
+        int         is_init,              /* 1 = init code, 0 = per-LC body */
+        int         n_invars,
+        const char *const *invar_names,
+        const int  *invar_types,          /* VARTOOLS_TYPE_* */
+        const int  *invar_lengths,        /* 1 for scalar, NJD for vector */
+        void *const *invar_data,
+        int         n_outvars,
+        const char *const *outvar_names,
+        const int  *outvar_types,
+        const int  *outvar_lengths,       /* expected length (1 for scalar) */
+        void *const *outvar_data,         /* pre-allocated buffers */
+        char       *error_buf,
+        int         error_buf_size);
+
+/* Register / clear the in-process callback.  Pass NULL to unregister and
+ * return to the default subprocess behavior. */
+void vartools_register_python_callback(vartools_python_callback_t cb);
+
+/* Set the namespace pointer passed to the callback.  Stored as an opaque
+ * void* and passed back unchanged in `namespace_ptr`. */
+void vartools_set_python_namespace(void *namespace_ptr);
