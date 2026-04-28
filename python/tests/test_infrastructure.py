@@ -460,6 +460,82 @@ def test_inputlcformat_from_spec_mixed_lccolumn_and_int():
 
 
 # ---------------------------------------------------------------------------
+# -inlistvars helpers (unit tests)
+# ---------------------------------------------------------------------------
+
+from pyvartools.pipeline import _inlistvars_from_spec
+
+
+def test_inlistvars_int_shorthand():
+    spec = _inlistvars_from_spec({"minp": 2, "maxp": 3})
+    assert spec == "minp:2,maxp:3"
+
+
+def test_inlistvars_listvar_default_type():
+    spec = _inlistvars_from_spec({"minp": vt.ListVar(col=2)})
+    # The default-type field is preserved so the emitted token is unambiguous.
+    assert spec == "minp:2:double"
+
+
+def test_inlistvars_listvar_string_type():
+    spec = _inlistvars_from_spec({"name": vt.ListVar(col=1, type="string")})
+    assert spec == "name:1:string"
+
+
+def test_inlistvars_listvar_init():
+    """ListVar(col=0, init=...) creates a per-star variable from an
+    expression (no list column) and emits the init expression as the
+    fourth ``:``-separated field.
+    """
+    spec = _inlistvars_from_spec(
+        {"seq": vt.ListVar(col=0, type="int", init="NF")}
+    )
+    assert spec == "seq:0:int:NF"
+
+
+def test_inlistvars_combinelc_keyword_emitted():
+    """ListVar(combinelc=True) inserts the literal ``combinelc`` token
+    between the column number and the type, so vartools knows the
+    column carries one comma-joined value per combined file (used by
+    ``-l ... combinelcs`` mode).
+    """
+    spec = _inlistvars_from_spec(
+        {"trendlist": vt.ListVar(col=2, type="string", combinelc=True)}
+    )
+    assert spec == "trendlist:2:combinelc:string"
+
+
+def test_inlistvars_combinelc_default_type():
+    """combinelc=True with the default ``"double"`` type still emits
+    the type field (so the keyword position is unambiguous).
+    """
+    spec = _inlistvars_from_spec(
+        {"x": vt.ListVar(col=2, combinelc=True)}
+    )
+    assert spec == "x:2:combinelc:double"
+
+
+def test_inlistvars_combinelc_init():
+    """combinelc=True composes with the init field, with combinelc
+    appearing immediately after the column number — same order as the
+    CLI grammar.
+    """
+    spec = _inlistvars_from_spec(
+        {"v": vt.ListVar(col=0, type="int", init="NF", combinelc=True)}
+    )
+    assert spec == "v:0:combinelc:int:NF"
+
+
+def test_inlistvars_mixed_combinelc_and_int_shorthand():
+    """Bare ints continue to work alongside combinelc-qualified ListVars."""
+    spec = _inlistvars_from_spec({
+        "minp": 2,
+        "trendlist": vt.ListVar(col=3, type="string", combinelc=True),
+    })
+    assert spec == "minp:2,trendlist:3:combinelc:string"
+
+
+# ---------------------------------------------------------------------------
 # -inputlcformat integration tests (require binary)
 # ---------------------------------------------------------------------------
 
