@@ -299,12 +299,25 @@ class SYSREM(VartoolsCommand):
         tr_spec = _norm_save(self.save_trends)
         if _should_emit(tr_spec):
             outdir_map = getattr(self, "_outdir_map", {})
-            default_path = os.path.join(
-                outdir_map.get("trends", outdir), "sysrem.trends"
-            )
-            args += ["1", tr_spec.path or default_path]
+            user_path = tr_spec.path
+            if user_path:
+                # If the user passed a directory, drop a default basename
+                # inside it; otherwise treat as a literal file path.
+                trends_path = (os.path.join(user_path, "sysrem.trends")
+                               if os.path.isdir(user_path) else user_path)
+            else:
+                trends_path = os.path.join(
+                    outdir_map.get("trends", outdir), "sysrem.trends"
+                )
+            args += ["1", trends_path]
+            # Record the actual output path so the capture pipeline can
+            # read it back directly (it's a single global file, not the
+            # per-LC ``<base><suffix>`` shape that _collect_output_files
+            # uses by default).
+            self._trends_outpath = trends_path
         else:
             args += ["0"]
+            self._trends_outpath = None
         args += [str(self.useweights)]
         return args
 

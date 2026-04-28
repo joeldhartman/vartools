@@ -2199,6 +2199,27 @@ class TestOutputAPICLI:
         # The path is preceded by the "1" emit-flag.
         assert args[i - 1] == "1"
 
+    def test_sysrem_trends_outpath_recorded(self):
+        # _to_cli_args must record the chosen output path on the command
+        # so the global-file capture in pipeline.py can read it back.
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends.txt")
+        c._outdir = "/tmp"
+        c._to_cli_args()
+        assert getattr(c, "_trends_outpath", None) == "/data/trends.txt"
+
+    def test_sysrem_trends_outpath_default(self):
+        # save_trends=True (no path) → wrapper picks <outdir>/sysrem.trends.
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends=True)
+        c._outdir = "/tmp/cmd_0"
+        c._to_cli_args()
+        assert c._trends_outpath == "/tmp/cmd_0/sysrem.trends"
+
+    def test_sysrem_trends_outpath_none_when_not_saving(self):
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends=False)
+        c._outdir = "/tmp"
+        c._to_cli_args()
+        assert c._trends_outpath is None
+
     def test_findblends_save_matches_path(self):
         c = cmd.findblends(matchrad=10.0, save_matches="/data/matches")
         c._outdir = "/tmp"

@@ -539,6 +539,7 @@ class Pipeline:
             # When reading from stdin, vartools uses "stdin" as the LC name
             # for output file naming (e.g. periodograms become stdin.ls).
             files = self._collect_output_files("stdin", work_outdir, tmpdir)
+            files.update(self._collect_global_output_files())
             files.update(self._collect_o_captures_single(lc.name))
 
         return Result(var=stats, lc=out_lc, files=files,
@@ -625,6 +626,7 @@ class Pipeline:
                     out_lc.scalars = dict(scalars_df.iloc[0].to_dict())
 
             files = self._collect_output_files(lc_path, work_outdir, tmpdir)
+            files.update(self._collect_global_output_files())
             files.update(self._collect_o_captures_single(lc_name))
 
         return Result(var=stats, lc=out_lc, files=files,
@@ -847,6 +849,9 @@ class Pipeline:
                 lc_files = self._collect_output_files(lc_path, work_outdir, tmpdir)
                 for name, df in lc_files.items():
                     all_files.setdefault(name, []).append(df)
+            # Single-global-file outputs (e.g. SYSREM trends): one DataFrame
+            # for the whole batch, not per-LC.
+            all_files.update(self._collect_global_output_files())
             for key, lc_list in self._collect_o_captures_batch(file_keys, lc_names).items():
                 all_files[key] = lc_list
 
@@ -1110,6 +1115,7 @@ class Pipeline:
                 lc_files = self._collect_output_files(lc_path, work_outdir, tmpdir)
                 for name, df in lc_files.items():
                     all_files.setdefault(name, []).append(df)
+            all_files.update(self._collect_global_output_files())
             for key, lc_list in self._collect_o_captures_batch(first_paths, lc_names).items():
                 all_files[key] = lc_list
 
@@ -1327,6 +1333,7 @@ class Pipeline:
                 lc_files = self._collect_output_files(lc_paths[i], work_outdir, tmpdir)
                 for name, df in lc_files.items():
                     all_files.setdefault(name, []).append(df)
+            all_files.update(self._collect_global_output_files())
             lc_names = [lc.name for lc in lcs]
             for key, lc_list in self._collect_o_captures_batch(lc_paths, lc_names).items():
                 all_files[key] = lc_list
@@ -1825,9 +1832,17 @@ class Pipeline:
                 continue
             mandatory = getattr(command, "_mandatory_output", False)
             for logical_name, spec_tuple in specs.items():
-                # Optional 3rd element is the spec mode (e.g. ``"file"``
-                # for SYSREM trends); not used for capture-side parsing.
+                # Optional 3rd element is the spec mode:
+                #   * ``"dir"`` (default) — per-LC output, file at
+                #     ``<outdir>/<lcname><suffix>``;
+                #   * ``"file"`` — single global file (e.g. SYSREM
+                #     ``otrends``); harvested by ``_collect_global_output_files``,
+                #     so this loop deliberately skips that mode to avoid
+                #     duplicating the same DataFrame per LC in a batch run.
                 suffix, ncols = spec_tuple[0], spec_tuple[1]
+                spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
+                if spec_mode == "file":
+                    continue
                 raw = getattr(command, f"save_{logical_name}", False)
                 spec = _norm_save(raw)
 
@@ -1839,16 +1854,18 @@ class Pipeline:
                 if not spec.capture:
                     continue
 
-                # Locate the file using the per-output directory recorded in
-                # _build_cmd, falling back to the old-style cmd_outdir.
+                # Locate the per-LC file using the per-output directory
+                # recorded in _build_cmd, falling back to the old-style
+                # cmd_outdir layout.
                 outdir_map = getattr(command, "_outdir_map", {})
                 if logical_name in outdir_map:
                     actual_outdir = outdir_map[logical_name]
                 else:
                     cmd_outdir = os.path.join(outdir, f"cmd_{idx}")
-                    actual_outdir = cmd_outdir if os.path.isdir(cmd_outdir) else outdir
-
+                    actual_outdir = (cmd_outdir if os.path.isdir(cmd_outdir)
+                                      else outdir)
                 candidate = os.path.join(actual_outdir, base + suffix)
+
                 if os.path.isfile(candidate):
                     kwargs = {}
                     if ncols:
@@ -1857,6 +1874,40 @@ class Pipeline:
                                      header=None, **kwargs)
                     key = f"{command._vt_name}_{logical_name}_{idx}"
                     files[key] = df
+        return files
+
+    def _collect_global_output_files(self) -> dict:
+        """Read back single-global-file outputs (mode=``"file"``).
+
+        Unlike ``_collect_output_files`` (which is called per LC in a
+        batch), this is called once per pipeline run.  The wrapper records
+        the actual file path on the command instance as
+        ``_<logical_name>_outpath``; we just read that path.
+        """
+        files: dict = {}
+        for idx, command in enumerate(self.commands):
+            specs = command._output_file_specs()
+            if not specs:
+                continue
+            for logical_name, spec_tuple in specs.items():
+                spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
+                if spec_mode != "file":
+                    continue
+                raw = getattr(command, f"save_{logical_name}", False)
+                spec = _norm_save(raw)
+                if not _should_emit(spec) or not spec.capture:
+                    continue
+                ncols = spec_tuple[1]
+                path = getattr(command, f"_{logical_name}_outpath", None)
+                if not path or not os.path.isfile(path):
+                    continue
+                kwargs = {}
+                if ncols:
+                    kwargs["usecols"] = list(range(ncols))
+                df = pd.read_csv(path, sep=r"\s+", comment="#",
+                                 header=None, **kwargs)
+                key = f"{command._vt_name}_{logical_name}_{idx}"
+                files[key] = df
         return files
 
     # ------------------------------------------------------------------
