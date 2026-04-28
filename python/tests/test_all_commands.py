@@ -1417,6 +1417,138 @@ class TestCLIArgsMisc:
         args = cmd.R("x <- 1", process_all_lcs=True)._to_cli_args()
         assert "process_all_lcs" in args
 
+    # ----- cmd.python — CLI-token emission -----
+    #
+    # The wrapper mirrors -R surface; the new bits to lock down are:
+    #   * the CLI marker is `-python` (not `-R`),
+    #   * `skipfail` (Python-only) instead of `verbose` (R-only),
+    #   * `init` + `continueprocess` are mutually exclusive,
+    #   * `inprocess=True` raises NotImplementedError until Stage 2,
+    #   * the order of tokens matches what vartools' parser expects
+    #     (command, [continueprocess], [init], [vars | invars+outvars],
+    #      [outputcolumns], [process_all_lcs], [skipfail]).
+
+    def test_python_inline(self):
+        args = cmd.python("b = numpy.var(mag)")._to_cli_args()
+        assert args[0] == "-python"
+        assert args[1] == "b = numpy.var(mag)"
+
+    def test_python_fromfile(self):
+        args = cmd.python("/tmp/x.py", fromfile=True)._to_cli_args()
+        assert "fromfile" in args and "/tmp/x.py" in args
+        # `fromfile` precedes the path — match the CLI grammar.
+        idx = args.index("fromfile")
+        assert args[idx + 1] == "/tmp/x.py"
+
+    def test_python_vars(self):
+        args = cmd.python("mag = mag * 2", vars="t,mag,err")._to_cli_args()
+        assert "vars" in args
+        idx = args.index("vars")
+        assert args[idx + 1] == "t,mag,err"
+        # When `vars` is given, neither invars nor outvars is emitted.
+        assert "invars" not in args
+        assert "outvars" not in args
+
+    def test_python_invars_outvars(self):
+        args = cmd.python("b = numpy.var(mag)",
+                          invars="mag", outvars="b")._to_cli_args()
+        assert "invars" in args and "outvars" in args
+        i = args.index("invars")
+        assert args[i + 1] == "mag"
+        o = args.index("outvars")
+        assert args[o + 1] == "b"
+
+    def test_python_init_inline(self):
+        args = cmd.python("y = f(mag)",
+                          init="def f(x): return x.mean()")._to_cli_args()
+        assert "init" in args
+        i = args.index("init")
+        # init precedes the inline init body; no `file` keyword.
+        assert "file" not in args
+        assert args[i + 1] == "def f(x): return x.mean()"
+
+    def test_python_init_fromfile(self):
+        args = cmd.python("y = f(mag)",
+                          init="/tmp/init.py",
+                          init_fromfile=True)._to_cli_args()
+        # init followed by `file`, then the path.
+        idx = args.index("init")
+        assert args[idx + 1] == "file"
+        assert args[idx + 2] == "/tmp/init.py"
+
+    def test_python_outputcolumns(self):
+        args = cmd.python("b = numpy.var(mag)", outvars="b",
+                          outputcolumns="b")._to_cli_args()
+        assert "outputcolumns" in args
+        i = args.index("outputcolumns")
+        assert args[i + 1] == "b"
+
+    def test_python_process_all_lcs(self):
+        args = cmd.python("x = 1", process_all_lcs=True)._to_cli_args()
+        assert "process_all_lcs" in args
+        # No leading hyphen — it's a flag, not a CLI option of its own.
+        assert "-process_all_lcs" not in args
+
+    def test_python_skipfail(self):
+        args = cmd.python("x = 1", skipfail=True)._to_cli_args()
+        assert "skipfail" in args
+
+    def test_python_skipfail_default_false(self):
+        args = cmd.python("x = 1")._to_cli_args()
+        assert "skipfail" not in args
+
+    def test_python_continueprocess(self):
+        args = cmd.python("y = f(mag)",
+                          continueprocess=1,
+                          invars="mag", outvars="y")._to_cli_args()
+        assert "continueprocess" in args
+        i = args.index("continueprocess")
+        assert args[i + 1] == "1"
+
+    def test_python_init_and_continueprocess_conflict(self):
+        # vartools rejects the combination — the wrapper should pre-empt
+        # at construction time so users get a clear Python-side error.
+        with pytest.raises(ValueError, match="continueprocess"):
+            cmd.python("y = f(mag)",
+                       init="def f(x): return x.mean()",
+                       continueprocess=1)
+
+    def test_python_inprocess_raises_until_stage2(self):
+        # Stage-1 ships only the subprocess path; the kwarg is on the API
+        # so user code can be written against the final shape, but
+        # passing True must raise rather than silently degrade.
+        with pytest.raises(NotImplementedError, match="inprocess=True"):
+            cmd.python("x = 1", inprocess=True)
+
+    def test_python_namespace_kwarg_accepted(self):
+        # namespace= is meaningful only for inprocess=True.  Setting it
+        # alongside the default subprocess path is allowed (it's
+        # silently ignored — checked at construction does NOT raise).
+        c = cmd.python("x = 1", namespace={"foo": 42})
+        assert c.namespace == {"foo": 42}
+        # Tokens are unaffected.
+        args = c._to_cli_args()
+        assert args[0] == "-python"
+
+    def test_python_token_order(self):
+        # Sanity-check the relative order: command then continueprocess
+        # then init then vars/invars+outvars then outputcolumns then
+        # process_all_lcs then skipfail.  vartools' grammar is positional.
+        args = cmd.python("y = f(mag)",
+                          init="def f(x): return x.mean()",
+                          invars="mag", outvars="y",
+                          outputcolumns="y",
+                          process_all_lcs=True,
+                          skipfail=True)._to_cli_args()
+        # Find each token's index and assert ascending order.
+        order = ["-python", "y = f(mag)", "init",
+                 "invars", "outvars", "outputcolumns",
+                 "process_all_lcs", "skipfail"]
+        positions = [args.index(tok) for tok in order]
+        assert positions == sorted(positions), (
+            f"unexpected token ordering: {list(zip(order, positions))}"
+        )
+
     def test_match_basic(self):
         args = cmd.match("/tmp/cat.txt", matchcolumn="t:1",
                           addcolumns="ra:2,dec:3")._to_cli_args()
@@ -3208,3 +3340,153 @@ class TestPipelineUserCommandSubprocessFallback:
             Stitch = vt.load_userlib("/path/stitch.so", name="stitch")
         pipe = vt.Pipeline([Stitch("mag err mask lcnum median")])
         assert pipe._has_user_commands() is True
+
+
+# ===========================================================================
+# Integration: cmd.python (mirrors the CLI `-python` examples)
+# ===========================================================================
+#
+# These tests run vartools as a subprocess and exercise the `-python`
+# command end-to-end.  They are gated on `_HAVE_BINARY` so the suite
+# still passes on machines where vartools is not installed; they will
+# additionally fail if vartools was built *without* Python support
+# (`./configure --without-python`), which is appropriate — there's no
+# wrapper-side patch that can reach a vartools that can't run -python.
+
+@pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
+class TestPythonIntegration:
+    """End-to-end coverage of cmd.python in subprocess mode.
+
+    The reference CLI examples in ``docs/cli/python-r.md`` are reproduced
+    here as a Python pipeline, asserting that the documented output
+    column names and (where stable) values appear.
+    """
+
+    # Build an absolute-path list from the canonical EXAMPLES/{1..10} set.
+    # The shipped EXAMPLES/lc_list uses relative paths (`EXAMPLES/1`, …)
+    # which assume the test is run from the vartools source root.  Using
+    # explicit absolute paths keeps these tests location-independent.
+    LC_LIST = [os.path.join(EXAMPLES_DIR, str(i)) for i in range(1, 11)]
+
+    def test_python_inline_var_reduction(self):
+        """Mirror CLI Example 1: b = numpy.var(mag)."""
+        batch = (vt.Pipeline()
+                 .python("b = numpy.var(mag)",
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+        # Documented value for EXAMPLES/2 is 0.001342… — no need to be
+        # bit-exact, but a sanity tolerance catches gross marshalling bugs.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_0"].iloc[0]
+        assert abs(ex2 - 0.0013420988) < 1e-7
+
+    def test_python_init_inline(self):
+        """init code defines a helper function used in the main code."""
+        batch = (vt.Pipeline()
+                 .python("b = mean_minus_zero(mag)",
+                         init="def mean_minus_zero(x): return float(numpy.mean(x))",
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_init_fromfile(self, tmp_path):
+        """init_fromfile reads helper definitions from a .py file."""
+        init_file = tmp_path / "init.py"
+        init_file.write_text("def avg(x): return float(numpy.mean(x))\n")
+        batch = (vt.Pipeline()
+                 .python("b = avg(mag)",
+                         init=str(init_file), init_fromfile=True,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_fromfile(self, tmp_path):
+        """fromfile reads the main code body from a .py file."""
+        cmd_file = tmp_path / "cmd.py"
+        cmd_file.write_text("b = float(numpy.std(mag))\n")
+        batch = (vt.Pipeline()
+                 .python(str(cmd_file), fromfile=True,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_vars_combined(self):
+        """`vars` shorthand passes the same names IN and OUT, used here
+        to round-trip an LC vector (mag in, mag out)."""
+        # vartools' grammar makes `vars` exclusive of `invars`/`outvars`,
+        # so the wrapper emits `vars mag` and the user code may both
+        # read and reassign mag.  -rms before/after demonstrates the
+        # round-trip succeeded.
+        batch = (vt.Pipeline()
+                 .rms()
+                 .python("mag = mag - numpy.mean(mag)", vars="mag")
+                 .rms()
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        # After de-meaning, Mean_Mag_2 should be ~0; RMS unchanged.
+        for v in batch.vars["Mean_Mag_2"]:
+            assert abs(v) < 1e-10
+        for pre, post in zip(batch.vars["RMS_0"], batch.vars["RMS_2"]):
+            assert abs(pre - post) < 1e-10
+
+    def test_python_process_all_lcs(self):
+        """Mirror CLI Example 2-style usage: a single call processes
+        the whole batch.  invars arrive as lists of arrays."""
+        code = (
+            "b = []\n"
+            "for arr in mag: b.append(float(numpy.var(arr)))\n"
+        )
+        batch = (vt.Pipeline()
+                 .python(code,
+                         invars="mag", outvars="b", outputcolumns="b",
+                         process_all_lcs=True)
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+        # Same answer as Example 1 (per-LC variance) — round-trip check.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_0"].iloc[0]
+        assert abs(ex2 - 0.0013420988) < 1e-7
+
+    def test_python_continueprocess(self):
+        """The 2nd -python(continueprocess=1) sees module-level state
+        from the 1st by sharing the same Python subprocess.
+
+        Each -python call's body runs inside a generated wrapper
+        function, so plain assignments are local — to share across
+        calls we must declare ``global``.  This is the canonical use
+        of ``continueprocess`` (re-using imports / cached state /
+        helper objects without paying the init cost twice).
+        """
+        batch = (vt.Pipeline()
+                 .python("global _shared_mult\n_shared_mult = 1000.0",
+                         invars="mag", outvars="mag")
+                 .python("global _shared_mult\n"
+                         "b = _shared_mult * float(numpy.var(mag))",
+                         continueprocess=1,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        # PYTHON_b_1 = 1000 × variance.  EXAMPLES/2 has variance
+        # 0.001342 → expected ~1.342 within whitespace-format tolerance.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_1"].iloc[0]
+        assert abs(ex2 - 1.3420988) < 1e-3
+
+    def test_python_modifies_lc_vector(self):
+        """Code that subtracts the mean of mag should leave RMS unchanged
+        but Mean_Mag near zero.  Confirms the LC-vector round-trip."""
+        batch = (vt.Pipeline()
+                 .rms()
+                 .python("mag = mag - numpy.mean(mag)", vars="mag")
+                 .rms()
+                 ).run_filelist(self.LC_LIST,
+                                columns={"t": 1, "mag": 2, "err": 3})
+        # After de-meaning, Mean_Mag should be ~0.
+        for v in batch.vars["Mean_Mag_2"]:
+            assert abs(v) < 1e-10
+        # RMS should be unchanged (de-meaning is a constant shift).
+        for pre, post in zip(batch.vars["RMS_0"], batch.vars["RMS_2"]):
+            assert abs(pre - post) < 1e-10

@@ -1,6 +1,6 @@
 """Miscellaneous vartools command wrappers."""
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
 from pyvartools.userlib import UserCommand  # noqa: F401 — re-exported
@@ -241,6 +241,152 @@ class R(VartoolsCommand):
             args += ["process_all_lcs"]
         if self.verbose:
             args += ["verbose"]
+        return args
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class python(VartoolsCommand):
+    """Run Python code on each light curve (``-python``).
+
+    Mirrors the surface of :class:`R`.  Inline Python code or a path to a
+    ``.py`` file is wrapped in a function vartools generates, and called
+    once per light curve (or once for the whole batch with
+    ``process_all_lcs=True``).  Numeric LC vectors arrive as
+    :class:`numpy.ndarray` objects; string columns arrive as Python lists.
+
+    Parameters
+    ----------
+    command : str
+        Either an inline Python code string or, if ``fromfile=True``, the
+        path to a Python script file.
+    fromfile : bool
+        If True, ``command`` is treated as a file path (emits the
+        ``"fromfile"`` keyword).  Default False (inline string).
+    init : str, optional
+        Initialisation Python code (inline string or, with
+        ``init_fromfile=True``, a file path) executed once per Python
+        worker before per-LC processing starts.  Use this for ``import``
+        statements and helper-function definitions.
+    init_fromfile : bool
+        If True, ``init`` is a file path (emits ``"init" "file" path``).
+    vars : str, optional
+        Comma-separated list of vartools variables passed both into and
+        received back from Python.
+    invars : str, optional
+        Variables to pass into Python (alternative to ``vars``).
+    outvars : str, optional
+        Variables to receive back from Python (alternative to ``vars``).
+    outputcolumns : str, optional
+        Subset of out-vars to emit in the per-star statistics table.
+        Each appears as ``PYTHON_<name>_N``.
+    process_all_lcs : bool
+        Pass ``"process_all_lcs"`` — vartools sends every LC's data into
+        one Python call.  Numeric vectors arrive as lists of
+        ``numpy.ndarray`` objects; scalars as numpy arrays of length
+        ``Nlc``.  Outputs must follow the same shape.
+    skipfail : bool
+        If a per-LC Python exception is raised, skip the remaining
+        pipeline processing for that LC instead of aborting the run.
+    continueprocess : int, optional
+        Reuse the Python subprocess from the *N*-th prior ``-python``
+        command (1-indexed), preserving its global state.  Mutually
+        exclusive with ``init``.
+    inprocess : bool
+        **Stage-2 feature** — when ``True`` and pyvartools is running in
+        library mode, the user code is executed in the host Python
+        interpreter rather than the per-thread vartools subprocess, so
+        it shares ``sys.modules`` and an explicit *namespace* dict with
+        the calling code.  Default ``False``.
+
+        .. note::
+           Stage-1 (current) only ships the subprocess path.
+           ``inprocess=True`` raises :class:`NotImplementedError`; the
+           kwarg exists today so user code can be written against the
+           final API surface.
+    namespace : dict, optional
+        Only meaningful with ``inprocess=True``.  Dict to use as globals
+        for the user code (default: caller's ``__main__.__dict__``).
+        Useful for sandboxing or for exposing a specific module's
+        globals to the inline code.
+    """
+
+    _vt_name = "python"
+
+    def __init__(
+        self,
+        command: str,
+        fromfile: bool = False,
+        init: Optional[str] = None,
+        init_fromfile: bool = False,
+        vars: Optional[str] = None,
+        invars: Optional[str] = None,
+        outvars: Optional[str] = None,
+        outputcolumns: Optional[str] = None,
+        process_all_lcs: bool = False,
+        skipfail: bool = False,
+        continueprocess: Optional[int] = None,
+        inprocess: bool = False,
+        namespace: Optional[Dict] = None,
+    ) -> None:
+        self.command = command
+        self.fromfile = fromfile
+        self.init = init
+        self.init_fromfile = init_fromfile
+        self.vars = vars
+        self.invars = invars
+        self.outvars = outvars
+        self.outputcolumns = outputcolumns
+        self.process_all_lcs = process_all_lcs
+        self.skipfail = skipfail
+        self.continueprocess = continueprocess
+        self.inprocess = inprocess
+        self.namespace = namespace
+        if inprocess:
+            # Stage-2 feature.  The kwarg lives on the API today so calling
+            # code can be written against the final shape; the
+            # implementation is deferred to a follow-up commit.
+            raise NotImplementedError(
+                "cmd.python(inprocess=True) is not yet implemented; the "
+                "subprocess path (inprocess=False, the default) is fully "
+                "supported.  See the in-process design discussion in the "
+                "vartools-site docs/python/commands/python-r.md page."
+            )
+        if init is not None and continueprocess is not None:
+            raise ValueError(
+                "cmd.python: pass either `init` (initialise a new Python "
+                "subprocess) or `continueprocess` (reuse a prior one), "
+                "but not both — vartools' -python grammar rejects the "
+                "combination."
+            )
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-python"]
+        if self.fromfile:
+            args += ["fromfile", str(self.command)]
+        else:
+            args += [str(self.command)]
+        if self.continueprocess is not None:
+            args += ["continueprocess", str(self.continueprocess)]
+        if self.init is not None:
+            if self.init_fromfile:
+                args += ["init", "file", str(self.init)]
+            else:
+                args += ["init", str(self.init)]
+        if self.vars is not None:
+            args += ["vars", str(self.vars)]
+        else:
+            if self.invars is not None:
+                args += ["invars", str(self.invars)]
+            if self.outvars is not None:
+                args += ["outvars", str(self.outvars)]
+        if self.outputcolumns is not None:
+            args += ["outputcolumns", str(self.outputcolumns)]
+        if self.process_all_lcs:
+            args += ["process_all_lcs"]
+        if self.skipfail:
+            args += ["skipfail"]
         return args
 
     def _output_file_specs(self) -> dict:
