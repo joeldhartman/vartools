@@ -2934,6 +2934,17 @@ class TestRunCombinelcs:
         assert "combinelcs" in captured
         assert "lcnumvar" not in captured
 
+    def test_combinelcs_capture_lc_overrides_lcnumvar_none(self, tmp_path):
+        """capture_lc=True forces lcnumvar='lcnum' even with explicit None (M6)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups,
+                                         capture_lc=True, lcnumvar=None)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
 
 class TestRunCombinelc:
     """Unit tests for the singular Pipeline.run_combinelc() (M2)."""
@@ -3024,6 +3035,17 @@ class TestRunFilelistCombinelcs:
         assert "combinelcs" in captured
         assert "lcnumvar" not in captured
 
+    def test_filelist_combinelcs_capture_lc_overrides_lcnumvar_none(self, tmp_path):
+        """capture_lc=True forces lcnumvar='lcnum' on run_filelist too (M6)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True,
+                                         capture_lc=True, lcnumvar=None)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
     def test_filelist_combinelcs_false_no_keyword(self, tmp_path):
         """combinelcs=False (default) does not emit combinelcs."""
         (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
@@ -3079,6 +3101,33 @@ class TestRunCombinelcsIntegration:
         ]).run_combinelcs(groups)
         assert len(result.vars) == 2
         assert "LS_Period_1_0" in result.vars.columns
+
+    def test_run_combinelcs_capture_lc_has_lcnum(self):
+        """capture_lc=True returns an LC with the lcnum column populated (M6)."""
+        groups = [[EXAMPLE_LC, EXAMPLE_LC]]
+        batch = vt.Pipeline([cmd.rms()]).run_combinelcs(groups, capture_lc=True)
+        assert batch.lcs[0] is not None
+        assert "lcnum" in batch.lcs[0]._df.columns
+        # Two source files → lcnum should take values 0 and 1.
+        assert sorted(batch.lcs[0]._df["lcnum"].unique().tolist()) == [0, 1]
+
+    def test_run_combinelc_capture_lc_has_lcnum(self):
+        """Singular form: capture_lc=True returns one LC with lcnum (M6)."""
+        result = vt.Pipeline([cmd.rms()]).run_combinelc(
+            [EXAMPLE_LC, EXAMPLE_LC], capture_lc=True
+        )
+        assert result.lc is not None
+        assert "lcnum" in result.lc._df.columns
+
+    def test_run_combinelcs_capture_lc_overrides_none(self):
+        """capture_lc=True forces lcnumvar='lcnum' even if the user passed None (M6)."""
+        groups = [[EXAMPLE_LC, EXAMPLE_LC]]
+        batch = vt.Pipeline([cmd.rms()]).run_combinelcs(
+            groups, capture_lc=True, lcnumvar=None
+        )
+        # The captured LC must still carry the lcnum column despite the opt-out.
+        assert batch.lcs[0] is not None
+        assert "lcnum" in batch.lcs[0]._df.columns
 
 
 class TestPipelineUserCommandSubprocessFallback:

@@ -789,8 +789,14 @@ class Pipeline:
             input_flag = ["-l", list_path]
             if combinelcs:
                 input_flag.append("combinelcs")
-                if lcnumvar:
-                    input_flag += ["lcnumvar", lcnumvar]
+                # If the user opted out of lcnumvar but still requested
+                # capture_lc=True, force the default back on so the captured
+                # LC carries an lcnum column identifying source files.
+                effective_lcnumvar = lcnumvar
+                if capture_lc and not effective_lcnumvar:
+                    effective_lcnumvar = "lcnum"
+                if effective_lcnumvar:
+                    input_flag += ["lcnumvar", effective_lcnumvar]
             cmd = self._build_cmd(
                 input_flag=input_flag,
                 outdir=work_outdir,
@@ -1027,10 +1033,16 @@ class Pipeline:
                     for line in group_strings:
                         f.write(line + "\n")
 
-            # Build the -l input flag with combinelcs
+            # Build the -l input flag with combinelcs.  If the user opted out
+            # of lcnumvar but still requested capture_lc=True, force the
+            # default name back on so the captured LC carries an lcnum column
+            # identifying the source file of each point.
+            effective_lcnumvar = lcnumvar
+            if capture_lc and not effective_lcnumvar:
+                effective_lcnumvar = "lcnum"
             input_flag = ["-l", list_path, "combinelcs"]
-            if lcnumvar:
-                input_flag += ["lcnumvar", lcnumvar]
+            if effective_lcnumvar:
+                input_flag += ["lcnumvar", effective_lcnumvar]
 
             lc_names = [Path(group[0]).stem for group in groups]
             work_outdir = outdir or tmpdir
