@@ -1469,6 +1469,26 @@ class resample(VartoolsCommand):
         Time step of the new grid.
     Npoints : int or str, optional
         Number of points in the new grid (alternative to delt).
+    file_times : str, optional
+        Source for the new time grid:
+
+        * a path string → resample to the times in that file (CLI ``file fix <path>``);
+        * the literal ``"list"`` → resample to the times in a per-LC file whose
+          path is read from a column of the input list file (CLI ``file list``).
+          Combine with ``list_column`` and ``t_column`` to control which
+          columns are used.
+    file_column : int, optional
+        **Legacy.** Alias of ``t_column`` for the path-form (``file fix``)
+        mode.  Prefer ``t_column``.
+    list_column : int, optional
+        Only meaningful with ``file_times="list"``.  Column number (1-based)
+        in the *input list file* that holds the per-LC time-grid filename.
+        Maps to the CLI ``listcolumn`` keyword.  When omitted, vartools
+        consumes the next available list-file column.
+    t_column : int, optional
+        Column number (1-based) in the *time-grid file* that holds the time
+        values.  Maps to the CLI ``column`` keyword (path mode) or
+        ``tcolumn`` keyword (list mode).  Defaults to ``1``.
     """
 
     _vt_name = "resample"
@@ -1486,6 +1506,8 @@ class resample(VartoolsCommand):
         Npoints=None,
         file_times: Optional[str] = None,
         file_column: Optional[int] = None,
+        list_column: Optional[int] = None,
+        t_column: Optional[int] = None,
         gaps: Optional[str] = None,
     ) -> None:
         self.method = method
@@ -1499,6 +1521,8 @@ class resample(VartoolsCommand):
         self.Npoints = Npoints
         self.file_times = file_times
         self.file_column = file_column
+        self.list_column = list_column
+        self.t_column = t_column
         self.gaps = gaps
 
     def _to_cli_args(self) -> List[str]:
@@ -1513,15 +1537,33 @@ class resample(VartoolsCommand):
                 args += ["nbreaks", str(self.nbreaks)]
             if self.order is not None:
                 args += ["order", str(self.order)]
+        # Resolve t_column from t_column or the legacy file_column alias.
+        eff_t_column = self.t_column
+        if eff_t_column is None and self.file_column is not None:
+            eff_t_column = self.file_column
         if self.file_times is not None:
             toks = str(self.file_times).split()
             if toks[0] == "list":
-                args += ["file"] + toks
+                # New-grid times read from a per-LC file named in the input
+                # list-file.  Accept either the kwarg form (preferred) or
+                # extra tokens passed inside file_times itself (legacy).
+                args += ["file", "list"]
+                if len(toks) > 1:
+                    # Legacy: user inlined "list listcolumn N tcolumn M" in
+                    # the file_times string.  Pass the trailing tokens
+                    # through verbatim and ignore the kwargs to avoid
+                    # double-emission.
+                    args += toks[1:]
+                else:
+                    if self.list_column is not None:
+                        args += ["listcolumn", str(self.list_column)]
+                    if eff_t_column is not None:
+                        args += ["tcolumn", str(eff_t_column)]
             else:
-                # treat as a path → "fix" mode
+                # Single file path → "fix" mode.
                 args += ["file", "fix", str(self.file_times)]
-                if self.file_column is not None:
-                    args += ["column", str(self.file_column)]
+                if eff_t_column is not None:
+                    args += ["column", str(eff_t_column)]
         if self.gaps is not None:
             args += ["gaps"] + str(self.gaps).split()
         if self.tstart is not None:

@@ -895,11 +895,42 @@ class TestCLIArgsManipulation:
         assert args[idx+1] == "3"
 
     def test_resample_file_mode_list(self):
-        args = cmd.resample(method="linear", file_times="list column 2")._to_cli_args()
+        # Bare list mode — emits `file list` only.
+        args = cmd.resample(method="linear", file_times="list")._to_cli_args()
         assert "file" in args
         idx = args.index("file")
         assert args[idx+1] == "list"
-        assert args[idx+2] == "column"
+        # No listcolumn / tcolumn when neither kwarg is set.
+        assert "listcolumn" not in args
+        assert "tcolumn" not in args
+
+    def test_resample_file_mode_list_kwargs(self):
+        # New: list_column / t_column kwargs map to listcolumn / tcolumn.
+        args = cmd.resample(method="linear", file_times="list",
+                             list_column=2, t_column=1)._to_cli_args()
+        assert "listcolumn" in args
+        idx = args.index("listcolumn")
+        assert args[idx+1] == "2"
+        assert "tcolumn" in args
+        idx = args.index("tcolumn")
+        assert args[idx+1] == "1"
+
+    def test_resample_file_mode_list_inline_legacy(self):
+        # Legacy: extra tokens inside file_times still pass through.
+        args = cmd.resample(
+            method="linear",
+            file_times="list listcolumn 1 tcolumn 1",
+        )._to_cli_args()
+        s = " ".join(args)
+        assert "file list listcolumn 1 tcolumn 1" in s
+
+    def test_resample_t_column_alias_for_file_column(self):
+        # In path mode, t_column emits the `column` keyword (was `file_column`).
+        args = cmd.resample(method="linear",
+                             file_times="/path/to/times.txt",
+                             t_column=4)._to_cli_args()
+        assert "column" in args
+        assert args[args.index("column")+1] == "4"
 
     def test_resample_gaps(self):
         args = cmd.resample(method="linear", gaps="fix")._to_cli_args()

@@ -76,17 +76,14 @@ group).  `capture_lc=True` returns a `LightCurve` with the combined data
 and the `lcnum` column populated.
 
 
-## `cmd.resample` — back-resampling onto the original list-time grid
+## `cmd.resample` — closed
 
-The CLI form ``-resample linear file list listcolumn 1 tcolumn 1`` reads
-the time grid from the *first column of the input list* (used to undo a
-prior uniform-grid resample, e.g. in the ARIMA worked example for `-R`).
-The pyvartools `resample` wrapper exposes `file_times="path"` for a
-single-file time grid but does not currently accept `file_times="list"`
-plus `listcolumn` / `tcolumn` keywords for the per-LC list-driven case.
+The wrapper now accepts ``file_times="list"`` plus ``list_column`` /
+``t_column`` int kwargs that map to the CLI ``listcolumn`` / ``tcolumn``
+keywords.  The legacy ``file_column`` kwarg still works as an alias for
+``t_column`` in path-mode for backward compatibility.
 
-**Workaround:** call ``-resample`` via ``subprocess.run([...])`` for this step.
-
-**Fix needed:** extend the resample `file_times` kwarg to recognise
-the literal string ``"list"`` and pair it with new `list_column` /
-`t_column` ints, mirroring the CLI grammar.
+The classic back-resampling pattern (bin to a coarse grid → uniform-grid
+resample → ARIMA fit → resample back to the original LC times via the
+list-form) can now be expressed without ``subprocess`` (see the
+``resample`` example block in the docs).
