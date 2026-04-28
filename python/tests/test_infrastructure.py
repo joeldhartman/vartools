@@ -111,6 +111,49 @@ def test_lightcurve_from_arrays_partial():
     assert list(lc2._df.columns) == ["airmass"]
 
 
+def test_lightcurve_from_files_combines_with_lcnum(tmp_path):
+    """from_files() reads multiple files and stamps an lcnum column (M7)."""
+    # Each file has 5 rows; from_files should concat to 10 rows with
+    # lcnum 0 for the first half, 1 for the second.
+    a = tmp_path / "a.lc"
+    b = tmp_path / "b.lc"
+    a.write_text("\n".join(f"{1.0 + i*0.1} 10.{i} 0.01" for i in range(5)) + "\n")
+    b.write_text("\n".join(f"{2.0 + i*0.1} 11.{i} 0.01" for i in range(5)) + "\n")
+    lc = vt.LightCurve.from_files([str(a), str(b)])
+    assert len(lc._df) == 10
+    assert "lcnum" in lc._df.columns
+    # Default sort=True puts a-rows (t=1.0–1.4) first, b-rows (2.0–2.4) second.
+    assert lc._df["t"].is_monotonic_increasing
+    assert lc._df.loc[lc._df["t"] < 1.5, "lcnum"].eq(0).all()
+    assert lc._df.loc[lc._df["t"] >= 2.0, "lcnum"].eq(1).all()
+
+
+def test_lightcurve_from_files_no_sort(tmp_path):
+    """sort=False preserves file order, lcnum reflects file position."""
+    a = tmp_path / "a.lc"
+    b = tmp_path / "b.lc"
+    # b comes first in time but appears second in the input list.
+    a.write_text("3.0 10.0 0.01\n4.0 10.1 0.01\n")
+    b.write_text("1.0 11.0 0.01\n2.0 11.1 0.01\n")
+    lc = vt.LightCurve.from_files([str(a), str(b)], sort=False)
+    # Without sorting, the file-order lcnum sequence is 0,0,1,1.
+    assert lc._df["lcnum"].tolist() == [0, 0, 1, 1]
+
+
+def test_lightcurve_from_files_empty_raises():
+    with pytest.raises(ValueError, match="at least one path"):
+        vt.LightCurve.from_files([])
+
+
+def test_lightcurve_from_files_custom_col_name(tmp_path):
+    """lcnum_col kwarg renames the integer source-file column."""
+    a = tmp_path / "a.lc"
+    a.write_text("1.0 10.0 0.01\n")
+    lc = vt.LightCurve.from_files([str(a), str(a)], lcnum_col="seg")
+    assert "seg" in lc._df.columns
+    assert "lcnum" not in lc._df.columns
+
+
 def test_lightcurve_roundtrip_tempfile(tmp_path):
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
     path = lc._to_tempfile(dir=str(tmp_path))

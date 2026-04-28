@@ -18,7 +18,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -314,6 +314,66 @@ class LightCurve:
             return cls._from_fits(path, lc_name, t_col, mag_col, err_col, hdu)
         else:
             return cls._from_ascii(path, lc_name)
+
+    @classmethod
+    def from_files(
+        cls,
+        paths: Sequence[Union[str, Path]],
+        name: str = "",
+        lcnum_col: str = "lcnum",
+        sort: bool = True,
+        **read_kwargs: Any,
+    ) -> "LightCurve":
+        """Read several light-curve files and combine them into one ``LightCurve``.
+
+        Each file is loaded via :meth:`from_file` (so ``read_kwargs`` such as
+        ``format``, ``t_col``, ``mag_col``, ``err_col``, ``hdu`` may be
+        forwarded to the FITS reader).  The resulting DataFrames are
+        concatenated, an integer ``lcnum_col`` is filled in (0 for the first
+        file, 1 for the second, …), and the combined frame is optionally
+        time-sorted.
+
+        This mirrors what vartools' ``-l ... combinelcs`` mode does internally,
+        but does the merge entirely in Python — useful when you want to feed a
+        single combined LC to commands that don't go through the file-list
+        machinery (e.g. ``Pipeline.run(lc)`` after calling :func:`from_files`).
+
+        Parameters
+        ----------
+        paths : sequence of str | Path
+            Files to combine, in the order their points should be tagged.
+        name : str, optional
+            Label for the combined light curve.  Defaults to the stem of the
+            first file.
+        lcnum_col : str
+            Name of the integer column added to identify the source file of
+            each row.  Default ``"lcnum"``.  If the column already exists in
+            any of the input frames, it is overwritten.
+        sort : bool
+            If True (default), sort the combined frame by ``t`` ascending.
+        **read_kwargs
+            Extra keyword arguments forwarded to :meth:`from_file` (e.g.
+            ``t_col``, ``mag_col``, ``err_col``, ``hdu``).
+
+        Returns
+        -------
+        LightCurve
+        """
+        paths = list(paths)
+        if not paths:
+            raise ValueError("from_files() requires at least one path.")
+        frames = []
+        for i, p in enumerate(paths):
+            lc = cls.from_file(p, **read_kwargs)
+            df = lc._df.copy()
+            df[lcnum_col] = i
+            frames.append(df)
+        merged = pd.concat(frames, ignore_index=True)
+        if sort and "t" in merged.columns:
+            merged = merged.sort_values("t").reset_index(drop=True)
+        if not name:
+            name = Path(paths[0]).stem
+        return cls(merged, name=name)
 
     @classmethod
     def _from_ascii(cls, path: Path, name: str) -> "LightCurve":

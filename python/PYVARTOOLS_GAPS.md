@@ -58,15 +58,22 @@ column type, so callers fall through to `cmd.Raw(["-inputlcformat", "..."])`.
 spec object (similar to `ListVar`) that carries `type=` and `format=`
 fields, then emit `name:col:type[:fmt]` tokens.
 
-## `combinelcs` mode (deferred — needs design discussion)
+## `combinelcs` mode — closed
 
-`pyvartools` has `Pipeline.run_combinelcs(groups, ...)` for the
-`-l … combinelcs` driver, but commands that need per-point variables
-populated by combinelcs (`-stitch`, multi-segment `-addfitskeyword`, etc.)
-must currently be assembled with `cmd.Raw` or `subprocess.run` because
-the typed wrappers don't yet thread the right keywords through.  Per the
-project plan, this is intentionally deferred until after the current
-docs cleanup.
+`pyvartools` now exposes the full `-l … combinelcs` workflow:
+
+  - `Pipeline.run_combinelcs(groups, ...)` — multi-group form.
+  - `Pipeline.run_combinelc(files, ...)` — single-group convenience wrapper
+    that returns a `Result`.
+  - `Pipeline.run_filelist(paths, combinelcs=True, ...)` — drives a
+    user-supplied list file (one comma-joined line per group).
+  - `LightCurve.from_files([f1, f2, ...])` — Python-side merge with an
+    `lcnum` column, suitable for feeding `Pipeline.run(lc)`.
+
+Defaults emit `lcnumvar lcnum` so commands like `-stitch` work without
+extra wiring.  PerLC values are accepted on `run_combinelcs()` (one per
+group).  `capture_lc=True` returns a `LightCurve` with the combined data
+and the `lcnum` column populated.
 
 
 ## `cmd.resample` — back-resampling onto the original list-time grid
