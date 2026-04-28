@@ -979,24 +979,53 @@ class Pipeline:
         matchstringid : bool
             Pass ``-matchstringid`` to vartools.
 
+        Notes
+        -----
+        PerLC array parameter values are supported: each PerLC must have
+        ``len(groups)`` entries (one value per combined group).  The values
+        are appended as additional columns in the temporary list file and
+        wired up via ``-inlistvars``.
+
         Returns
         -------
         BatchResult
         """
         perlc_attrs = self._collect_perlc_attrs()
         if perlc_attrs:
-            params = [f"'{name}' in command {ci}" for (ci, name) in perlc_attrs]
-            raise ValueError(
-                f"PerLC parameter values cannot be used with run_combinelcs(). "
-                f"Affected parameters: {', '.join(params)}."
-            )
+            batch_size = len(groups)
+            for (ci, name), perlc in perlc_attrs.items():
+                if len(perlc) != batch_size:
+                    raise ValueError(
+                        f"PerLC parameter '{name}' in command {ci} has "
+                        f"{len(perlc)} values but the batch has {batch_size} "
+                        f"groups."
+                    )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Build list file: one line per group, paths joined by delimiter
+            # Assign extra columns for any PerLC params (col 2 onward — col 1
+            # is the comma-joined paths field for each group).
+            col_assignments = {}
+            perlc_subs = {}
+            if perlc_attrs:
+                next_col = 2
+                for key in sorted(perlc_attrs):
+                    col_assignments[key] = next_col
+                    next_col += 1
+                perlc_subs = self._build_perlc_subs(col_assignments)
+
+            # Build list file: one line per group, paths joined by delimiter,
+            # followed by any PerLC value columns.
             list_path = os.path.join(tmpdir, "lclist.txt")
-            with open(list_path, "w") as f:
-                for group in groups:
-                    f.write(delimiter.join(str(p) for p in group) + "\n")
+            group_strings = [delimiter.join(str(p) for p in group)
+                             for group in groups]
+            if perlc_attrs:
+                self._write_perlc_list_file(
+                    list_path, group_strings, perlc_attrs, col_assignments
+                )
+            else:
+                with open(list_path, "w") as f:
+                    for line in group_strings:
+                        f.write(line + "\n")
 
             # Build the -l input flag with combinelcs
             input_flag = ["-l", list_path, "combinelcs"]
@@ -1013,6 +1042,10 @@ class Pipeline:
             fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
             use_seq = nthreads > 1
             merged_inlistvars_comb = dict(inlistvars) if inlistvars else {}
+            if col_assignments:
+                merged_inlistvars_comb.update(
+                    self._build_perlc_inlistvars(col_assignments)
+                )
             if use_seq:
                 merged_inlistvars_comb[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
             inlistvars_str = _inlistvars_from_spec(merged_inlistvars_comb) if merged_inlistvars_comb else None
@@ -1026,6 +1059,7 @@ class Pipeline:
                 nth_args=nth_args,
                 input_lc_format=fmt,
                 inlistvars_str=inlistvars_str,
+                perlc_subs=perlc_subs,
                 randseed=randseed,
                 skipmissing=skipmissing,
                 jdtol=jdtol,

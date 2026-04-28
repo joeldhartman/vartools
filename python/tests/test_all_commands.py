@@ -2866,14 +2866,36 @@ class TestRunCombinelcs:
         idx = captured.index("lcnumvar")
         assert captured[idx + 1] == "lcnum"
 
-    def test_combinelcs_perlc_raises(self):
-        """PerLC attributes raise ValueError."""
+    def test_combinelcs_perlc_length_mismatch_raises(self):
+        """PerLC length must match the number of groups (M5)."""
         from pyvartools import PerLC
+        pipe = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.2, 0.3]), maxp=10.0, subsample=1e-3)
+        ])
+        with pytest.raises(ValueError, match="3 values but the batch has 2"):
+            pipe.run_combinelcs(
+                [["/tmp/a.lc", "/tmp/b.lc"], ["/tmp/c.lc", "/tmp/d.lc"]]
+            )
+
+    def test_combinelcs_perlc_emits_inlistvars(self, tmp_path):
+        """PerLC params produce -inlistvars and var/expr substitutions (M5)."""
+        from pyvartools import PerLC
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        groups = [
+            [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")],
+            [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")],
+        ]
         pipe = vt.Pipeline([
             cmd.LS(minp=PerLC([0.1, 0.2]), maxp=10.0, subsample=1e-3)
         ])
-        with pytest.raises(ValueError, match="PerLC"):
-            pipe.run_combinelcs([["/tmp/a.lc", "/tmp/b.lc"]])
+        captured, _ = self._capture_cmd(pipe, groups)
+        # The PerLC param is wired as a per-star variable via -inlistvars.
+        assert "-inlistvars" in captured
+        idx = captured.index("-inlistvars")
+        assert "_perlc_0_minp" in captured[idx + 1]
+        # And the LS command emits the variable through `expr`.
+        assert "_perlc_0_minp" in " ".join(captured)
 
     def test_combinelcs_randseed_in_cmd(self, tmp_path):
         (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
@@ -3046,6 +3068,17 @@ class TestRunCombinelcsIntegration:
         )
         assert len(result.vars) == 1
         assert "RMS_0" in result.vars.columns
+
+    def test_run_combinelcs_perlc(self):
+        """PerLC values flow through to vartools, one per group (M5)."""
+        from pyvartools import PerLC
+        groups = [[EXAMPLE_LC, EXAMPLE_LC], [EXAMPLE_LC, EXAMPLE_LC]]
+        result = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.5]), maxp=10.0,
+                   subsample=0.001, npeaks=1)
+        ]).run_combinelcs(groups)
+        assert len(result.vars) == 2
+        assert "LS_Period_1_0" in result.vars.columns
 
 
 class TestPipelineUserCommandSubprocessFallback:
