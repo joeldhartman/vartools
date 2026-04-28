@@ -641,6 +641,8 @@ class Pipeline:
         columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
         init_lc_vars: Optional[Dict[str, LCVar]] = None,
         inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        combinelcs: bool = False,
+        lcnumvar: Optional[str] = "lcnum",
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -695,12 +697,30 @@ class Pipeline:
             Per-star variables defined here can then be referenced by name
             in LS (and other commands) via the ``var`` form, e.g.
             ``cmd.LS("minp", "maxp", 1e-3)``.
+        combinelcs : bool
+            If True, append ``combinelcs`` to the ``-l`` flag so vartools
+            treats each line of the list file as a *group* of comma-separated
+            paths combined into one in-memory light curve.  The list file (or
+            list of strings passed in *lc_paths*) is responsible for the
+            grouping; this flag does not split anything itself.
+        lcnumvar : str, optional
+            Only used when ``combinelcs=True``.  Name of the per-observation
+            integer variable vartools creates to record which file each point
+            came from.  Defaults to ``"lcnum"``; pass ``None`` to opt out.
 
         Returns
         -------
         BatchResult
         """
         perlc_attrs = self._collect_perlc_attrs()
+        if combinelcs and perlc_attrs:
+            params = [f"'{name}' in command {ci}" for (ci, name) in perlc_attrs]
+            raise ValueError(
+                f"PerLC parameter values cannot be used with combinelcs=True. "
+                f"Use run_combinelcs() (which does not yet support PerLC), or "
+                f"remove the PerLC values.  Affected parameters: "
+                f"{', '.join(params)}."
+            )
         if perlc_attrs and isinstance(lc_paths, (str, Path)):
             raise ValueError(
                 "Per-LC parameter values (PerLC / numpy arrays) cannot be used with "
@@ -717,7 +737,10 @@ class Pipeline:
             else:
                 paths = [str(p) for p in lc_paths]
 
-            lc_names = [Path(p).stem for p in paths]
+            if combinelcs:
+                lc_names = [Path(p.split(",", 1)[0]).stem for p in paths]
+            else:
+                lc_names = [Path(p).stem for p in paths]
             work_outdir = outdir or tmpdir
             out_lc_dir = os.path.join(tmpdir, "lc_out") if capture_lc else None
             if out_lc_dir:
@@ -763,8 +786,13 @@ class Pipeline:
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
 
+            input_flag = ["-l", list_path]
+            if combinelcs:
+                input_flag.append("combinelcs")
+                if lcnumvar:
+                    input_flag += ["lcnumvar", lcnumvar]
             cmd = self._build_cmd(
-                input_flag=["-l", list_path],
+                input_flag=input_flag,
                 outdir=work_outdir,
                 out_lc_dir=out_lc_dir,
                 nth_args=nth_args,
@@ -788,10 +816,17 @@ class Pipeline:
             stats = _reorder_stats_by_seq(stats, lc_names)
             stats, scalars_df = split_vars_and_scalars(stats)
 
+            # When combinelcs=True, vartools names per-LC output files after the
+            # *first* path of each comma-joined group rather than the full line.
+            if combinelcs:
+                file_keys = [p.split(",", 1)[0] for p in paths]
+            else:
+                file_keys = list(paths)
+
             out_lcs = None
             if capture_lc:
                 out_lcs = []
-                for i, (lc_path, name) in enumerate(zip(paths, lc_names)):
+                for i, (lc_path, name) in enumerate(zip(file_keys, lc_names)):
                     opath = os.path.join(out_lc_dir, Path(lc_path).name)
                     if os.path.isfile(opath):
                         new_lc = LightCurve.from_file(opath, name=name)
@@ -802,15 +837,84 @@ class Pipeline:
                         out_lcs.append(None)
 
             all_files: dict = {}
-            for lc_path in paths:
+            for lc_path in file_keys:
                 lc_files = self._collect_output_files(lc_path, work_outdir, tmpdir)
                 for name, df in lc_files.items():
                     all_files.setdefault(name, []).append(df)
-            for key, lc_list in self._collect_o_captures_batch(paths, lc_names).items():
+            for key, lc_list in self._collect_o_captures_batch(file_keys, lc_names).items():
                 all_files[key] = lc_list
 
         return BatchResult(var=stats, lcs=out_lcs, files=all_files,
                                known_commands=[c._vt_name for c in self.commands])
+
+    def run_combinelc(
+        self,
+        files: Sequence[FilePath],
+        nthreads: int = 1,
+        capture_lc: bool = False,
+        outdir: Optional[str] = None,
+        timeout: Optional[int] = None,
+        raise_on_error: bool = True,
+        columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
+        init_lc_vars: Optional[Dict[str, LCVar]] = None,
+        inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        lcnumvar: Optional[str] = "lcnum",
+        delimiter: str = ",",
+        randseed: Optional[int] = None,
+        skipmissing: bool = False,
+        jdtol: Optional[float] = None,
+        matchstringid: bool = False,
+    ) -> Result:
+        """Combine *files* into a single light curve and run the pipeline.
+
+        Single-group convenience wrapper around :meth:`run_combinelcs`.  All
+        keyword arguments forward to ``run_combinelcs``; the result is the
+        first (and only) row, returned as a :class:`Result`.
+
+        Parameters
+        ----------
+        files : sequence of str | Path
+            Paths to combine into one in-memory light curve.
+
+        Returns
+        -------
+        Result
+
+        Examples
+        --------
+        ::
+
+            result = (vt.Pipeline()
+                      .stitch("mag err mask lcnum")
+                      .run_combinelc(["seg1.txt", "seg2.txt", "seg3.txt"]))
+        """
+        files = list(files)
+        if not files:
+            raise ValueError("run_combinelc() requires at least one file path.")
+        batch = self.run_combinelcs(
+            groups=[files],
+            nthreads=nthreads,
+            capture_lc=capture_lc,
+            outdir=outdir,
+            timeout=timeout,
+            raise_on_error=raise_on_error,
+            columns=columns,
+            init_lc_vars=init_lc_vars,
+            inlistvars=inlistvars,
+            lcnumvar=lcnumvar,
+            delimiter=delimiter,
+            randseed=randseed,
+            skipmissing=skipmissing,
+            jdtol=jdtol,
+            matchstringid=matchstringid,
+        )
+        if batch.error is not None:
+            return Result(
+                var=pd.Series(dtype=object),
+                error=batch.error,
+                known_commands=[c._vt_name for c in self.commands],
+            )
+        return batch[0]
 
     def run_combinelcs(
         self,
@@ -823,7 +927,7 @@ class Pipeline:
         columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
         init_lc_vars: Optional[Dict[str, LCVar]] = None,
         inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
-        lcnumvar: Optional[str] = None,
+        lcnumvar: Optional[str] = "lcnum",
         delimiter: str = ",",
         randseed: Optional[int] = None,
         skipmissing: bool = False,
@@ -860,9 +964,9 @@ class Pipeline:
         inlistvars : dict mapping str to int or ListVar, optional
             Per-star variables passed to vartools via ``-inlistvars``.
         lcnumvar : str, optional
-            If given, pass ``lcnumvar <name>`` after ``combinelcs`` in the
-            ``-l`` flag so vartools creates a per-observation integer variable
-            recording which file each point came from.
+            Name of the per-observation integer variable vartools creates to
+            record which file each point came from.  Defaults to ``"lcnum"``;
+            pass ``None`` to opt out of emitting the ``lcnumvar`` qualifier.
         delimiter : str
             Delimiter used to join paths within each group in the list file.
             Default ``","`` (the vartools ``combinelcs`` default).

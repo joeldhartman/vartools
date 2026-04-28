@@ -2893,6 +2893,133 @@ class TestRunCombinelcs:
         captured, result = self._capture_cmd(pipe, groups, delimiter=" ")
         assert "combinelcs" in captured
 
+    def test_combinelcs_lcnumvar_default(self, tmp_path):
+        """run_combinelcs() emits 'lcnumvar lcnum' by default (M4)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+    def test_combinelcs_lcnumvar_none_opts_out(self, tmp_path):
+        """Passing lcnumvar=None suppresses the lcnumvar qualifier (M4)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups, lcnumvar=None)
+        assert "combinelcs" in captured
+        assert "lcnumvar" not in captured
+
+
+class TestRunCombinelc:
+    """Unit tests for the singular Pipeline.run_combinelc() (M2)."""
+
+    def _capture_cmd(self, pipe, files, **kwargs):
+        from unittest.mock import patch
+        captured = []
+
+        def mock_execute(cmd_list, **kw):
+            captured.extend(cmd_list)
+            return ("Name = a\nRMS_0 = 0.01\n", "")
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch("pyvartools.pipeline.parse_oneline_output",
+                       return_value=pd.DataFrame([{"Name": "a", "RMS_0": 0.01}])):
+                result = pipe.run_combinelc(files, **kwargs)
+        return captured, result
+
+    def test_run_combinelc_emits_combinelcs(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        files = [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, files)
+        assert "combinelcs" in captured
+
+    def test_run_combinelc_default_lcnumvar(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        files = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, files)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+    def test_run_combinelc_returns_single_result(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        files = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        _, result = self._capture_cmd(pipe, files)
+        assert isinstance(result, vt.Result)
+        # Result.vars is always a Series, not a DataFrame
+        assert isinstance(result.vars, pd.Series)
+
+    def test_run_combinelc_empty_raises(self):
+        pipe = vt.Pipeline([cmd.rms()])
+        with pytest.raises(ValueError, match="at least one file"):
+            pipe.run_combinelc([])
+
+
+class TestRunFilelistCombinelcs:
+    """Unit tests for the combinelcs=True flag on run_filelist (M3)."""
+
+    def _capture_cmd(self, pipe, lc_paths, **kwargs):
+        from unittest.mock import patch
+        captured = []
+
+        def mock_execute(cmd_list, **kw):
+            captured.extend(cmd_list)
+            return ("Name = a\nRMS_0 = 0.01\n", "")
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch("pyvartools.pipeline.parse_oneline_output",
+                       return_value=pd.DataFrame([{"Name": "a", "RMS_0": 0.01}])):
+                result = pipe.run_filelist(lc_paths, **kwargs)
+        return captured, result
+
+    def test_filelist_combinelcs_emits_keywords(self, tmp_path):
+        """combinelcs=True appends 'combinelcs lcnumvar lcnum' to -l."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        # User supplies one comma-joined line per group.
+        lc_paths = [f"{tmp_path / 'a.lc'},{tmp_path / 'b.lc'}"]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True)
+        assert "combinelcs" in captured
+        cidx = captured.index("combinelcs")
+        assert captured[cidx + 1] == "lcnumvar"
+        assert captured[cidx + 2] == "lcnum"
+
+    def test_filelist_combinelcs_lcnumvar_none(self, tmp_path):
+        """combinelcs=True with lcnumvar=None emits combinelcs but not lcnumvar."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True,
+                                         lcnumvar=None)
+        assert "combinelcs" in captured
+        assert "lcnumvar" not in captured
+
+    def test_filelist_combinelcs_false_no_keyword(self, tmp_path):
+        """combinelcs=False (default) does not emit combinelcs."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths)
+        assert "combinelcs" not in captured
+
+    def test_filelist_combinelcs_perlc_raises(self):
+        """combinelcs=True with PerLC params raises ValueError."""
+        from pyvartools import PerLC
+        pipe = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.2]), maxp=10.0, subsample=1e-3)
+        ])
+        with pytest.raises(ValueError, match="combinelcs=True"):
+            pipe.run_filelist(["/tmp/a.lc,/tmp/b.lc", "/tmp/c.lc,/tmp/d.lc"],
+                              combinelcs=True)
+
 
 @pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
 class TestRunCombinelcsIntegration:
@@ -2900,6 +3027,23 @@ class TestRunCombinelcsIntegration:
     def test_run_combinelcs_basic(self):
         groups = [[EXAMPLE_LC, EXAMPLE_LC]]
         result = vt.Pipeline([cmd.rms()]).run_combinelcs(groups)
+        assert len(result.vars) == 1
+        assert "RMS_0" in result.vars.columns
+
+    def test_run_combinelc_basic(self):
+        """Singular run_combinelc returns a single Result."""
+        result = vt.Pipeline([cmd.rms()]).run_combinelc([EXAMPLE_LC, EXAMPLE_LC])
+        assert isinstance(result, vt.Result)
+        assert "RMS_0" in result.vars.index
+
+    def test_run_filelist_combinelcs(self, tmp_path):
+        """run_filelist(combinelcs=True) accepts comma-joined paths."""
+        # Build a list file with one comma-joined line.
+        list_file = tmp_path / "groups.txt"
+        list_file.write_text(f"{EXAMPLE_LC},{EXAMPLE_LC}\n")
+        result = vt.Pipeline([cmd.rms()]).run_filelist(
+            str(list_file), combinelcs=True
+        )
         assert len(result.vars) == 1
         assert "RMS_0" in result.vars.columns
 
