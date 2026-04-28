@@ -244,8 +244,8 @@ class fastchi2(_UserLibCommand):
 
     def _output_file_specs(self) -> dict:
         return {
-            "per": (".fastchi2.per", None),
-            "model": (".fastchi2.model", None),
+            "per": (".fastchi2_per", None),
+            "model": (".fastchi2_model", None),
         }
 
 
@@ -315,8 +315,8 @@ class splinedetrend(_UserLibCommand):
 
     def _output_file_specs(self) -> dict:
         return {
-            "model": (".splinedetrend.model", None),
-            "coeffs": (".splinedetrend.coeffs", None),
+            "model": (".splinedetrend_model", None),
+            "coeffs": (".splinedetrend_modelcoeffs", None),
         }
 
 
@@ -636,7 +636,7 @@ class stitch(_UserLibCommand):
         return args
 
     def _output_file_specs(self) -> dict:
-        return {"params": (".stitch", None)}
+        return {"fitted_parameters": (".stitch", None)}
 
 
 # -----------------------------------------------------------------------------
@@ -837,8 +837,13 @@ class jktebop(_UserLibCommand):
 
     def _output_file_specs(self) -> dict:
         return {
-            "model": (".jktebop.model", None),
-            "curve": (".jktebop.curve", None),
+            # NOTE: the underlying USERLIB writes the model file with the suffix
+            # ".jktebop" (see GetOutputFilename(..., "jktebop", ...) in
+            # USERLIBS/src/jktebop.c).  The "ocurve" branch is currently
+            # unimplemented in the C code, so we expose it here only so that
+            # the Python wrapper can pass the corresponding CLI tokens.
+            "model": (".jktebop", None),
+            "curve": (".jktebopcurve", None),
         }
 
 
@@ -980,7 +985,7 @@ class macula(_UserLibCommand):
                 args += ["tdelv"]
         curve_spec = _norm_save(self.save_curve)
         if _should_emit(curve_spec):
-            args += ["ocurve", "outdir", curve_spec.path or outdir]
+            args += ["ocurve", curve_spec.path or outdir]
             if self.curve_nameformat is not None:
                 args += ["nameformat", self.curve_nameformat]
             if self.curve_tdelv:
