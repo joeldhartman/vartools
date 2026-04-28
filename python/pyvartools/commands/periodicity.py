@@ -886,6 +886,9 @@ class dftclean(VartoolsCommand):
         self.gain = gain
         self.SNlimit = SNlimit
         self.outcbeam = outcbeam
+        # Alias so the capture pipeline (which keys on ``save_<logical_name>``)
+        # picks up the request for the CLEAN beam file.
+        self.save_cbeam = outcbeam
         self.npeaks = npeaks
         self.useampspec = useampspec
         self.verboseout = verboseout

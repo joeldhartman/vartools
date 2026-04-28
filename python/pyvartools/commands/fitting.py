@@ -932,6 +932,10 @@ class nonlinfit(VartoolsCommand):
         self.mcmc_skipamoeba = mcmc_skipamoeba
         self.mcmc_maxmemstore = mcmc_maxmemstore
         self.mcmc_outchains = mcmc_outchains
+        # Alias so the capture pipeline (which keys on ``save_<logical_name>``)
+        # picks up the request for the MCMC chain file under the
+        # "chains" logical name in ``_output_file_specs``.
+        self.save_chains = mcmc_outchains
         self.mcmc_chains_format = mcmc_chains_format
         self.mcmc_chains_printevery = mcmc_chains_printevery
         self.correct_lc = correct_lc
@@ -995,7 +999,9 @@ class nonlinfit(VartoolsCommand):
     def _output_file_specs(self):
         return {
             "model": (".nonlinfit.model", None),
-            "chains": (".nonlinfit.chains", None),
+            # vartools writes the MCMC chain file with the suffix ".mcmc"
+            # (see GetOutputFilename(..., "mcmc", ...) in src/nonlinfit.c).
+            "chains": (".mcmc", None),
         }
 
 

@@ -1006,14 +1006,19 @@ typedef struct {
   double timezone;
   int omodel;
   char modeloutdir[MAXLEN];
-  char modelsuffix[23];
+  /* These suffixes used to be sized 23 — too small for the 23-character
+     ".blsfixperdurtc.phcurve" / ".blsfixperdurtc.jdcurve" strings
+     written in parsecommandline.c (they need 24 bytes incl. NUL).
+     Bumped to 32 to leave headroom and avoid the fortify abort when
+     BLSFixPerDurTc is invoked with `ophcurve`/`ojdcurve` set. */
+  char modelsuffix[32];
   int ophcurve;
   char ophcurveoutdir[MAXLEN];
-  char ophcurvesuffix[23];
+  char ophcurvesuffix[32];
   double phmin, phmax, phstep;
   int ojdcurve;
   char ojdcurveoutdir[MAXLEN];
-  char ojdcurvesuffix[23];
+  char ojdcurvesuffix[32];
   double jdstep;
   int correctlc;
   int fittrap;
@@ -1937,20 +1942,95 @@ typedef struct {
 
   int forcefft;
 
+  /* Optional band-edge taper.  taper_type is one of VARTOOLS_FOURIERFILTER_TAPER_*
+     from the enum in fourierfilter.c; NONE means no taper is applied.  The
+     taper is centered on each cut edge of the selected filter mode and spans
+     +/- taper_deltafreq around that edge.  taper_beta is only used by the
+     Kaiser window. */
+  int    taper_type;
+  double taper_deltafreq;
+  double taper_beta;
+
+  /* Optional resample-to-uniform path.  When resample_enabled is set the
+     LC is interpolated onto a uniform grid at spacing resample_delta,
+     FFT-filtered, IFFT-reconstructed, and the filter result interpolated
+     back to the original sample times.  resample_source selects how
+     resample_delta is obtained per LC:
+       VARTOOLS_SOURCE_FIXED        — resample_delta_fix (scalar on CLI)
+       VARTOOLS_SOURCE_INLIST       — resample_delta[lcid] from the list
+       VARTOOLS_SOURCE_PRIORCOLUMN  — from an earlier command's output col
+       VARTOOLS_SOURCE_EVALEXPRESSION — resample_delta_expr
+       -1 (DELMIN)                  — use the minimum dt in this LC
+  */
+  int    resample_enabled;
+  int    resample_source;
+  double resample_delta_fix;
+  double *resample_delta;
+  OutColumn *resample_delta_linkedcolumn;
+  _Expression *resample_delta_expr;
+  char  *resample_delta_exprstring;
+
+  /* Optional gap-break.  When gapbreak_enabled is set the LC is split at
+     any gap >= gap_threshold and each segment is filtered independently;
+     segments are concatenated on output.  gapbreak_source selects how
+     gap_threshold is obtained:
+       VARTOOLS_SOURCE_FIXED        — gapbreak_fix
+       VARTOOLS_SOURCE_PRIORCOLUMN  — from an earlier command's output col
+       VARTOOLS_SOURCE_INLIST       — gapbreak_threshold[lcid]
+       VARTOOLS_SOURCE_EVALEXPRESSION — gapbreak_expr
+       -1 (FRAC_MIN_SEP)  — gapbreak_frac_min * min(dt)
+       -2 (FRAC_MED_SEP)  — gapbreak_frac_med * median(dt)
+       -3 (PERCENTILE_SEP) — percentile(dt, gapbreak_percentile)
+  */
+  int    gapbreak_enabled;
+  int    gapbreak_source;
+  double gapbreak_fix;
+  double gapbreak_frac_min;
+  double gapbreak_frac_med;
+  double gapbreak_percentile;
+  double *gapbreak_threshold;
+  OutColumn *gapbreak_linkedcolumn;
+  _Expression *gapbreak_expr;
+  char  *gapbreak_exprstring;
+
   int ofourier;
   char *ofourier_dir;
   int ofourier_formatflag;
   char *ofourier_format;
+
+  /* Optional "nowarn" flag — when set, suppresses all runtime
+     per-LC warnings emitted by doFourierFilter (non-uniform without
+     resample, within-segment gap vs minfreq, taper overlap, forcefft
+     on non-uniform, resample delta <= 0).  Useful in batch pipelines
+     where the caller has vetted the data and doesn't need the repeated
+     advisories. */
+  int nowarn;
+
+  /* Optional edge-padding for the resample path's FFT.  The FFT
+     implicitly treats the signal as periodic, so if the first and
+     last samples disagree (typical astronomical LCs), the implicit
+     wrap-around produces ringing in the filtered output near the
+     start/end of the segment.  padmode selects how each segment is
+     extended before the FFT and padfrac is the padding length per
+     side, as a fraction of the segment length.  The padding is
+     discarded before interpolating back to the original times.
+       VARTOOLS_FOURIERFILTER_PAD_WRAP     — no padding (default)
+       VARTOOLS_FOURIERFILTER_PAD_REFLECT  — mirror at each edge
+       VARTOOLS_FOURIERFILTER_PAD_ZERO     — zero-extend each edge
+   */
+  int    padmode;
+  double padfrac;
 
   _Variable *freq_var;
 
   /* Per-LC output-column storage.  Allocated in initcommands.c once Nlcs
      is known; written by doFourierFilter at runtime; registered as
      FourierFilter_<name>_N output columns in outcolumns.c. */
-  double *mean_mag;          /* DC Fourier coefficient (a_0)            */
-  double *rms_in;            /* RMS of the input light curve            */
-  double *rms_out;           /* RMS after the filter is applied         */
-  int    *nfreq;             /* number of Fourier frequencies computed  */
+  double *mean_mag;          /* DC Fourier coefficient (a_0)                  */
+  double *rms_in;            /* RMS of the input light curve                  */
+  double *rms_out;           /* RMS after the filter is applied               */
+  int    *nfreqcalc;         /* number of Fourier frequency bins computed     */
+  int    *nfreqfilt;         /* number of bins inside the filter passband     */
 
 } _FourierFilter;
 

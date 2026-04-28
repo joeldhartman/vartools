@@ -550,26 +550,37 @@ class Injectharm(VartoolsCommand):
         # Nharm=1 means fundamental + 1st harmonic, etc.
         vt_nharm = self.nharm - 1
         args += [str(vt_nharm)]
-        # Repeat amp/phase spec for each of the nharm harmonics
-        for _ in range(self.nharm):
+
+        def _amp_phase_tokens() -> List[str]:
+            tokens: List[str] = []
             if isinstance(self.amplitude, (int, float)):
-                args += ["ampfix", str(self.amplitude)]
-            elif isinstance(self.amplitude, str) and re.match(r'^[A-Za-z_]\w*$', self.amplitude):
-                args += ["ampvar", self.amplitude]
+                tokens += ["ampfix", str(self.amplitude)]
+            elif isinstance(self.amplitude, str) and re.match(
+                    r'^[A-Za-z_]\w*$', self.amplitude):
+                tokens += ["ampvar", self.amplitude]
             elif isinstance(self.amplitude, str):
-                args += ["ampexpr", self.amplitude]
+                tokens += ["ampexpr", self.amplitude]
             else:
-                args += ["ampfix", str(self.amplitude)]
+                tokens += ["ampfix", str(self.amplitude)]
             if isinstance(self.phase, (int, float)):
-                args += ["phasefix", str(self.phase)]
-            elif isinstance(self.phase, str) and re.match(r'^[A-Za-z_]\w*$', self.phase):
-                args += ["phasevar", self.phase]
+                tokens += ["phasefix", str(self.phase)]
+            elif isinstance(self.phase, str) and re.match(
+                    r'^[A-Za-z_]\w*$', self.phase):
+                tokens += ["phasevar", self.phase]
             elif isinstance(self.phase, str):
-                args += ["phaseexpr", self.phase]
+                tokens += ["phaseexpr", self.phase]
             else:
-                args += ["phasefix", str(self.phase)]
-        # sub-harmonics
+                tokens += ["phasefix", str(self.phase)]
+            return tokens
+
+        # Repeat amp/phase spec for each of the nharm harmonics.
+        for _ in range(self.nharm):
+            args += _amp_phase_tokens()
+        # sub-harmonics — vartools expects Nsubharm followed by Nsubharm
+        # copies of (amp/phase) spec; without them the command is rejected.
         args += [str(self.nsubharm)]
+        for _ in range(self.nsubharm):
+            args += _amp_phase_tokens()
         args += _outtoken(self.save_model, outdir)
         return args
 
@@ -982,12 +993,13 @@ class medianfilter(VartoolsCommand):
 class fourierfilter(VartoolsCommand):
     """Full-band Fourier-domain filter (``-fourierfilter``).
 
-    Fits a Fourier series to the (possibly non-uniformly sampled) light
-    curve via the Reichel-Ammar-Gragg orthogonal-polynomial projection,
-    then applies a band or analytic filter in frequency space and
-    reconstructs the filtered light curve.  This is distinct from
-    :class:`harmonicfilter`, which fits harmonics of one or more
-    *known* periods.
+    Applies a band filter and/or an analytic ``filterexpr`` in
+    frequency space via GSL's mixed-radix complex FFT (O(N log N))
+    and requires a GSL-enabled vartools build.  Uniformly-sampled
+    data is FFT-filtered directly; non-uniform data must be
+    interpolated onto a uniform grid first using ``resample=<delta>``.
+    This is distinct from :class:`harmonicfilter`, which fits
+    harmonics of one or more *known* periods.
 
     Parameters
     ----------
@@ -1013,15 +1025,91 @@ class fourierfilter(VartoolsCommand):
         Compute Fourier coefficients across the full Nyquist range even
         when the selected band is narrower.  Useful with ``save_fouriercoeffs``.
     forcefft : bool
-        Request the FFT path (uniform sampling only; falls back to the
-        orthogonal-polynomial path if unsupported).
+        Force the FFT fast path even when sampling is not detected as
+        uniform (prints a warning if used on genuinely non-uniform
+        data).  On uniformly-sampled data the FFT is used by default;
+        ``forcefft=True`` is a no-op in that case.
+    taper : str, optional
+        Smooth-edge taper to apply at each cut edge instead of a
+        brick-wall cutoff.  One of:
+
+        - ``"linear"``: linear ramp (sharpest transition).
+        - ``"cosine"`` (aliases ``"tukey"``, ``"hann"``):
+          ``0.5*(1 - cos(pi*u))``.
+        - ``"blackman"``: ``0.42 - 0.5*cos(pi*u) + 0.08*cos(2pi*u)``.
+        - ``"kaiser"``: requires ``taper_beta``.
+
+        The taper is centered on each cut edge and spans
+        ``[edge - taper_deltafreq, edge + taper_deltafreq]``.  With
+        ``mode="full"`` there are no edges and ``taper`` is a no-op
+        (vartools prints a warning).
+    taper_deltafreq : float, optional
+        Half-width of the taper window, in frequency units.  Required
+        when ``taper`` is given.
+    taper_beta : float, optional
+        Shape parameter for ``taper="kaiser"``; larger values give
+        smoother but wider transitions (``beta ~= 5`` is Hann-like).
+    resample : float, str, or None, optional
+        Enable the resample → FFT → filter → IFFT → resample-back
+        path (required for non-uniformly-sampled data).  Accepts:
+
+        - ``"delmin"`` — use the minimum dt in the LC.
+        - a positive ``float`` — fixed delta-t.
+        - a string expression (e.g. ``"medt"``) — evaluated per LC.
+
+        When absent and the input is non-uniform, vartools prints a
+        warning to stderr and **skips the filter for that LC** (the
+        mag column passes through unchanged; output columns are set
+        to ``Mean_Mag=0``, ``RMS_Out=RMS_In``, ``Nfreqcalc=Nfreqfilt=0``).
+        Subsequent LCs and subsequent pipeline commands are not
+        affected.
+    gapbreak_type : str, optional
+        When ``resample`` is set, split the LC at any gap exceeding the
+        specified threshold and filter each segment independently.
+        Type is one of ``"fix"``, ``"expr"``, ``"frac_min_sep"``,
+        ``"frac_med_sep"``, or ``"percentile_sep"``.
+    gapbreak_value : float or str, optional
+        Threshold value for the gap-break spec.  Units depend on
+        ``gapbreak_type``: seconds (or whatever time unit the LC uses)
+        for ``"fix"`` / ``"expr"``; a multiplier for
+        ``"frac_min_sep"`` / ``"frac_med_sep"``; a percentile (0-100)
+        for ``"percentile_sep"``.
+    padmode : str, optional
+        Edge-padding mode applied before the FFT (both the direct-FFT
+        path and the resample path).  The FFT implicitly treats the
+        signal as periodic, so if the first and last sample values
+        disagree (common for astronomical LCs) the wrap-around injects
+        spurious spectral power and the filtered output shows Gibbs-
+        style ringing near the segment boundaries.  ``"wrap"``
+        (default) uses the native FFT behaviour; ``"reflect"`` mirrors
+        the signal at each edge; ``"zero"`` zero-extends (around the
+        segment mean) at each edge.
+    padfrac : float, optional
+        Pad length per side, as a fraction of the segment length.
+        Default ``0.5`` when ``padmode`` is ``"reflect"`` or
+        ``"zero"`` (doubles the total FFT length); ignored for
+        ``"wrap"``.  Clamped to at most one segment length for
+        ``"reflect"``.
     save_fouriercoeffs : bool, str, or :class:`pyvartools.Output`, optional
         Write the Fourier cos/sin coefficients to a file.  Captures as
         ``result.files["fourierfilter_fouriercoeffs_N"]`` when truthy.
         See :doc:`Auxiliary output files <commands/index>`.
+    nowarn : bool, optional
+        When ``True``, suppress all per-LC runtime warnings from
+        ``-fourierfilter`` (non-uniform advisory, within-segment gap
+        vs. ``minfreq``, taper-edge overlap, forcefft on non-uniform,
+        resample delta <= 0).  Useful in batch pipelines where the
+        caller has vetted the data and doesn't need the repeated
+        advisories.  Parse-time warnings about CLI misuse are not
+        suppressed.
     """
 
     _vt_name = "fourierfilter"
+
+    _VALID_TAPERS = ("linear", "cosine", "tukey", "hann", "blackman", "kaiser")
+    _VALID_GAPBREAK_TYPES = ("fix", "expr", "frac_min_sep",
+                             "frac_med_sep", "percentile_sep")
+    _VALID_PADMODES = ("wrap", "reflect", "zero")
 
     def __init__(
         self,
@@ -1032,6 +1120,15 @@ class fourierfilter(VartoolsCommand):
         freqvar: Optional[str] = None,
         fullspec: bool = False,
         forcefft: bool = False,
+        taper: Optional[str] = None,
+        taper_deltafreq: Optional[float] = None,
+        taper_beta: Optional[float] = None,
+        resample: Union[float, str, None] = None,
+        gapbreak_type: Optional[str] = None,
+        gapbreak_value: Union[float, str, None] = None,
+        padmode: Optional[str] = None,
+        padfrac: Optional[float] = None,
+        nowarn: bool = False,
         save_fouriercoeffs=False,
     ) -> None:
         if mode not in ("full", "highpass", "lowpass", "bandpass", "bandcut"):
@@ -1047,6 +1144,80 @@ class fourierfilter(VartoolsCommand):
             raise ValueError(
                 "fourierfilter(): freqvar has no effect without filterexpr"
             )
+        if taper is not None:
+            if taper not in self._VALID_TAPERS:
+                raise ValueError(
+                    f"fourierfilter(): unknown taper {taper!r}; must be one "
+                    f"of {', '.join(self._VALID_TAPERS)}"
+                )
+            if taper_deltafreq is None or taper_deltafreq <= 0:
+                raise ValueError(
+                    "fourierfilter(): taper_deltafreq must be a positive "
+                    "number when taper is given"
+                )
+            if taper == "kaiser" and (taper_beta is None or taper_beta <= 0):
+                raise ValueError(
+                    "fourierfilter(): taper='kaiser' requires a positive "
+                    "taper_beta (try 5-8 for Hann-like behavior)"
+                )
+        elif taper_deltafreq is not None or taper_beta is not None:
+            raise ValueError(
+                "fourierfilter(): taper_deltafreq and taper_beta have no "
+                "effect without taper"
+            )
+        # Gapbreak only makes sense alongside resample
+        if gapbreak_type is not None:
+            if resample is None:
+                raise ValueError(
+                    "fourierfilter(): gapbreak_type requires resample to "
+                    "be set (gapbreak only applies on the resample path)"
+                )
+            if gapbreak_type not in self._VALID_GAPBREAK_TYPES:
+                raise ValueError(
+                    f"fourierfilter(): unknown gapbreak_type "
+                    f"{gapbreak_type!r}; must be one of "
+                    f"{', '.join(self._VALID_GAPBREAK_TYPES)}"
+                )
+            if gapbreak_value is None:
+                raise ValueError(
+                    "fourierfilter(): gapbreak_value is required when "
+                    "gapbreak_type is given"
+                )
+        elif gapbreak_value is not None:
+            raise ValueError(
+                "fourierfilter(): gapbreak_value has no effect without "
+                "gapbreak_type"
+            )
+        if padmode is not None:
+            if padmode not in self._VALID_PADMODES:
+                raise ValueError(
+                    f"fourierfilter(): unknown padmode {padmode!r}; "
+                    f"must be one of {', '.join(self._VALID_PADMODES)}"
+                )
+            if padfrac is not None and padfrac < 0:
+                raise ValueError(
+                    "fourierfilter(): padfrac must be >= 0"
+                )
+        elif padfrac is not None:
+            raise ValueError(
+                "fourierfilter(): padfrac has no effect without padmode"
+            )
+        # resample delmin|float|str validation
+        if resample is not None:
+            if isinstance(resample, str):
+                if resample != "delmin" and not resample.replace(".", "", 1).lstrip("-").isdigit():
+                    # treat it as an expression; pass through to CLI
+                    pass
+            elif isinstance(resample, (int, float)):
+                if resample <= 0:
+                    raise ValueError(
+                        "fourierfilter(): resample delta must be positive"
+                    )
+            else:
+                raise ValueError(
+                    "fourierfilter(): resample must be a positive float, "
+                    '"delmin", or a string expression'
+                )
         self.mode = mode
         self.minfreq = minfreq
         self.maxfreq = maxfreq
@@ -1054,6 +1225,15 @@ class fourierfilter(VartoolsCommand):
         self.freqvar = freqvar
         self.fullspec = fullspec
         self.forcefft = forcefft
+        self.taper = taper
+        self.taper_deltafreq = taper_deltafreq
+        self.taper_beta = taper_beta
+        self.resample = resample
+        self.gapbreak_type = gapbreak_type
+        self.gapbreak_value = gapbreak_value
+        self.padmode = padmode
+        self.padfrac = padfrac
+        self.nowarn = nowarn
         self.save_fouriercoeffs = save_fouriercoeffs
 
     def _to_cli_args(self) -> List[str]:
@@ -1074,11 +1254,31 @@ class fourierfilter(VartoolsCommand):
             args += ["fullspec"]
         if self.forcefft:
             args += ["forcefft"]
+        if self.taper is not None:
+            args += ["taper", self.taper, "deltafreq", str(self.taper_deltafreq)]
+            if self.taper == "kaiser":
+                args += ["beta", str(self.taper_beta)]
+        if self.resample is not None:
+            if isinstance(self.resample, str) and self.resample == "delmin":
+                args += ["resample", "delmin"]
+            elif isinstance(self.resample, (int, float)):
+                args += ["resample", "fix", str(self.resample)]
+            else:
+                # arbitrary string → expression form
+                args += ["resample", "expr", str(self.resample)]
+            if self.gapbreak_type is not None:
+                args += ["gapbreak", self.gapbreak_type, str(self.gapbreak_value)]
+        if self.padmode is not None:
+            args += ["padmode", self.padmode]
+            if self.padfrac is not None:
+                args += ["padfrac", str(self.padfrac)]
         # ofourier is a keyword-gated output: `ofourier <outdir>` (no 0/1
         # flag), so we emit it inline rather than using _outtoken.
         spec = _norm_save(self.save_fouriercoeffs)
         if _should_emit(spec):
             args += ["ofourier", spec.path if spec.path is not None else outdir]
+        if self.nowarn:
+            args += ["nowarn"]
         return args
 
     def _output_file_specs(self):
