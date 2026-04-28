@@ -836,12 +836,10 @@ class jktebop(_UserLibCommand):
         return args
 
     def _output_file_specs(self) -> dict:
+        # jktebop writes the model file with the suffix ".jktebop" and the
+        # uniformly-sampled model curve (jd or phase) with ".jktebopcurve"
+        # (see GetOutputFilename / output_jktebop_curve in USERLIBS/src/jktebop.c).
         return {
-            # NOTE: the underlying USERLIB writes the model file with the suffix
-            # ".jktebop" (see GetOutputFilename(..., "jktebop", ...) in
-            # USERLIBS/src/jktebop.c).  The "ocurve" branch is currently
-            # unimplemented in the C code, so we expose it here only so that
-            # the Python wrapper can pass the corresponding CLI tokens.
             "model": (".jktebop", None),
             "curve": (".jktebopcurve", None),
         }
