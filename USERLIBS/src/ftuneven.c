@@ -425,7 +425,12 @@ void ftuneven_ShowHelp(FILE *outfile)
 void ftuneven_ShowExample(FILE *outfile)
 {
   fprintf(outfile,
-	  "No examples implemented yet for this command.\n");
+          "\nvartools -L USERLIBS/src/.libs/ftuneven.so \\\n"
+          "\t-i EXAMPLES/2 -oneline \\\n"
+          "\t-ftuneven outputfile EXAMPLES/OUTDIR1 \\\n"
+          "\t\tfreqrange minfreq fix 0.05 maxfreq fix 5.0 \\\n"
+          "\t\tfreqstep fix 0.001\n\n"
+          "Compute Scargle's complex Fourier transform of the unevenly-sampled light curve EXAMPLES/2 over a uniform frequency grid running from 0.05 to 5.0 in units of radians per unit time, with a step of 0.001. The transform is written to EXAMPLES/OUTDIR1/2.ftuneven with four whitespace-separated columns: frequency (radians/time), real component of the Fourier transform, imaginary component, and the absolute square (equivalent to the Lomb-Scargle periodogram). To make the transform available to subsequent vartools commands rather than writing a file, replace 'outputfile' with 'outputvectors' followed by four output vector names; 'outputvectorsandfile' does both.\n");
 }
 
 void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)

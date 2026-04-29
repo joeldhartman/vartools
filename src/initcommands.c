@@ -861,10 +861,11 @@ void InitCommands(ProgramData *p, Command *c)
 		}
 	  break;
 	case CNUM_FOURIERFILTER:
-	  if((c[i].FourierFilter->mean_mag = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
-	     (c[i].FourierFilter->rms_in   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
-	     (c[i].FourierFilter->rms_out  = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
-	     (c[i].FourierFilter->nfreq    = (int *)    malloc(Nlcs * sizeof(int))) == NULL)
+	  if((c[i].FourierFilter->mean_mag  = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->rms_in    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->rms_out   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].FourierFilter->nfreqcalc = (int *)    malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].FourierFilter->nfreqfilt = (int *)    malloc(Nlcs * sizeof(int))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
 	case CNUM_INJECTHARM:

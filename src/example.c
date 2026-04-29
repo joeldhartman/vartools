@@ -618,6 +618,82 @@ void example(char *c, ProgramData *p)
 		    "Read in the binary fits Q1 Kepler public light curve for KIC 757076 (not included), convert it to flux using a zero-point magnitude of 25.0, and output the result to an ascii text file.\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-fourierfilter",14) && strlen(c) == 14)
+    {
+      printtostring(&s,
+		    "\nExample 1: lowpass filter with a cosine taper (uniform sampling)\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter lowpass maxfreq fix 1.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Apply a lowpass filter with a cutoff at 1.0 cycles/day to the uniformly-sampled light curve EXAMPLES/2.simuniformsample.  The cosine taper with deltafreq=0.1 smooths the band edge over [0.9, 1.1] cyc/day, reducing Gibbs-style ringing in the reconstructed light curve relative to a brick-wall cutoff.  The -rms calls before and after the filter show the input and output RMS — all signal power above 1.0 cyc/day has been removed.\n\n");
+      printtostring(&s,
+		    "\nExample 2: bandpass filter, writing Fourier coefficients (uniform sampling)\n");
+      printtostring(&s,
+		    "---------------------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter bandpass minfreq fix 0.5 maxfreq fix 1.25 \\\n");
+      printtostring(&s,
+		    "\t    ofourier EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Apply a bandpass filter that keeps only frequencies in [0.5, 1.25] cycles/day — a band chosen to enclose the ~0.81 cyc/day injected signal in the example LC.  The \"ofourier EXAMPLES/OUTDIR1\" keyword writes the Fourier cos/sin coefficients to EXAMPLES/OUTDIR1/2.simuniformsample.fouriercoeffs — three columns per frequency bin (f, CosCoeff, SinCoeff).  Useful when you want to inspect the full spectrum or construct a custom filter offline.\n\n");
+      printtostring(&s,
+		    "\nExample 3: analytic Gaussian filter via \"filterexpr\" (uniform sampling)\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter full filterexpr 'exp(-(f/0.5)^2)' \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Apply an analytic Gaussian filter W(f) = exp(-(f/0.5)^2) to every Fourier coefficient.  The \"full\" filter type means no hard band cut — the entire spectrum is reconstructed, just with each bin multiplied by W(f).  The frequency variable inside the filterexpr is named \"f\" by default and is in cycles/(time-unit-of-t), i.e. cycles/day for this light curve.  Use \"freqvar <name>\" to rename it if \"f\" collides with a variable you already have in scope.\n\n");
+      printtostring(&s,
+		    "\nExample 4: TESS-like sampling — the \"resample\" keyword\n");
+      printtostring(&s,
+		    "-------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simtesssample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter lowpass maxfreq fix 1.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t    resample delmin \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "The same filter as Example 1, but applied to EXAMPLES/2.simtesssample — the same underlying signal as the LC in Examples 1-3, re-sampled at TESS short-cadence (~2 min) over a 27-day single sector with a ~1-day data-downlink gap near the middle.  The \"resample delmin\" keyword tells -fourierfilter to interpolate the LC onto a uniform grid at spacing delmin (the minimum dt found in the LC), run the FFT-based filter on the uniform grid, and interpolate the result back onto the original sample times.  Without \"resample\", -fourierfilter would skip this LC because the data-downlink gap makes the sampling non-uniform.  You can also give \"fix <val>\", \"var <name>\", or \"expr <e>\" in place of \"delmin\" to choose the resample step explicitly.\n\n");
+      printtostring(&s,
+		    "\nExample 5: gap-break for data with significant gaps\n");
+      printtostring(&s,
+		    "----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simtesssample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter highpass minfreq fix 2.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t    resample delmin gapbreak frac_med_sep 100 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "A highpass filter applied to the same TESS-like LC as Example 4.  \"gapbreak frac_med_sep 100\" splits the light curve at any inter-sample gap larger than 100 * median(dt) — for this LC the only gap that triggers is the ~1-day data-downlink gap near the middle of the sector — and filters each segment independently.  Without gapbreak, linear interpolation across that gap would inject spurious spectral content into the FFT; splitting into segments avoids that.  For highpass (and bandpass) modes all segments are anchored at the overall-LC weighted mean so there are no inter-segment jumps in the output.  \"frac_med_sep\" / \"frac_min_sep\" / \"percentile_sep\" / \"fix\" / \"expr\" mirror the -resample command's \"gaps\" clause.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-GetLSAmpThresh",15) && strlen(c) == 15)
     {
       printtostring(&s,
@@ -801,6 +877,38 @@ void example(char *c, ProgramData *p)
 		    "\t\tEXAMPLES/OUTDIR1/ fitonly outRphi\n\n");
       printtostring(&s,
 		    "Fit a harmonic series to the RR Lyrae light curve EXAMPLES/M3.V006.lc. We fix the period to 0.514333 days, and we fit 10 harmonics plus the fundamental. We do not fit sub-harmonics. The best-fit model is output to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/M3.V006.lc.killharm.model). We do not subtract the model (the fitonly keyword) and we give relative amplitudes and phases (the amplitudes and phases in this format can be used in the -Injectharm command to inject a harmonic series with the fixed signal shape, but random overall amplitude and phase. See \"vartools -example -Injectharm\").\n");
+      commandfound=1;
+    }
+  if(!strcmp(c, "-harmonicfilter"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-LS 0.1 10. 0.1 1 0 \\\n");
+      printtostring(&s,
+		    "\t-rms -chi2 \\\n");
+      printtostring(&s,
+		    "\t-harmonicfilter ls 0 0 0 \\\n");
+      printtostring(&s,
+		    "\t-rms -chi2\n\n");
+      printtostring(&s,
+		    "Search for a periodic signal in the light curve EXAMPLES/2 using the Lomb-Scargle algorithm, and then fit and remove a sinusoid using -harmonicfilter. We include calls to -rms and -chi2 before and after calling -harmonicfilter to show how these statistics change after subtracting the best-fit sinusoid. For the -harmonicfilter command we take the period from the last ls command, we only fit the fundamental (no harmonics or sub-harmonics), and we do not output the best-fit model. (-Killharm is accepted as a synonym for -harmonicfilter and is retained for backward compatibility; the output-column prefix follows the invoking token.)\n\n");
+      printtostring(&s,
+		    "Example 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/M3.V006.lc -oneline \\\n");
+      printtostring(&s,
+		    "\t-harmonicfilter fix 1 0.514333 10 0 1 \\\n");
+      printtostring(&s,
+		    "\t\tEXAMPLES/OUTDIR1/ fitonly outRphi\n\n");
+      printtostring(&s,
+		    "Fit a harmonic series to the RR Lyrae light curve EXAMPLES/M3.V006.lc. We fix the period to 0.514333 days, and we fit 10 harmonics plus the fundamental. We do not fit sub-harmonics. The best-fit model is output to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/M3.V006.lc.harmonicfilter.model). We do not subtract the model (the fitonly keyword) and we give relative amplitudes and phases (the amplitudes and phases in this format can be used in the -Injectharm command to inject a harmonic series with the fixed signal shape, but random overall amplitude and phase. See \"vartools -example -Injectharm\").\n");
       commandfound=1;
     }
   if(!strcmp(c,"-linfit"))

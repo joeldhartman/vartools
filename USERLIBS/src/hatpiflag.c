@@ -188,6 +188,18 @@ void hatpiflag_ShowHelp(FILE *outfile)
   fprintf(outfile,"Produce the output binary flag variable for the HATPI light curves. Takes as input a vector variable storing the string flags from fiphot, a variable used for masking rejected frames (0 = rejected, 1 = not rejected), a variable used for masking TFA outliers to exclude from the fit (0 = outlier, 1 = not outlier), and a variable used for flagging pointing outliers (1 = outlier, 0 = not an outlier). The resulting binary flag will be output to the output_flag_var variable.\n\n");
 }
 
+void hatpiflag_ShowExample(FILE *outfile)
+/* Output an example for this command */
+{
+  fprintf(outfile,
+          "\nvartools -L USERLIBS/src/.libs/hatpiflag.so \\\n"
+          "\t-i EXAMPLES/2.hatpiflag \\\n"
+          "\t-inputlcformat 't:1,mag:2,err:3,fiphot_flag:4:string,rejbadframe:5,tfa_mask:6,pointing_outlier:7' \\\n"
+          "\t-hatpiflag fiphot_flag rejbadframe tfa_mask pointing_outlier quality_flag \\\n"
+          "\t-stats quality_flag mean,sum,max -oneline\n\n"
+          "Combine the four HATPI per-observation quality vectors stored in EXAMPLES/2.hatpiflag into a single bit-packed quality flag. The file has the standard t/mag/err columns followed by four extra columns: a one-character fiphot string flag (G = good, X = bad photometry, C = saturated, A = asteroid, ...), a reject-bad-frame mask (0 = rejected, 1 = keep), a TFA-outlier mask (0 = outlier, 1 = keep), and a pointing-outlier flag (1 = outlier, 0 = ok). The -inputlcformat option reads the four flag columns under their named variables; -hatpiflag combines them into the variable quality_flag, where each input contributes a different bit. The -stats call reports summary statistics of the combined flag.\n");
+}
+
 void hatpiflag_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)
 /* This function runs the command on a light curve.  
 

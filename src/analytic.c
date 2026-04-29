@@ -353,6 +353,17 @@ void CompileAllExpressions(ProgramData *p, Command *c)
       if(c[i].FourierFilter->filter_exprstring != NULL) {
         SetupFourierFilterExpression(p, c[i].FourierFilter, i);
       }
+      /* Parse "resample expr <...>" and "gapbreak expr <...>" strings if
+         present.  These are plain per-star scalar expressions — no stump
+         variable needed since they don't reference a sweep parameter. */
+      if(c[i].FourierFilter->resample_delta_exprstring != NULL) {
+        c[i].FourierFilter->resample_delta_expr =
+            ParseExpression(c[i].FourierFilter->resample_delta_exprstring, p);
+      }
+      if(c[i].FourierFilter->gapbreak_exprstring != NULL) {
+        c[i].FourierFilter->gapbreak_expr =
+            ParseExpression(c[i].FourierFilter->gapbreak_exprstring, p);
+      }
     }
     else if(c[i].cnum == CNUM_SORTLC) {
       if(c[i].SortLC->issortvar) {
