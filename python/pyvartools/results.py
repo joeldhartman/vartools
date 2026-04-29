@@ -94,6 +94,46 @@ class Result:
                 f"lc={'yes' if self.lc else 'no'}, "
                 f"files={list(self.files.keys())})")
 
+    def _repr_html_(self) -> str:
+        """HTML repr for Jupyter notebooks."""
+        name = self.vars.get("Name", "—") if hasattr(self.vars, "get") else "—"
+        n_vars = max(0, len(self.vars) - (1 if "Name" in self.vars.index else 0))
+        lc_note = (
+            f"{len(self.lc)} points" if self.lc is not None else "not captured"
+        )
+        files_note = (
+            ", ".join(self.files.keys()) if self.files else "none"
+        )
+        status = (
+            '<span style="color:#c00">FAILED</span>'
+            if self.error is not None else
+            '<span style="color:#080">ok</span>'
+        )
+
+        # Vars table: drop "Name" since it's already in the header
+        vars_for_table = (
+            self.vars.drop("Name") if "Name" in self.vars.index else self.vars
+        )
+        vars_html = (
+            vars_for_table.to_frame("value")._repr_html_()
+            if len(vars_for_table) > 0
+            else "<i>no variables</i>"
+        )
+
+        return (
+            f'<div style="font-family:sans-serif;font-size:0.9em">'
+            f'  <b>Result</b> &middot; '
+            f'  Name: <code>{name}</code> &middot; '
+            f'  vars: {n_vars} &middot; '
+            f'  lc: {lc_note} &middot; '
+            f'  files: {files_note} &middot; '
+            f'  status: {status}'
+            f'  <details style="margin-top:0.4em"><summary>vars</summary>'
+            f'    {vars_html}'
+            f'  </details>'
+            f'</div>'
+        )
+
 
 class BatchResult:
     """Output from a multi-light-curve pipeline run.
@@ -314,6 +354,54 @@ class BatchResult:
                 f"lcs={'yes' if self._lcs is not None else 'no'}, "
                 f"ok={self.ok}, "
                 f"files={list(self.files.keys())})")
+
+    def _repr_html_(self) -> str:
+        """HTML repr for Jupyter notebooks."""
+        n = len(self)
+        ncols = len(self.vars.columns) if not self.vars.empty else 0
+        lc_note = (
+            f"{sum(1 for x in self._lcs if x is not None)} captured"
+            if self._lcs is not None else "not captured"
+        )
+        files_note = (
+            ", ".join(self.files.keys()) if self.files else "none"
+        )
+        status = (
+            '<span style="color:#c00">FAILED</span>'
+            if self.error is not None else
+            '<span style="color:#080">ok</span>'
+        )
+
+        # Show first/last rows of vars table; for short tables show all.
+        if not self.vars.empty:
+            if n <= 12:
+                vars_html = self.vars._repr_html_()
+            else:
+                head = self.vars.head(5)
+                tail = self.vars.tail(5)
+                ellipsis = pd.DataFrame(
+                    [["..."] * ncols],
+                    columns=self.vars.columns,
+                    index=["..."],
+                )
+                shown = pd.concat([head, ellipsis, tail])
+                vars_html = shown._repr_html_()
+        else:
+            vars_html = "<i>no variables</i>"
+
+        return (
+            f'<div style="font-family:sans-serif;font-size:0.9em">'
+            f'  <b>BatchResult</b> &middot; '
+            f'  n: {n} &middot; '
+            f'  cols: {ncols} &middot; '
+            f'  lcs: {lc_note} &middot; '
+            f'  files: {files_note} &middot; '
+            f'  status: {status}'
+            f'  <details style="margin-top:0.4em" open><summary>vars</summary>'
+            f'    {vars_html}'
+            f'  </details>'
+            f'</div>'
+        )
 
 
 # ---------------------------------------------------------------------------

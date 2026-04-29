@@ -237,6 +237,74 @@ class LightCurve:
         return cls(df, name=name, scalars=scalars, fitsheader=fitsheader)
 
     @classmethod
+    def from_lightkurve(cls, lklc, name: str = "") -> "LightCurve":
+        """Construct from a ``lightkurve.LightCurve`` object.
+
+        Parameters
+        ----------
+        lklc : lightkurve.LightCurve
+            A LightCurve from the lightkurve package (e.g. as returned by
+            ``lightkurve.search_lightcurve(...).download()``).
+        name : str, optional
+            Name to assign to the returned LightCurve.  When empty, the
+            object's ``meta['LABEL']`` or ``meta['OBJECT']`` is used if
+            available.
+
+        Notes
+        -----
+        Lightkurve uses linear flux while pyvartools' ``mag`` column is
+        nominally a magnitude.  This method preserves the numerical values
+        as-is — the data flows in unchanged, with ``flux`` mapped to the
+        pyvartools ``mag`` column and ``flux_err`` mapped to ``err``.  If
+        you need a magnitude scale, take ``-2.5 * log10(flux)`` before or
+        after the conversion.
+        """
+        try:
+            import lightkurve as _lk  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "lightkurve is required to use from_lightkurve().  "
+                "Install it with `pip install lightkurve`."
+            ) from e
+
+        # Times — lightkurve typically holds an astropy.time.Time; fall back
+        # to .value if it's a numpy/Quantity.
+        t_attr = lklc.time
+        t = np.asarray(t_attr.value if hasattr(t_attr, "jd") else t_attr.value
+                       if hasattr(t_attr, "value") else t_attr)
+        if hasattr(t_attr, "jd"):
+            t = t_attr.jd
+        # Flux / err — strip Quantity units if present.
+        flux = lklc.flux
+        flux = np.asarray(flux.value if hasattr(flux, "value") else flux)
+        ferr = lklc.flux_err
+        ferr = np.asarray(ferr.value if hasattr(ferr, "value") else ferr)
+
+        # Auxiliary columns — anything in the table that isn't time/flux/err.
+        aux: Dict[str, np.ndarray] = {}
+        skip = {"time", "flux", "flux_err"}
+        for col in lklc.colnames:
+            if col in skip:
+                continue
+            try:
+                vals = np.asarray(lklc[col])
+                # Skip non-numeric columns (e.g. quality strings) — they
+                # cannot round-trip cleanly through the vartools CLI.
+                if vals.dtype.kind in "biufc":
+                    aux[col] = vals
+            except Exception:
+                continue
+
+        if not name:
+            for k in ("LABEL", "OBJECT", "TARGETID"):
+                v = lklc.meta.get(k) if hasattr(lklc, "meta") else None
+                if v:
+                    name = str(v)
+                    break
+
+        return cls.from_arrays(t, flux, ferr, aux=aux or None, name=name)
+
+    @classmethod
     def from_timeseries(cls, ts: "TimeSeries", mag_col: str = "mag",
                         err_col: str = "err", name: str = "") -> "LightCurve":
         """Construct from an astropy TimeSeries.
@@ -460,6 +528,50 @@ class LightCurve:
         """Return (t, mag, err) as numpy arrays."""
         return self.t, self.mag, self.err
 
+    def to_lightkurve(self):
+        """Convert to a ``lightkurve.LightCurve``.
+
+        Returns
+        -------
+        lightkurve.LightCurve
+            The lightkurve object with ``time`` set from this LC's ``t``
+            column (interpreted as JD) and ``flux``/``flux_err`` from the
+            ``mag``/``err`` columns.
+
+        Notes
+        -----
+        Lightkurve treats ``flux`` as a linear flux in electrons/s by
+        default.  This method preserves the numerical values from the
+        ``mag`` column as-is — convert from magnitude to flux yourself if
+        the units matter.  Auxiliary columns are passed through as extra
+        table columns.
+        """
+        try:
+            import lightkurve as _lk
+        except ImportError as e:
+            raise ImportError(
+                "lightkurve is required to use to_lightkurve().  "
+                "Install it with `pip install lightkurve`."
+            ) from e
+        if self.t is None:
+            raise ValueError(
+                "LightCurve has no 't' column; cannot construct a "
+                "lightkurve.LightCurve."
+            )
+        from astropy.time import Time
+        kwargs = {
+            "time": Time(self.t, format="jd"),
+            "flux": self.mag,
+            "flux_err": self.err,
+        }
+        # Pass auxiliary columns through.
+        for col in self._df.columns:
+            if col not in ("t", "mag", "err"):
+                kwargs[col] = self._df[col].to_numpy()
+        if self.name:
+            kwargs["meta"] = {"LABEL": self.name}
+        return _lk.LightCurve(**kwargs)
+
     def to_timeseries(self) -> "TimeSeries":
         """Convert to an astropy TimeSeries."""
         if not _HAVE_ASTROPY:
@@ -621,3 +733,46 @@ class LightCurve:
         extra = f", scalars={len(self.scalars)}" if self.scalars else ""
         return (f"LightCurve(name={self.name!r}, n={len(self)}, "
                 f"cols={list(self._df.columns)}{extra})")
+
+    def _repr_html_(self) -> str:
+        """HTML repr for Jupyter notebooks."""
+        n = len(self)
+        cols = list(self._df.columns)
+        nscalars = len(self.scalars) if self.scalars else 0
+
+        # Preview: first 5 + last 5 rows for tables longer than 10 rows
+        if n <= 10:
+            preview = self._df
+        else:
+            head = self._df.head(5)
+            tail = self._df.tail(5)
+            ellipsis = pd.DataFrame(
+                [["..."] * len(cols)], columns=cols, index=["..."],
+            )
+            preview = pd.concat([head, ellipsis, tail])
+        preview_html = preview._repr_html_()
+
+        # Scalars (if any) — short table
+        if nscalars > 0:
+            scalars_series = pd.Series(self.scalars).rename("value")
+            scalars_html = (
+                f'<details style="margin-top:0.4em">'
+                f'<summary>scalars ({nscalars})</summary>'
+                f'{scalars_series.to_frame()._repr_html_()}'
+                f'</details>'
+            )
+        else:
+            scalars_html = ""
+
+        return (
+            f'<div style="font-family:sans-serif;font-size:0.9em">'
+            f'  <b>LightCurve</b> &middot; '
+            f'  name: <code>{self.name}</code> &middot; '
+            f'  n: {n} &middot; '
+            f'  cols: {cols}'
+            f'  <details style="margin-top:0.4em" open><summary>data</summary>'
+            f'    {preview_html}'
+            f'  </details>'
+            f'  {scalars_html}'
+            f'</div>'
+        )

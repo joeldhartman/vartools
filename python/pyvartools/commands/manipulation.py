@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 import re
-from typing import List, Optional, Union
+from typing import List, Optional, Sequence, Union
 
 from pyvartools._command import VartoolsCommand
 from ._helpers import _bool, _flag, _injectparam, _norm_save, _outtoken, _period_spec, _pval, _should_emit, _varexpr
@@ -502,39 +502,73 @@ class Injectharm(VartoolsCommand):
     Parameters
     ----------
     period : float or str
-        Period of the signal to inject.
+        Period of the signal to inject.  Float → emits ``"fix <val>"``.
+        String passthrough (e.g. ``"logrand 0.2 2.0"``, ``"list"``).
+    amplitude : float or str
+        Fundamental-harmonic amplitude.  Float → ``"ampfix"``.  ``"rand"``
+        → ``"amprand"``; ``"list"`` → ``"amplist"``; bare identifier →
+        ``"ampvar <name>"``; any other string → ``"ampexpr <string>"``.
     nharm : int
-        Number of harmonics.
-    amplitude : float
-        Signal amplitude (for a single harmonic, semi-amplitude in mag).
-    phase : float, optional
-        Initial phase (0–1).
+        Total number of harmonics, including the fundamental.  ``nharm=1``
+        is a pure sinusoid.  ``nharm=11`` is fundamental + 10 overtones.
+    phase : float or str, optional
+        Fundamental-harmonic phase.  Float → ``"phasefix"``.  ``"rand"``
+        → ``"phaserand"``; bare identifier → ``"phasevar <name>"``; other
+        string → ``"phaseexpr <string>"``.  Default 0.0.
+    harmonic_amps_rel : sequence of float, optional
+        Relative amplitudes for harmonics 2..``nharm`` (length ``nharm-1``).
+        Each entry emits ``ampfix R amprel`` so the harmonic's amplitude is
+        ``R`` times the fundamental amplitude.  Use this with the R values
+        from a Fourier-series fit to inject a realistic templated signal.
+    harmonic_phases_rel : sequence of float, optional
+        Relative phases for harmonics 2..``nharm`` (length ``nharm-1``).
+        Each entry emits ``phasefix phi phaserel`` so the harmonic phase
+        is offset from the fundamental phase by ``phi``.
+    nsubharm : int
+        Number of sub-harmonics (default 0).  When non-zero, sub-harmonics
+        share the fundamental's amp/phase mode (no per-sub-harmonic list).
     save_model : bool
         Write the injected signal model to a file.
 
-    Notes
-    -----
-    By design, this class exposes only the most common injection modes:
+    Examples
+    --------
+    Pure sinusoid::
 
-    * **Amplitude**: ``"ampfix"`` and ``"amplogrand"`` only.  For ``"amprand"`` or
-      ``"amplist"`` use :class:`~pyvartools.commands.Raw`.
-    * **Period**: ``"fix"`` and ``"logrand"`` (via the ``period`` parameter).  For
-      ``"list"`` or ``"rand"`` period modes use :class:`~pyvartools.commands.Raw`.
+        cmd.Injectharm(period=2.5, amplitude=0.05)
 
-    These restrictions keep the parameter space manageable.  The full CLI can always
-    be accessed via ``cmd.Raw("-Injectharm ...")``.
+    10-harmonic RR Lyrae template, fundamental amplitude 0.1, random phase::
+
+        cmd.Injectharm(period=0.514333, amplitude=0.1, phase="rand", nharm=11,
+                       harmonic_amps_rel=[0.47, 0.36, 0.24, 0.16, 0.11, 0.06,
+                                          0.04, 0.03, 0.02, 0.02],
+                       harmonic_phases_rel=[0.61, 0.26, -0.07, 0.61, 0.29,
+                                            0.22, 0.95, 0.59, 0.66, 0.94])
     """
 
     _vt_name = "Injectharm"
 
+    # Special amplitude / phase keyword strings that map to bare CLI flags
+    # rather than to ``ampexpr`` / ``phaseexpr``.
+    _AMP_KEYWORDS = {
+        "rand": "amprand",
+        "list": "amplist",
+        "logrand": "amplogrand",
+    }
+    _PHASE_KEYWORDS = {
+        "rand": "phaserand",
+        "list": "phaselist",
+    }
+
     def __init__(
         self,
         period,
-        amplitude: float,
+        amplitude,
         nharm: int = 1,
-        phase: float = 0.0,
+        phase=0.0,
         nsubharm: int = 0,
         save_model: bool = False,
+        harmonic_amps_rel: Optional[Sequence[float]] = None,
+        harmonic_phases_rel: Optional[Sequence[float]] = None,
     ) -> None:
         self.period = period
         self.amplitude = amplitude
@@ -542,6 +576,59 @@ class Injectharm(VartoolsCommand):
         self.phase = phase
         self.nsubharm = nsubharm
         self.save_model = save_model
+        self.harmonic_amps_rel = (
+            list(harmonic_amps_rel) if harmonic_amps_rel is not None else None
+        )
+        self.harmonic_phases_rel = (
+            list(harmonic_phases_rel) if harmonic_phases_rel is not None else None
+        )
+
+        # Validate paired lengths up front so the error surfaces at
+        # construction time rather than at run time.
+        if self.harmonic_amps_rel is not None:
+            if len(self.harmonic_amps_rel) != nharm - 1:
+                raise ValueError(
+                    f"harmonic_amps_rel must have length nharm-1 "
+                    f"({nharm - 1}); got {len(self.harmonic_amps_rel)}.  "
+                    f"Provide one relative amplitude per harmonic 2..{nharm}."
+                )
+        if self.harmonic_phases_rel is not None:
+            if len(self.harmonic_phases_rel) != nharm - 1:
+                raise ValueError(
+                    f"harmonic_phases_rel must have length nharm-1 "
+                    f"({nharm - 1}); got {len(self.harmonic_phases_rel)}."
+                )
+        # If only one of the two lists was supplied, the user almost
+        # certainly wants both.  Reject early with a clear message.
+        if (self.harmonic_amps_rel is None) != (self.harmonic_phases_rel is None):
+            raise ValueError(
+                "harmonic_amps_rel and harmonic_phases_rel must be supplied "
+                "together (or both omitted)."
+            )
+
+    def _amp_tokens(self, amp) -> List[str]:
+        """Build the ampfix/ampvar/ampexpr/amp<keyword> tokens for one amp value."""
+        if isinstance(amp, (int, float)):
+            return ["ampfix", str(amp)]
+        if isinstance(amp, str):
+            if amp in self._AMP_KEYWORDS:
+                return [self._AMP_KEYWORDS[amp]]
+            if re.match(r'^[A-Za-z_]\w*$', amp):
+                return ["ampvar", amp]
+            return ["ampexpr", amp]
+        return ["ampfix", str(amp)]
+
+    def _phase_tokens(self, phase) -> List[str]:
+        """Build the phasefix/phasevar/phaseexpr/phase<keyword> tokens for one phase value."""
+        if isinstance(phase, (int, float)):
+            return ["phasefix", str(phase)]
+        if isinstance(phase, str):
+            if phase in self._PHASE_KEYWORDS:
+                return [self._PHASE_KEYWORDS[phase]]
+            if re.match(r'^[A-Za-z_]\w*$', phase):
+                return ["phasevar", phase]
+            return ["phaseexpr", phase]
+        return ["phasefix", str(phase)]
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
@@ -551,36 +638,30 @@ class Injectharm(VartoolsCommand):
         vt_nharm = self.nharm - 1
         args += [str(vt_nharm)]
 
-        def _amp_phase_tokens() -> List[str]:
-            tokens: List[str] = []
-            if isinstance(self.amplitude, (int, float)):
-                tokens += ["ampfix", str(self.amplitude)]
-            elif isinstance(self.amplitude, str) and re.match(
-                    r'^[A-Za-z_]\w*$', self.amplitude):
-                tokens += ["ampvar", self.amplitude]
-            elif isinstance(self.amplitude, str):
-                tokens += ["ampexpr", self.amplitude]
-            else:
-                tokens += ["ampfix", str(self.amplitude)]
-            if isinstance(self.phase, (int, float)):
-                tokens += ["phasefix", str(self.phase)]
-            elif isinstance(self.phase, str) and re.match(
-                    r'^[A-Za-z_]\w*$', self.phase):
-                tokens += ["phasevar", self.phase]
-            elif isinstance(self.phase, str):
-                tokens += ["phaseexpr", self.phase]
-            else:
-                tokens += ["phasefix", str(self.phase)]
-            return tokens
+        # Fundamental harmonic spec.
+        args += self._amp_tokens(self.amplitude)
+        args += self._phase_tokens(self.phase)
 
-        # Repeat amp/phase spec for each of the nharm harmonics.
-        for _ in range(self.nharm):
-            args += _amp_phase_tokens()
-        # sub-harmonics — vartools expects Nsubharm followed by Nsubharm
-        # copies of (amp/phase) spec; without them the command is rejected.
+        # Higher harmonics.  When per-harmonic relative lists are supplied,
+        # emit ``ampfix R amprel phasefix phi phaserel`` for each.
+        # Otherwise, replicate the fundamental's amp/phase spec for every
+        # harmonic — preserves prior behaviour where amplitude/phase are
+        # shared across all harmonics.
+        if self.harmonic_amps_rel is not None:
+            for R, phi in zip(self.harmonic_amps_rel, self.harmonic_phases_rel):
+                args += ["ampfix", str(R), "amprel",
+                         "phasefix", str(phi), "phaserel"]
+        else:
+            for _ in range(self.nharm - 1):
+                args += self._amp_tokens(self.amplitude)
+                args += self._phase_tokens(self.phase)
+
+        # Sub-harmonics — vartools expects Nsubharm followed by Nsubharm
+        # copies of the (amp, phase) spec.
         args += [str(self.nsubharm)]
         for _ in range(self.nsubharm):
-            args += _amp_phase_tokens()
+            args += self._amp_tokens(self.amplitude)
+            args += self._phase_tokens(self.phase)
         args += _outtoken(self.save_model, outdir)
         return args
 

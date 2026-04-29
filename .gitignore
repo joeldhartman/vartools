@@ -66,3 +66,4 @@ EXAMPLES/results.csv
 
 # Local-only user config (do not commit)
 hatconf_jhlaptop*.sh
+.ipynb_checkpoints/

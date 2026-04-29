@@ -36,6 +36,7 @@ from __future__ import annotations
 import re
 from typing import Dict, Iterator, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 
 
@@ -55,6 +56,50 @@ def _parse_position(key: str) -> Optional[int]:
         except ValueError:
             pass
     return None
+
+
+def _add_peak_arrays(stripped: Dict[str, object]) -> Dict[str, object]:
+    """Augment *stripped* with array forms of multi-peak descriptors.
+
+    For every group of keys ``<base>_1, <base>_2, ..., <base>_N`` whose peak
+    indices form a consecutive 1..N sequence and where ``<base>`` is not
+    already a key, add ``<base>`` as a length-N numpy array of the values.
+
+    The original ``<base>_i`` scalars are kept for backwards compatibility.
+    """
+    # Group keys by base prefix (everything before a trailing _<int>).
+    groups: Dict[str, Dict[int, object]] = {}
+    for key, val in stripped.items():
+        m = _TRAILING_INT.match(key)
+        if not m:
+            continue
+        base, peak_str = m.group(1), m.group(2)
+        try:
+            peak = int(peak_str)
+        except ValueError:
+            continue
+        if peak < 1:
+            continue
+        groups.setdefault(base, {})[peak] = val
+
+    out = dict(stripped)
+    for base, peaks in groups.items():
+        if base in stripped:
+            # A bare <base> already exists — don't overwrite it.
+            continue
+        # Require a consecutive 1..N sequence (single-peak groups also qualify).
+        n = max(peaks)
+        if set(peaks.keys()) != set(range(1, n + 1)):
+            continue
+        # Ordered values for peaks 1..N.  Try to build a homogeneous numeric
+        # array; fall back to object dtype if values are heterogeneous.
+        ordered = [peaks[i] for i in range(1, n + 1)]
+        try:
+            arr = np.asarray(ordered, dtype=float)
+        except (TypeError, ValueError):
+            arr = np.asarray(ordered, dtype=object)
+        out[base] = arr
+    return out
 
 
 def _strip_position_and_prefix(key: str, command: str, position: int) -> str:
@@ -299,6 +344,7 @@ class VarsNamespace:
                 _strip_position_and_prefix(k, cmd, pos): v
                 for k, v in items
             }
+            stripped = _add_peak_arrays(stripped)
             cs = CommandStats(command=cmd, position=pos, stripped=stripped)
             by_command.setdefault(cmd, []).append(cs)
 

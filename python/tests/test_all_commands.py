@@ -611,6 +611,47 @@ class TestCLIArgsManipulation:
         args = cmd.Injectharm(period="rand 0.5 5.0", amplitude=0.1)._to_cli_args()
         assert "rand" in args
 
+    def test_injectharm_phase_rand_keyword(self):
+        # phase="rand" → phaserand (CLI keyword, not phaseexpr).
+        args = cmd.Injectharm(period=2.5, amplitude=0.05,
+                              phase="rand")._to_cli_args()
+        assert "phaserand" in args
+        assert "phasefix" not in args
+
+    def test_injectharm_amp_keyword(self):
+        # amplitude="rand" → amprand keyword.
+        args = cmd.Injectharm(period=2.5, amplitude="rand",
+                              phase=0.0)._to_cli_args()
+        assert "amprand" in args
+        assert "ampfix" not in args
+
+    def test_injectharm_per_harmonic_relative(self):
+        # Per-harmonic relative amps/phases produce
+        # `ampfix R amprel phasefix phi phaserel` blocks.
+        args = cmd.Injectharm(
+            period=0.514333, amplitude=0.1, phase="rand", nharm=4,
+            harmonic_amps_rel=[0.47, 0.36, 0.24],
+            harmonic_phases_rel=[0.61, 0.26, -0.07],
+        )._to_cli_args()
+        # Fundamental: ampfix 0.1 + phaserand
+        assert args.count("phaserand") == 1
+        # 3 overtones, each contributes one ampfix+amprel and one phasefix+phaserel
+        assert args.count("amprel") == 3
+        assert args.count("phaserel") == 3
+
+    def test_injectharm_per_harmonic_length_validation(self):
+        # nharm-1 must equal len(harmonic_amps_rel).
+        with pytest.raises(ValueError, match="harmonic_amps_rel"):
+            cmd.Injectharm(period=1.0, amplitude=0.1, nharm=4,
+                           harmonic_amps_rel=[1, 2],
+                           harmonic_phases_rel=[1, 2])
+
+    def test_injectharm_per_harmonic_paired(self):
+        # Both lists must be supplied together.
+        with pytest.raises(ValueError, match="must be supplied"):
+            cmd.Injectharm(period=1.0, amplitude=0.1, nharm=2,
+                           harmonic_amps_rel=[0.5])
+
     def test_injecttransit_basic(self):
         args = cmd.Injecttransit(
             period=3.0, Rp=0.1, Mp=1.0, phase=0.0,
