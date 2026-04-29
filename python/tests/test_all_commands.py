@@ -1830,6 +1830,33 @@ class TestEndToEndPipelines:
         for acf in acfs:
             assert len(acf) > 0
 
+    def test_linfit_model_capture_default_filename(self):
+        """linfit save_model captures the model file at the default
+        ``<lcbase>.linfit.model`` location."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.linfit(function="a*t+b", paramlist="a,b", save_model=True),
+        ]).run(lc)
+        assert "linfit_model_0" in result.files
+        assert len(result.files["linfit_model_0"]) > 0
+
+    def test_linfit_model_capture_custom_nameformat(self):
+        """When ``model_nameformat`` is set, vartools writes the model
+        file under the user's format string instead of the default
+        ``.linfit.model`` suffix.  Pyvartools must honour that
+        substitution when capturing the file (this used to silently
+        fail, leaving result.files empty for the model)."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.linfit(function="a*t+b", paramlist="a,b",
+                        model_nameformat="%s.baldump",
+                        save_model=True),
+        ]).run(lc)
+        assert "linfit_model_0" in result.files, \
+            "linfit save_model with model_nameformat='%s.baldump' " \
+            "must still populate result.files['linfit_model_0']"
+        assert len(result.files["linfit_model_0"]) > 0
+
     # -----------------------------------------------------------------------
     # Period search
     # -----------------------------------------------------------------------

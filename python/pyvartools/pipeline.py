@@ -2363,7 +2363,17 @@ class Pipeline:
                     cmd_outdir = os.path.join(outdir, f"cmd_{idx}")
                     actual_outdir = (cmd_outdir if os.path.isdir(cmd_outdir)
                                       else outdir)
-                candidate = os.path.join(actual_outdir, base + suffix)
+                # Per-output nameformat — when set, vartools constructs the
+                # filename from the format string instead of the default
+                # <lcbase><suffix>.  We mirror its substitution rule (`%s`
+                # = LC basename including any extension).
+                fmt_attr = getattr(command, f"{logical_name}_nameformat",
+                                    None)
+                if fmt_attr is not None:
+                    candidate = os.path.join(
+                        actual_outdir, str(fmt_attr).replace("%s", base))
+                else:
+                    candidate = os.path.join(actual_outdir, base + suffix)
 
                 if os.path.isfile(candidate):
                     kwargs = {}
