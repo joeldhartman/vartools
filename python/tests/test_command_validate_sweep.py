@@ -219,6 +219,184 @@ def _construct_minimal(cls, tmp_path):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Layer 2 — enumerated-keyword variation matrix
+# ---------------------------------------------------------------------------
+#
+# Each entry is ``(cls_name, base_kwargs, kwarg_name, valid_values)``.  The
+# test substitutes each valid_value into base_kwargs and runs validate().
+# This is where the wwz `phase="rand"` / addfitskeyword `dtype="double"`
+# class of bug hides — the wrapper takes a closed-set string kwarg and
+# either passes it through verbatim or wraps it the wrong way.
+
+_LD_VARIANTS = ("linear", "quad", "logarithmic", "squareroot", "claret",
+                 "nonlinear", "exponential")
+
+# ``base_kwargs`` is what the cmd needs to construct AND validate at all;
+# the kwarg under test gets injected on top.  When base needs a prior
+# command in the pipeline, set ``priors`` to a list of cmd instances.
+
+_VARIATION_MATRIX = [
+    # (label, cls, base_kwargs, kwarg_name, valid_values, priors)
+    ("addfitskeyword.dtype",  cmd.addfitskeyword,
+        dict(keyword="K1", value=1.0), "dtype",
+        ["double", "int", "long", "string",
+         "TDOUBLE", "TINT", "TLONG", "TSTRING"], None),
+    ("addfitskeyword.hdu",    cmd.addfitskeyword,
+        dict(keyword="K1", dtype="double", value=1.0), "hdu",
+        ["primary", "extension"], None),
+    ("addfitskeyword.mode",   cmd.addfitskeyword,
+        dict(keyword="K1", dtype="double", value=1.0), "mode",
+        ["append", "update"], None),
+
+    ("addnoise.noise_type",   cmd.addnoise,
+        dict(sig_white=0.001, sig_red=0.001, rho=0.1, gamma=0.5,
+             nu=1.0), "noise_type",
+        ["white", "squareexp", "exp", "matern", "wavelet"], None),
+
+    ("binlc.method",          cmd.binlc,
+        dict(binsize=0.1), "method",
+        ["average", "median", "weightedaverage"], None),
+    ("binlc.time_output",     cmd.binlc,
+        dict(method="average", binsize=0.1), "time_output",
+        ["tcenter", "tmin", "tmax", "average", "median"], None),
+
+    ("converttime.input_format", cmd.converttime,
+        dict(output_format="mjd"), "input_format",
+        ["jd", "mjd", "JD", "MJD"], None),  # case-insensitive
+    ("converttime.output_format", cmd.converttime,
+        dict(input_format="jd"), "output_format",
+        ["jd", "mjd", "JD", "MJD"], None),
+    ("converttime.input_sys", cmd.converttime,
+        dict(input_format="jd", output_format="mjd"), "input_sys",
+        ["tdb", "utc"], None),
+    ("converttime.output_sys", cmd.converttime,
+        dict(input_format="jd", output_format="mjd"), "output_sys",
+        ["tdb", "utc"], None),
+
+    ("fourierfilter.mode",    cmd.fourierfilter,
+        dict(minfreq=0.1, maxfreq=1.0), "mode",
+        ["lowpass", "highpass", "bandpass", "bandcut", "full"], None),
+
+    ("GetLSAmpThresh.mode",   cmd.GetLSAmpThresh,
+        dict(period="ls", minp=0.1, thresh=10.0,
+             listfile=str(_EXAMPLES / "dates_tfa")), "mode",
+        ["harm", "file"],
+        [cmd.LS(0.1, 10.0, 0.1, npeaks=1)]),
+
+    # 'rand' / 'logrand' need a min,max range — pass via "rand <min> <max>".
+    ("Injectharm.amplitude.kw", cmd.Injectharm,
+        dict(period=2.5), "amplitude",
+        ["rand 0.01 0.1", "list", "logrand 0.01 0.1", 0.05], None),
+    ("Injectharm.phase.kw",    cmd.Injectharm,
+        dict(period=2.5, amplitude=0.05), "phase",
+        ["rand", "list", 0.5], None),
+
+    ("Injecttransit.ld_type", cmd.Injecttransit,
+        dict(period=3.0, Rp=0.1, Mp=1.0, phase=0.0,
+             sini=1.0, Mstar=1.0, Rstar=1.0,
+             ld_coeffs=[0.3, 0.3]), "ld_type",
+        ["quad"], None),
+
+    ("MandelAgolTransit.ld_type", cmd.MandelAgolTransit,
+        dict(P0=2.5, T00=0.0, r0=0.1, a0=10.0, bimpact=0.1,
+             mconst0=-1, ld_coeffs=[0.3, 0.3]), "ld_type",
+        ["quad"], None),
+
+    ("medianfilter.method",   cmd.medianfilter,
+        dict(time=0.01), "method",
+        ["median", "mean", "weightedmean"], None),
+
+    ("resample.method",       cmd.resample,
+        dict(), "method",
+        ["nearest", "linear", "spline", "splinemonotonic", "bspline"], None),
+
+    ("restricttimes.mode",    cmd.restricttimes,
+        dict(minJD=0.0, maxJD=1e9), "mode",
+        ["JDrange"], None),
+
+    ("wwz.maxfreq.kw",        cmd.wwz,
+        dict(), "maxfreq", ["auto", 5.0], None),
+    ("wwz.tau0.kw",           cmd.wwz,
+        dict(), "tau0", ["auto", 0.0], None),
+    ("wwz.tau1.kw",           cmd.wwz,
+        dict(), "tau1", ["auto", 100.0], None),
+    ("wwz.dtau.kw",           cmd.wwz,
+        dict(), "dtau", ["auto", 0.1], None),
+
+    ("nonlinfit.optimizer",   cmd.nonlinfit,
+        dict(function="a*sin(2*pi*t/p)+b",
+             paramlist="a=0.1:0.01,p=1.0:0.01,b=0.0:0.001"), "optimizer",
+        ["amoeba", "mcmc"], None),
+
+    ("findblends.period.kw",  cmd.findblends,
+        dict(matchrad=1.0), "period",
+        ["list", "fix 1.0"], None),
+
+    ("Phase.period.kw",       cmd.Phase,
+        dict(), "period",
+        ["ls", "aov", "bls", 2.5],
+        [cmd.LS(0.1, 10.0, 0.1, npeaks=1),
+         cmd.aov(minp=0.1, maxp=10.0, subsample=0.1, finetune=0.01,
+                 npeaks=1),
+         cmd.BLS(rmin=0.005, rmax=0.05, minper=0.5, maxper=10.0,
+                 nfreq=200, nbins=200, npeaks=1, qmin=0.01, qmax=0.1)]),
+
+    # vartools' -Killharm/-harmonicfilter period keywords are
+    # ls / aov / both / injectharm — NOT bls (the CLI uses Phase
+    # for that, not Killharm).
+    ("Killharm.period.kw",    cmd.Killharm,
+        dict(), "period",
+        ["ls", "aov", "both", 2.5],
+        [cmd.LS(0.1, 10.0, 0.1, npeaks=1),
+         cmd.aov(minp=0.1, maxp=10.0, subsample=0.1, finetune=0.01,
+                 npeaks=1)]),
+
+    ("Starspot.period.kw",    cmd.Starspot,
+        dict(), "period",
+        ["ls", 2.5],
+        [cmd.LS(0.1, 10.0, 0.1, npeaks=1)]),
+]
+
+
+def _expand_variations():
+    """Yield (label, cls, kwargs, priors) tuples for the test parametrize."""
+    out = []
+    for label, cls, base, name, values, priors in _VARIATION_MATRIX:
+        for v in values:
+            kw = dict(base)
+            kw[name] = v
+            out.append((f"{label}={v!r}", cls, kw, priors or []))
+    return out
+
+
+@pytest.mark.skipif(not _HAVE_BINARY, reason="vartools binary not available")
+@pytest.mark.parametrize(
+    "label,cls,kwargs,priors",
+    _expand_variations(),
+    ids=lambda x: x if isinstance(x, str) else "",
+)
+def test_keyword_variation_validates(label, cls, kwargs, priors, tmp_path):
+    """For each enumerated string-keyword kwarg, every documented valid
+    value must produce a CLI that vartools accepts.  Catches the
+    wrapper-emits-wrong-token bug class (e.g. wwz `phase="rand"` →
+    `phaseexpr rand`, addfitskeyword `dtype="double"` → literal
+    `double` token)."""
+    instance = cls(**kwargs)
+    pipe = vt.Pipeline()
+    for p in priors:
+        pipe = pipe.add(p)
+    pipe = pipe.add(instance)
+    try:
+        pipe.validate()
+    except PipelineValidationError as e:
+        pytest.fail(
+            f"{label} -> CLI rejected by vartools.\n"
+            f"argv: {' '.join(e.argv)}\n"
+            f"stderr:\n{e.stderr}"
+        )
+
+
 @pytest.mark.skipif(not _HAVE_BINARY, reason="vartools binary not available")
 @pytest.mark.parametrize(
     "cmd_cls",

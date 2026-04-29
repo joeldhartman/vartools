@@ -327,6 +327,11 @@ class harmonicfilter(VartoolsCommand):
         ``fix Nper <v1> ... <vN>`` form (used when a chained ``period="both"``
         back-reference resolves to a pair of periods).
         """
+        # vartools' valid -harmonicfilter / -Killharm period keywords are
+        # aov / ls / both / injectharm / list — *not* bls (the CLI
+        # rejects "bls" with "undefined variable" because it routes the
+        # token through the var-name path).  "both" is the vartools
+        # CLI keyword that uses a paired (LS, AOV) period set.
         _KILLHARM_KEYWORDS = {"ls", "aov", "both", "injectharm", "list"}
         p = self.period
         if isinstance(p, (int, float)):
@@ -548,15 +553,17 @@ class Injectharm(VartoolsCommand):
     _vt_name = "Injectharm"
 
     # Special amplitude / phase keyword strings that map to bare CLI flags
-    # rather than to ``ampexpr`` / ``phaseexpr``.
+    # rather than to ``ampexpr`` / ``phaseexpr``.  Both the short Pythonic
+    # form (``"rand"``) and the verbatim CLI form (``"amprand"``) are
+    # accepted to match the spelling in vartools' own help text.
     _AMP_KEYWORDS = {
-        "rand": "amprand",
-        "list": "amplist",
-        "logrand": "amplogrand",
+        "rand": "amprand",        "amprand": "amprand",
+        "list": "amplist",        "amplist": "amplist",
+        "logrand": "amplogrand",  "amplogrand": "amplogrand",
     }
     _PHASE_KEYWORDS = {
-        "rand": "phaserand",
-        "list": "phaselist",
+        "rand": "phaserand",      "phaserand": "phaserand",
+        "list": "phaselist",      "phaselist": "phaselist",
     }
 
     def __init__(
@@ -607,12 +614,19 @@ class Injectharm(VartoolsCommand):
             )
 
     def _amp_tokens(self, amp) -> List[str]:
-        """Build the ampfix/ampvar/ampexpr/amp<keyword> tokens for one amp value."""
+        """Build the ampfix/ampvar/ampexpr/amp<keyword> tokens for one amp value.
+
+        The string form is whitespace-split so range-form keywords like
+        ``"rand 0.01 0.1"`` map to ``["amprand", "0.01", "0.1"]`` rather
+        than being treated as a single bareword.
+        """
         if isinstance(amp, (int, float)):
             return ["ampfix", str(amp)]
         if isinstance(amp, str):
-            if amp in self._AMP_KEYWORDS:
-                return [self._AMP_KEYWORDS[amp]]
+            tokens = amp.split()
+            head = tokens[0] if tokens else ""
+            if head in self._AMP_KEYWORDS:
+                return [self._AMP_KEYWORDS[head]] + tokens[1:]
             if re.match(r'^[A-Za-z_]\w*$', amp):
                 return ["ampvar", amp]
             return ["ampexpr", amp]
@@ -623,8 +637,10 @@ class Injectharm(VartoolsCommand):
         if isinstance(phase, (int, float)):
             return ["phasefix", str(phase)]
         if isinstance(phase, str):
-            if phase in self._PHASE_KEYWORDS:
-                return [self._PHASE_KEYWORDS[phase]]
+            tokens = phase.split()
+            head = tokens[0] if tokens else ""
+            if head in self._PHASE_KEYWORDS:
+                return [self._PHASE_KEYWORDS[head]] + tokens[1:]
             if re.match(r'^[A-Za-z_]\w*$', phase):
                 return ["phasevar", phase]
             return ["phaseexpr", phase]

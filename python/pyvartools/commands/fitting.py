@@ -1078,14 +1078,17 @@ class addnoise(VartoolsCommand):
                 args += ["sig_red"] + _pval(self.sig_red, "fix")
             args += ["sig_white"] + _pval(self.sig_white, "fix")
         else:
-            # squareexp, exp
+            # squareexp, exp.  Token order from vartools: rho, sig_red,
+            # sig_white, [bintime].  bintime is optional and must come
+            # AFTER sig_white, not before — vartools rejects out-of-order
+            # forms.
             if self.rho is not None:
                 args += ["rho"] + _pval(self.rho, "fix")
             if self.sig_red is not None:
                 args += ["sig_red"] + _pval(self.sig_red, "fix")
+            args += ["sig_white"] + _pval(self.sig_white, "fix")
             if self.bintime is not None:
                 args += ["bintime"] + _pval(self.bintime, "fix")
-            args += ["sig_white"] + _pval(self.sig_white, "fix")
         return args
 
 

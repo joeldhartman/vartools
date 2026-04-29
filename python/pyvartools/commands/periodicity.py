@@ -1086,9 +1086,19 @@ class GetLSAmpThresh(VartoolsCommand):
         args = ["-GetLSAmpThresh"] + _period_spec(self.period)
         args += [str(self.minp), str(self.thresh)]
         if self.mode == "file":
+            if self.listfile is None:
+                raise ValueError(
+                    "GetLSAmpThresh(mode='file') requires the listfile "
+                    "kwarg to point at a vartools signal-list file."
+                )
             args += ["file", str(self.listfile)]
-        else:
+        elif self.mode == "harm":
             args += ["harm", str(self.nharm), str(self.nsubharm)]
+        else:
+            raise ValueError(
+                f"GetLSAmpThresh: mode must be 'harm' or 'file'; "
+                f"got {self.mode!r}"
+            )
         args += _bool("noGLS", self.noGLS)
         return args
 
