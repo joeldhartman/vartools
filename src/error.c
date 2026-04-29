@@ -61,6 +61,9 @@ void vartools_error_set_pipeline_context(ProgramData *p) {
 /* Forward declaration: written out at end of this file. */
 static const char *_vartools_errcode_message(int errflag);
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
 void vt_error(int errflag)
 {
   /* In library (pipeline) mode, record the message and longjmp back to the
@@ -326,6 +329,9 @@ void vt_error2_noexit(int errflag, char *s)
     }
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
 void vt_error2(int errflag, char *s)
 {
   /* In library (pipeline) mode, record the message and longjmp back to the

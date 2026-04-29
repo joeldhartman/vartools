@@ -1465,6 +1465,11 @@ class Pipeline:
             return []
         tokens: List[str] = []
         for name, val in scalars.items():
+            # Coerce numpy scalars to plain Python types: under numpy>=2,
+            # repr(np.float64(x)) returns "np.float64(x)" which vartools
+            # cannot parse as an analytic expression.
+            if hasattr(val, "item"):
+                val = val.item()
             tokens += ["-expr", "const", f"{name}={val!r}"]
         return tokens
 

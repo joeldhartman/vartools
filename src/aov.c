@@ -520,7 +520,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 
   FILE *outfile;
 
-  _HistType h;
+  _HistType h = {0};
 
   if(N <= 1) {
     for(i = 0; i < Npeaks; i++) {

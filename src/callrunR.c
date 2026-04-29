@@ -70,7 +70,7 @@ _RCommand *CreateRCommandStruct(ProgramData *p, char *argv0) {
 
   if((c->progname = (char *) malloc((strlen(argv0)+1)*sizeof(char))) == NULL)
     vt_error(ERR_MEMALLOC);
-  sprintf(c->progname, argv0);
+  sprintf(c->progname, "%s", argv0);
 
   c->Rinitializationtext = NULL;
   c->len_Rinitializationtextstring = 0;

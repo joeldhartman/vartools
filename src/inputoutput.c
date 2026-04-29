@@ -1464,15 +1464,18 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   }
 
   if(p->fits_header_adds != NULL) {
+    /* Cast through (void *) at assignment to allow either fits_update_key or
+       fits_write_key whose signatures differ slightly in const-qualification
+       across cfitsio versions; we know the actual call shape below is fixed. */
     int (*fitskeyfunctocall)(fitsfile *, int, char *, ...);
     void *fitskeyvalptr;
     for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
       if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 0)
 	continue;
       if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = &(fits_update_key);
+	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
       } else {
-	fitskeyfunctocall = &(fits_write_key);
+	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
       }
       switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
       case TDOUBLE:
@@ -1504,9 +1507,9 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
       if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 1)
 	continue;
       if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = &(fits_update_key);
+	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
       } else {
-	fitskeyfunctocall = &(fits_write_key);
+	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
       }
       switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
       case TDOUBLE:

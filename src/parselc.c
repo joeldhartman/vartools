@@ -3201,8 +3201,6 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 
 #endif
 
-  line = malloc(line_size);
-
   if(p->use_lc_open_exec_command) {
     infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
@@ -3220,6 +3218,8 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	  vt_error2(ERR_FILENOTFOUND,lcnameptr);
       }
     }
+
+  line = malloc(line_size);
 
   colmax = p->maxinputlccolumn;
   if(colmax > 0) {

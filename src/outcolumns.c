@@ -1586,10 +1586,11 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  }
 	  break;
 	case CNUM_FOURIERFILTER:
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->mean_mag), "%9.5f", 1, 0, 0, 0, "FourierFilter_Mean_Mag_%d", l);
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_in),   "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_In_%d",   l);
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_out),  "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_Out_%d",  l);
-	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreq),    "%d",    1, 0, 0, 0, "FourierFilter_Nfreq_%d",    l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->mean_mag),  "%9.5f", 1, 0, 0, 0, "FourierFilter_Mean_Mag_%d",  l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_in),    "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_In_%d",    l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_out),   "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_Out_%d",   l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreqcalc), "%d",    1, 0, 0, 0, "FourierFilter_Nfreqcalc_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreqfilt), "%d",    1, 0, 0, 0, "FourierFilter_Nfreqfilt_%d", l);
 	  break;
 	case CNUM_INJECTHARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);
@@ -2053,7 +2054,7 @@ void printheader_new(ProgramData *p, FILE *outfile)
     {
       if(i)
 	dotab(outfile,p->tabflag);
-      fprintf(outfile,p->outcolumns[i].columnname);
+      fprintf(outfile,"%s",p->outcolumns[i].columnname);
     }
   fprintf(outfile,"\n");
   if(p->tabflag)
@@ -2141,7 +2142,7 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
       }
     for(i=0;i<p->Ncolumns;i++)
       {
-	fprintf(outfile,p->outcolumns[i].columnname);
+	fprintf(outfile,"%s",p->outcolumns[i].columnname);
 	for(j=p->outcolumns[i].length_columnname; j < maxlength; j++)
 	  fprintf(outfile," ");
 	fprintf(outfile," = ");
@@ -2375,9 +2376,9 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
       }
     for(i=0;i<p->Ncolumns;i++)
       {
-	if((len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,p->outcolumns[i].columnname)) >= ((*sizebuf)-indx)) {
+	if((len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,"%s",p->outcolumns[i].columnname)) >= ((*sizebuf)-indx)) {
 	  growbuffer(buf, sizebuf, indx+len+1);
-	  len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,p->outcolumns[i].columnname);
+	  len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,"%s",p->outcolumns[i].columnname);
 	}
 	indx += len;
 	for(j=p->outcolumns[i].length_columnname; j < maxlength; j++) {
@@ -2476,7 +2477,7 @@ void emptyresults_buffer(ProgramData *p, FILE *outfile) {
   int i;
   for(i=0; i < p->Nbuffs_full; i++) {
     buf = p->full_buffer_stack[i];
-    fprintf(outfile,buf->data);
+    fprintf(outfile,"%s",buf->data);
     pushFreeBuffer(p,buf);
   }
   p->Nbuffs_full = 0;

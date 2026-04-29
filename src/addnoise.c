@@ -168,6 +168,7 @@ void addnoise_wavelet(ProgramData *p, double gamval, double sig_r, double sig_w,
   
   for (i=0; i < Nin; i++) {
     j1 = floor((datain[p_[i]] - datain[p_[0]])/sep);
+    if(j1 >= N-1) j1 = N-2;
     j2 = j1+1;
     r1 = datain[p_[0]] + j1*sep;
     r2 = datain[p_[0]] + j2*sep;

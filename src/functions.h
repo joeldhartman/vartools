@@ -52,7 +52,13 @@ void dotab(FILE *,int);
 void printheader(int, Command *, int, int);
 void printresults(int, char *, Command *, int, int, int);
 double readdates(char *, double);
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
 void vt_error(int);
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
 void vt_error2(int, char *);
 void vartools_error_set_pipeline_context(ProgramData *p);
 const char *vartools_last_error_message(void);

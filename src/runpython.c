@@ -1047,12 +1047,12 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	if(tmpcharvec != NULL) free(tmpcharvec);
 	return 1;
       }
-      if(PyArray_NDIM(tmparray) != 1) {
-	fprintf(stderr,"Error the variable %s has the wrong number of array dimensions upon output from python. It should either be a scalar or a one dimensional array, but instead has dimension %d.\n", v->varname, (int) PyArray_NDIM(tmparray));
+      if(PyArray_NDIM((PyArrayObject *) tmparray) != 1) {
+	fprintf(stderr,"Error the variable %s has the wrong number of array dimensions upon output from python. It should either be a scalar or a one dimensional array, but instead has dimension %d.\n", v->varname, (int) PyArray_NDIM((PyArrayObject *) tmparray));
 	if(tmpcharvec != NULL) free(tmpcharvec);
 	return 1;
       }
-      outdims = PyArray_DIMS(tmparray);
+      outdims = PyArray_DIMS((PyArrayObject *) tmparray);
       if(v->vectortype != VARTOOLS_VECTORTYPE_LC) {
 	if(outdims[0] != 1) {
 	  fprintf(stderr,"Error the variable %s has the wrong dimension upon output from python. This variable is expected to be a scalar, but was instead found to have dimension %d\n",v->varname,(int) (outdims[0]));
@@ -1142,7 +1142,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	  return 1;
 	}
 	if(lenvec <= 0) continue;
-	descr = PyArray_DESCR(tmparray);
+	descr = PyArray_DESCR((PyArrayObject *) tmparray);
 	switch(v->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	case VARTOOLS_TYPE_CONVERTJD:
@@ -1154,7 +1154,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
-	    dblptrout = (double *) PyArray_DATA(tmpcopyarray);
+	    dblptrout = (double *) PyArray_DATA((PyArrayObject *) tmpcopyarray);
 	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(double)))) < (((size_t) lenvec)*(sizeof(double)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1162,7 +1162,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    }
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
-	    dblptrout = (double *) PyArray_DATA(tmparray);
+	    dblptrout = (double *) PyArray_DATA((PyArrayObject *) tmparray);
 	    if(write(cparent->sockets[threadindex][1], (void *) dblptrout, (((size_t) lenvec)*(sizeof(double)))) < (((size_t) lenvec)*(sizeof(double)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1179,7 +1179,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
-	    floatptrout = (float *) PyArray_DATA(tmpcopyarray);
+	    floatptrout = (float *) PyArray_DATA((PyArrayObject *) tmpcopyarray);
  	    if(write(cparent->sockets[threadindex][1], (void *) floatptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1187,7 +1187,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    }
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
-	    floatptrout = (float *) PyArray_DATA(tmparray);
+	    floatptrout = (float *) PyArray_DATA((PyArrayObject *) tmparray);
 	    if(write(cparent->sockets[threadindex][1], (void *) floatptrout, (((size_t) lenvec)*(sizeof(float)))) < (((size_t) lenvec)*(sizeof(float)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1204,7 +1204,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
-	    intptrout = (int *) PyArray_DATA(tmpcopyarray);
+	    intptrout = (int *) PyArray_DATA((PyArrayObject *) tmpcopyarray);
 	    if(write(cparent->sockets[threadindex][1], (void *) intptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(int)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1212,7 +1212,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    }
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
-	    intptrout = (int *) PyArray_DATA(tmparray);
+	    intptrout = (int *) PyArray_DATA((PyArrayObject *) tmparray);
 	    if(write(cparent->sockets[threadindex][1], (void *) intptrout, (((size_t) lenvec)*(sizeof(int)))) < (((size_t) lenvec)*(sizeof(int)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1229,7 +1229,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
-	    longptrout = (long *) PyArray_DATA(tmpcopyarray);
+	    longptrout = (long *) PyArray_DATA((PyArrayObject *) tmpcopyarray);
 	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(long)))) < (((size_t) lenvec)*(sizeof(long)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1237,7 +1237,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    }
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
-	    longptrout = (long *) PyArray_DATA(tmparray);
+	    longptrout = (long *) PyArray_DATA((PyArrayObject *) tmparray);
 	    if(write(cparent->sockets[threadindex][1], (void *) longptrout, (((size_t) lenvec)*(sizeof(long)))) < (((size_t) lenvec)*(sizeof(long)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1254,7 +1254,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	      if(tmpcharvec != NULL) free(tmpcharvec);
 	      return 1;
 	    }
-	    shortptrout = (short *) PyArray_DATA(tmpcopyarray);
+	    shortptrout = (short *) PyArray_DATA((PyArrayObject *) tmpcopyarray);
 	    if(write(cparent->sockets[threadindex][1], (void *) shortptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -1262,7 +1262,7 @@ int WriteVariablesFromPythonToSocket(ProgramData *p, _PythonCommand *cparent,
 	    }
 	    Py_CLEAR(tmpcopyarray);
 	  } else {
-	    shortptrout = (short *) PyArray_DATA(tmparray);
+	    shortptrout = (short *) PyArray_DATA((PyArrayObject *) tmparray);
 	    if(write(cparent->sockets[threadindex][1], (void *) shortptrout, (((size_t) lenvec)*(sizeof(short)))) < (((size_t) lenvec)*(sizeof(short)))) {
 	      Py_CLEAR(tmpcopyarray);
 	      if(tmpcharvec != NULL) free(tmpcharvec);
@@ -2809,7 +2809,11 @@ void InitPythonCommand(ProgramData *p, _PythonCommand *c, int Nlcs)
     }
 #endif
   } else {
-    if((c->pythonobjects = (void *)(((_PythonObjectContainer **) malloc(sizeof(_PythonObjectContainer *))))) == NULL ||
+    /* Allocate Nlcs slots: when readallflag=true the main thread only writes
+       slot 0, but if this command (or any child) has RequireReadAll set,
+       InitializePython() later fills slots 1..Nlcs-1.  Allocating just one
+       slot here caused a heap overflow in that path. */
+    if((c->pythonobjects = (void *)(((_PythonObjectContainer **) malloc(Nlcs * sizeof(_PythonObjectContainer *))))) == NULL ||
        (c->outcolumndata = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
       DO_ERROR_MEMALLOC;
     if(c->Noutcolumnvars > 0) {

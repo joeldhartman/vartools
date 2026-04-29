@@ -529,6 +529,11 @@ correctlc is a flag denoting whether or not to subtract off the spot model from 
   /* Run amoeba */
   amoeba_val = amoeba(p, y, ia, ma, ftol, funcs, &nfunk, 0, N, t, mag, sig, NULL);
 
+  /* k may have been left equal to nvar+1 by the for-loops above; reset it
+     so y[k] read below is in bounds.  The else-if(nvar>0) branch overwrites
+     this with the index of the minimum vertex when amoeba converged. */
+  k = 0;
+
   /* If amoeba didn't converge, then write out a garbage model */
   if(amoeba_val && nvar > 0)
     {

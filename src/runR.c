@@ -2243,7 +2243,11 @@ void InitRCommand(ProgramData *p, _RCommand *c, int Nlcs)
     }
 #endif
   } else {
-    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(sizeof(_RObjectContainer *))))) == NULL ||
+    /* Allocate Nlcs slots: when readallflag=true the main thread only writes
+       slot 0, but if this command (or any child) has RequireReadAll set,
+       InitializeR() later fills slots 1..Nlcs-1.  Allocating just one slot
+       here caused a heap overflow in that path. */
+    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(Nlcs * sizeof(_RObjectContainer *))))) == NULL ||
        (c->outcolumndata = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
       DO_ERROR_MEMALLOC;
     if(c->Noutcolumnvars > 0) {
