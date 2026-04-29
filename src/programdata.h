@@ -300,6 +300,10 @@ typedef struct {
   _StringBuffer **free_buffer_stack;
   _StringBuffer **full_buffer_stack;
   int Nbuffs_free;
+  int Nbuffs_free_user_set;  /* set to 1 when -bufferlines was given on
+                                the command line; otherwise the auto-
+                                scaling default kicks in based on the
+                                value of -parallel.  See parsecommandline.c. */
   int Nbuffs_free_stack;
   int Nbuffs_full;
   int free_buffer_stack_alloclen;

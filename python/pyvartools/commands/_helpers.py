@@ -90,6 +90,15 @@ def _period_spec(period) -> List[str]:
     return ["expr", s]
 
 
+def _auto_or_varexpr(val) -> List[str]:
+    """Like :func:`_varexpr`, but pass the bare keyword ``"auto"`` through
+    verbatim (used by commands such as ``-wwz`` where ``auto`` is a literal
+    CLI option, not a variable name)."""
+    if isinstance(val, str) and val == "auto":
+        return ["auto"]
+    return _varexpr(val)
+
+
 def _varexpr(val) -> List[str]:
     """Convert a numeric parameter that may be a variable name or expression.
 

@@ -4,8 +4,9 @@ from __future__ import annotations
 from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
-from ._helpers import (_bool, _flag, _fixperiodsnr_tokens, _norm_save,
-                       _outtoken, _period_spec, _pval, _should_emit, _varexpr)
+from ._helpers import (_auto_or_varexpr, _bool, _flag, _fixperiodsnr_tokens,
+                       _norm_save, _outtoken, _period_spec, _pval,
+                       _should_emit, _varexpr)
 
 
 class LS(VartoolsCommand):
@@ -941,13 +942,21 @@ class wwz(VartoolsCommand):
     Parameters
     ----------
     maxfreq : float or ``"auto"``
-        Maximum frequency.
+        Maximum frequency in cycles per day.  ``"auto"`` (default) sets
+        it to ``1/(2*delmin)`` where ``delmin`` is the minimum spacing
+        between consecutive light-curve points.
     freqsamp : float
-        Frequency sampling step.
+        Frequency sampling step factor: the actual frequency step is
+        ``freqsamp/T`` where ``T`` is the light-curve time baseline.
+        Default ``0.25`` (Foster 1996 convention).  vartools does not
+        accept ``"auto"`` for this parameter.
     tau0, tau1, dtau : float or ``"auto"``
-        Start, end, and step of the time grid.
+        Start, end, and step of the time grid.  ``"auto"`` for
+        ``tau0`` / ``tau1`` uses the LC's first/last time; ``"auto"``
+        for ``dtau`` uses ``delmin``.
     c : float, optional
-        Decay constant (default 0.0125).
+        Decay constant of the abbreviated Morlet wavelet (default
+        0.0125, i.e. the Foster ``1/(8*pi^2)`` recommendation).
     save_transform : bool
         Write the full WWZ time-frequency map.
     transform_format : str, optional
@@ -966,7 +975,7 @@ class wwz(VartoolsCommand):
     def __init__(
         self,
         maxfreq="auto",
-        freqsamp: Optional[float] = None,
+        freqsamp: float = 0.25,
         tau0="auto",
         tau1="auto",
         dtau="auto",
@@ -994,11 +1003,15 @@ class wwz(VartoolsCommand):
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
         args = ["-wwz"]
-        args += ["maxfreq"] + _varexpr(self.maxfreq)
-        args += ["freqsamp"] + (_varexpr(self.freqsamp) if self.freqsamp is not None else ["auto"])
-        args += ["tau0"] + _varexpr(self.tau0)
-        args += ["tau1"] + _varexpr(self.tau1)
-        args += ["dtau"] + _varexpr(self.dtau)
+        # maxfreq / tau0 / tau1 / dtau accept the bare keyword ``auto`` as
+        # a literal CLI option (route them through the auto-aware helper
+        # rather than the plain _varexpr).  freqsamp does NOT — vartools
+        # rejects ``freqsamp auto`` with "must be > 0".
+        args += ["maxfreq"] + _auto_or_varexpr(self.maxfreq)
+        args += ["freqsamp"] + _varexpr(self.freqsamp)
+        args += ["tau0"] + _auto_or_varexpr(self.tau0)
+        args += ["tau1"] + _auto_or_varexpr(self.tau1)
+        args += ["dtau"] + _auto_or_varexpr(self.dtau)
         args += ["c"] + _varexpr(self.c)
         tr_spec = _norm_save(self.save_transform)
         if _should_emit(tr_spec):

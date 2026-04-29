@@ -275,6 +275,7 @@ int main(int argc, char **argv)
   p.Nproc_allow = 1;
 #endif
   p.Nbuffs_free = VARTOOLS_DEFAULT_NOUTPUT_BUFFERS;
+  p.Nbuffs_free_user_set = 0;
 
 #ifdef DYNAMICLIB
   p.NUserLib = 0;

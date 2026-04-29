@@ -19,6 +19,25 @@ class RunError(RuntimeError):
     pass
 
 
+class PipelineValidationError(RuntimeError):
+    """Raised when ``Pipeline.validate()`` finds the command line invalid.
+
+    Attributes
+    ----------
+    stderr : str
+        Verbatim stderr text from vartools (typically the usage block for
+        the offending command).
+    argv : list of str
+        The full argv that was run, useful for reproducing the failure
+        from a shell.
+    """
+
+    def __init__(self, message: str, *, stderr: str = "", argv: Optional[List[str]] = None) -> None:
+        super().__init__(message)
+        self.stderr = stderr
+        self.argv = list(argv) if argv else []
+
+
 class Result:
     """Output from a single-light-curve pipeline run.
 

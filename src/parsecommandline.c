@@ -11837,8 +11837,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	{
 	  iterm = i;
 	  i++;
-	  if(i < argc)
+	  if(i < argc) {
 	    p->Nbuffs_free = atoi(argv[i]);
+	    p->Nbuffs_free_user_set = 1;
+	  }
 	  else
 	    help(argv[iterm],p);
 	}
@@ -12229,6 +12231,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      "Error: -printallscalars requires -oneline output mode.\n");
       exit(ERR_USAGE);
     }
+
+  /* Auto-scale the output buffer ring with -parallel.  In parallel mode
+     a thread that finishes a light curve can render its row only if a
+     free buffer is available; otherwise it must drain the full stack
+     itself.  When the ring size is smaller than the number of threads,
+     effective parallelism is capped at the ring size.  To avoid that
+     surprise for users who pass -parallel N > VARTOOLS_DEFAULT_NOUTPUT_BUFFERS
+     and aren't aware of -bufferlines, scale the ring to 2*Nproc_allow
+     by default.  -bufferlines explicitly given by the user always
+     wins. */
+#ifdef PARALLEL
+  if(!p->Nbuffs_free_user_set && p->Nproc_allow > 0)
+    {
+      int _auto = 2 * p->Nproc_allow;
+      if(_auto > p->Nbuffs_free)
+	p->Nbuffs_free = _auto;
+    }
+#endif
 
   *cptr = c;
   if(tmpbuf != NULL) free(tmpbuf);

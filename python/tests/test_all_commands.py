@@ -264,7 +264,44 @@ class TestCLIArgsPeriodicity:
     def test_wwz_auto(self):
         args = cmd.wwz()._to_cli_args()
         assert args[0] == "-wwz"
-        assert "auto" in args
+        # The bare keyword ``auto`` must NOT be wrapped in ``var auto``;
+        # vartools treats ``auto`` as a literal CLI option in -wwz.
+        assert "var" not in args
+        # maxfreq / tau0 / tau1 / dtau default to "auto" — emit literal.
+        for key in ("maxfreq", "tau0", "tau1", "dtau"):
+            i = args.index(key)
+            assert args[i + 1] == "auto", \
+                f"Expected '{key} auto', got '{args[i]} {args[i+1]}'"
+        # freqsamp does NOT accept "auto" in vartools — it must be a
+        # positive number.  Default is the Foster 1996 value 0.25.
+        i = args.index("freqsamp")
+        assert args[i + 1] == "0.25"
+
+    def test_wwz_auto_explicit_string(self):
+        # Passing "auto" explicitly must behave the same as the default.
+        args = cmd.wwz(maxfreq="auto", tau0="auto",
+                       tau1="auto", dtau="auto")._to_cli_args()
+        assert "var" not in args
+        for key in ("maxfreq", "tau0", "tau1", "dtau"):
+            i = args.index(key)
+            assert args[i + 1] == "auto"
+
+    def test_wwz_freqsamp_rejects_auto_silently(self):
+        # ``freqsamp="auto"`` is a user error — vartools rejects it at
+        # runtime ("freqsamp must be > 0").  The wrapper must NOT emit
+        # the literal "auto" keyword for freqsamp; if the user really
+        # passes the string, it's their problem and we route through
+        # _varexpr (which produces ``var auto``) — but the default path
+        # uses the numeric value so the common case stays clean.
+        args = cmd.wwz(freqsamp=0.1)._to_cli_args()
+        i = args.index("freqsamp")
+        assert args[i + 1] == "0.1"
+
+    def test_wwz_var_name_still_uses_var_keyword(self):
+        # A bare identifier other than "auto" should still emit ``var <name>``.
+        args = cmd.wwz(maxfreq="myvar")._to_cli_args()
+        i = args.index("maxfreq")
+        assert args[i + 1] == "var" and args[i + 2] == "myvar"
 
     def test_wwz_explicit(self):
         args = cmd.wwz(maxfreq=10.0, freqsamp=0.01, tau0=0.0,

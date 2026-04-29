@@ -18,8 +18,8 @@ from ._command import VartoolsCommand
 from .commands._helpers import _norm_save, _should_emit
 from .lightcurve import LightCurve
 from .perlc import PerLC
-from .results import (BatchResult, Result, RunError, parse_oneline_output,
-                      split_vars_and_scalars)
+from .results import (BatchResult, PipelineValidationError, Result, RunError,
+                      parse_oneline_output, split_vars_and_scalars)
 
 
 def _library_enabled() -> bool:
@@ -687,6 +687,10 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        stats_file: Optional[str] = None,
+        stats_file_mode: str = "overwrite",
+        stats_file_buffer_lines: Optional[int] = None,
+        resume: bool = False,
     ) -> BatchResult:
         """Run the pipeline on a collection of light curve files on disk.
 
@@ -782,11 +786,49 @@ class Pipeline:
                 lc_names = [Path(p.split(",", 1)[0]).stem for p in paths]
             else:
                 lc_names = [Path(p).stem for p in paths]
+            all_lc_names = list(lc_names)
+            original_paths = list(paths)
+
+            # Resume / streaming preprocessing — see run_batch for the
+            # full rationale.  We also reject -copylc here.
+            completed_df = pd.DataFrame()
+            seq_col_remap: Optional[Dict[int, int]] = None
+            effective_mode = stats_file_mode
+            ran_indices: List[int] = list(range(len(paths)))
+            if stats_file and resume:
+                ran_indices, completed_df, effective_mode = self._resume_partition(
+                    stats_file, len(paths),
+                    validate_kwargs={
+                        "nthreads": nthreads, "randseed": randseed,
+                        "skipmissing": skipmissing, "jdtol": jdtol,
+                        "matchstringid": matchstringid,
+                    },
+                )
+                if not ran_indices:
+                    return self._batchresult_from_resume_only(
+                        completed_df, all_lc_names)
+                paths = [paths[i] for i in ran_indices]
+                lc_names = [lc_names[i] for i in ran_indices]
+                seq_col_remap = {filt_pos: orig
+                                  for filt_pos, orig in enumerate(ran_indices)}
+
             work_outdir = outdir or tmpdir
             out_lc_dir = os.path.join(tmpdir, "lc_out") if capture_lc else None
             if out_lc_dir:
                 os.makedirs(out_lc_dir, exist_ok=True)
             nth_args = ["-parallel", str(nthreads)] if nthreads > 1 else []
+            # When streaming to a file, switch vartools' stdout to line-
+            # buffered mode so each LC's block flushes to the kernel pipe
+            # (and thence to our file) as soon as it's produced.  Without
+            # this, glibc block-buffers ~4KB of output before the first
+            # write reaches us.  Also propagate the user's
+            # stats_file_buffer_lines override (default = vartools' own
+            # default of 32) — controls how many rows vartools' internal
+            # ring queues before flushing in -parallel mode.
+            if stats_file:
+                nth_args = nth_args + ["-nobuffer"]
+                if stats_file_buffer_lines is not None:
+                    nth_args = nth_args + ["-bufferlines", str(int(stats_file_buffer_lines))]
             base_fmt = _inputlcformat_from_spec(columns) if columns is not None else None
             fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
 
@@ -815,12 +857,14 @@ class Pipeline:
                         f.write(p + "\n")
 
             # Merge user-supplied inlistvars with auto-generated per-LC vars.
-            # When running in parallel, also inject the sequence-index variable
-            # so we can restore input order after vartools finishes.
+            # When running in parallel, streaming, or resuming, also inject
+            # the sequence-index variable so we can restore input order
+            # after vartools finishes (and identify completed rows on
+            # resume).
             merged_inlistvars = dict(inlistvars) if inlistvars else {}
             if col_assignments:
                 merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
-            use_seq = nthreads > 1
+            use_seq = nthreads > 1 or bool(stats_file)
             if use_seq:
                 merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
             inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
@@ -853,14 +897,22 @@ class Pipeline:
                 inject_print_var=_SEQ_VAR if use_seq else None,
             )
             try:
-                stdout, _ = self._execute(cmd, timeout=timeout)
+                if stats_file:
+                    stdout, _ = self._execute_streaming(
+                        cmd, stats_file, mode=effective_mode,
+                        timeout=timeout, seq_col_remap=seq_col_remap,
+                    )
+                else:
+                    stdout, _ = self._execute(cmd, timeout=timeout)
             except RunError as exc:
                 if raise_on_error:
                     raise
                 return BatchResult(var=pd.DataFrame(), error=exc)
 
             stats = parse_oneline_output(stdout)
-            stats = _reorder_stats_by_seq(stats, lc_names)
+            if not completed_df.empty:
+                stats = pd.concat([completed_df, stats], ignore_index=True)
+            stats = _reorder_stats_by_seq(stats, all_lc_names)
             stats, scalars_df = split_vars_and_scalars(stats)
 
             # When combinelcs=True, vartools names per-LC output files after the
@@ -870,29 +922,38 @@ class Pipeline:
             else:
                 file_keys = list(paths)
 
+            n_total = len(original_paths)
+
             out_lcs = None
             if capture_lc:
-                out_lcs = []
-                for i, (lc_path, name) in enumerate(zip(file_keys, lc_names)):
+                out_lcs = [None] * n_total
+                for filt_i, (lc_path, name) in enumerate(zip(file_keys, lc_names)):
                     opath = os.path.join(out_lc_dir, Path(lc_path).name)
                     if os.path.isfile(opath):
                         new_lc = LightCurve.from_file(opath, name=name)
-                        if not scalars_df.empty and i < len(scalars_df):
-                            new_lc.scalars = dict(scalars_df.iloc[i].to_dict())
-                        out_lcs.append(new_lc)
-                    else:
-                        out_lcs.append(None)
+                        if not scalars_df.empty and filt_i < len(scalars_df):
+                            new_lc.scalars = dict(scalars_df.iloc[filt_i].to_dict())
+                        out_lcs[ran_indices[filt_i]] = new_lc
 
             all_files: dict = {}
-            for lc_path in file_keys:
+            for filt_i, lc_path in enumerate(file_keys):
+                orig_i = ran_indices[filt_i]
                 lc_files = self._collect_output_files(lc_path, work_outdir, tmpdir)
                 for name, df in lc_files.items():
-                    all_files.setdefault(name, []).append(df)
+                    bucket = all_files.setdefault(name, [None] * n_total)
+                    bucket[orig_i] = df
             # Single-global-file outputs (e.g. SYSREM trends): one DataFrame
             # for the whole batch, not per-LC.
             all_files.update(self._collect_global_output_files())
             for key, lc_list in self._collect_o_captures_batch(file_keys, lc_names).items():
-                all_files[key] = lc_list
+                if len(lc_list) == n_total:
+                    all_files[key] = lc_list
+                else:
+                    aligned = [None] * n_total
+                    for filt_i, orig_i in enumerate(ran_indices):
+                        if filt_i < len(lc_list):
+                            aligned[orig_i] = lc_list[filt_i]
+                    all_files[key] = aligned
 
         return BatchResult(var=stats, lcs=out_lcs, files=all_files,
                                known_commands=[c._vt_name for c in self.commands])
@@ -1180,6 +1241,10 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        stats_file: Optional[str] = None,
+        stats_file_mode: str = "overwrite",
+        stats_file_buffer_lines: Optional[int] = None,
+        resume: bool = False,
         _command_offset: int = 0,
     ) -> BatchResult:
         """Run the pipeline on a list of light curves.
@@ -1224,6 +1289,37 @@ class Pipeline:
         self._refuse_inprocess_in_subprocess_only("run_batch")
         perlc_attrs = self._collect_perlc_attrs()
         lcs = [_to_lc(lc) for lc in lcs]
+        original_lcs = lcs  # snapshot for post-resume row assembly
+        all_lc_names = [lc.name for lc in lcs]
+
+        # Resume / streaming preprocessing.  When resume=True we read an
+        # existing partial stats_file, filter the input list down to LCs
+        # that haven't been processed yet, and remap _vtpy_seq_ values so
+        # the persisted file's sequence numbers stay aligned with the
+        # original input order.
+        completed_df = pd.DataFrame()
+        seq_col_remap: Optional[Dict[int, int]] = None
+        effective_mode = stats_file_mode
+        ran_indices: List[int] = list(range(len(lcs)))  # default: run all
+        if stats_file and resume:
+            ran_indices, completed_df, effective_mode = self._resume_partition(
+                stats_file, len(lcs),
+                validate_kwargs={
+                    "nthreads": nthreads, "randseed": randseed,
+                    "skipmissing": skipmissing, "jdtol": jdtol,
+                    "matchstringid": matchstringid,
+                },
+            )
+            if not ran_indices:
+                # All LCs already done — assemble result from the file alone.
+                return self._batchresult_from_resume_only(
+                    completed_df, all_lc_names)
+            # Filter the input list and build the seq remap.  vartools' NF
+            # in the filtered list goes 0..len(ran)-1, but we want the
+            # streamed file to record original-list positions 0..N-1.
+            lcs = [lcs[i] for i in ran_indices]
+            seq_col_remap = {filt_pos: orig
+                              for filt_pos, orig in enumerate(ran_indices)}
 
         _has_global_opts = (randseed is not None or skipmissing
                             or jdtol is not None or matchstringid)
@@ -1245,7 +1341,7 @@ class Pipeline:
         if (_library_enabled() and nthreads == 1 and not init_lc_vars
                 and not capture_lc and not self._has_output_reqs()
                 and not perlc_attrs and not self._has_user_commands()
-                and not _has_global_opts
+                and not _has_global_opts and not stats_file
                 and not batch_scalars and _command_offset == 0):
             return self._run_batch_library(lcs, raise_on_error=raise_on_error)
 
@@ -1296,6 +1392,13 @@ class Pipeline:
             if out_lc_dir:
                 os.makedirs(out_lc_dir, exist_ok=True)
             nth_args = ["-parallel", str(nthreads)] if nthreads > 1 else []
+            # Streaming → force vartools stdout to line-buffered, and
+            # propagate any stats_file_buffer_lines override (see the
+            # matching block in run_filelist for rationale).
+            if stats_file:
+                nth_args = nth_args + ["-nobuffer"]
+                if stats_file_buffer_lines is not None:
+                    nth_args = nth_args + ["-bufferlines", str(int(stats_file_buffer_lines))]
             # Auto-discover extra columns from the first LC (all LCs in a batch
             # are expected to share the same column structure).
             base_fmt = _inputlcformat_from_df(lcs[0]._df.columns) if lcs else None
@@ -1309,7 +1412,10 @@ class Pipeline:
                 merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
             if scalar_col_assignments:
                 merged_inlistvars.update(scalar_col_assignments)
-            use_seq = nthreads > 1
+            # Force the seq variable on whenever we're streaming or
+            # resuming; it's the row-identity key both rely on.  In normal
+            # parallel-only runs the existing logic still applies.
+            use_seq = nthreads > 1 or bool(stats_file)
             if use_seq:
                 merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
             inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
@@ -1333,16 +1439,27 @@ class Pipeline:
                 harvest_scalars=bool(scalar_col_assignments),
             )
             try:
-                stdout, _ = self._execute(cmd, timeout=timeout)
+                if stats_file:
+                    stdout, _ = self._execute_streaming(
+                        cmd, stats_file, mode=effective_mode,
+                        timeout=timeout, seq_col_remap=seq_col_remap,
+                    )
+                else:
+                    stdout, _ = self._execute(cmd, timeout=timeout)
             except RunError as exc:
                 if raise_on_error:
                     raise
                 return BatchResult(var=pd.DataFrame(), error=exc)
 
             stats = parse_oneline_output(stdout)
-            # Restore input order (may be scrambled by -parallel) and replace
-            # temp-file paths in the Name column with the original LC names.
-            stats = _reorder_stats_by_seq(stats, [lc.name for lc in lcs])
+            # When resuming, prepend the rows we already had (the streaming
+            # file already has them; we're rebuilding the in-memory result).
+            if not completed_df.empty:
+                stats = pd.concat([completed_df, stats], ignore_index=True)
+            # Restore input order (may be scrambled by -parallel, or just
+            # an out-of-order subset on resume) and replace temp-file paths
+            # in the Name column with the original LC names.
+            stats = _reorder_stats_by_seq(stats, all_lc_names)
             stats, scalars_df = split_vars_and_scalars(stats)
 
             # Drop echoed INLIST values for scalars we injected — users
@@ -1353,31 +1470,52 @@ class Pipeline:
                 keep_cols = [c for c in scalars_df.columns if c not in injected_names]
                 scalars_df = scalars_df[keep_cols] if keep_cols else pd.DataFrame(index=scalars_df.index)
 
+            # During resume, capture_lc and save_* file collection only
+            # cover the freshly-run subset; resumed positions get None
+            # entries with a warning.  The user is expected to keep any
+            # save_*=True files on disk between resume runs (a future
+            # enhancement could reload them by stat-ing the expected
+            # paths).
+            n_total = len(original_lcs)
+
             out_lcs = None
             if capture_lc:
-                out_lcs = []
-                for i, (lc, lc_path) in enumerate(zip(lcs, lc_paths)):
+                out_lcs = [None] * n_total
+                for filt_i, orig_i in enumerate(ran_indices):
+                    lc = lcs[filt_i]
+                    lc_path = lc_paths[filt_i]
                     opath = os.path.join(out_lc_dir, Path(lc_path).name)
                     if os.path.isfile(opath):
                         new_lc = LightCurve.from_file(opath, name=lc.name)
                         merged = dict(lc.scalars)
-                        if not scalars_df.empty and i < len(scalars_df):
-                            merged.update(scalars_df.iloc[i].to_dict())
+                        if not scalars_df.empty and filt_i < len(scalars_df):
+                            merged.update(scalars_df.iloc[filt_i].to_dict())
                         new_lc.scalars = merged
-                        out_lcs.append(new_lc)
-                    else:
-                        out_lcs.append(None)
+                        out_lcs[orig_i] = new_lc
 
-            # Collect per-LC output files if any commands requested them
+            # Collect per-LC output files if any commands requested them.
+            # When ran_indices == range(n_total) (no resume) this collapses
+            # to the original behaviour.  On resume, resumed positions get
+            # None entries in each per-command list.
             all_files: dict = {}
-            for i, lc in enumerate(lcs):
-                lc_files = self._collect_output_files(lc_paths[i], work_outdir, tmpdir)
+            for filt_i, orig_i in enumerate(ran_indices):
+                lc_files = self._collect_output_files(
+                    lc_paths[filt_i], work_outdir, tmpdir)
                 for name, df in lc_files.items():
-                    all_files.setdefault(name, []).append(df)
+                    bucket = all_files.setdefault(name, [None] * n_total)
+                    bucket[orig_i] = df
             all_files.update(self._collect_global_output_files())
-            lc_names = [lc.name for lc in lcs]
-            for key, lc_list in self._collect_o_captures_batch(lc_paths, lc_names).items():
-                all_files[key] = lc_list
+            run_lc_names = [lc.name for lc in lcs]
+            for key, lc_list in self._collect_o_captures_batch(
+                    lc_paths, run_lc_names).items():
+                if len(lc_list) == n_total:
+                    all_files[key] = lc_list
+                else:
+                    aligned = [None] * n_total
+                    for filt_i, orig_i in enumerate(ran_indices):
+                        if filt_i < len(lc_list):
+                            aligned[orig_i] = lc_list[filt_i]
+                    all_files[key] = aligned
 
         return BatchResult(var=stats, lcs=out_lcs, files=all_files,
                                known_commands=[c._vt_name for c in self.commands])
@@ -1894,6 +2032,285 @@ class Pipeline:
             )
         return proc.stdout, proc.stderr
 
+    def _batchresult_from_resume_only(
+        self,
+        completed_df: pd.DataFrame,
+        all_lc_names: List[str],
+    ) -> BatchResult:
+        """Build a BatchResult entirely from a fully-processed stats file.
+
+        Used when resume detects that every input LC is already in the
+        partial file — no vartools call is needed.  The returned result
+        has empty ``lcs`` (capture_lc cannot be reconstructed) and empty
+        ``files`` (save_* outputs are not re-collected here).
+        """
+        stats = _reorder_stats_by_seq(completed_df.copy(), all_lc_names)
+        stats, _scalars_df = split_vars_and_scalars(stats)
+        return BatchResult(
+            var=stats,
+            lcs=None,
+            files={},
+            known_commands=[c._vt_name for c in self.commands],
+        )
+
+    def _has_copylc(self) -> bool:
+        """True if any command in this pipeline is a -copylc."""
+        from .commands import copylc as _copylc
+        return any(isinstance(c, _copylc) for c in self.commands)
+
+    def _resume_partition(
+        self,
+        stats_file: str,
+        n_inputs: int,
+        validate_kwargs: Optional[Dict] = None,
+    ) -> tuple:
+        """Set up a resume by reading the partial stats file.
+
+        Returns ``(filtered_indices, completed_df, mode)`` where:
+
+        * ``filtered_indices`` — input-list positions (0-based) that
+          haven't been completed and still need to be run.
+        * ``completed_df`` — rows already in the file, indexed by their
+          ``_vtpy_seq_`` value (1-based).  May be empty.
+        * ``mode`` — ``'overwrite'`` if the file doesn't exist or is
+          empty (start fresh); ``'append'`` otherwise.
+
+        Raises :class:`PipelineValidationError` if the partial file's
+        header doesn't match what the current pipeline would produce.
+        Raises :class:`RuntimeError` if the pipeline contains
+        ``-copylc`` (resume not supported in that case).
+        """
+        if self._has_copylc():
+            raise RuntimeError(
+                "resume is not supported when the pipeline contains a "
+                "-copylc command (one input row produces multiple output "
+                "rows, which breaks seq-based row matching).  Re-run "
+                "from scratch or remove -copylc."
+            )
+        path = Path(stats_file)
+        if not path.exists() or path.stat().st_size == 0:
+            return list(range(n_inputs)), pd.DataFrame(), "overwrite"
+
+        # The streaming file is a space-delimited table with a leading
+        # '#'-prefixed header row.  Read it via pandas and strip the '#'
+        # off the first column name.
+        try:
+            completed_df = pd.read_csv(path, sep=r"\s+", engine="python",
+                                        comment=None)
+        except Exception as e:
+            raise PipelineValidationError(
+                f"Resume target {stats_file!r} could not be parsed as a "
+                f"tabular stats file: {e}"
+            ) from e
+        if completed_df.empty:
+            return list(range(n_inputs)), completed_df, "append"
+        # The first column header has the '#' prefix from vartools-style
+        # commenting; drop it for the in-memory DataFrame.
+        first_col = completed_df.columns[0]
+        if first_col.startswith("#"):
+            completed_df = completed_df.rename(columns={first_col: first_col[1:]})
+
+        # Validate the column layout against what the current pipeline
+        # produces.  The streaming file keeps the seq column; validate()
+        # gives the user-facing column list.  Compare modulo the seq.
+        expected_cols = self.validate(**(validate_kwargs or {}))
+        existing_cols = list(completed_df.columns)
+        seq_in_existing = [c for c in existing_cols if _SEQ_VAR in c]
+        existing_cols_userfacing = [c for c in existing_cols if _SEQ_VAR not in c]
+        if existing_cols_userfacing != expected_cols:
+            raise PipelineValidationError(
+                f"Resume target {stats_file!r} has a different column "
+                f"layout than this pipeline produces.\n"
+                f"Expected: {expected_cols}\n"
+                f"Got:      {existing_cols_userfacing}",
+                argv=[],
+            )
+        if not seq_in_existing:
+            raise PipelineValidationError(
+                f"Resume target {stats_file!r} lacks the {_SEQ_VAR} "
+                f"column required to identify completed input rows."
+            )
+        seq_col_name = seq_in_existing[0]
+
+        # _vtpy_seq_ values from vartools NF are 0-based, matching the
+        # 0-based input list positions.
+        completed_seqs = set(completed_df[seq_col_name].astype(int).tolist())
+        remaining = [i for i in range(n_inputs) if i not in completed_seqs]
+        return remaining, completed_df, "append"
+
+    def _execute_streaming(
+        self,
+        cmd: List[str],
+        stats_file: str,
+        mode: str = "overwrite",
+        timeout: Optional[int] = None,
+        stdin_text: Optional[str] = None,
+        seq_col_remap: Optional[Dict[int, int]] = None,
+    ) -> tuple:
+        """Run cmd, tee stdout to *stats_file* as each line emerges.
+
+        Returns the same ``(stdout, stderr)`` tuple as :meth:`_execute` so
+        callers downstream can parse the in-memory output.  The stats
+        file ends up with the same content as stdout would have been —
+        i.e. one header line plus one row per LC (or, in append mode,
+        just the new rows tacked onto the existing file).
+
+        Parameters
+        ----------
+        seq_col_remap : dict, optional
+            When set, each data row's ``_vtpy_seq_`` column value is
+            looked up in this map and replaced with the mapped value
+            *before* the row is written to the file (the in-memory
+            return is also remapped).  Used during resume to keep the
+            persisted file's seq values aligned with the original input
+            list rather than the filtered subset's positions.
+        """
+        if mode not in ("overwrite", "append"):
+            raise ValueError(
+                f"stats_file_mode must be 'overwrite' or 'append'; got {mode!r}"
+            )
+        out_path = Path(stats_file)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        f_mode = "w" if mode == "overwrite" else "a"
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except FileNotFoundError as e:
+            raise RunError(f"Failed to launch vartools: {e}") from e
+
+        if stdin_text:
+            proc.stdin.write(stdin_text)
+        if proc.stdin is not None:
+            proc.stdin.close()
+
+        # vartools -oneline output: each LC produces a block of
+        # "key = value" lines separated by a blank line.  We buffer each
+        # block, then emit ONE space-delimited row to the stats file when
+        # the block ends.  The first emit also writes a '#'-prefixed
+        # header line locking in column order.  This gives the user a
+        # tabular file (`pd.read_csv(sf, sep=r'\s+')` or `awk`/`gnuplot`-
+        # friendly) instead of the verbose oneline format.  The in-memory
+        # accumulator (stdout_lines) keeps the original oneline text so
+        # the existing parse_oneline_output() path continues to work.
+        import re as _re
+        kv_re = _re.compile(r"^(\S+)\s*=\s*(.*?)\s*$")
+        stdout_lines: List[str] = []
+        column_order: List[str] = []
+        current_block: Dict[str, str] = {}
+        header_written = (mode == "append")  # existing file already has one
+
+        # In append mode, seed column_order from the existing file's
+        # header line so we know what slot each key=value entry goes
+        # into.  Without this, every key would hit the "new column after
+        # header was written" branch below and get dropped silently.
+        if mode == "append" and out_path.exists():
+            with open(out_path) as existing_fh:
+                for first in existing_fh:
+                    if first.strip():
+                        column_order = first.lstrip("#").split()
+                        break
+
+        def _emit_block_to_file(out_fh) -> None:
+            nonlocal header_written
+            if not current_block:
+                return
+            if not column_order:
+                # First key seen ever — should not happen on a non-empty
+                # block, but guard anyway.
+                return
+            if not header_written:
+                out_fh.write("#" + " ".join(column_order) + "\n")
+                header_written = True
+            row = []
+            for k in column_order:
+                v = current_block.get(k, "NaN")
+                # Replace embedded whitespace so the row stays
+                # space-delimited (vartools output values are scalars
+                # without spaces, but be defensive about future commands
+                # that emit string fields).
+                row.append(v.replace(" ", "_"))
+            out_fh.write(" ".join(row) + "\n")
+            current_block.clear()
+
+        try:
+            with open(out_path, f_mode, buffering=1) as out_fh:
+                for line in proc.stdout:
+                    stdout_lines.append(line)
+                    stripped = line.strip()
+                    if not stripped:
+                        # End of LC block — emit accumulated values.
+                        _emit_block_to_file(out_fh)
+                        continue
+                    m = kv_re.match(stripped)
+                    if not m:
+                        # Defensive: skip lines we can't parse rather than
+                        # corrupting the row.
+                        continue
+                    key, value = m.group(1), m.group(2)
+                    if key not in column_order and not header_written:
+                        column_order.append(key)
+                    elif key not in column_order:
+                        # New key after header was written — vartools
+                        # contract is that columns are stable per run, so
+                        # this would be a bug.  Skip silently rather than
+                        # widen the row mid-file.
+                        continue
+                    if seq_col_remap and _SEQ_VAR in key:
+                        try:
+                            value = str(seq_col_remap.get(int(float(value)),
+                                                          int(float(value))))
+                        except ValueError:
+                            pass
+                    current_block[key] = value
+                # Flush any final block that didn't end with a blank line.
+                _emit_block_to_file(out_fh)
+            try:
+                proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired as e:
+                proc.kill()
+                proc.wait()
+                raise RunError(
+                    f"vartools timed out after {timeout}s.\n"
+                    f"Command: {' '.join(cmd)}"
+                ) from e
+        finally:
+            stderr_text = proc.stderr.read() if proc.stderr is not None else ""
+            if proc.stderr is not None:
+                proc.stderr.close()
+
+        # The in-memory return path also needs the seq remap so the
+        # parsed DataFrame matches the on-disk file.  Apply it line-by-
+        # line on stdout_lines (oneline format) before returning.
+        if seq_col_remap:
+            seq_re = _re.compile(
+                rf"^(\s*\S*{_re.escape(_SEQ_VAR)}\S*\s*=\s*)(\S+)(.*)$")
+            remapped: List[str] = []
+            for line in stdout_lines:
+                m = seq_re.match(line.rstrip("\n"))
+                if m:
+                    try:
+                        old = int(float(m.group(2)))
+                        new = seq_col_remap.get(old, old)
+                        line = f"{m.group(1)}{new}{m.group(3)}\n"
+                    except ValueError:
+                        pass
+                remapped.append(line)
+            stdout_lines = remapped
+
+        if proc.returncode != 0:
+            raise RunError(
+                f"vartools exited with status {proc.returncode}.\n"
+                f"Command: {' '.join(cmd)}\n"
+                f"stderr: {stderr_text.strip()}"
+            )
+        return "".join(stdout_lines), stderr_text
+
     def _collect_output_files(
         self, lc_name: str, outdir: str, tmpdir: str
     ) -> dict:
@@ -2088,6 +2505,106 @@ class Pipeline:
         """Append a command and return self (for fluent chaining)."""
         self.commands.append(command)
         return self
+
+    # ------------------------------------------------------------------
+    # Static validation
+    # ------------------------------------------------------------------
+
+    def validate(
+        self,
+        nthreads: int = 1,
+        randseed: Optional[int] = None,
+        skipmissing: bool = False,
+        jdtol: Optional[float] = None,
+        matchstringid: bool = False,
+        timeout: Optional[int] = 30,
+    ) -> List[str]:
+        """Validate the pipeline by running vartools with ``-headeronly``.
+
+        Parses the command line through vartools' own parser without
+        processing any light curves and returns the list of expected
+        output column names.  Raises :class:`PipelineValidationError`
+        with the parser's stderr if vartools rejects the command line.
+
+        Parameters
+        ----------
+        nthreads, randseed, skipmissing, jdtol, matchstringid : same as
+            :meth:`run_batch`.  Validation runs the same global flags
+            you'd pass at run time so options that affect command
+            interpretation (e.g. ``-skipmissing`` enabling certain
+            paths) are reflected in the parse.
+        timeout : int, optional
+            Seconds to wait for vartools (default 30).  Validation is
+            normally instantaneous; the timeout exists to surface a
+            hung binary rather than to bound real work.
+
+        Returns
+        -------
+        list of str
+            The expected output column names, in the order vartools will
+            emit them at run time.  The first column is typically
+            ``Name``.
+
+        Examples
+        --------
+        ::
+
+            pipe = vt.Pipeline().LS(0.1, 10.0, 0.1, npeaks=3)
+            cols = pipe.validate()
+            # ['Name', 'LS_Period_1_0', 'Log10_LS_Prob_1_0', ...]
+        """
+        with tempfile.TemporaryDirectory(prefix="vt_validate_") as outdir:
+            cmd = self._build_cmd(
+                input_flag=["-i", "-"],
+                outdir=outdir,
+                nth_args=["-parallel", str(nthreads)] if nthreads > 1 else None,
+                randseed=randseed,
+                skipmissing=skipmissing,
+                jdtol=jdtol,
+                matchstringid=matchstringid,
+            )
+            cmd += ["-headeronly"]
+
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    input="",
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired as e:
+                raise PipelineValidationError(
+                    f"vartools -headeronly timed out after {timeout}s.\n"
+                    f"Argv: {' '.join(cmd)}",
+                    argv=cmd,
+                ) from e
+
+        if proc.returncode != 0:
+            raise PipelineValidationError(
+                f"Pipeline validation failed (vartools exited "
+                f"{proc.returncode}).\n"
+                f"Stderr:\n{proc.stderr.strip() or '(empty)'}\n\n"
+                f"Argv: {' '.join(cmd)}",
+                stderr=proc.stderr,
+                argv=cmd,
+            )
+
+        # vartools writes the header as `#col1 col2 ...` (or tab-separated
+        # under -tab).  Use the first non-empty line; strip the leading '#'
+        # and split on whitespace.
+        lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+        if not lines:
+            raise PipelineValidationError(
+                "vartools -headeronly produced no header line.\n"
+                f"Argv: {' '.join(cmd)}",
+                stderr=proc.stderr,
+                argv=cmd,
+            )
+        header = lines[0]
+        if header.startswith("#"):
+            header = header[1:]
+        return header.split()
 
     def __repr__(self) -> str:
         return f"Pipeline([{', '.join(repr(c) for c in self.commands)}])"
