@@ -15,7 +15,13 @@ class addfitskeyword(VartoolsCommand):
     keyword : str
         FITS keyword name (max 8 characters).
     dtype : str
-        Data type: ``"TDOUBLE"``, ``"TINT"``, ``"TLONG"``, or ``"TSTRING"``.
+        Data type.  Accepted spellings (all map to the same vartools
+        token):
+
+        * ``"TDOUBLE"`` / ``"double"`` / ``"float"`` → ``TDOUBLE``
+        * ``"TINT"``    / ``"int"``                  → ``TINT``
+        * ``"TLONG"``   / ``"long"``                 → ``TLONG``
+        * ``"TSTRING"`` / ``"string"`` / ``"str"``   → ``TSTRING``
     value : str
         Value specification.  Either a bare Python scalar (``"fix"`` is
         prepended automatically) or a full vartools token string such as
@@ -32,6 +38,13 @@ class addfitskeyword(VartoolsCommand):
 
     _vt_name = "addfitskeyword"
 
+    _DTYPE_ALIASES = {
+        "double": "TDOUBLE", "float": "TDOUBLE", "TDOUBLE": "TDOUBLE",
+        "int":    "TINT",    "TINT":    "TINT",
+        "long":   "TLONG",   "TLONG":   "TLONG",
+        "string": "TSTRING", "str": "TSTRING", "TSTRING": "TSTRING",
+    }
+
     def __init__(
         self,
         keyword: str,
@@ -43,7 +56,12 @@ class addfitskeyword(VartoolsCommand):
         combinelc: Optional[str] = None,
     ) -> None:
         self.keyword = keyword
-        self.dtype = dtype
+        if dtype not in self._DTYPE_ALIASES:
+            raise ValueError(
+                f"addfitskeyword: dtype must be one of "
+                f"{sorted(set(self._DTYPE_ALIASES))}; got {dtype!r}"
+            )
+        self.dtype = self._DTYPE_ALIASES[dtype]
         self.value = value
         self.comment = comment
         self.hdu = hdu
@@ -79,9 +97,11 @@ class converttime(VartoolsCommand):
     Parameters
     ----------
     input_format : str
-        Input time format: ``"mjd"``, ``"jd"``, ``"hjd"``, or ``"bjd"``.
+        Input time format.  Case-insensitive — ``"jd"`` / ``"JD"`` /
+        ``"Jd"`` are equivalent.  Valid values: ``mjd``, ``jd``, ``hjd``,
+        ``bjd``.
     output_format : str
-        Output time format: ``"mjd"``, ``"jd"``, ``"hjd"``, or ``"bjd"``.
+        Output time format.  Same valid values as ``input_format``.
     ra : float or str, optional
         Right ascension for HJD/BJD conversion.  A float is treated as
         degrees and passed as ``"fix ra dec"`` (requires ``dec`` too).
@@ -104,6 +124,8 @@ class converttime(VartoolsCommand):
 
     _vt_name = "converttime"
 
+    _VALID_FORMATS = {"mjd", "jd", "hjd", "bjd"}
+
     def __init__(
         self,
         input_format: str,
@@ -117,8 +139,10 @@ class converttime(VartoolsCommand):
         ephemfile: Optional[str] = None,
         leapsecfile: Optional[str] = None,
     ) -> None:
-        self.input_format = input_format
-        self.output_format = output_format
+        # Vartools' -converttime CLI requires lowercase format keywords;
+        # normalise here so users can pass any case.
+        self.input_format = self._normalise_format(input_format, "input_format")
+        self.output_format = self._normalise_format(output_format, "output_format")
         self.ra = ra
         self.dec = dec
         self.input_subtract = input_subtract
@@ -127,6 +151,17 @@ class converttime(VartoolsCommand):
         self.output_sys = output_sys
         self.ephemfile = ephemfile
         self.leapsecfile = leapsecfile
+
+    @classmethod
+    def _normalise_format(cls, value: str, kind: str) -> str:
+        lower = str(value).lower()
+        if lower not in cls._VALID_FORMATS:
+            raise ValueError(
+                f"converttime: {kind} must be one of "
+                f"{sorted(cls._VALID_FORMATS)} (case-insensitive); "
+                f"got {value!r}"
+            )
+        return lower
 
     def _to_cli_args(self) -> List[str]:
         args = ["-converttime",
