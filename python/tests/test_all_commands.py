@@ -779,10 +779,20 @@ class TestCLIArgsManipulation:
         args = cmd.expr("mag=mag-0.01")._to_cli_args()
         assert args[0] == "-expr"
 
-    def test_expr_outputcolumns(self):
-        args = cmd.expr("flux=10^((mag-10)/(-2.5))",
-                        outputcolumns="flux")._to_cli_args()
-        assert "outputcolumns" in args
+    def test_expr_outputcolumn_emits_keyword(self):
+        # outputcolumn=True with a non-LC vartype emits the bare
+        # "outputcolumn" CLI keyword (vartools' -expr accepts it after
+        # the var=expression argument when listvar/scalar/const was given).
+        args = cmd.expr("avg=mean(mag)", vartype="listvar",
+                        outputcolumn=True)._to_cli_args()
+        assert args == ["-expr", "listvar", "avg=mean(mag)", "outputcolumn"]
+
+    def test_expr_outputcolumn_requires_vartype(self):
+        # outputcolumn=True without vartype is rejected at construction.
+        # The default per-observation LC type would yield one value per
+        # observation, not a single column.
+        with pytest.raises(ValueError, match="outputcolumn=True requires"):
+            cmd.expr("flux=10^((mag-10)/(-2.5))", outputcolumn=True)
 
     def test_expr_listvar(self):
         args = cmd.expr("avg=mean(mag)", vartype="listvar")._to_cli_args()

@@ -355,7 +355,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strcmp(c,"-expr")))
     {
-      printtostring(s,"-expr [\"listvar\" | \"scalar\" | \"const\"] var\"=\"expression\n");
+      printtostring(s,"-expr [\"listvar\" | \"scalar\" | \"const\"] var\"=\"expression [\"outputcolumn\"]\n");
       commandfound = 1;
     }
 #ifdef _HAVE_GSL
@@ -1525,6 +1525,15 @@ void help(char *c, ProgramData *p)
 "with only the last value retained.\n\n"
 "For all types, if the variable on the left-hand-side already exists, its "
 "existing type is preserved regardless of the keyword used.\n\n"
+"The optional \"outputcolumn\" keyword (only valid when \"listvar\", "
+"\"scalar\", or \"const\" was given) exposes the LHS variable's "
+"computed value as a column in the result table.  The column is named "
+"Expr_<varname>_<command-index>, e.g. 'Expr_avg_2' for the third "
+"command in '-expr listvar avg=mean(mag) outputcolumn'.  This is "
+"equivalent to chaining a separate -print command after the -expr but "
+"keeps the command index unchanged.  An error is raised at parse time "
+"if 'outputcolumn' is given without 'listvar'/'scalar'/'const' "
+"(the value would otherwise be per-observation, not a single column).\n\n"
 "Note that variables which appear on the right-hand-side can be the name of a "
 "vector which is read-in from the light curve and set using the -inputlcformat "
 "option, a scalar or vector created by another command (e.g. the fitting "

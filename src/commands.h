@@ -1509,6 +1509,17 @@ typedef struct {
   char lhs_indx_range_stopmax;
   char initialize_output_var;
   int lhs_vectortype_override;
+  /* outputcolumn: when set (1) by the optional "outputcolumn" CLI
+     keyword, the value computed by this expression is exposed as an
+     output column in the result table.  Only valid when
+     lhs_vectortype_override is INLIST/SCALAR/CONSTANT (i.e. when the
+     user gave "listvar", "scalar", or "const") — for the default
+     per-observation LC vectortype an output column would be
+     ill-defined, so it is rejected at parse time.  outputcolumn_buffer
+     is the per-LC scratch buffer that backs the column; it is
+     allocated in initcommands.c and written by RunExpressionCommand. */
+  int outputcolumn;
+  double *outputcolumn_buffer;
 } _ExpressionCommand;
 
 typedef struct {

@@ -505,6 +505,18 @@ void InitCommands(ProgramData *p, Command *c)
 	  if((c[i].Clip->Nclip = (int *) malloc(Nlcs * sizeof(int))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_EXPRESSION:
+	  /* Per-LC scratch buffer for the optional 'outputcolumn'
+	     keyword.  Only allocated when the keyword was given (parser
+	     sets ExpressionCommand->outputcolumn=1).  RunExpressionCommand
+	     writes the freshly-computed value here per LC, and outcolumns.c
+	     registers it as an addcolumn() data pointer. */
+	  if(c[i].ExpressionCommand->outputcolumn) {
+	    if((c[i].ExpressionCommand->outputcolumn_buffer =
+		(double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
 	case CNUM_ENSEMBLERESCALESIG:
 	  if((c[i].Ensemblerescalesig->rescalefactor = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Ensemblerescalesig->chi2_old = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

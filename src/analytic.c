@@ -678,6 +678,9 @@ void RunExpressionCommand(int lcindex, int threadindex,
     default:
       vt_error(ERR_BADTYPE);
     }
+    if(c->outputcolumn && c->outputcolumn_buffer != NULL) {
+      c->outputcolumn_buffer[lcindex] = dblval;
+    }
     break;
   case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
   case VARTOOLS_VECTORTYPE_SCALAR:
@@ -701,6 +704,9 @@ void RunExpressionCommand(int lcindex, int threadindex,
     default:
       vt_error(ERR_BADTYPE);
     }
+    if(c->outputcolumn && c->outputcolumn_buffer != NULL) {
+      c->outputcolumn_buffer[lcindex] = dblval;
+    }
     break;
   case VARTOOLS_VECTORTYPE_INLIST:
     dblval = EvaluateExpression(lcindex, threadindex, 0, c->expression);
@@ -722,6 +728,9 @@ void RunExpressionCommand(int lcindex, int threadindex,
       break;
     default:
       vt_error(ERR_BADTYPE);
+    }
+    if(c->outputcolumn && c->outputcolumn_buffer != NULL) {
+      c->outputcolumn_buffer[lcindex] = dblval;
     }
     break;
   case VARTOOLS_VECTORTYPE_LC:
@@ -892,6 +901,8 @@ _ExpressionCommand* CreateExpressionCommand(ProgramData *p, char *argvin){
   if((c = (_ExpressionCommand *) malloc(sizeof(_ExpressionCommand))) == NULL)
     vt_error(ERR_MEMALLOC);
   c->lhs_vectortype_override = -1;
+  c->outputcolumn = 0;
+  c->outputcolumn_buffer = NULL;
 
   i = strlen(argv);
   j = strlen(&(argv[jstart2]));

@@ -1172,6 +1172,23 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_CLIP:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Clip->Nclip), "%5d", 1, 0, 0, 0, "Nclip_%d", l);
 	  break;
+	case CNUM_EXPRESSION:
+	  /* Optional 'outputcolumn' keyword exposes the LHS variable's
+	     value as a column in the result table.  Only emitted when
+	     the parser saw the keyword (and thus only when the variable
+	     is listvar/scalar/const — guaranteed by parser-side check).
+	     CreateOutputColumns runs BEFORE CompileAllExpressions, so
+	     ExpressionCommand->outputvar is still NULL at this point;
+	     we use lhsstring (set during CreateExpressionCommand) for
+	     the column name. */
+	  if(c[l].ExpressionCommand->outputcolumn) {
+	    sprintf(tmpstring, "Expr_%s_%%d",
+		    c[l].ExpressionCommand->lhsstring);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0,
+		      &(c[l].ExpressionCommand->outputcolumn_buffer),
+		      "%.17g", 1, 0, 0, 0, tmpstring, l);
+	  }
+	  break;
 	case CNUM_ENSEMBLERESCALESIG:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ensemblerescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
 	  break;

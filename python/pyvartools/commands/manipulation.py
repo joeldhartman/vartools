@@ -1401,8 +1401,13 @@ class expr(VartoolsCommand):
 
         If the variable already exists, its type is preserved regardless
         of this setting.
-    outputcolumns : str, optional
-        Comma-separated list of column names to output.
+    outputcolumn : bool, optional
+        If True, expose the LHS variable as an output column in the
+        result table.  Only valid when ``vartype`` is one of
+        ``"listvar"``, ``"scalar"``, or ``"const"``; raises ValueError
+        otherwise (the value would otherwise be per-observation, not a
+        single column).  The column name is ``Expr_<varname>_<idx>``
+        (matching the vartools-C convention).
 
     Notes
     -----
@@ -1433,23 +1438,31 @@ class expr(VartoolsCommand):
         self,
         expression: str,
         vartype: Optional[str] = None,
-        outputcolumns: Optional[str] = None,
+        outputcolumn: bool = False,
     ) -> None:
         if vartype is not None and vartype not in ("listvar", "scalar", "const"):
             raise ValueError(
                 f"vartype must be None, 'listvar', 'scalar', or 'const', "
                 f"got {vartype!r}"
             )
+        if outputcolumn and vartype is None:
+            raise ValueError(
+                "expr: outputcolumn=True requires vartype to be one of "
+                "'listvar', 'scalar', or 'const' (the default per-"
+                "observation LC-vector type would produce one value per "
+                "observation, not a single column)."
+            )
         self.expression = expression
         self.vartype = vartype
-        self.outputcolumns = outputcolumns
+        self.outputcolumn = outputcolumn
 
     def _to_cli_args(self) -> List[str]:
         args = ["-expr"]
         if self.vartype is not None:
             args.append(self.vartype)
         args.append(self.expression)
-        args += _flag("outputcolumns", self.outputcolumns)
+        if self.outputcolumn:
+            args.append("outputcolumn")
         return args
 
 

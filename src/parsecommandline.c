@@ -454,6 +454,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    c[cn].ExpressionCommand = CreateExpressionCommand(p, argv[i]);
 	    cn++;
 	  }
+	  /* Optional "outputcolumn" keyword.  Only valid for listvar /
+	     scalar / const (where the LHS holds a single value per LC);
+	     for the default per-observation LC vectortype an output
+	     column would be ill-defined, so we reject it at parse time. */
+	  if(i+1 < argc && !strcmp(argv[i+1],"outputcolumn")) {
+	    if(c[cn-1].ExpressionCommand->lhs_vectortype_override < 0) {
+	      vt_error2(ERR_INVALIDARGUMENTTOEXPR,
+			"outputcolumn (only valid when 'listvar', 'scalar', or 'const' is given)");
+	    }
+	    c[cn-1].ExpressionCommand->outputcolumn = 1;
+	    i++;
+	  }
 	}
 
       /* -findblends matchrad [\"radec\"] [\"xycol\" colx coly] <\"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>> [\"starlist\" starlistfile] [\"zeromag\" zeromagval] [\"nofluxconvert\"] [\"Nharm\" Nharm] [\"omatches\" outputmatchfile] */
