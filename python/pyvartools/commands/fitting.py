@@ -950,12 +950,61 @@ class nonlinfit(VartoolsCommand):
         # "chains" logical name in ``_output_file_specs``.
         self.save_chains = mcmc_outchains
         self.mcmc_chains_format = mcmc_chains_format
+        # Alias so the capture pipeline (which keys on
+        # ``<logical_name>_nameformat``) finds the user's chain-file
+        # format string under the "chains" logical name and locates the
+        # right file on disk.  Without this alias the loader falls back
+        # to the default ``<base>.mcmc`` suffix and ends up reading a
+        # stale file from a previous run.
+        self.chains_nameformat = mcmc_chains_format
         self.mcmc_chains_printevery = mcmc_chains_printevery
         self.correct_lc = correct_lc
         self.save_model = save_model
         self.model_nameformat = model_nameformat
         self.modelvar = modelvar
         self.fitmask = fitmask
+
+        # vartools rejects parameters that appear in BOTH paramlist (the
+        # nonlinear free-parameter list, with init:step values) AND
+        # linfit_params (the linear-only list, optimised in closed form):
+        # the C parser registers the output column once per list, which
+        # surfaces later as a confusing "defined more than once in an
+        # -inputlcformat option" error.  Catch the conflict here so the
+        # user sees the parameter name, not the cryptic column name.
+        if self.linfit_params is not None:
+            paramlist_names = {
+                token.split("=", 1)[0].strip()
+                for token in str(self.paramlist).split(",")
+                if token.strip()
+            }
+            linfit_names = {
+                tok.strip()
+                for tok in str(self.linfit_params).split(",")
+                if tok.strip()
+            }
+            overlap = sorted(paramlist_names & linfit_names)
+            if overlap:
+                raise ValueError(
+                    f"nonlinfit: parameter(s) {overlap!r} appear in both "
+                    f"paramlist and linfit_params.  Linear parameters are "
+                    f"a separate list; remove them from paramlist (vartools "
+                    f"otherwise registers each output column twice and "
+                    f"errors out at run time)."
+                )
+
+        # vartools' MCMC parser exposes "Naccept N | Nlinkstotal N" as a
+        # mutually-exclusive single slot (src/nonlinfit.c lines 1641-1652
+        # — an if/else-if chain that consumes exactly one keyword).  When
+        # both are passed, the second leaks into the next parser slot
+        # (fracburnin / eps / ...) and vartools reports a misleading
+        # "Invalid command or option Nlinkstotal" message.
+        if self.mcmc_naccept is not None and self.mcmc_nlinkstotal is not None:
+            raise ValueError(
+                "nonlinfit: mcmc_naccept and mcmc_nlinkstotal are mutually "
+                "exclusive — vartools' MCMC parser accepts at most one of "
+                "them.  Pass only the one you want to set; the other is "
+                "left at its vartools default."
+            )
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
@@ -998,14 +1047,18 @@ class nonlinfit(VartoolsCommand):
                     args += ["format", self.mcmc_chains_format]
                 if self.mcmc_chains_printevery is not None:
                     args += ["printevery", str(self.mcmc_chains_printevery)]
+        # vartools' nonlinfit parser order (src/nonlinfit.c lines 363,
+        # 377, 384, 413) is: modelvar, correctlc, omodel [format],
+        # fitmask.  modelvar must come BEFORE correctlc and is
+        # independent of whether a model file is written to disk.
+        if self.modelvar is not None:
+            args += ["modelvar", self.modelvar]
         args += _bool("correctlc", self.correct_lc)
         m_spec = _norm_save(self.save_model)
         if _should_emit(m_spec):
             args += ["omodel", m_spec.path or outdir]
             if self.model_nameformat is not None:
                 args += ["format", self.model_nameformat]
-            if self.modelvar is not None:
-                args += ["modelvar", self.modelvar]
         args += _flag("fitmask", self.fitmask)
         return args
 

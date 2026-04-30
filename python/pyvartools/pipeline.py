@@ -50,6 +50,48 @@ FilePath = Union[str, Path]
 _SEQ_VAR = "_vtpy_seq_"
 
 
+def _read_vt_table(path: str, ncols: Optional[int] = None) -> pd.DataFrame:
+    """Read a vartools whitespace-delimited output file into a DataFrame.
+
+    If the file's leading ``#``-comment lines include a column-name header
+    of the form ``# col1 col2 ... colN`` whose token count matches the
+    data row width (after applying ``ncols``), the names are used as the
+    DataFrame columns.  When no matching header line is present the
+    columns stay integer-indexed (0, 1, 2, …) — same as the prior
+    behaviour.
+
+    Vartools sometimes emits banner ``#``-comment lines before the
+    column-header row (e.g. fastchi2 model files emit a ``# Best-fit
+    periodic function …`` block before ``# Time  Mag_obs  Mag_model
+    Error``).  We therefore scan every leading ``#`` line and adopt the
+    last one whose token count matches.
+    """
+    kwargs: dict = dict(sep=r"\s+", comment="#", header=None)
+    if ncols:
+        kwargs["usecols"] = list(range(ncols))
+    df = pd.read_csv(path, **kwargs)
+
+    header_tokens: Optional[list] = None
+    try:
+        with open(path) as fh:
+            for line in fh:
+                stripped = line.lstrip()
+                if not stripped or stripped.isspace():
+                    continue
+                if stripped.startswith("#"):
+                    tokens = stripped.lstrip("#").split()
+                    if len(tokens) == len(df.columns):
+                        header_tokens = tokens
+                    continue
+                break
+    except OSError:
+        return df
+
+    if header_tokens:
+        df.columns = header_tokens
+    return df
+
+
 def _reorder_stats_by_seq(
     stats: pd.DataFrame,
     lc_names: List[str],
@@ -2387,11 +2429,7 @@ class Pipeline:
                     candidate = os.path.join(actual_outdir, base + suffix)
 
                 if os.path.isfile(candidate):
-                    kwargs = {}
-                    if ncols:
-                        kwargs["usecols"] = list(range(ncols))
-                    df = pd.read_csv(candidate, sep=r"\s+", comment="#",
-                                     header=None, **kwargs)
+                    df = _read_vt_table(candidate, ncols=ncols)
                     key = f"{command._vt_name}_{logical_name}_{idx}"
                     files[key] = df
         return files
@@ -2421,11 +2459,7 @@ class Pipeline:
                 path = getattr(command, f"_{logical_name}_outpath", None)
                 if not path or not os.path.isfile(path):
                     continue
-                kwargs = {}
-                if ncols:
-                    kwargs["usecols"] = list(range(ncols))
-                df = pd.read_csv(path, sep=r"\s+", comment="#",
-                                 header=None, **kwargs)
+                df = _read_vt_table(path, ncols=ncols)
                 key = f"{command._vt_name}_{logical_name}_{idx}"
                 files[key] = df
         return files

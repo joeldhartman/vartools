@@ -1309,6 +1309,16 @@ void InitNonlinfit(ProgramData *p, _Nonlinfit *c, int cnum) {
     c->modelvar = c->linfit->modelvar;
   }
 
+  /* Resolve the fitmask variable name to a _Variable pointer.  Mirror
+     of the linfit.c InitLinfit call:
+         CheckCreateCommandOutputLCVariable(c->maskvarname,&(c->maskvar),p);
+     Without this lookup ParseNonlinfitCommand stores the mask name but
+     leaves c->maskvar==NULL, and Nonlinfit_RunMCMCFit later
+     dereferences NULL inside EvaluateVariable_Double when c->usemask
+     is set. */
+  if(c->usemask && c->maskvarname != NULL) {
+    CheckCreateCommandOutputLCVariable(c->maskvarname, &(c->maskvar), p);
+  }
 }
 
 void SetupNonlinfitExpression(ProgramData *p, _Nonlinfit *c)
@@ -1824,7 +1834,11 @@ int ParseNonlinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(i >= argc) {
 	*iret = i; return 1;
       }
-      if((c->maskvarname = (char *) malloc(strlen(argv[i]+1))) == NULL)
+      /* NB: strlen(argv[i])+1, not strlen(argv[i]+1) — the latter
+	 skips the first byte of the argument and undersizes the buffer
+	 by one (the parser would then heap-overflow on the trailing
+	 NUL when the mask name is 1 char, e.g. fitmask t). */
+      if((c->maskvarname = (char *) malloc(strlen(argv[i])+1)) == NULL)
 	vt_error(ERR_MEMALLOC);
       sprintf(c->maskvarname,"%s",argv[i]);
     }
