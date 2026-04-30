@@ -982,6 +982,7 @@ void usage_common(OutText *s)
   printtostring(s, "\t[-basename] [-readall] [-binaryperiodogram] [-jdtol jdtol] [-matchstringid]\n");
   printtostring(s, "\t[-nobuffer] [-help [\"all\" | commandname]] [-quiet] [-randseed seed]\n");
   printtostring(s, "\t[-bufferlines nlines] [-numbercolumns] [-listcommands [commandname]]\n");
+  printtostring(s, "\t[-setlcname name]\n");
   printtostring(s, "\t[-redirectstats statsfile [\"append\"]] [-oneline]\n");
   printtostring(s, "\t[-startcommandnumber N] [-printallscalars]\n");
   printtostring(s, "\t[-example commandname] [-showinputlistformat]\n");
@@ -1220,6 +1221,12 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-nobuffer\n\n");
       printtostring(&s,"If this is specified then stdout will not be buffered, by default it is buffered.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strcmp(c,"-setlcname")))
+    {
+      printtostring(&s,"-setlcname name\n\n");
+      printtostring(&s,"Override the light-curve name VARTOOLS uses internally when reading the LC from standard input (i.e. when '-i -' was given).  By default such an LC is named 'stdin', which appears in the output statistics 'Name' column and in any '%s' substitutions performed by 'nameformat' (and similar) options on commands that write per-LC output files.  Use this option to give the LC a meaningful name (e.g. the original on-disk filename) so the output table and per-LC filenames carry that name instead.\n\nHas no effect when '-i' was used to read an actual file path or when '-l' (list mode) was given; in those cases the name is taken from the file or list as usual.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-quiet",6) && strlen(c) == 6))

@@ -213,6 +213,13 @@ typedef struct {
   binarylightcurve *binlc;
 #endif
   int readfromstdinflag;
+  /* When non-NULL and -i - is in effect, this string overrides the
+     default "stdin" placeholder for the input light curve's name.  Set
+     by the -setlcname <name> CLI option; applied after argv parsing
+     in parsecommandline.c.  The Python wrapper (Pipeline.run) populates
+     this from LightCurve.name so result.vars["Name"] and any
+     nameformat %s substitutions reflect the user-visible LC name. */
+  char *setlcname;
   int readallflag;
   int listflag;
   int fileflag;

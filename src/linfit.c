@@ -2234,7 +2234,10 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	  if(i < argc) {
 	    c->outfilename_format = (char *) realloc(c->outfilename_format, (strlen(argv[i])+1)*sizeof(char));
 	    sprintf(c->outfilename_format,"%s",argv[i]);
-	    i++;
+	    /* Do not i++ here: the surrounding parser does its own i++
+	       after this block; an extra advance silently swallows the
+	       next argv token (e.g. -oneline immediately following
+	       'format <fmt>'). */
 	  } else {
 	    *iret = i; return 1;
 	  }

@@ -11845,6 +11845,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    help(argv[iterm],p);
 	}
 
+      /* -setlcname <name>: override the "stdin" placeholder set when
+         -i - is in use.  Applied after the full argv has been parsed
+         (we do not yet know whether -i or -l was given when this token
+         is encountered).  Has no effect when reading a real on-disk
+         LC or list. */
+      else if(!strcmp(argv[i],"-setlcname"))
+	{
+	  iterm = i;
+	  i++;
+	  if(i < argc) {
+	    if(p->setlcname != NULL) free(p->setlcname);
+	    p->setlcname = strdup(argv[i]);
+	    if(p->setlcname == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  else
+	    help(argv[iterm],p);
+	}
+
       /* -listcommands */
       else if(!strncmp(argv[i],"-listcommands",13) && strlen(argv[i]) == 13)
 	{
@@ -12249,6 +12268,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	p->Nbuffs_free = _auto;
     }
 #endif
+
+  /* -setlcname <name>: only meaningful when -i - was used (single LC
+     read from stdin).  Quietly ignored otherwise.  Overwrites the
+     "stdin" placeholder that -i - puts into lcnames[0] up above. */
+  if(p->setlcname != NULL && p->fileflag && p->readfromstdinflag
+     && p->Nlcs > 0 && p->lcnames != NULL && p->lcnames[0] != NULL)
+    {
+      sprintf(p->lcnames[0], "%s", p->setlcname);
+    }
 
   *cptr = c;
   if(tmpbuf != NULL) free(tmpbuf);

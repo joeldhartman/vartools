@@ -550,13 +550,16 @@ class Pipeline:
                 matchstringid=matchstringid,
                 scalars=lc.scalars,
                 command_offset=_command_offset,
+                setlcname=lc.name or None,
             )
             stdout, _ = self._execute(cmd, timeout=timeout, stdin_text=lc_csv)
             stats_full = parse_oneline_output(stdout)
             stats, scalars_df = split_vars_and_scalars(stats_full)
 
-            # Replace the "stdin" name vartools writes as Name with the
-            # LightCurve's own name.
+            # Defensive: vartools' '-setlcname' (when lc.name was passed)
+            # has already replaced 'stdin' with lc.name in the Name column.
+            # When lc.name is empty the column still says 'stdin'; rewrite
+            # it to '' for consistency with the rest of the API.
             if not stats.empty and "Name" in stats.columns:
                 stats["Name"] = lc.name
 
@@ -573,9 +576,11 @@ class Pipeline:
                 out_lc = LightCurve.from_file(out_lc_path, name=lc.name)
                 out_lc.scalars = merged_scalars
 
-            # When reading from stdin, vartools uses "stdin" as the LC name
-            # for output file naming (e.g. periodograms become stdin.ls).
-            files = self._collect_output_files("stdin", work_outdir, tmpdir)
+            # When reading from stdin, vartools uses lc.name as the basename
+            # for output files (delivered via -setlcname), or falls back to
+            # the literal "stdin" if lc.name is empty.
+            files = self._collect_output_files(lc.name or "stdin",
+                                               work_outdir, tmpdir)
             files.update(self._collect_global_output_files())
             files.update(self._collect_o_captures_single(lc.name))
 
@@ -1911,6 +1916,7 @@ class Pipeline:
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
         harvest_scalars: bool = False,
+        setlcname: Optional[str] = None,
     ) -> List[str]:
         """Assemble the full vartools command line."""
         binary = get_binary()
@@ -1929,6 +1935,11 @@ class Pipeline:
             cmd += ["-matchstringid"]
         if skipmissing:
             cmd += ["-skipmissing"]
+        # Override the "stdin" placeholder name when the caller is
+        # piping a single LC through stdin (-i -).  Vartools ignores
+        # this when -i is a real file path or when -l is in use.
+        if setlcname:
+            cmd += ["-setlcname", str(setlcname)]
         # Pre-register carried-forward scalars as -expr const before any user
         # command so subsequent commands can reference them by name.
         cmd += self._scalar_injection_args(scalars)

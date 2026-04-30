@@ -276,6 +276,7 @@ int main(int argc, char **argv)
 #endif
   p.Nbuffs_free = VARTOOLS_DEFAULT_NOUTPUT_BUFFERS;
   p.Nbuffs_free_user_set = 0;
+  p.setlcname = NULL;
 
 #ifdef DYNAMICLIB
   p.NUserLib = 0;

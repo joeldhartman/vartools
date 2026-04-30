@@ -81,6 +81,7 @@ static void _init_programdata(ProgramData *p)
   p->JDTOL                         = DEFAULT_JDTOL;
   p->Nbuffs_free                   = VARTOOLS_DEFAULT_NOUTPUT_BUFFERS;
   p->Nbuffs_free_user_set          = 0;
+  p->setlcname                     = NULL;
 #ifdef PARALLEL
   p->Nproc_allow                   = 1;
 #endif
