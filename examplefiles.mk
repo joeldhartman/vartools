@@ -19,6 +19,7 @@ example_files = \
  EXAMPLES/2.twoharmsignal \
  EXAMPLES/6.gz \
  EXAMPLES/OUTDIR1/InjectRRLyrae.2.txt \
+ EXAMPLES/OUTDIR1/2.rev.txt \
  EXAMPLES/OUTDIR1/6.png \
  EXAMPLES/OUTDIR1/10.autocorr \
  EXAMPLES/OUTDIR1/3.aov_harm \
@@ -84,6 +85,7 @@ example_files = \
  EXAMPLES/OUTDIR1/2.arimaresiduals.png \
  EXAMPLES/OUTDIR1/10.png \
  EXAMPLES/OUTDIR1/9.aov_harm \
+ EXAMPLES/OUTDIR1/2.magsorted.txt \
  EXAMPLES/OUTDIR1/5.cleanharm \
  EXAMPLES/OUTDIR1/3.nonlinfit.model \
  EXAMPLES/OUTDIR1/2.test_tfa_sr \
@@ -229,6 +231,7 @@ example_files = \
  EXAMPLES/OUTDIR1/6.bls.phcurve \
  EXAMPLES/OUTDIR1/2.aov_harm \
  EXAMPLES/OUTDIR1/8.sysrem.model \
+ EXAMPLES/OUTDIR1/3.restoretimes.txt \
  EXAMPLES/OUTDIR1/2.test_tfa_nosr \
  EXAMPLES/OUTDIR1/9.arimaforecast.png \
  EXAMPLES/OUTDIR1/InjectRRLyrae.7.txt \
@@ -293,4 +296,5 @@ example_files = \
  EXAMPLES/lc_list_tfa \
  EXAMPLES/9.gz \
  EXAMPLES/3.transit.fits \
- EXAMPLES/4.fits
+ EXAMPLES/4.fits \
+ EXAMPLES/Gaia-DR2-5481843025342799104_subphot.fits
