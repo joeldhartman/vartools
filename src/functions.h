@@ -80,7 +80,7 @@ void ProcessCommandAll(ProgramData *, Command *, int);
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 		      int usecolumnformat, int Nvars, _Variable **variables,
 		      char **formats, int noclobber, char sepchar, int logcommandline,
-		      int emitheader);
+		      int emitheader, const char *compress_prog);
 void ReadGlobalDecorr(ProgramData *, Command *);
 void DetermineColumns(ProgramData *, Command *);
 void Filldecorr_matrix(ProgramData *, Command *, int);
@@ -474,6 +474,7 @@ void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varp
 void SetAggregateNJD(int njd);
 int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid);
 int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int combinelcfilenum);
+int IsFitsFilename(const char *name);
 void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int lc_list_num);
 void SetupInListMultiLCVariable(ProgramData *p, char *varname, int column, int datatype, char *format);
 double getmean(int n, double *data);

@@ -656,7 +656,7 @@ def test_run_filelist_with_columns(tmp_path):
 
 def test_o_requires_filename_or_capture():
     """cmd.o() without arguments should raise ValueError."""
-    with pytest.raises(ValueError, match="requires either"):
+    with pytest.raises(ValueError, match="requires outname"):
         vt.commands.o()
 
 
@@ -686,11 +686,11 @@ def test_o_capture_single_custom_key():
 
 
 def test_o_capture_single_with_explicit_filename(tmp_path):
-    """capture=True with an explicit filename writes to disk AND captures."""
+    """capture=True with an explicit outname writes to disk AND captures."""
     out_file = str(tmp_path / "output.lc")
     lc = _make_lc()
     pipe = vt.Pipeline([
-        vt.commands.o(filename=out_file, capture=True),
+        vt.commands.o(outname=out_file, capture=True),
     ])
     result = pipe.run(lc)
     # File written to disk

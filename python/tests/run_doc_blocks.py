@@ -104,7 +104,12 @@ def is_signature_only(src: str) -> bool:
     try:
         tree = ast.parse(src)
     except SyntaxError:
+        # Leading-identifier method-call signatures, e.g. ``cmd.LS(...)``.
         if re.match(r'^\s*(cmd|vt|lc|result|batch|pipe)\.\w+\(', src):
+            return True
+        # Leading-dot fluent-fragment signatures, e.g.
+        # ``.o(outdir="./outdir", ...)`` shown to illustrate kwargs.
+        if re.match(r'^\s*\.\w+\(', src):
             return True
         return False
 

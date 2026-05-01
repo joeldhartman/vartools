@@ -1662,6 +1662,7 @@ class Pipeline:
         self,
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
+        mode: str = "single",
     ) -> List[str]:
         """Build a CLI arg list from pipeline commands (for LibPipeline init).
 
@@ -1675,13 +1676,17 @@ class Pipeline:
             Used by chained calls to keep suffixes growing across segments and
             to avoid collision with injected scalar names of the form
             ``CMDNAME_descriptor_<i>``.
+        mode : str
+            Run mode passed through to ``_to_cli_args_for_mode``.  Library
+            mode always processes one LC at a time (mode="single"); the
+            parameter is plumbed for completeness.
         """
         args: List[str] = []
         args += self._scalar_injection_args(scalars)
         for i, command in enumerate(self.commands):
             if command_offset > 0:
                 args += ["-columnsuffix", str(command_offset + i)]
-            args += command._to_cli_args()
+            args += command._to_cli_args_for_mode(mode)
         # -printallscalars is harmless when no scalars exist and enables round-
         # tripping of user-created scalars (from -expr scalar / listvar) into
         # result.lc.scalars.  Only emit when chained (command_offset > 0) or
@@ -1963,6 +1968,10 @@ class Pipeline:
         """Assemble the full vartools command line."""
         binary = get_binary()
         cmd = [binary] + input_flag
+        # Derive run mode from input_flag so per-command emission can
+        # branch on it (e.g. cmd.o emits a single output filename in
+        # single-LC mode and a directory in list mode).
+        _mode = "list" if input_flag and input_flag[0] == "-l" else "single"
         if input_lc_format:
             cmd += ["-inputlcformat", input_lc_format]
         if inlistvars_str:
@@ -2033,7 +2042,7 @@ class Pipeline:
             if subs:
                 cmd += command._to_cli_args_with_perlc(subs)
             else:
-                cmd += command._to_cli_args()
+                cmd += command._to_cli_args_for_mode(_mode)
         if inject_print_var:
             cmd += ["-print", inject_print_var]
         # -printallscalars rounds per-star scalar state (from -expr scalar /
@@ -2472,13 +2481,18 @@ class Pipeline:
         """Set ``_capture_path`` on any ``cmd.o(capture=True)`` commands.
 
         Called before ``_build_cmd()`` so the paths are ready when
-        ``_to_cli_args()`` is invoked.  Commands with an explicit
-        ``filename`` already know their path and are left untouched.
+        ``_to_cli_args_for_mode()`` is invoked.  Commands with an
+        explicit mode-appropriate path (``outname`` for single-LC,
+        ``outdir`` for list/batch) are left untouched.
         """
         from .commands.misc import o as OCommand
         for idx, command in enumerate(self.commands):
-            if not (isinstance(command, OCommand) and command.capture
-                    and command.filename is None):
+            if not (isinstance(command, OCommand) and command.capture):
+                continue
+            # If the user already supplied a path appropriate to this
+            # mode, no temp path is needed.
+            user_path = command.outdir if is_batch else command.outname
+            if user_path is not None:
                 continue
             # Use a directory when in batch mode or when nameformat is set
             # (nameformat causes vartools to construct its own filename inside
@@ -2500,8 +2514,8 @@ class Pipeline:
         for command in self.commands:
             if not (isinstance(command, OCommand) and command.capture):
                 continue
-            path = (command.filename
-                    if command.filename is not None
+            path = (command.outname
+                    if command.outname is not None
                     else command._capture_path)
             if path is None:
                 continue
@@ -2535,8 +2549,8 @@ class Pipeline:
         for command in self.commands:
             if not (isinstance(command, OCommand) and command.capture):
                 continue
-            base_dir = (command.filename
-                        if command.filename is not None
+            base_dir = (command.outdir
+                        if command.outdir is not None
                         else command._capture_path)
             if base_dir is None:
                 continue

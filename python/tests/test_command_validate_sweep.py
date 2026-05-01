@@ -170,7 +170,7 @@ _MIN_KWARGS = {
         cmd.rms(),
     ],
     "print_cols":  dict(variables="mag"),
-    "o":           dict(filename="-"),
+    "o":           dict(outname="-"),
     "ftuneven":    None,    # requires its userlib .so to be loaded first;
                             # not part of this in-tree sweep
 }

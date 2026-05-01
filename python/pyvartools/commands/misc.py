@@ -1,6 +1,6 @@
 """Miscellaneous vartools command wrappers."""
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from pyvartools._command import VartoolsCommand
 from pyvartools.userlib import UserCommand  # noqa: F401 — re-exported
@@ -524,15 +524,31 @@ class match(VartoolsCommand):
 class o(VartoolsCommand):
     """Output the current light curve to a file (-o).
 
+    The CLI ``-o`` keyword takes a single positional argument that is
+    interpreted as a *filename* in single-LC mode (``vartools -i ...``)
+    and as a *directory* in list mode (``vartools -l ...``).  pyvartools
+    splits this dual semantics into two explicit keyword arguments:
+    ``outname=`` for single-LC runs and ``outdir=`` for list/batch runs.
+    The same ``cmd.o`` instance can be used in both modes if both are
+    supplied; pyvartools picks the correct one based on which run method
+    was invoked.
+
     Parameters
     ----------
-    filename : str, optional
-        Output file path (or directory in batch mode).  Required unless
-        ``capture=True``.
+    outname : str, optional
+        Output filename used when the pipeline is invoked via
+        :meth:`Pipeline.run` or :meth:`Pipeline.run_file` (single-LC
+        mode).  Use ``"-"`` to write to stdout (combine with ``-quiet``
+        to keep the stats table out of the LC stream).
+    outdir : str, optional
+        Output directory used when the pipeline is invoked via
+        :meth:`Pipeline.run_filelist`, :meth:`Pipeline.run_batch`, or
+        :meth:`Pipeline.run_combinelcs` (list mode).  Per-LC filenames
+        are constructed inside this directory.
     nameformat : str, optional
-        Format string for constructing per-LC output filenames in batch
-        mode, e.g. ``"file_%s_%05d.txt"`` (``%s`` = LC basename, ``%d``
-        = sequence number).
+        Format string for constructing per-LC output filenames in
+        list mode, e.g. ``"file_%s_%05d.txt"`` (``%s`` = LC basename,
+        ``%d`` = sequence number).  Ignored in single-LC mode.
     columnformat : str, optional
         Output column specification, e.g.
         ``"t:%17.9f,mag:%9.5f,err:%9.5f"``.
@@ -543,25 +559,46 @@ class o(VartoolsCommand):
     copyheader : bool
         Copy the input FITS header to the output file.
     namecommand : str, optional
-        Shell command used to generate the output filename.
+        Shell command used to generate the output filename in list
+        mode.  Ignored in single-LC mode.
     namefromlist : bool or str, optional
-        Derive output filename from the input list.  Pass ``True`` to use
-        the default column, or a column number/name string to use a
-        specific column (emits ``"namefromlist" "column" col``).
+        Derive output filename from the input list (list mode only).
+        Pass ``True`` to use the default column, or a column
+        number/name string to use a specific column (emits
+        ``"namefromlist" "column" col``).
+    changesuffix : tuple of (str, str), optional
+        After the default output basename has been built, strip a
+        trailing ``old_suffix`` (if present) and append ``new_suffix``,
+        e.g. ``changesuffix=(".fits", ".txt")`` rewrites ``foo.fits``
+        to ``foo.txt``.  Either string may be empty: ``("", ".lc")``
+        appends only, ``(".fits", "")`` strips only.  Mutually
+        exclusive with ``nameformat`` / ``namecommand`` /
+        ``namefromlist``.  Applied before any ``fits`` / ``gzip`` /
+        ``bzip2`` suffix is added.  List-mode only.
     delimiter : str, optional
         Column delimiter character for the output file.
     logcommandline : bool
         Write the vartools command line to the output file header.
+    gzip : bool
+        Pipe the output through ``gzip`` and append ``.gz`` to the
+        filename.  Combined with ``fits=True`` this produces a
+        gzip-compressed FITS file via cfitsio's native ``.fits.gz``
+        driver.  Mutually exclusive with ``bzip2``.
+    bzip2 : bool
+        Pipe the output through ``bzip2`` and append ``.bz2``.  Cannot
+        be combined with ``fits=True`` (cfitsio does not support bzip2
+        on write).  Mutually exclusive with ``gzip``.
     capture : bool
         If ``True``, capture the written light curve and return it in
         ``result.files[key]``.  For single-LC runs, ``result.files[key]``
         is a ``LightCurve``; for batch runs it is a list of
         ``LightCurve`` objects (one per input LC, ``None`` if missing).
 
-        When ``filename`` is ``None`` the output is written to a
-        temporary file/directory that is cleaned up automatically after
-        the run.  When ``filename`` is also supplied the file is written
-        to disk *and* captured.  Default ``False``.
+        When neither ``outname`` nor ``outdir`` is supplied, the output
+        is written to a temporary file/directory (mode-appropriate)
+        that is cleaned up automatically after the run.  When a path
+        is also supplied the file is written to disk *and* captured.
+        Default ``False``.
     key : str
         Key under which the captured LC(s) are stored in
         ``result.files``.  Default ``"o"``.  Use a unique key when the
@@ -572,7 +609,8 @@ class o(VartoolsCommand):
 
     def __init__(
         self,
-        filename: Optional[str] = None,
+        outname: Optional[str] = None,
+        outdir: Optional[str] = None,
         nameformat: Optional[str] = None,
         columnformat: Optional[str] = None,
         allcols: bool = False,
@@ -581,20 +619,46 @@ class o(VartoolsCommand):
         copyheader: bool = False,
         namecommand: Optional[str] = None,
         namefromlist: Union[bool, str, None] = None,
+        changesuffix: Optional[Tuple[str, str]] = None,
         delimiter: Optional[str] = None,
         logcommandline: bool = False,
+        gzip: bool = False,
+        bzip2: bool = False,
         capture: bool = False,
         key: str = "o",
     ) -> None:
-        if filename is None and not capture:
+        if outname is None and outdir is None and not capture:
             raise ValueError(
-                "cmd.o() requires either a filename or capture=True"
+                "cmd.o() requires outname= (single-LC mode) or outdir= "
+                "(list/batch mode), or capture=True (auto-managed temp "
+                "path)"
             )
         if allcols and columnformat is not None:
             raise ValueError(
                 "cmd.o(): 'allcols' and 'columnformat' are mutually exclusive"
             )
-        self.filename = filename
+        if gzip and bzip2:
+            raise ValueError(
+                "cmd.o(): 'gzip' and 'bzip2' are mutually exclusive"
+            )
+        # Slot-1 mutual exclusion: only one of nameformat / namecommand /
+        # namefromlist / changesuffix may be set.
+        slot1 = sum(x is not None and x is not False for x in (
+            nameformat, namecommand, namefromlist, changesuffix))
+        if slot1 > 1:
+            raise ValueError(
+                "cmd.o(): 'nameformat', 'namecommand', 'namefromlist' and "
+                "'changesuffix' are mutually exclusive"
+            )
+        if changesuffix is not None:
+            if (not isinstance(changesuffix, (tuple, list))
+                    or len(changesuffix) != 2):
+                raise ValueError(
+                    "cmd.o(): 'changesuffix' must be a 2-tuple "
+                    "(old_suffix, new_suffix)"
+                )
+        self.outname = outname
+        self.outdir = outdir
         self.nameformat = nameformat
         self.columnformat = columnformat
         self.allcols = allcols
@@ -603,24 +667,86 @@ class o(VartoolsCommand):
         self.copyheader = copyheader
         self.namecommand = namecommand
         self.namefromlist = namefromlist
+        self.changesuffix = (
+            (str(changesuffix[0]), str(changesuffix[1]))
+            if changesuffix is not None else None
+        )
         self.delimiter = delimiter
         self.logcommandline = logcommandline
+        self.gzip = gzip
+        self.bzip2 = bzip2
         self.capture = capture
         self.key = key
-        # Injected by Pipeline before _to_cli_args() is called when
-        # capture=True and filename is None.
+        # Injected by Pipeline before _to_cli_args_for_mode() is called
+        # when capture=True and no explicit outname/outdir was given.
+        # In single-LC mode it points at a file; in list mode at a dir.
         self._capture_path: Optional[str] = None
 
+    def _path_for_mode(self, mode: str) -> Optional[str]:
+        """Return the user-supplied output path for the given run mode,
+        or ``None`` if only the *other* mode's kwarg was supplied (in
+        which case the caller is responsible for raising an error or
+        falling back to ``self._capture_path``)."""
+        if mode == "single":
+            return self.outname
+        return self.outdir
+
+    def _other_mode_set(self, mode: str) -> bool:
+        """True if only the *opposite*-mode path kwarg was supplied —
+        used to produce a clearer mismatch error than 'capture path
+        not assigned'."""
+        if mode == "single":
+            return self.outname is None and self.outdir is not None
+        return self.outdir is None and self.outname is not None
+
     def _to_cli_args(self) -> List[str]:
-        path = self.filename if self.filename is not None else self._capture_path
+        # Default emission used by __repr__ etc.; production emission
+        # always goes through _to_cli_args_for_mode().
+        return self._to_cli_args_for_mode("single")
+
+    def _to_cli_args_for_mode(self, mode: str) -> List[str]:
+        path = self._path_for_mode(mode)
         if path is None:
+            path = self._capture_path
+        if path is None:
+            if self._other_mode_set(mode):
+                wanted = "outname=" if mode == "single" else "outdir="
+                supplied = "outdir=" if mode == "single" else "outname="
+                run_methods = (
+                    "Pipeline.run / Pipeline.run_file"
+                    if mode == "single"
+                    else "Pipeline.run_filelist / Pipeline.run_batch / "
+                         "Pipeline.run_combinelcs"
+                )
+                raise RuntimeError(
+                    f"cmd.o was constructed with {supplied} but the "
+                    f"pipeline is being invoked in {mode}-LC mode "
+                    f"({run_methods}); supply {wanted} to use this "
+                    f"pipeline in {mode}-LC mode."
+                )
             raise RuntimeError(
                 "cmd.o with capture=True must be run through a Pipeline "
                 "(capture path has not been assigned yet)"
             )
+        # The CLI parser for -o consumes keywords in fixed positional
+        # slots with `else i--` fall-through, so they must be emitted in
+        # this exact order (slot 1: name*; slot 2: columnformat/allcols;
+        # slot 3: delimiter; slot 4: fits; slot 5: copyheader; slot 6:
+        # logcommandline; slot 7: noclobber; slot 8: gzip|bzip2).
         args = ["-o", str(path)]
+        # slot 1
         if self.nameformat is not None:
             args += ["nameformat", str(self.nameformat)]
+        elif self.namecommand is not None:
+            args += ["namecommand", str(self.namecommand)]
+        elif self.namefromlist is not None and self.namefromlist is not False:
+            if self.namefromlist is True:
+                args += ["namefromlist"]
+            else:
+                args += ["namefromlist", "column", str(self.namefromlist)]
+        elif self.changesuffix is not None:
+            args += ["changesuffix", self.changesuffix[0], self.changesuffix[1]]
+        # slot 2
         if self.columnformat is not None:
             args += ["columnformat", str(self.columnformat)]
         elif self.allcols or self.capture:
@@ -629,23 +755,26 @@ class o(VartoolsCommand):
             # matching the library-mode fast path.  The explicit allcols flag
             # also takes this branch for non-capturing callers.
             args += ["allcols"]
-        if self.fits:
-            args += ["fits"]
-        if self.noclobber:
-            args += ["noclobber"]
-        if self.copyheader:
-            args += ["copyheader"]
-        if self.namecommand is not None:
-            args += ["namecommand", str(self.namecommand)]
-        if self.namefromlist is not None and self.namefromlist is not False:
-            if self.namefromlist is True:
-                args += ["namefromlist"]
-            else:
-                args += ["namefromlist", "column", str(self.namefromlist)]
+        # slot 3
         if self.delimiter is not None:
             args += ["delimiter", str(self.delimiter)]
+        # slot 4
+        if self.fits:
+            args += ["fits"]
+        # slot 5
+        if self.copyheader:
+            args += ["copyheader"]
+        # slot 6
         if self.logcommandline:
             args += ["logcommandline"]
+        # slot 7
+        if self.noclobber:
+            args += ["noclobber"]
+        # slot 8
+        if self.gzip:
+            args += ["gzip"]
+        elif self.bzip2:
+            args += ["bzip2"]
         return args
 
     def _output_file_specs(self) -> dict:

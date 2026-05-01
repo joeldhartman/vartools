@@ -110,6 +110,19 @@ class VartoolsCommand:
             f"{self.__class__.__name__} must implement _to_cli_args()"
         )
 
+    def _to_cli_args_for_mode(self, mode: str) -> List[str]:
+        """Return CLI fragments for this command, parameterised by run mode.
+
+        ``mode`` is ``"single"`` when vartools will be invoked with ``-i``
+        (run / run_file) and ``"list"`` for ``-l`` (run_filelist /
+        run_batch / run_combinelcs).  The default implementation ignores
+        ``mode`` and delegates to :meth:`_to_cli_args`; commands whose
+        emission depends on the run mode (e.g. ``cmd.o`` whose output
+        path is interpreted as a filename in single mode and as a
+        directory in list mode) override this method instead.
+        """
+        return self._to_cli_args()
+
     def _to_cli_args_with_perlc(self, subs: dict) -> List[str]:
         """Call _to_cli_args() with per-LC attrs temporarily replaced.
 

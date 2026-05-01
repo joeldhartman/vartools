@@ -412,7 +412,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   double trend_prior_mean_in, trend_prior_std_in;
   char stringidin[MAXIDSTRINGLENGTH];
   void *ptr1, *ptr2;
-  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
+  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, kk;
   void vt_error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
@@ -559,10 +559,10 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
 #ifdef USECFITSIO
-      jj = strlen(tfa->trend_names[i]);
-      ii = jj - 5;
-      if(ii > 0) {
-	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(tfa->trend_names[i])) {
+	{
 	  /* This is a fits light curve */
 	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
 	    vt_error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
@@ -1350,7 +1350,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   char stringidin[MAXIDSTRINGLENGTH];
   double jdin, magin, jdin_last;
   void *ptr1, *ptr2;
-  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
+  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, kk;
   void vt_error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
@@ -1577,10 +1577,10 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
 #ifdef USECFITSIO
-      jj = strlen(tfa->trend_names[i]);
-      ii = jj - 5;
-      if(ii > 0) {
-	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(tfa->trend_names[i])) {
+	{
 	  /* This is a fits light curve */
 	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
 	    vt_error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);

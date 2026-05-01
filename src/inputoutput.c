@@ -49,6 +49,55 @@
 
 #define MIN_CHUNK 64
 
+/* If c->usechangesuffix is set, strip a trailing
+   c->changesuffix_remove from outname (if present) and append
+   c->changesuffix_add.  Run after the default basename has been
+   constructed but before any fits/gzip/bzip2 suffix is appended.
+   No-op if usechangesuffix is 0. */
+static void ApplyChangeSuffix(char *outname, _Outputlcs *c)
+{
+  int onlen, rlen, alen;
+  if(!c->usechangesuffix) return;
+  onlen = (int) strlen(outname);
+  rlen = (int) strlen(c->changesuffix_remove);
+  if(rlen > 0 && onlen >= rlen &&
+     !strcmp(outname + onlen - rlen, c->changesuffix_remove)) {
+    onlen -= rlen;
+    outname[onlen] = '\0';
+  }
+  alen = (int) strlen(c->changesuffix_add);
+  if(alen > 0)
+    sprintf(&outname[onlen], "%s", c->changesuffix_add);
+}
+
+/* If lcname ends in a recognised compression suffix
+   (.gz, .Z, .bz2, .fz) copy lcname into buf with that suffix
+   stripped and return buf; otherwise return lcname unchanged.
+   Used for output-name construction so we don't carry the
+   compression suffix of an auto-decompressed input through to the
+   output filename. buf must hold at least buflen chars; if the
+   stripped name would not fit, lcname is returned unchanged. */
+static const char *StripCompressionSuffix(const char *lcname,
+					  char *buf, int buflen)
+{
+  static const char *zsuf[] = {".gz", ".Z", ".bz2", ".fz"};
+  int zn = (int)(sizeof(zsuf)/sizeof(zsuf[0]));
+  int n, k, slen;
+  if(lcname == NULL) return lcname;
+  n = (int) strlen(lcname);
+  for(k = 0; k < zn; k++) {
+    slen = (int) strlen(zsuf[k]);
+    if(n > slen &&
+       !strcmp(lcname + n - slen, zsuf[k])) {
+      if(n - slen >= buflen) return lcname;
+      memcpy(buf, lcname, n - slen);
+      buf[n - slen] = '\0';
+      return buf;
+    }
+  }
+  return lcname;
+}
+
 /* This is a copy of the GNU getstr and getline commands, included
    here for portability in case the user is not using a gnu
    compiler. Modifications to the function names to avoid conflicting
@@ -502,6 +551,12 @@ void GetOutputFilename(char *lcoutname, char *lcname, char *outdir,
   int i1, i2, i3, i4, i5, i6;
 
   char tmpstring[MAXLEN];
+  char effective_lcname[MAXLEN];
+
+  /* If the input was auto-decompressed on read (.gz/.Z/.bz2/.fz),
+     strip the trailing compression suffix so default output filenames
+     don't carry it through. */
+  lcname = (char *) StripCompressionSuffix(lcname, effective_lcname, MAXLEN);
 
   i1 = 0; i2 = 0; i5 = -1;
   while(lcname[i1] != '\0')
@@ -1575,10 +1630,12 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
 		      int usecolumnformat, int Nvars, _Variable **variables,
 		      char **formats, int noclobber, char sepchar, int logcommandline,
-		      int emitheader)
+		      int emitheader, const char *compress_prog)
 {
   FILE *out;
-  int i, closefile=1, N, j, idx;
+  int i, closefile=1, popened=0, N, j, idx;
+  int is_stdout;
+  char compress_cmd[2*MAXLEN];
   double *t, *mag, *sig;
   double outdbl;
   float outfloat;
@@ -1596,8 +1653,25 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
   char fmtlong[] = "%d";
   char fmtshort[] = "%d";
   struct stat st;
-  if(!noclobber) {
-    if(!strncmp(outname,"-",1) && strlen(outname) == 1)
+  is_stdout = (!strncmp(outname,"-",1) && strlen(outname) == 1);
+  if(compress_prog != NULL) {
+    /* Pipe writes through gzip/bzip2.  For a stdout target, the
+       compressor inherits our stdout; otherwise the shell redirects
+       it to outname. */
+    if(noclobber && !is_stdout && !stat(outname,&st))
+      vt_error2(ERR_FILEEXISTS_NOCLOBBER, outname);
+    if(is_stdout) {
+      snprintf(compress_cmd, sizeof(compress_cmd), "%s", compress_prog);
+    } else {
+      snprintf(compress_cmd, sizeof(compress_cmd), "%s > %s",
+	       compress_prog, outname);
+    }
+    if((out = popen(compress_cmd, "w")) == NULL)
+      vt_error2(ERR_CANNOTWRITE, outname);
+    popened = 1;
+  }
+  else if(!noclobber) {
+    if(is_stdout)
       {
 	out = stdout;
 	closefile = 0;
@@ -1606,7 +1680,7 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
       vt_error2(ERR_CANNOTWRITE, outname);
   }
   else {
-    if(!strncmp(outname,"-",1) && strlen(outname) == 1)
+    if(is_stdout)
       {
 	out = stdout;
 	closefile = 0;
@@ -1871,7 +1945,9 @@ void writelightcurves(ProgramData *p, int threadid, int lcid, char *outname,
   }
 
 
-  if(closefile)
+  if(popened)
+    pclose(out);
+  else if(closefile)
     fclose(out);
 }
 
@@ -1879,12 +1955,19 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 {
   int i1, i2, i3, i4, i5, i6;
   char outname[MAXLEN], tmpstring[MAXLEN];
+  char effective_lcname[MAXLEN];
+  const char *lcn;
+  /* If the input was auto-decompressed on read (.gz/.Z/.bz2/.fz),
+     strip the compression suffix when constructing the default output
+     filename so we don't write e.g. foo.fits.gz holding ASCII text,
+     or foo.fits.gz.fits when -o is given the "fits" keyword. */
+  lcn = StripCompressionSuffix(p->lcnames[lcid], effective_lcname, MAXLEN);
   /* First determine the output name of the light curve */
   if(p->listflag || p->Ncopycommands > 0)
     {
       if(c->useoutnamecommand) {
 	for(i1=0; i1 < MAXLEN; i1++) outname[i1] = '\0';
-	GetOutputFilenameFromCommand(outname, p->lcnames[lcid], c->outdir,
+	GetOutputFilenameFromCommand(outname, (char *)lcn, c->outdir,
 				     lcid+1, c->outnamecommand);
       }
       else if(c->namefrominlist) {
@@ -1894,16 +1977,16 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	i1 = 0;
 	i2 = 0;
 	i5 = -1;
-	while(p->lcnames[lcid][i1] != '\0')
+	while(lcn[i1] != '\0')
 	  {
-	    if(p->lcnames[lcid][i1] == '/')
+	    if(lcn[i1] == '/')
 	      i2 = i1 + 1;
-	    if(p->lcnames[lcid][i1] == '.')
+	    if(lcn[i1] == '.')
 	      i5 = i1 - 1;
 	    i1++;
 	  }
 	if(!c->useformat)
-	  sprintf(outname,"%s/%s",c->outdir,&p->lcnames[lcid][i2]);
+	  sprintf(outname,"%s/%s",c->outdir,&lcn[i2]);
 	else
 	  {
 	    sprintf(outname,"%s/",c->outdir);
@@ -1924,7 +2007,7 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 		    if(c->format[i3] == 's')
 		      {
 			i3++;
-			sprintf(&outname[i1],"%s",&p->lcnames[lcid][i2]);
+			sprintf(&outname[i1],"%s",&lcn[i2]);
 			i1 = strlen(outname);
 		      }
 		    else if(c->format[i3] == 'b')
@@ -1933,13 +2016,13 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 			i6 = i2;
 			if(i5 >= i2) {
 			  for(; i6 <= i5; i6++) {
-			    outname[i1] = p->lcnames[lcid][i6];
+			    outname[i1] = lcn[i6];
 			    i1++;
 			  }
 			  outname[i1] = '\0';
 			}
 			else {
-			  sprintf(&outname[i1],"%s",&p->lcnames[lcid][i2]);
+			  sprintf(&outname[i1],"%s",&lcn[i2]);
 			  i1 = strlen(outname);
 			}
 		      }
@@ -1983,43 +2066,94 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 	      }
 	  }
 	}
+      ApplyChangeSuffix(outname, c);
 #ifdef USECFITSIO
       if(c->outfits) {
-	/* Check if the name has .fits at the end, if not, append it */
+	int is_stdout = (!strncmp(outname,"-",1) && strlen(outname) == 1);
+	if(is_stdout && (c->outgzip || c->outbzip2))
+	  vt_error2(ERR_CANNOTWRITE,
+		    "FITS output cannot be combined with gzip/bzip2 when "
+		    "writing to stdout; write to a file instead.");
+	if(c->outbzip2)
+	  vt_error2(ERR_CANNOTWRITE,
+		    "bzip2 compression of FITS output is not supported by "
+		    "cfitsio; use gzip instead, or write to a file and "
+		    "compress separately.");
+	/* Append .fits if missing, and .gz if outgzip is set (cfitsio's
+	   compressoutfile:// driver activates on a .gz suffix and writes
+	   gzipped FITS natively). */
 	i4 = strlen(outname);
-	if(i4 > 5 ? !strcmp(&(outname[i4-5]),".fits") : 0) {
-	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
-				c->Nvar, c->variables, c->printfformats,
-				c->noclobber, c->copyheaderfrominput,
-				c->logcommandline, c->descriptions, c->units);
-	} else {
-	  sprintf(outname,"%s.fits",outname);
-	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
-				c->Nvar, c->variables, c->printfformats,
-				c->noclobber, c->copyheaderfrominput,
-				c->logcommandline, c->descriptions, c->units);
+	if(!(i4 > 5 && !strcmp(&(outname[i4-5]),".fits"))) {
+	  sprintf(&outname[i4],".fits");
+	  i4 += 5;
 	}
+	if(c->outgzip && !(i4 > 3 && !strcmp(&(outname[i4-3]),".gz"))) {
+	  sprintf(&outname[i4],".gz");
+	}
+	write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat,
+			      c->Nvar, c->variables, c->printfformats,
+			      c->noclobber, c->copyheaderfrominput,
+			      c->logcommandline, c->descriptions, c->units);
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline, c->allcols);
+	{
+	  /* Append .gz / .bz2 to the ASCII output filename if requested,
+	     but leave "-" (stdout) alone so the stdout path in
+	     writelightcurves still matches. */
+	  i4 = strlen(outname);
+	  if(!(i4 == 1 && outname[0] == '-')) {
+	    if(c->outgzip && !(i4 > 3 && !strcmp(&(outname[i4-3]),".gz")))
+	      sprintf(&outname[i4],".gz");
+	    else if(c->outbzip2 && !(i4 > 4 && !strcmp(&(outname[i4-4]),".bz2")))
+	      sprintf(&outname[i4],".bz2");
+	  }
+	  writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline, c->allcols,
+			   c->outgzip ? "gzip" : (c->outbzip2 ? "bzip2" : NULL));
+	}
     }
   else if(p->fileflag && !p->Ncopycommands)
     {
 #ifdef USECFITSIO
       if(c->outfits) {
-	/* Check if the name has .fits at the end, if not, append it */
-	i4 = strlen(c->outdir);
-	if(i4 > 5 ? !strcmp(&(c->outdir[i4-5]),".fits") : 0) {
-	  write_fits_lightcurve(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline,c->descriptions,c->units);
-	} else {
-	  sprintf(outname,"%s.fits",c->outdir);
-	  write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline,c->descriptions,c->units);
+	int is_stdout = (!strncmp(c->outdir,"-",1) && strlen(c->outdir) == 1);
+	if(is_stdout && (c->outgzip || c->outbzip2))
+	  vt_error2(ERR_CANNOTWRITE,
+		    "FITS output cannot be combined with gzip/bzip2 when "
+		    "writing to stdout; write to a file instead.");
+	if(c->outbzip2)
+	  vt_error2(ERR_CANNOTWRITE,
+		    "bzip2 compression of FITS output is not supported by "
+		    "cfitsio; use gzip instead, or write to a file and "
+		    "compress separately.");
+	sprintf(outname,"%s",c->outdir);
+	ApplyChangeSuffix(outname, c);
+	i4 = strlen(outname);
+	if(!(i4 > 5 && !strcmp(&(outname[i4-5]),".fits"))) {
+	  sprintf(&outname[i4],".fits");
+	  i4 += 5;
 	}
+	if(c->outgzip && !(i4 > 3 && !strcmp(&(outname[i4-3]),".gz"))) {
+	  sprintf(&outname[i4],".gz");
+	}
+	write_fits_lightcurve(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber,c->copyheaderfrominput,c->logcommandline,c->descriptions,c->units);
       }
       else
 #endif
-	writelightcurves(p, threadid, lcid, c->outdir, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline, c->allcols);
+	{
+	  sprintf(outname,"%s",c->outdir);
+	  ApplyChangeSuffix(outname, c);
+	  i4 = strlen(outname);
+	  /* Append .gz / .bz2 unless target is stdout. */
+	  if(!(i4 == 1 && outname[0] == '-')) {
+	    if(c->outgzip && !(i4 > 3 && !strcmp(&(outname[i4-3]),".gz")))
+	      sprintf(&outname[i4],".gz");
+	    else if(c->outbzip2 && !(i4 > 4 && !strcmp(&(outname[i4-4]),".bz2")))
+	      sprintf(&outname[i4],".bz2");
+	  }
+	  writelightcurves(p, threadid, lcid, outname, c->usecolumnformat, c->Nvar, c->variables, c->printfformats, c->noclobber, c->sepchar, c->logcommandline, c->allcols,
+			   c->outgzip ? "gzip" : (c->outbzip2 ? "bzip2" : NULL));
+	}
     }
 }
 

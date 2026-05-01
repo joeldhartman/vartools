@@ -19,9 +19,112 @@
 #include "programdata.h"
 #include "functions.h"
 
+#include <sys/wait.h>
+
 #ifdef USECFITSIO
 #include "fitsio.h"
 #endif
+
+/* Returns 1 if the filename has a suffix that cfitsio can open as a
+   FITS file (.fits plus the on-the-fly compression variants
+   recognised by cfitsio's read drivers); returns 0 otherwise.
+   Used to dispatch input light curves to the FITS reader. */
+int IsFitsFilename(const char *name)
+{
+  static const char *suffixes[] = {
+    ".fits", ".fits.gz", ".fits.fz", ".fits.Z", ".fits.bz2"
+  };
+  int n = (int) (sizeof(suffixes) / sizeof(suffixes[0]));
+  int nlen, slen, k;
+  if(name == NULL) return 0;
+  nlen = (int) strlen(name);
+  for(k = 0; k < n; k++) {
+    slen = (int) strlen(suffixes[k]);
+    if(nlen >= slen && !strcmp(name + nlen - slen, suffixes[k]))
+      return 1;
+  }
+  return 0;
+}
+
+/* Returns 1 if the filename has a compression suffix (.gz, .Z, .bz2)
+   that vartools should auto-decompress for non-FITS reads.  FITS
+   inputs are dispatched via IsFitsFilename() and handled by cfitsio
+   directly, so callers should consult IsFitsFilename() first. */
+static int IsCompressedAsciiFilename(const char *name)
+{
+  static const char *suffixes[] = {".gz", ".Z", ".bz2"};
+  int n = (int)(sizeof(suffixes)/sizeof(suffixes[0]));
+  int nlen, slen, k;
+  if(name == NULL) return 0;
+  nlen = (int) strlen(name);
+  for(k = 0; k < n; k++) {
+    slen = (int) strlen(suffixes[k]);
+    if(nlen > slen && !strcmp(name + nlen - slen, suffixes[k]))
+      return 1;
+  }
+  return 0;
+}
+
+/* popen() the appropriate decompressor (gzip -dc for .gz/.Z, bzip2 -dc
+   for .bz2) for an ASCII input file; returns a stdio FILE* the caller
+   must close with pclose, or NULL on failure.  *prog_out (if non-NULL)
+   is set to a static string naming the chosen decompressor (used in
+   pclose-status diagnostics).  The caller is responsible for ensuring
+   the filename does not contain shell metacharacters (matches the
+   existing -opencommand convention). */
+static FILE *OpenCompressedAsciiFile(const char *name, const char **prog_out)
+{
+  char cmd[MAXLEN];
+  const char *prog = NULL;
+  int nlen, slen;
+  if(prog_out != NULL) *prog_out = NULL;
+  if(name == NULL) return NULL;
+  nlen = (int) strlen(name);
+  slen = 3;  /* ".gz" */
+  if(nlen > slen && !strcmp(name + nlen - slen, ".gz")) prog = "gzip -dc";
+  if(prog == NULL) {
+    slen = 2;  /* ".Z" */
+    if(nlen > slen && !strcmp(name + nlen - slen, ".Z")) prog = "gzip -dc";
+  }
+  if(prog == NULL) {
+    slen = 4;  /* ".bz2" */
+    if(nlen > slen && !strcmp(name + nlen - slen, ".bz2")) prog = "bzip2 -dc";
+  }
+  if(prog == NULL) return NULL;
+  if(prog_out != NULL) *prog_out = prog;
+  if(snprintf(cmd, sizeof(cmd), "%s %s", prog, name) >= (int) sizeof(cmd))
+    return NULL;
+  return popen(cmd, "r");
+}
+
+/* Closes infile via pclose() and warns to stderr if the spawned
+   decompressor exited with non-zero status (e.g. exit 127 means the
+   program was not found on PATH; non-zero generally means the input
+   was not in the expected compressed format).  Caller still gets the
+   data that was read up to the point of failure; this is a diagnostic
+   warning, not a hard error. */
+static void ClosePopenedFile(FILE *infile, const char *lcname,
+			     const char *prog)
+{
+  int rc = pclose(infile);
+  if(rc != 0 && prog != NULL) {
+    if(WIFEXITED(rc)) {
+      fprintf(stderr,
+	      "vartools: warning: '%s' exited with status %d while reading '%s'%s\n",
+	      prog, WEXITSTATUS(rc), lcname,
+	      WEXITSTATUS(rc) == 127 ?
+	      " (decompressor not found on PATH?)" : "");
+    } else if(WIFSIGNALED(rc)) {
+      fprintf(stderr,
+	      "vartools: warning: '%s' was killed by signal %d while reading '%s'\n",
+	      prog, WTERMSIG(rc), lcname);
+    } else {
+      fprintf(stderr,
+	      "vartools: warning: '%s' returned wait status %d while reading '%s'\n",
+	      prog, rc, lcname);
+    }
+  }
+}
 
 void ParseSkipCharString(char *argv, int *Nskip, char **skipchars)
 {
@@ -2866,6 +2969,8 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   int status, hdunum, ncols, hdutype, anynulallcolumns;
   long nrows;
   int j, jold, k, i, l, N, oldsizesinglelc, anynul;
+  int popened = 0;
+  const char *popened_prog = NULL;
   char *nullarray, *nullarraystore;
   char **tmpstring;
   char tmpchar;
@@ -2905,9 +3010,22 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   if(p->use_lc_open_exec_command) {
     infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
+    popened = 1;
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
+  else if(IsCompressedAsciiFilename(lcnameptr)) {
+    infile = OpenCompressedAsciiFile(lcnameptr, &popened_prog);
+    if(infile == NULL) {
+      if(p->skipmissing) {
+	vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	return(ERR_FILENOTFOUND);
+      }
+      else
+	vt_error2(ERR_FILENOTFOUND,lcnameptr);
+    }
+    popened = 1;
+  }
   else
     {
       if((infile = fopen(lcnameptr,"r")) == NULL) {
@@ -3129,8 +3247,8 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
     }
   }
   free(rec);
-  if(p->use_lc_open_exec_command) {
-    pclose(infile);
+  if(popened) {
+    ClosePopenedFile(infile, lcnameptr, popened_prog);
   }
   else if(infile != stdin)
     fclose(infile);
@@ -3164,6 +3282,8 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   long ****long2ptr;
   char *lcnameptr;
   _CombineLCInfo *pclci;
+  int popened = 0;
+  const char *popened_prog = NULL;
 
   size_t line_size = MAXLEN;
 
@@ -3187,15 +3307,11 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 #ifdef USECFITSIO
 
   if(!(p->readfromstdinflag && p->fileflag)) {
-    /* Check if the end of the file is .fits */
-    /* If it is, then assume the input is a binary fits table */
-    j = strlen(lcnameptr);
-    i = j - 5;
-    if(i >= 0) {
-      if(!strcmp(&(lcnameptr[i]),".fits")) {
-	p->is_inputlc_fits[lc] = 1;
-	return ReadFitsLightCurve(p, c, lc, threadid, combinelcfilenum);
-      }
+    /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+       compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+    if(IsFitsFilename(lcnameptr)) {
+      p->is_inputlc_fits[lc] = 1;
+      return ReadFitsLightCurve(p, c, lc, threadid, combinelcfilenum);
     }
   }
 
@@ -3204,9 +3320,24 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   if(p->use_lc_open_exec_command) {
     infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
+    popened = 1;
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
+  else if(IsCompressedAsciiFilename(lcnameptr)) {
+    /* Auto-decompress non-FITS .gz/.Z/.bz2 inputs by piping through
+       gzip -dc / bzip2 -dc. */
+    infile = OpenCompressedAsciiFile(lcnameptr, &popened_prog);
+    if(infile == NULL) {
+      if(p->skipmissing) {
+	vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	return(ERR_FILENOTFOUND);
+      }
+      else
+	vt_error2(ERR_FILENOTFOUND,lcnameptr);
+    }
+    popened = 1;
+  }
   else
     {
       if((infile = fopen(lcnameptr,"r")) == NULL) {
@@ -3464,8 +3595,8 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
       for(i=Ninit;i<N;i++)
 	p->stringid_idx[threadid][i] = i;
     }
-  if(p->use_lc_open_exec_command)
-    pclose(infile);
+  if(popened)
+    ClosePopenedFile(infile, lcnameptr, popened_prog);
   else if(infile != stdin)
     fclose(infile);
 
@@ -3661,18 +3792,14 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
 	continue;
       }
 
-      /* Check if the end of the file is .fits */
-      /* If it is, then assume the input is a binary fits table */
-      j = strlen(p->lcnames[lc]);
-      i = j - 5;
-      if(i >= 0) {
-	if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
-	  p->is_inputlc_fits[lc] = 1;
-	  if(ReadFitsLightCurve(p, c, lc, lc, 0)) {
-	    isempty++;
-	  }
-	  continue;
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(p->lcnames[lc])) {
+	p->is_inputlc_fits[lc] = 1;
+	if(ReadFitsLightCurve(p, c, lc, lc, 0)) {
+	  isempty++;
 	}
+	continue;
       }
 #endif
 

@@ -1255,6 +1255,12 @@ typedef struct {
   char columnformat[MAXLEN];
   int Nvar;
   int outfits;
+  /* Set by the "gzip" / "bzip2" keywords on -o: pipe the output
+     light-curve through that compressor.  outgzip implies a trailing
+     .gz on the output filename; outbzip2 implies .bz2.  Mutually
+     exclusive (parser keeps the last one given). */
+  int outgzip;
+  int outbzip2;
   int copyheaderfrominput;
   int logcommandline;
   int noclobber;
@@ -1268,6 +1274,14 @@ typedef struct {
   char **units;
   int namefrominlist;
   char **inputlistoutnames;
+  /* "changesuffix" keyword: strip a trailing changesuffix_remove from
+     the constructed default output basename (if present) and then
+     append changesuffix_add.  Applied after the basename is built and
+     before any fits/gzip/bzip2 suffixes.  Mutually exclusive with the
+     other slot-1 keywords (nameformat / namecommand / namefromlist). */
+  int usechangesuffix;
+  char changesuffix_remove[MAXLEN];
+  char changesuffix_add[MAXLEN];
   /* When set, writelightcurves emits every currently-registered
      VARTOOLS_VECTORTYPE_LC variable using its name as the column name and
      a default printf format chosen per datatype.  Populated in

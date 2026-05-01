@@ -5102,6 +5102,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->printfformats = NULL;
 	  c[cn].Outputlcs->varnames = NULL;
 	  c[cn].Outputlcs->outfits = 0;
+	  c[cn].Outputlcs->outgzip = 0;
+	  c[cn].Outputlcs->outbzip2 = 0;
 	  c[cn].Outputlcs->copyheaderfrominput = 0;
 	  c[cn].Outputlcs->logcommandline = 0;
 	  c[cn].Outputlcs->noclobber = 0;
@@ -5110,6 +5112,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->descriptions = NULL;
 	  c[cn].Outputlcs->namefrominlist = 0;
 	  c[cn].Outputlcs->inputlistoutnames = NULL;
+	  c[cn].Outputlcs->usechangesuffix = 0;
+	  c[cn].Outputlcs->changesuffix_remove[0] = '\0';
+	  c[cn].Outputlcs->changesuffix_add[0] = '\0';
 	  c[cn].Outputlcs->allcols = 0;
 	  c[cn].Outputlcs->allcols_nvars_snapshot = 0; /* filled in later by
 	    CompileAllExpressions once we can observe which variables are
@@ -5158,6 +5163,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 					    VARTOOLS_TYPE_STRING,
 					    0, cn, 0, 0, NULL, k,
 					    "OUTPUTLCS_OUTFILENAME");
+		}
+	      else if(!strcmp(argv[i],"changesuffix"))
+		{
+		  c[cn].Outputlcs->usechangesuffix = 1;
+		  i++;
+		  if(i < argc)
+		    sprintf(c[cn].Outputlcs->changesuffix_remove,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		  i++;
+		  if(i < argc)
+		    sprintf(c[cn].Outputlcs->changesuffix_add,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
 		}
 	      else
 		i--;
@@ -5252,6 +5271,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(!strcmp(argv[i],"noclobber"))
 		{
 		  c[cn].Outputlcs->noclobber = 1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"gzip"))
+		{
+		  c[cn].Outputlcs->outgzip = 1;
+		  c[cn].Outputlcs->outbzip2 = 0;
+		}
+	      else if(!strcmp(argv[i],"bzip2"))
+		{
+		  c[cn].Outputlcs->outbzip2 = 1;
+		  c[cn].Outputlcs->outgzip = 0;
 		}
 	      else
 		i--;
