@@ -238,6 +238,16 @@ class R(VartoolsCommand):
         verbose: bool = False,
         continueprocess: Optional[int] = None,
     ) -> None:
+        if init is not None and continueprocess is not None:
+            raise ValueError(
+                "cmd.R: pass either `init` (initialise a new R subprocess) "
+                "or `continueprocess` (reuse a prior one), but not both -- "
+                "vartools' -R grammar rejects the combination.  If you "
+                "need extra setup in a continued block, either fold it "
+                "into the earlier -R's `init=...` so the original "
+                "subprocess sees it, or include it directly in this "
+                "block's command string."
+            )
         self.command = command
         self.fromfile = fromfile
         self.init = init
@@ -256,13 +266,17 @@ class R(VartoolsCommand):
             args += ["fromfile", str(self.command)]
         else:
             args += [str(self.command)]
-        if self.continueprocess is not None:
-            args += ["continueprocess", str(self.continueprocess)]
+        # init / continueprocess share slot 1 in the CLI grammar; they
+        # are mutually exclusive (enforced in __init__), so emission
+        # order is moot.  Emit `init` first to match the order in the
+        # CLI grammar / -R help text.
         if self.init is not None:
             if self.init_fromfile:
                 args += ["init", "file", str(self.init)]
             else:
                 args += ["init", str(self.init)]
+        elif self.continueprocess is not None:
+            args += ["continueprocess", str(self.continueprocess)]
         if self.vars is not None:
             args += ["vars", str(self.vars)]
         else:
