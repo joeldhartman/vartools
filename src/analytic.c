@@ -18,6 +18,7 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include <stdint.h>
 
 /* NJD used by aggregate vector functions in the expression engine.
    Set via SetAggregateNJD() before evaluating expressions that may
@@ -42,6 +43,474 @@ void SetAggregateNJD(int njd) { _aggregate_njd = njd; }
   }*/
 
 int EvaluateArrayIndex(int lcindex, int threadindex, int jdindex, _FunctionCall *fcall);
+double EvaluateExpression(int lcindex, int threadindex, int jdindex, _Expression *expression);
+void FoldConstantsInExpression(_Expression *expr);
+static _Expression* ParseExpressionImpl(char *term, ProgramData *p);
+void BumpMemoGeneration(void);
+
+/* Returns 1 if a built-in function is "pure-scalar": deterministic on
+   its arguments, with no per-LC or per-point inputs (no LC vectors,
+   no PRNG state).  These are the functions safe to evaluate at parse
+   time when their arguments are themselves parse-time constants.
+
+   Excluded:
+     - PRNG family (rand, gauss) -- have hidden state, must be called
+       per-point.
+     - Aggregates (mean, median, ..., len) -- read whole LC vectors,
+       cannot be evaluated without LC data; they are handled by
+       per-LC memoisation at run time instead.
+     - User-defined functions (loaded via -F) -- treated as opaque /
+       impure by default. */
+static int IsPureScalarFunction(int functionid)
+{
+  switch(functionid) {
+  case VARTOOLS_FUNCTIONCALL_EXP:
+  case VARTOOLS_FUNCTIONCALL_LOG:
+  case VARTOOLS_FUNCTIONCALL_LOG10:
+  case VARTOOLS_FUNCTIONCALL_SQRT:
+  case VARTOOLS_FUNCTIONCALL_ABS:
+  case VARTOOLS_FUNCTIONCALL_MAX:
+  case VARTOOLS_FUNCTIONCALL_MIN:
+  case VARTOOLS_FUNCTIONCALL_HYPOT:
+  case VARTOOLS_FUNCTIONCALL_SIN:
+  case VARTOOLS_FUNCTIONCALL_SINDEGR:
+  case VARTOOLS_FUNCTIONCALL_COS:
+  case VARTOOLS_FUNCTIONCALL_COSDEGR:
+  case VARTOOLS_FUNCTIONCALL_TAN:
+  case VARTOOLS_FUNCTIONCALL_TANDEGR:
+  case VARTOOLS_FUNCTIONCALL_ASIN:
+  case VARTOOLS_FUNCTIONCALL_ASINDEGR:
+  case VARTOOLS_FUNCTIONCALL_ACOS:
+  case VARTOOLS_FUNCTIONCALL_ACOSDEGR:
+  case VARTOOLS_FUNCTIONCALL_ATAN2:
+  case VARTOOLS_FUNCTIONCALL_ATAN2DEGR:
+  case VARTOOLS_FUNCTIONCALL_CEIL:
+  case VARTOOLS_FUNCTIONCALL_FLOOR:
+  case VARTOOLS_FUNCTIONCALL_ROUND:
+  case VARTOOLS_FUNCTIONCALL_COSH:
+  case VARTOOLS_FUNCTIONCALL_SINH:
+  case VARTOOLS_FUNCTIONCALL_TANH:
+  case VARTOOLS_FUNCTIONCALL_ACOSH:
+  case VARTOOLS_FUNCTIONCALL_ASINH:
+  case VARTOOLS_FUNCTIONCALL_ATANH:
+  case VARTOOLS_FUNCTIONCALL_ERF:
+  case VARTOOLS_FUNCTIONCALL_ERFC:
+  case VARTOOLS_FUNCTIONCALL_LGAMMA:
+  case VARTOOLS_FUNCTIONCALL_GAMMA:
+  case VARTOOLS_FUNCTIONCALL_THETA:
+  case VARTOOLS_FUNCTIONCALL_ISNAN:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+/* Returns 1 iff expr has been collapsed to a folded-constant node:
+   op1type == CONSTANT and operatortype == CONSTANT (the no-op
+   "just return op1_constant" form).  Cheap predicate used to detect
+   already-folded subtrees. */
+static int IsFoldedConstant(_Expression *expr)
+{
+  if(expr == NULL) return 0;
+  return (expr->op1type == VARTOOLS_OPERANDTYPE_CONSTANT &&
+          expr->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT);
+}
+
+/* Returns 1 iff every operand of expr is a parse-time constant
+   (literal or already-folded subtree) and every involved function
+   is pure-scalar.  When this returns 1 it is safe to call
+   EvaluateExpression(0, 0, 0, expr) -- no LC data is read. */
+static int IsTriviallyConstantSubtree(_Expression *expr)
+{
+  int i;
+  _FunctionCall *fc;
+
+  if(expr == NULL) return 0;
+
+  switch(expr->op1type) {
+  case VARTOOLS_OPERANDTYPE_CONSTANT:
+    break;
+  case VARTOOLS_OPERANDTYPE_EXPRESSION:
+    if(!IsFoldedConstant((_Expression *)(expr->op1_expression)))
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_FUNCTION:
+    fc = (_FunctionCall *)(expr->op1_functioncall);
+    if(!IsPureScalarFunction(fc->functionid))
+      return 0;
+    for(i = 0; i < fc->Nexpr; i++) {
+      if(!IsFoldedConstant(fc->arguments[i]))
+        return 0;
+    }
+    break;
+  default:
+    return 0;
+  }
+
+  if(expr->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT ||
+     expr->operatortype == VARTOOLS_OPERATORTYPE_NOT ||
+     expr->operatortype == VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT)
+    return 1;
+
+  switch(expr->op2type) {
+  case VARTOOLS_OPERANDTYPE_CONSTANT:
+    break;
+  case VARTOOLS_OPERANDTYPE_EXPRESSION:
+    if(!IsFoldedConstant((_Expression *)(expr->op2_expression)))
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_FUNCTION:
+    fc = (_FunctionCall *)(expr->op2_functioncall);
+    if(!IsPureScalarFunction(fc->functionid))
+      return 0;
+    for(i = 0; i < fc->Nexpr; i++) {
+      if(!IsFoldedConstant(fc->arguments[i]))
+        return 0;
+    }
+    break;
+  default:
+    return 0;
+  }
+
+  return 1;
+}
+
+/* Recursively visit every argument of a _FunctionCall and fold any
+   constant subtrees in place.  Helper for FoldConstantsInExpression. */
+static void FoldConstantsInFunctionCall(_FunctionCall *fc)
+{
+  int i;
+  if(fc == NULL) return;
+  for(i = 0; i < fc->Nexpr; i++)
+    FoldConstantsInExpression(fc->arguments[i]);
+}
+
+/* Bottom-up walk: fold every constant subtree in expr's tree in
+   place.  A subtree composed only of constants and pure-scalar
+   functions is evaluated once and the node is rewritten as a
+   CONSTANT operand with operatortype CONSTANT.  Aggregates and PRNG
+   are intentionally left alone -- aggregates are deferred to per-LC
+   memoisation; PRNG must run per-call.
+
+   The fold is idempotent: running it again on an already-folded
+   tree short-circuits at IsFoldedConstant. */
+void FoldConstantsInExpression(_Expression *expr)
+{
+  double v;
+
+  if(expr == NULL) return;
+  if(IsFoldedConstant(expr)) return;
+
+  /* Fold children before checking the current node. */
+  if(expr->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
+    FoldConstantsInExpression((_Expression *)(expr->op1_expression));
+  } else if(expr->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
+    FoldConstantsInFunctionCall((_FunctionCall *)(expr->op1_functioncall));
+  } else if(expr->op1type == VARTOOLS_OPERANDTYPE_ARRAYINDEX) {
+    FoldConstantsInFunctionCall((_FunctionCall *)(expr->op1_functioncall));
+  }
+
+  if(expr->operatortype != VARTOOLS_OPERATORTYPE_CONSTANT &&
+     expr->operatortype != VARTOOLS_OPERATORTYPE_NOT &&
+     expr->operatortype != VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT) {
+    if(expr->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
+      FoldConstantsInExpression((_Expression *)(expr->op2_expression));
+    } else if(expr->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
+      FoldConstantsInFunctionCall((_FunctionCall *)(expr->op2_functioncall));
+    } else if(expr->op2type == VARTOOLS_OPERANDTYPE_ARRAYINDEX) {
+      FoldConstantsInFunctionCall((_FunctionCall *)(expr->op2_functioncall));
+    }
+  }
+
+  /* If the current node is now all-constant + pure-scalar, evaluate
+     it once and replace it with a CONSTANT-form node. */
+  if(IsTriviallyConstantSubtree(expr)) {
+    v = EvaluateExpression(0, 0, 0, expr);
+    expr->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
+    expr->op1_constant = v;
+    expr->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Per-LC memoisation of pure j-independent FunctionCalls.
+
+   For aggregates inside per-point expressions (e.g.
+   ``mag - mean(mag, mask)`` or ``sum((mag-mean(mag,mask))^2/err^2,
+   mask)``), the inner aggregate is invariant under varying j on a
+   fixed LC.  A naive per-point loop would recompute the aggregate
+   every iteration -- O(N^2) work.  This pass marks each FunctionCall
+   whose result is invariant for fixed-LC, varying-j ("j-independent")
+   and the evaluator caches its result inside a small per-thread hash
+   table keyed by the FunctionCall pointer.  Cache validity is
+   tracked via a per-thread generation counter; per-point loop entry
+   sites bump the counter so memoised state never crosses contexts
+   (and so a subsequent expression command sees fresh aggregates).
+
+   The cache is intentionally a fixed-size pointer-keyed hash table:
+   no parse-time ID assignment, no struct-size growth on the runtime
+   path, and collisions just cost a recompute -- they don't produce
+   wrong results.
+   ------------------------------------------------------------------ */
+
+#define _MEMO_TABLE_SIZE 256u   /* power of 2; index masking uses MASK */
+#define _MEMO_TABLE_MASK (_MEMO_TABLE_SIZE - 1u)
+
+typedef struct {
+  _FunctionCall *key;
+  double value;
+  unsigned int gen;
+} _MemoSlot;
+
+static VT_THREAD_LOCAL _MemoSlot _memo_table[_MEMO_TABLE_SIZE];
+static VT_THREAD_LOCAL unsigned int _memo_current_gen = 0;
+
+/* Bump the per-thread memoisation generation so any cached values
+   from a previous evaluation context are treated as stale.  Called
+   at the entry of each per-point loop in the engine. */
+void BumpMemoGeneration(void)
+{
+  _memo_current_gen++;
+  if(_memo_current_gen == 0) {
+    /* wraparound: invalidate all slots so a stale gen=0 doesn't
+       compare equal to a fresh gen=0 next round */
+    int i;
+    for(i = 0; i < (int) _MEMO_TABLE_SIZE; i++)
+      _memo_table[i].gen = 0;
+    _memo_current_gen = 1;
+  }
+}
+
+static inline unsigned int _MemoHash(_FunctionCall *fc)
+{
+  /* Pointer-mix that's cheap and decently uniform on real heap
+     addresses (8- or 16-byte aligned).  The xor with the high half
+     stops sub-page collisions when many FCs come from the same
+     allocator chunk. */
+  uintptr_t x = (uintptr_t) fc;
+  x ^= (x >> 16);
+  return ((unsigned int) x) & _MEMO_TABLE_MASK;
+}
+
+static int _MemoLookup(_FunctionCall *fc, double *out)
+{
+  unsigned int h = _MemoHash(fc);
+  if(_memo_table[h].key == fc &&
+     _memo_table[h].gen == _memo_current_gen) {
+    *out = _memo_table[h].value;
+    return 1;
+  }
+  return 0;
+}
+
+static void _MemoStore(_FunctionCall *fc, double value)
+{
+  unsigned int h = _MemoHash(fc);
+  _memo_table[h].key = fc;
+  _memo_table[h].value = value;
+  _memo_table[h].gen = _memo_current_gen;
+}
+
+/* Returns 1 if the function is "pure for memoisation": its result is
+   fully determined by its current arguments + the LC vectors they
+   reference, with no hidden state.  Includes aggregates.  Excludes
+   PRNG (rand, gauss) and user-defined functions (treated as opaque
+   by default). */
+static int IsPureForMemo(int functionid)
+{
+  if(functionid == VARTOOLS_FUNCTIONCALL_RAND) return 0;
+  if(functionid == VARTOOLS_FUNCTIONCALL_GAUSS) return 0;
+  if(functionid >= VARTOOLS_FUNCTIONCALL_USERFUNC) return 0;
+  return 1;
+}
+
+/* Returns 1 if the function is an aggregate -- it collapses one or
+   more LC vectors to a scalar, and its result is therefore invariant
+   under varying j on a fixed LC regardless of the structure of its
+   argument expressions. */
+static int IsAggregateFunction(int functionid)
+{
+  switch(functionid) {
+  case VARTOOLS_FUNCTIONCALL_LEN:
+  case VARTOOLS_FUNCTIONCALL_VMEAN:
+  case VARTOOLS_FUNCTIONCALL_VMEDIAN:
+  case VARTOOLS_FUNCTIONCALL_VSTDDEV:
+  case VARTOOLS_FUNCTIONCALL_VMAD:
+  case VARTOOLS_FUNCTIONCALL_VSUM:
+  case VARTOOLS_FUNCTIONCALL_VMIN:
+  case VARTOOLS_FUNCTIONCALL_VMAX:
+  case VARTOOLS_FUNCTIONCALL_VWEIGHTEDMEAN:
+  case VARTOOLS_FUNCTIONCALL_VWMEDIAN:
+  case VARTOOLS_FUNCTIONCALL_VMEDDEV:
+  case VARTOOLS_FUNCTIONCALL_VMEDMEDDEV:
+  case VARTOOLS_FUNCTIONCALL_VKURTOSIS:
+  case VARTOOLS_FUNCTIONCALL_VSKEWNESS:
+  case VARTOOLS_FUNCTIONCALL_VPCT:
+  case VARTOOLS_FUNCTIONCALL_VWPCT:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+/* Returns 1 if expr's value is invariant under varying jdindex on a
+   fixed LC: composed of constants, per-LC scalars, ITERATORNF (LC
+   index), aggregate function calls, and pure-scalar function calls
+   whose arguments are themselves j-independent.  Returns 0 if any
+   per-point read (LC vector / ITERATORNR) or impure call (PRNG /
+   userfunc) is encountered. */
+static int IsExpressionJIndependent(_Expression *expr)
+{
+  int i;
+  _FunctionCall *fc;
+
+  if(expr == NULL) return 1;
+
+  switch(expr->op1type) {
+  case VARTOOLS_OPERANDTYPE_CONSTANT:
+    break;
+  case VARTOOLS_OPERANDTYPE_VARIABLE:
+    if(expr->op1_variable->vectortype == VARTOOLS_VECTORTYPE_LC)
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_EXPRESSION:
+    if(!IsExpressionJIndependent((_Expression *)(expr->op1_expression)))
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_FUNCTION:
+    fc = (_FunctionCall *)(expr->op1_functioncall);
+    if(!IsPureForMemo(fc->functionid)) return 0;
+    if(!IsAggregateFunction(fc->functionid)) {
+      for(i = 0; i < fc->Nexpr; i++) {
+        if(!IsExpressionJIndependent(fc->arguments[i])) return 0;
+      }
+    }
+    break;
+  case VARTOOLS_OPERANDTYPE_ITERATORNR:
+    return 0;
+  case VARTOOLS_OPERANDTYPE_ITERATORNF:
+    break;  /* LC index -- invariant within one LC */
+  case VARTOOLS_OPERANDTYPE_ARRAYINDEX:
+    /* Result depends on LC data even with a constant index, but is
+       still invariant under varying j when the index expression is
+       j-independent. */
+    fc = (_FunctionCall *)(expr->op1_functioncall);
+    if(fc != NULL) {
+      for(i = 0; i < fc->Nexpr; i++) {
+        if(!IsExpressionJIndependent(fc->arguments[i])) return 0;
+      }
+    }
+    break;
+  default:
+    return 0;
+  }
+
+  if(expr->operatortype == VARTOOLS_OPERATORTYPE_CONSTANT ||
+     expr->operatortype == VARTOOLS_OPERATORTYPE_NOT ||
+     expr->operatortype == VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT)
+    return 1;
+
+  switch(expr->op2type) {
+  case VARTOOLS_OPERANDTYPE_CONSTANT:
+    break;
+  case VARTOOLS_OPERANDTYPE_VARIABLE:
+    if(expr->op2_variable->vectortype == VARTOOLS_VECTORTYPE_LC)
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_EXPRESSION:
+    if(!IsExpressionJIndependent((_Expression *)(expr->op2_expression)))
+      return 0;
+    break;
+  case VARTOOLS_OPERANDTYPE_FUNCTION:
+    fc = (_FunctionCall *)(expr->op2_functioncall);
+    if(!IsPureForMemo(fc->functionid)) return 0;
+    if(!IsAggregateFunction(fc->functionid)) {
+      for(i = 0; i < fc->Nexpr; i++) {
+        if(!IsExpressionJIndependent(fc->arguments[i])) return 0;
+      }
+    }
+    break;
+  case VARTOOLS_OPERANDTYPE_ITERATORNR:
+    return 0;
+  case VARTOOLS_OPERANDTYPE_ITERATORNF:
+    break;
+  case VARTOOLS_OPERANDTYPE_ARRAYINDEX:
+    fc = (_FunctionCall *)(expr->op2_functioncall);
+    if(fc != NULL) {
+      for(i = 0; i < fc->Nexpr; i++) {
+        if(!IsExpressionJIndependent(fc->arguments[i])) return 0;
+      }
+    }
+    break;
+  default:
+    return 0;
+  }
+
+  return 1;
+}
+
+static void MarkJIndependenceInFunctionCall(_FunctionCall *fc);
+
+/* Walk the AST and set is_j_independent on every FunctionCall node
+   that is safe to memoise: pure (not PRNG, not userfunc) and either
+   an aggregate (always invariant under varying j) or a pure-scalar
+   call whose arguments are themselves j-independent. */
+static void MarkJIndependenceInExpression(_Expression *expr)
+{
+  if(expr == NULL) return;
+
+  /* Recurse into children first so leaves are marked before parents */
+  if(expr->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
+    MarkJIndependenceInExpression((_Expression *)(expr->op1_expression));
+  } else if(expr->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
+    MarkJIndependenceInFunctionCall((_FunctionCall *)(expr->op1_functioncall));
+  } else if(expr->op1type == VARTOOLS_OPERANDTYPE_ARRAYINDEX) {
+    MarkJIndependenceInFunctionCall((_FunctionCall *)(expr->op1_functioncall));
+  }
+
+  if(expr->operatortype != VARTOOLS_OPERATORTYPE_CONSTANT &&
+     expr->operatortype != VARTOOLS_OPERATORTYPE_NOT &&
+     expr->operatortype != VARTOOLS_OPERATORTYPE_BITWISECOMPLEMENT) {
+    if(expr->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
+      MarkJIndependenceInExpression((_Expression *)(expr->op2_expression));
+    } else if(expr->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
+      MarkJIndependenceInFunctionCall((_FunctionCall *)(expr->op2_functioncall));
+    } else if(expr->op2type == VARTOOLS_OPERANDTYPE_ARRAYINDEX) {
+      MarkJIndependenceInFunctionCall((_FunctionCall *)(expr->op2_functioncall));
+    }
+  }
+}
+
+static void MarkJIndependenceInFunctionCall(_FunctionCall *fc)
+{
+  int i;
+  if(fc == NULL) return;
+
+  /* Recurse into arg expressions so any nested aggregates inside are
+     also marked. */
+  for(i = 0; i < fc->Nexpr; i++)
+    MarkJIndependenceInExpression(fc->arguments[i]);
+
+  /* Only mark *aggregate* FunctionCalls as memoisable.  Aggregates
+     pull data from LC vectors whose contents are stable across each
+     BumpMemoGeneration() scope, so their results are guaranteed
+     invariant within that scope.
+
+     We deliberately do NOT memoise pure-scalar function calls (exp,
+     log, sin, ...) even when their args appear j-independent in the
+     local AST.  The reason is that some commands (e.g.
+     -fourierfilter's per-bin freqvar; -nonlinfit's parameter-bound
+     variables; user-set scalars) re-bind non-LC variables between
+     EvaluateExpression calls within a single BumpMemoGeneration
+     scope, which would make a cached "exp(f)" or similar return
+     stale values across those re-binds.  Aggregates avoid this
+     because their inputs are LC vectors -- which we don't allow
+     re-binding mid-scope. */
+  if(IsPureForMemo(fc->functionid) && IsAggregateFunction(fc->functionid))
+    fc->is_j_independent = 1;
+  else
+    fc->is_j_independent = 0;
+}
 
 int CheckExpressionForLCVector(_Expression *expression)
 /* This function goes through an expression tree to determine if any of the
@@ -652,9 +1121,16 @@ void RunExpressionCommand(int lcindex, int threadindex,
 
   _aggregate_njd = p->NJD[threadindex];
 
+  /* Open a fresh memoisation scope for this -expr invocation -- any
+     j-independent FunctionCall (e.g. mean(mag, mask)) inside the
+     per-point loops below is computed once and reused across the
+     loop. */
+  BumpMemoGeneration();
+
   double dblval;
 
   _FunctionCall tmpfcall;
+  tmpfcall.is_j_independent = 0;  /* used only by EvaluateArrayIndex */
 
   switch(c->outputvar->vectortype) {
   case VARTOOLS_VECTORTYPE_CONSTANT:
@@ -3127,7 +3603,10 @@ static void _build_weighted_vectors(int lcindex, int threadindex,
   *out_weights = wvals;
 }
 
-double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call) {
+/* Recursive workhorse for EvaluateFunctionCall.  Public callers go
+   through the wrapper below so memoisable calls hit the per-thread
+   cache. */
+static double EvaluateFunctionCallImpl(int lcindex, int threadindex, int jdindex, _FunctionCall *call) {
   double *val = NULL;
   double outval;
   int i, indx;
@@ -3473,6 +3952,25 @@ double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _Function
     free(val);
 
   return(outval);
+}
+
+/* Public EvaluateFunctionCall entry point.  When the call has been
+   marked as j-independent at parse time, look up its result in the
+   per-thread memo cache and return the cached value on a hit;
+   otherwise fall through to EvaluateFunctionCallImpl and cache the
+   result.  Cache validity is gated by the current memo generation
+   counter, which the engine bumps at the entry of each per-point
+   loop (see BumpMemoGeneration in RunExpressionCommand and
+   restricttimes). */
+double EvaluateFunctionCall(int lcindex, int threadindex, int jdindex, _FunctionCall *call)
+{
+  double v;
+  if(call->is_j_independent && _MemoLookup(call, &v))
+    return v;
+  v = EvaluateFunctionCallImpl(lcindex, threadindex, jdindex, call);
+  if(call->is_j_independent)
+    _MemoStore(call, v);
+  return v;
 }
 
 /* This function takes a string and checks if it is the name of a function,
@@ -4008,6 +4506,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
   if((retval = (_FunctionCall *) malloc(sizeof(_FunctionCall))) == NULL) {
     vt_error(ERR_MEMALLOC);
   }
+  retval->is_j_independent = 0;
 
 #ifdef DYNAMICLIB
   retval->UserFunc = NULL;
@@ -4061,7 +4560,7 @@ _FunctionCall* ParseArrayIndex(char *term, ProgramData *p)
   if((retval->arguments = (_Expression **) malloc(sizeof(_Expression *))) == NULL)
     vt_error(ERR_MEMALLOC);
 
-  retval->arguments[0] = ParseExpression(term2,p);
+  retval->arguments[0] = ParseExpressionImpl(term2,p);
   
   retval->Nexpr = 1;
 
@@ -4087,6 +4586,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, int functionid)
   if((retval = (_FunctionCall *) malloc(sizeof(_FunctionCall))) == NULL) {
     vt_error(ERR_MEMALLOC);
   }
+  retval->is_j_independent = 0;
 
 #ifdef DYNAMICLIB
   retval->UserFunc = NULL;
@@ -4141,7 +4641,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, int functionid)
 	if((retval->arguments = (_Expression **) realloc(retval->arguments, Nexpr*sizeof(_Expression *))) == NULL)
 	  vt_error(ERR_MEMALLOC);
       }
-      retval->arguments[Nexpr-1] = ParseExpression(term2,p);
+      retval->arguments[Nexpr-1] = ParseExpressionImpl(term2,p);
       if(retval->arguments[Nexpr-1] == NULL)
 	vt_error2(ERR_ANALYTICPARSE,term);
       ilast = i+1;
@@ -4179,7 +4679,7 @@ _FunctionCall* ParseFunctionCall(char *term, ProgramData *p, int functionid)
       if((retval->arguments = (_Expression **) realloc(retval->arguments, Nexpr*sizeof(_Expression *))) == NULL)
 	vt_error(ERR_MEMALLOC);
     }
-    retval->arguments[Nexpr-1] = ParseExpression(term2,p);
+    retval->arguments[Nexpr-1] = ParseExpressionImpl(term2,p);
     if(retval->arguments[Nexpr-1] == NULL)
       vt_error2(ERR_ANALYTICPARSE,term);
     ilast = i+1;
@@ -4365,7 +4865,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
     else if(expressiontype == 4) {
       /****** It is a compound expression ****/
       retval->op2type = VARTOOLS_OPERANDTYPE_EXPRESSION;
-      retval->op2_expression = (void *) (ParseExpression(term2, p));
+      retval->op2_expression = (void *) (ParseExpressionImpl(term2, p));
       if(retval->op2_expression == NULL) {
 	vt_error2(ERR_ANALYTICPARSE, term);
       }
@@ -4415,7 +4915,7 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
   else if(expressiontype == 4) {
     /****** It is a compound expression ****/
     retval->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
-    retval->op1_expression = (void *) (ParseExpression(term1, p));
+    retval->op1_expression = (void *) (ParseExpressionImpl(term1, p));
     if(retval->op1_expression == NULL) {
       vt_error2(ERR_ANALYTICPARSE, term);
     }
@@ -4441,7 +4941,10 @@ _Expression* SplitExpression(char *term, char operatortype, int i1, int sizeterm
   return retval;
 }
   
-_Expression* ParseExpression(char *term, ProgramData *p){
+/* Recursive workhorse for ParseExpression.  External callers should
+   use ParseExpression (defined just below) so the constant-fold pass
+   runs once on the fully-built tree. */
+static _Expression* ParseExpressionImpl(char *term, ProgramData *p){
 /* This function parses a string called 'term' into an expression
    structure which can be evaluated with the EvaluateExpression
    function. A pointer to the created expression is returned. The
@@ -4844,7 +5347,7 @@ _Expression* ParseExpression(char *term, ProgramData *p){
       term2[j] = term[i];
     }
     term2[j] = '\0';
-    retval = ParseExpression(term2, p);
+    retval = ParseExpressionImpl(term2, p);
     free(term2);
     return retval;
   }
@@ -4891,6 +5394,26 @@ _Expression* ParseExpression(char *term, ProgramData *p){
     vt_error2(ERR_ANALYTICPARSE, term);
   }
 
+  return retval;
+}
+
+/* Public ParseExpression entry point.  Wraps the recursive
+   ParseExpressionImpl with two single-pass post-processing steps
+   over the resulting tree: (1) bottom-up constant fold, so callers
+   see all parse-time-evaluable subtrees (literal arithmetic,
+   pure-scalar function calls on constants, ``pi()``-style constants)
+   collapsed to a CONSTANT operand; (2) j-independence marking, so
+   each FunctionCall whose result is invariant for fixed-LC,
+   varying-j evaluation is flagged for runtime memoisation -- the
+   evaluator caches such calls inside a per-thread hash table to
+   avoid recomputation across the per-point loop. */
+_Expression* ParseExpression(char *term, ProgramData *p)
+{
+  _Expression *retval = ParseExpressionImpl(term, p);
+  if(retval != NULL) {
+    FoldConstantsInExpression(retval);
+    MarkJIndependenceInExpression(retval);
+  }
   return retval;
 }
 

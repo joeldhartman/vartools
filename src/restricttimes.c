@@ -956,13 +956,20 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
     free(good);
 }
 
-void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, 
-			      int threadindex, int lcindex, 
+void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c,
+			      int threadindex, int lcindex,
 			      int markrestrict,
 			      _Variable *markvar, int noinitmark) {
   int i, j, Ntest, test;
   double testdbl;
   double *markvardat = NULL;
+  /* Open a fresh memoisation scope for this -restricttimes
+     invocation -- j-independent subtrees in restrictexpr (e.g.
+     ``(flag & 61) == 0`` once flag is set, or ``mean(mag, mask)``
+     used for outlier rejection) are computed once and reused across
+     the per-point loop. */
+  void BumpMemoGeneration(void);
+  BumpMemoGeneration();
   if(markrestrict) {
     markvardat = (*((double ***) markvar->dataptr))[lcindex];
     Ntest = p->NJD[threadindex];

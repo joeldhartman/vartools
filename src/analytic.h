@@ -171,6 +171,14 @@ typedef struct {
   _AnalyticUserFunc *AnalyticUserFunc;
 #endif
   _Expression **arguments;
+  /* Per-LC memoisation: set at parse time (see MarkJIndependence in
+     analytic.c).  When the call's value is invariant under varying
+     jdindex on a fixed LC -- the function is pure and either an
+     aggregate (collapses a vector to a scalar) or a pure-scalar
+     function whose arguments are themselves j-independent -- the
+     evaluator caches the result for reuse within the current
+     expression-evaluation scope (see BumpMemoGeneration). */
+  int is_j_independent;
 } _FunctionCall;
 
 #define _ANALYTIC_HEADER_INCLUDE
