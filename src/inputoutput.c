@@ -392,7 +392,13 @@ int parseonedelimstring(char *line, void *val, int vartype, char *delim)
       *((double *) val) = atof(line2);
       break;
     case VARTOOLS_TYPE_STRING:
-      sprintf(*((char **) val), "%s", line2);
+      /* val is the destination buffer pointer (consistent with the
+         scalar `parseone()` convention); the *(char**) deref that
+         was here previously crashed when the caller passed the
+         buffer directly rather than an address-of-pointer (e.g. the
+         -match path in parselc.c:517 where `cols[i]` is a malloc'd
+         MAXLEN buffer).  Aligns parseonedelim* with parseone. */
+      sprintf((char *) val, "%s", line2);
       break;
     case VARTOOLS_TYPE_INT:
       *((int *) val) = atoi(line2);
@@ -461,7 +467,13 @@ int parseonedelimchar(char *line, void *val, int vartype, char delim)
       *((double *) val) = atof(line2);
       break;
     case VARTOOLS_TYPE_STRING:
-      sprintf(*((char **) val), "%s", line2);
+      /* val is the destination buffer pointer (consistent with the
+         scalar `parseone()` convention); the *(char**) deref that
+         was here previously crashed when the caller passed the
+         buffer directly rather than an address-of-pointer (e.g. the
+         -match path in parselc.c:517 where `cols[i]` is a malloc'd
+         MAXLEN buffer).  Aligns parseonedelim* with parseone. */
+      sprintf((char *) val, "%s", line2);
       break;
     case VARTOOLS_TYPE_INT:
       *((int *) val) = atoi(line2);

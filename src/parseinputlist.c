@@ -923,7 +923,10 @@ int ParseMultiLCInputListVal(ProgramData *p, int lcindx, char *incol, _DataFromI
       break;
     case VARTOOLS_TYPE_STRING:
       string2ptr = (char ****) d->dataptr;
-      dataptr = (void *) (&((*string2ptr)[lcindx][k]));
+      /* parseonedelim*() write into the destination buffer directly
+         (matching parseone()'s convention).  Pass the buffer pointer,
+         not an address-of-pointer. */
+      dataptr = (void *) ((*string2ptr)[lcindx][k]);
       break;
     case VARTOOLS_TYPE_INT:
       int2ptr = (int ***) d->dataptr;
