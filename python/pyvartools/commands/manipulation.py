@@ -1702,7 +1702,14 @@ class decorr(VartoolsCommand):
         List of (filename, polynomial_order) for global trend vectors.
     lc_columns : list of (int, int)
         List of (column_number, polynomial_order) for LC-internal terms.
-    save_model : bool
+    save_model : bool, str, or Output, optional
+        Directory for auxiliary file output.  A string is the
+        **directory name** (not a filename); per-LC ``*.decorr.model``
+        files are written inside it.  ``True`` captures the model files
+        into ``result.files["decorr_model_N"]`` via a pyvartools-managed
+        temp directory.  See the Auxiliary-output-files section of the
+        pyvartools docs for the full ``Output`` semantics.  Default
+        ``False`` (no model output).
     maskpoints : str, optional
     """
 
@@ -1738,9 +1745,17 @@ class decorr(VartoolsCommand):
         args += [str(len(self.lc_columns))]
         for col, order in self.lc_columns:
             args += [str(col), str(order)]
+        # The -decorr CLI grammar treats `omodel` as a 0/1 flag in
+        # this slot (parsecommandline.c:969 calls atoi() on it), not
+        # as a literal keyword.  Help text writes "omodel" as the
+        # placeholder name for the slot, which mis-led an earlier
+        # version of this wrapper into emitting the literal word --
+        # vartools then atoi()'d it to 0, skipped the path-reading
+        # branch, and fell through with the path as a stray top-level
+        # argument ("Invalid command or option <path>").
         m_spec = _norm_save(self.save_model)
         if _should_emit(m_spec):
-            args += ["omodel", m_spec.path or outdir]
+            args += ["1", m_spec.path or outdir]
         else:
             args += ["0"]
         args += _flag("maskpoints", self.maskpoints)
