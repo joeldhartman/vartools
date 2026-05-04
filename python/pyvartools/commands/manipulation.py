@@ -220,9 +220,39 @@ class stats(VartoolsCommand):
     variables : str or list of str
         Variable name(s) to compute statistics for (comma-separated in vartools).
     statistics : str or list of str
-        Statistic name(s) to compute (e.g. ``"mean"``, ``"median"``,
-        ``"stddev"``, ``"min"``, ``"max"``).
+        Statistic name(s) to compute.  Each name may appear at most once
+        per call (vartools rejects repeats; e.g.
+        ``["mean","stddev","stddev"]`` errors out at parse time).
+
+        Recognised names (full list, matching the vartools ``-stats``
+        parser in ``src/statistics.c``):
+
+        =================  ==================================================
+        Name               Statistic
+        =================  ==================================================
+        ``mean``           Arithmetic mean
+        ``weightedmean``   Inverse-variance-weighted mean (uses err)
+        ``median``         Median (50th percentile)
+        ``wmedian``        Weighted median (uses err)
+        ``stddev``         Sample standard deviation (1/(N-1) normalisation)
+        ``meddev``         Median absolute deviation from the **mean**
+        ``medmeddev``      Median absolute deviation from the **median**
+        ``MAD``            ``meddev``-style MAD scaled by 1.4826
+                           (normal-consistent estimator of σ)
+        ``kurtosis``       Sample kurtosis (Fisher normalisation, biased)
+        ``skewness``       Sample skewness (biased)
+        ``max``            Maximum value
+        ``min``            Minimum value
+        ``sum``            Sum
+        ``pctXX``          XXth percentile (e.g. ``pct10``, ``pct90``,
+                           ``pct50.5``)
+        ``wpctXX``         Inverse-variance-weighted XXth percentile
+        =================  ==================================================
+
+        See the vartools ``-stats`` CLI docs for full definitions and
+        the per-LC output-column names.
     maskpoints : str, optional
+        Variable name; only points with ``maskvar > 0`` contribute.
 
     Examples
     --------
@@ -230,6 +260,7 @@ class stats(VartoolsCommand):
 
         stats("mag", "mean,median,stddev")
         stats(["mag", "err"], ["mean", "stddev"])
+        stats("mag", ["pct10", "pct50", "pct90"])
     """
 
     _vt_name = "stats"

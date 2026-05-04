@@ -422,6 +422,9 @@ void vt_error2(int errflag, char *s)
     case ERR_INVALIDSTATISTIC:
       fprintf(stderr,"Error: Invalid statistic name \"%s\" given to the -stats command or as an option to the -nonlinfit command.\n", s);
       exit(ERR_INVALIDSTATISTIC);
+    case ERR_DUPLICATESTATSTAT:
+      fprintf(stderr,"Error: the statistic \"%s\" is listed more than once in a call to -stats; each statistic should be listed only once.\n", s);
+      exit(ERR_DUPLICATESTATSTAT);
     case ERR_RESERVEDVARIABLENAME:
       fprintf(stderr,"Error: the variable name \"%s\" is reserved, and  cannot be used with the -inlistvars option.\n", s);
       exit(ERR_RESERVEDVARIABLENAME);
@@ -578,6 +581,7 @@ static const char *_vartools_errcode_message(int errflag)
   case ERR_UTCINPUT_FITS:              return "UTC input is not supported for binary FITS light curves";
   case ERR_NO_EPHEM_FILE:              return "Missing solar-system ephemeris file for BJD / UTC/TDB conversion";
   case ERR_NO_LEAPSEC_FILE:            return "Missing leap-second file for UTC/TDB conversion";
+  case ERR_DUPLICATESTATSTAT:          return "Duplicate statistic name in -stats; each statistic should be listed only once";
   default:                             return "Unspecified vartools error";
   }
 }

@@ -1045,9 +1045,17 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 
 int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *s)
 {
-  int i, j, k, i1, i2, Nvar, Nstat, lentmp, stattype, Npct = 0;
+  int i, j, k, m, i1, i2, Nvar, Nstat, lentmp, stattype, Npct = 0;
   double pctval;
   char *tmpstring;
+  /* Side table of the user-typed statistic names ("mean", "stddev",
+     "pct10", ...), in the order they appeared.  Used after each
+     parse to flag duplicate entries with a clear error message --
+     left to vartools' downstream column-registration step, the
+     duplicate would surface only as a cryptic
+     "Unspecified vartools error: STATS_<var>_<STATNAME>_<n>" when
+     the second copy collides with the first column name. */
+  char **stat_names_seen = NULL;
   i = *iret;
   if(i >= argc)
     return 1;
@@ -1102,6 +1110,8 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
   }
   if((s->statstocalc = (int *) malloc(Nstat * sizeof(int))) == NULL)
     vt_error(ERR_MEMALLOC);
+  if((stat_names_seen = (char **) malloc(Nstat * sizeof(char *))) == NULL)
+    vt_error(ERR_MEMALLOC);
   i1 = 0;
   i2 = 0;
   for(k = 0; k < Nstat; k++) {
@@ -1118,6 +1128,17 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
       tmpstring[j-i1] = argv[i][j];
     }
     tmpstring[j-i1] = '\0';
+
+    /* Reject duplicate statistic names early.  Catches both plain
+       repeats ("stddev,...,stddev") and pct/wpct repeats with the
+       same percentile value ("pct10,...,pct10"). */
+    for(m = 0; m < k; m++) {
+      if(!strcmp(stat_names_seen[m], tmpstring))
+	vt_error2(ERR_DUPLICATESTATSTAT, tmpstring);
+    }
+    if((stat_names_seen[k] = (char *) malloc(strlen(tmpstring)+1)) == NULL)
+      vt_error(ERR_MEMALLOC);
+    sprintf(stat_names_seen[k], "%s", tmpstring);
 
     if(!strcmp(tmpstring,"mean")) {
       s->statstocalc[k] = VARTOOLS_STATSTYPE_MEAN;
@@ -1209,7 +1230,10 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
 
   s->Nstatstot = s->Nvar * s->Nstats;
 
-  free(tmpstring);	
+  free(tmpstring);
+  for(k = 0; k < Nstat; k++)
+    free(stat_names_seen[k]);
+  free(stat_names_seen);
 
   *iret = i;
   return 0;
