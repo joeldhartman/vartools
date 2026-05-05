@@ -468,6 +468,60 @@ class ftuneven(_UserLibCommand):
 # stitch — fit for and remove offsets between light-curve segments.
 # -----------------------------------------------------------------------------
 
+_STITCH_HEADER_RE = re.compile(r"^#\s*Parameters for stitch variable\s+(\d+)\s*$")
+_STITCH_SHIFT_RE  = re.compile(r"^LCgroup_(\d+)\s+shift:\s*(\S+)\s*$")
+# Coefficient line, two flavours:
+#   "Coeff for TERM, TMIN<t<TMAX: VALUE"   (poly, harmseries)
+#   "Median TMIN<t<TMAX: VALUE"            (median / mean / weightedmean)
+_STITCH_COEFF_RE = re.compile(
+    r"^(?:Coeff for\s+(?P<term1>.+?),\s*"
+    r"|(?P<term2>Median|Mean|WeightedMean)\s+)"
+    r"(?P<tmin>\S+)<t<(?P<tmax>\S+):\s*(?P<value>\S+)\s*$"
+)
+
+
+def _parse_stitch_fitted_params(path):
+    """Parse the structured text file written by ``-stitch save_fitted_parameters``.
+
+    Returns a DataFrame with columns ``variable, kind, term, t_min, t_max,
+    value``.  ``kind`` is ``"coeff"`` (one row per fitted basis-function
+    coefficient and time bin) or ``"shift"`` (one row per LC group's
+    additive offset).  ``t_min`` / ``t_max`` are NaN for shift rows.
+    """
+    import math
+    import pandas as pd
+
+    rows = []
+    variable = None
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line.strip():
+                continue
+            m = _STITCH_HEADER_RE.match(line)
+            if m:
+                variable = int(m.group(1))
+                continue
+            m = _STITCH_SHIFT_RE.match(line)
+            if m:
+                rows.append(dict(variable=variable, kind="shift",
+                                 term=f"LCgroup_{m.group(1)}",
+                                 t_min=math.nan, t_max=math.nan,
+                                 value=float(m.group(2))))
+                continue
+            m = _STITCH_COEFF_RE.match(line)
+            if m:
+                term = m.group("term1") or m.group("term2")
+                rows.append(dict(variable=variable, kind="coeff",
+                                 term=term,
+                                 t_min=float(m.group("tmin")),
+                                 t_max=float(m.group("tmax")),
+                                 value=float(m.group("value"))))
+    return pd.DataFrame(
+        rows, columns=["variable", "kind", "term", "t_min", "t_max", "value"]
+    )
+
+
 class stitch(_UserLibCommand):
     """Stitch multi-segment light curves at offsets (USERLIB ``-stitch``).
 
@@ -496,7 +550,7 @@ class stitch(_UserLibCommand):
         Fit shifts but do not subtract them.
     save_fitted_parameters : bool | str | Output, optional
         Output directory for per-source fitted-parameter files.
-    params_nameformat : str, optional
+    fitted_parameters_nameformat : str, optional
         ``format`` string applied to the fitted-parameter filenames.
     add_stitchparams_fitsheader : bool or str, optional
         ``True`` or ``"primary"`` / ``"extension"``.
@@ -512,9 +566,15 @@ class stitch(_UserLibCommand):
         ``(fieldlabelsvar, starnamevar)`` — enables ``shifts_file`` mode.
     append_refnum_to_fieldlabel : bool
     in_shifts_file : str or list of str, optional
+        Pre-existing shifts file(s) to read.  One file per stitched
+        variable: pass a single string when *stitch_variables* is a
+        string, or a list of the same length as *stitch_variables* when
+        it is a list.
     nobs_refit : int, optional
     header_basename_only : bool
     out_shifts_file : str or list of str, optional
+        Output shifts file(s) to write.  One file per stitched variable
+        (same shape rule as *in_shifts_file*).
     include_missing : bool
     lib_path : str, optional
     """
@@ -533,7 +593,7 @@ class stitch(_UserLibCommand):
         groupbytime_start: Optional[float] = None,
         fitonly: bool = False,
         save_fitted_parameters=False,
-        params_nameformat: Optional[str] = None,
+        fitted_parameters_nameformat: Optional[str] = None,
         add_stitchparams_fitsheader: Union[bool, str] = False,
         add_stitchparams_mode: Optional[str] = None,
         add_shifts_fitsheader: Optional[str] = None,
@@ -558,7 +618,7 @@ class stitch(_UserLibCommand):
         self.groupbytime_start = groupbytime_start
         self.fitonly = fitonly
         self.save_fitted_parameters = save_fitted_parameters
-        self.params_nameformat = params_nameformat
+        self.fitted_parameters_nameformat = fitted_parameters_nameformat
         self.add_stitchparams_fitsheader = add_stitchparams_fitsheader
         self.add_stitchparams_mode = add_stitchparams_mode
         self.add_shifts_fitsheader = add_shifts_fitsheader
@@ -600,8 +660,8 @@ class stitch(_UserLibCommand):
         params_spec = _norm_save(self.save_fitted_parameters)
         if _should_emit(params_spec):
             args += ["save_fitted_parameters", params_spec.path or outdir]
-            if self.params_nameformat is not None:
-                args += ["format", self.params_nameformat]
+            if self.fitted_parameters_nameformat is not None:
+                args += ["format", self.fitted_parameters_nameformat]
         if self.add_stitchparams_fitsheader:
             args += ["add_stitchparams_fitsheader"]
             if isinstance(self.add_stitchparams_fitsheader, str):
@@ -636,7 +696,7 @@ class stitch(_UserLibCommand):
         return args
 
     def _output_file_specs(self) -> dict:
-        return {"fitted_parameters": (".stitch", None)}
+        return {"fitted_parameters": (".stitch", _parse_stitch_fitted_params)}
 
 
 # -----------------------------------------------------------------------------

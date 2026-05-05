@@ -1016,6 +1016,8 @@ class Pipeline:
         columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
         init_lc_vars: Optional[Dict[str, LCVar]] = None,
         inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        segment_vars: Optional[Dict[str, object]] = None,
+        lc_vars: Optional[Dict[str, object]] = None,
         lcnumvar: Optional[str] = "lcnum",
         delimiter: str = ",",
         randseed: Optional[int] = None,
@@ -1033,6 +1035,14 @@ class Pipeline:
         ----------
         files : sequence of str | Path
             Paths to combine into one in-memory light curve.
+        segment_vars : dict, optional
+            Per-segment variables.  Each entry is a flat sequence of length
+            ``len(files)`` (one value per segment), or a ``(values, type)``
+            tuple to override the auto-detected type.  See
+            :meth:`run_combinelcs` for the recognised types.
+        lc_vars : dict, optional
+            Per-LC scalar variables.  Each entry is a single value (or
+            ``(value, type)`` tuple).
 
         Returns
         -------
@@ -1040,15 +1050,45 @@ class Pipeline:
 
         Examples
         --------
-        ::
+        Stitch two segments together with per-segment field labels and a
+        per-LC star name::
 
             result = (vt.Pipeline()
-                      .stitch("mag err mask lcnum")
-                      .run_combinelc(["seg1.txt", "seg2.txt", "seg3.txt"]))
+                      .stitch("mag", "err", "mask", "lcnum",
+                              method="poly 5",
+                              shifts_file=("fieldname", "starname"),
+                              out_shifts_file="/tmp/shifts.txt")
+                      .run_combinelc(
+                          ["seg1.txt", "seg2.txt"],
+                          segment_vars={"fieldname": ["A", "B"]},
+                          lc_vars={"starname": "TIC123"},
+                      ))
         """
         files = list(files)
         if not files:
             raise ValueError("run_combinelc() requires at least one file path.")
+        # Auto-wrap singular-shape segment_vars / lc_vars for the plural
+        # implementation: segment_vars[name] is a flat list per segment →
+        # wrap once for a single group; lc_vars[name] is a single value →
+        # wrap as a one-element list.
+        seg_groups: Optional[Dict[str, object]] = None
+        if segment_vars:
+            seg_groups = {}
+            for name, spec in segment_vars.items():
+                if (isinstance(spec, tuple) and len(spec) == 2
+                        and isinstance(spec[1], str)):
+                    seg_groups[name] = ([list(spec[0])], spec[1])
+                else:
+                    seg_groups[name] = [list(spec)]
+        lc_groups: Optional[Dict[str, object]] = None
+        if lc_vars:
+            lc_groups = {}
+            for name, spec in lc_vars.items():
+                if (isinstance(spec, tuple) and len(spec) == 2
+                        and isinstance(spec[1], str)):
+                    lc_groups[name] = ([spec[0]], spec[1])
+                else:
+                    lc_groups[name] = [spec]
         batch = self.run_combinelcs(
             groups=[files],
             nthreads=nthreads,
@@ -1059,6 +1099,8 @@ class Pipeline:
             columns=columns,
             init_lc_vars=init_lc_vars,
             inlistvars=inlistvars,
+            segment_vars=seg_groups,
+            lc_vars=lc_groups,
             lcnumvar=lcnumvar,
             delimiter=delimiter,
             randseed=randseed,
@@ -1085,6 +1127,8 @@ class Pipeline:
         columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
         init_lc_vars: Optional[Dict[str, LCVar]] = None,
         inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        segment_vars: Optional[Dict[str, object]] = None,
+        lc_vars: Optional[Dict[str, object]] = None,
         lcnumvar: Optional[str] = "lcnum",
         delimiter: str = ",",
         randseed: Optional[int] = None,
@@ -1120,14 +1164,36 @@ class Pipeline:
         init_lc_vars : dict mapping str to LCVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
         inlistvars : dict mapping str to int or ListVar, optional
-            Per-star variables passed to vartools via ``-inlistvars``.
+            Per-star variables passed to vartools via ``-inlistvars``.  Use
+            this when you want to read values from columns of an existing
+            list file or initialise from an expression.  For the common
+            case of attaching Python data to each segment / group, prefer
+            *segment_vars* / *lc_vars* below — they auto-build the list
+            file column for you.
+        segment_vars : dict, optional
+            Per-segment variables to broadcast across the points of each
+            input file.  Each entry is either a sequence of length
+            ``len(groups)``, where the *i*-th element is itself a sequence
+            of length ``len(groups[i])`` (one value per segment), or a
+            ``(values, type)`` tuple to override the auto-detected type.
+            Recognised types: ``"double"``, ``"float"``, ``"int"``,
+            ``"long"``, ``"short"``, ``"string"``, ``"char"``.  Used by
+            commands like ``-stitch`` that take a per-observation string
+            field label.
+        lc_vars : dict, optional
+            Per-light-curve scalar variables, one value per group.  Each
+            entry is a flat sequence of length ``len(groups)`` (or a
+            ``(values, type)`` tuple).  Used to attach metadata such as
+            star names that the pipeline references via vartools variable
+            names (e.g. the ``starnamevar`` of ``-stitch shifts_file``).
         lcnumvar : str, optional
             Name of the per-observation integer variable vartools creates to
             record which file each point came from.  Defaults to ``"lcnum"``;
             pass ``None`` to opt out of emitting the ``lcnumvar`` qualifier.
         delimiter : str
             Delimiter used to join paths within each group in the list file.
-            Default ``","`` (the vartools ``combinelcs`` default).
+            Default ``","`` (the vartools ``combinelcs`` default).  The same
+            delimiter is used for *segment_vars* sub-columns.
         randseed : int, optional
             Pass ``-randseed N`` to vartools.
         skipmissing : bool
@@ -1147,8 +1213,31 @@ class Pipeline:
         Returns
         -------
         BatchResult
+
+        Examples
+        --------
+        Attach a per-segment string field label and a per-LC star name::
+
+            pipe = (vt.Pipeline()
+                    .expr("mask=1")
+                    .stitch("mag", "err", "mask", "lcnum",
+                            method="poly 5",
+                            shifts_file=("fieldname", "starname"),
+                            out_shifts_file="/tmp/shifts.txt"))
+            result = pipe.run_combinelcs(
+                groups=[["EXAMPLES/2", "EXAMPLES/2.shifted"]],
+                segment_vars={"fieldname": [["2_A", "2_B"]]},
+                lc_vars={"starname": ["2"]},
+            )
         """
         self._refuse_inprocess_in_subprocess_only("run_combinelcs")
+        for i, group in enumerate(groups):
+            if isinstance(group, (str, Path)):
+                raise TypeError(
+                    f"run_combinelcs(groups[{i}]) is a {type(group).__name__} "
+                    f"({group!r}); each group must be a list/tuple of file "
+                    f"paths to combine. Did you mean groups=[{list(groups)!r}]?"
+                )
         perlc_attrs = self._collect_perlc_attrs()
         if perlc_attrs:
             batch_size = len(groups)
@@ -1158,6 +1247,61 @@ class Pipeline:
                         f"PerLC parameter '{name}' in command {ci} has "
                         f"{len(perlc)} values but the batch has {batch_size} "
                         f"groups."
+                    )
+
+        # Validate and normalize segment_vars / lc_vars.  After this block,
+        # ``segment_vars_norm`` is {name: (list_of_lists, type)} and
+        # ``lc_vars_norm`` is {name: (flat_list, type)}.
+        segment_vars_norm: Dict[str, tuple] = {}
+        lc_vars_norm: Dict[str, tuple] = {}
+        n_groups = len(groups)
+        if segment_vars:
+            for name, spec in segment_vars.items():
+                values, vtype = self._normalize_extravar_spec(spec)
+                if len(values) != n_groups:
+                    raise ValueError(
+                        f"segment_vars[{name!r}] has {len(values)} entries "
+                        f"but groups has {n_groups}."
+                    )
+                for i, segvals in enumerate(values):
+                    if not isinstance(segvals, (list, tuple)):
+                        raise TypeError(
+                            f"segment_vars[{name!r}][{i}] must be a list/"
+                            f"tuple of per-segment values, got "
+                            f"{type(segvals).__name__}."
+                        )
+                    if len(segvals) != len(groups[i]):
+                        raise ValueError(
+                            f"segment_vars[{name!r}][{i}] has "
+                            f"{len(segvals)} values but groups[{i}] has "
+                            f"{len(groups[i])} files."
+                        )
+                segment_vars_norm[name] = (values, vtype)
+        if lc_vars:
+            for name, spec in lc_vars.items():
+                values, vtype = self._normalize_extravar_spec(spec)
+                if len(values) != n_groups:
+                    raise ValueError(
+                        f"lc_vars[{name!r}] has {len(values)} entries but "
+                        f"groups has {n_groups}."
+                    )
+                lc_vars_norm[name] = (values, vtype)
+
+        # Reject collisions: segment_vars vs lc_vars, then either of those
+        # against an existing inlistvars entry.  The order matters for the
+        # error message — segment-vs-lc is the more specific case.
+        for name in lc_vars_norm:
+            if name in segment_vars_norm:
+                raise ValueError(
+                    f"Variable name {name!r} appears in both segment_vars "
+                    f"and lc_vars; pick a different name."
+                )
+        if inlistvars:
+            for name in list(segment_vars_norm) + list(lc_vars_norm):
+                if name in inlistvars:
+                    raise ValueError(
+                        f"Variable name {name!r} appears in both inlistvars "
+                        f"and segment_vars/lc_vars; pick a different name."
                     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1171,16 +1315,49 @@ class Pipeline:
                     col_assignments[key] = next_col
                     next_col += 1
                 perlc_subs = self._build_perlc_subs(col_assignments)
+            else:
+                next_col = 2
+
+            # Allocate columns for segment_vars and lc_vars, in the order
+            # they appear in their respective dicts.  Build the per-row text
+            # for each new column so the list-file writer can emit it.
+            extravar_cols: Dict[str, int] = {}
+            extravar_rows: Dict[int, List[str]] = {}
+            for name, (values, vtype) in segment_vars_norm.items():
+                extravar_cols[name] = next_col
+                rendered = [
+                    delimiter.join(
+                        self._format_extravar_value(v, vtype) for v in segvals
+                    )
+                    for segvals in values
+                ]
+                extravar_rows[next_col] = rendered
+                next_col += 1
+            for name, (values, vtype) in lc_vars_norm.items():
+                extravar_cols[name] = next_col
+                rendered = [self._format_extravar_value(v, vtype)
+                            for v in values]
+                extravar_rows[next_col] = rendered
+                next_col += 1
 
             # Build list file: one line per group, paths joined by delimiter,
-            # followed by any PerLC value columns.
+            # followed by any PerLC and extravar value columns.
             list_path = os.path.join(tmpdir, "lclist.txt")
             group_strings = [delimiter.join(str(p) for p in group)
                              for group in groups]
-            if perlc_attrs:
-                self._write_perlc_list_file(
-                    list_path, group_strings, perlc_attrs, col_assignments
-                )
+            if perlc_attrs or extravar_rows:
+                with open(list_path, "w") as f:
+                    perlc_keys_sorted = (sorted(col_assignments,
+                                                key=col_assignments.get)
+                                         if perlc_attrs else [])
+                    extra_cols_sorted = sorted(extravar_rows.keys())
+                    for j, base in enumerate(group_strings):
+                        parts = [base]
+                        for key in perlc_keys_sorted:
+                            parts.append(f"{perlc_attrs[key][j]:.10g}")
+                        for col in extra_cols_sorted:
+                            parts.append(extravar_rows[col][j])
+                        f.write(" ".join(parts) + "\n")
             else:
                 with open(list_path, "w") as f:
                     for line in group_strings:
@@ -1210,6 +1387,14 @@ class Pipeline:
             if col_assignments:
                 merged_inlistvars_comb.update(
                     self._build_perlc_inlistvars(col_assignments)
+                )
+            for name, (_vals, vtype) in segment_vars_norm.items():
+                merged_inlistvars_comb[name] = ListVar(
+                    col=extravar_cols[name], type=vtype, combinelc=True
+                )
+            for name, (_vals, vtype) in lc_vars_norm.items():
+                merged_inlistvars_comb[name] = ListVar(
+                    col=extravar_cols[name], type=vtype
                 )
             if use_seq:
                 merged_inlistvars_comb[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
@@ -1941,6 +2126,90 @@ class Pipeline:
             result[varname] = col
         return result
 
+    @staticmethod
+    def _infer_listvar_type(values) -> str:
+        """Guess a vartools type tag from a list of Python values.
+
+        Used to default the ``type`` of an entry in ``segment_vars`` /
+        ``lc_vars`` when the user did not supply an explicit
+        ``(values, type)`` tuple.  Recurses into nested lists so the
+        per-segment list-of-lists shape works without flattening boilerplate
+        at the call site.
+
+        ``bool`` is mapped to ``"int"`` because vartools has no boolean
+        type.  ``None`` values are skipped — type is taken from the first
+        non-``None`` value seen.
+        """
+        for v in values:
+            if isinstance(v, (list, tuple)):
+                t = Pipeline._infer_listvar_type(v)
+                if t is not None:
+                    return t
+                continue
+            if v is None:
+                continue
+            if isinstance(v, bool):
+                return "int"
+            if isinstance(v, int):
+                return "int"
+            if isinstance(v, float):
+                return "double"
+            if isinstance(v, str):
+                return "string"
+            raise TypeError(
+                f"Cannot infer vartools type from value {v!r} of type "
+                f"{type(v).__name__}.  Pass an explicit type with the "
+                f"tuple form ({{values}}, type)."
+            )
+        raise ValueError(
+            "Cannot infer type from a list with no non-None values.  "
+            "Pass an explicit type with the tuple form ({values}, type)."
+        )
+
+    @staticmethod
+    def _normalize_extravar_spec(spec):
+        """Return ``(values, type)`` from either a bare values sequence or
+        a ``(values, type)`` tuple.
+
+        Accepts list/tuple/np.ndarray/pd.Series for *values*.  *type* must
+        be one of ``"double"``, ``"float"``, ``"int"``, ``"long"``,
+        ``"short"``, ``"string"``, ``"char"``, or ``"utc"``.
+        """
+        valid_types = {"double", "float", "int", "long", "short",
+                       "string", "char", "utc"}
+        if (isinstance(spec, tuple) and len(spec) == 2
+                and isinstance(spec[1], str) and spec[1] in valid_types):
+            values, vtype = spec
+            return list(values), vtype
+        # Bare sequence — infer the type.
+        try:
+            values = list(spec)
+        except TypeError:
+            raise TypeError(
+                f"segment_vars / lc_vars value must be a sequence (or "
+                f"({{sequence}}, type) tuple), got {type(spec).__name__}."
+            )
+        return values, Pipeline._infer_listvar_type(values)
+
+    @staticmethod
+    def _format_extravar_value(value, vtype: str) -> str:
+        """Render a Python value as a token for a vartools list-file column."""
+        if value is None:
+            raise ValueError("None is not a valid value for an extra list column.")
+        if vtype == "string":
+            s = str(value)
+            if any(ch.isspace() for ch in s):
+                raise ValueError(
+                    f"String value {s!r} contains whitespace; vartools list "
+                    f"files use whitespace as the column separator.  Pick a "
+                    f"value that does not contain spaces or tabs."
+                )
+            return s
+        if vtype in ("int", "long", "short"):
+            return str(int(value))
+        # double / float / utc / char — render numerically.
+        return f"{float(value):.10g}"
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -2005,12 +2274,15 @@ class Pipeline:
                 outdir_map = {}
                 needs_base = False
                 for name, spec_tuple in specs.items():
-                    # _output_file_specs entries are ``(suffix, parser)`` for
-                    # per-LC directory-style outputs (the default) or
-                    # ``(suffix, parser, "file")`` for commands like -SYSREM
-                    # that write a single global file (otrends).  In the file
-                    # case the user-supplied path *is* the output file and
-                    # must not be makedirs-ed.
+                    # _output_file_specs entries are ``(suffix, ncols)`` for
+                    # per-LC directory-style outputs (the default), where
+                    # ``ncols`` is either an ``int`` column-count override
+                    # for ``_read_vt_table``, ``None`` to auto-detect, or a
+                    # callable ``parser(path) -> object`` for non-tabular
+                    # formats.  ``(suffix, ncols, "file")`` marks a single
+                    # global file (e.g. -SYSREM ``otrends``); the
+                    # user-supplied path *is* the output file and must not
+                    # be makedirs-ed.
                     spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
                     save_spec = _norm_save(getattr(command, f"save_{name}", False))
                     if save_spec.path is not None:
@@ -2438,7 +2710,10 @@ class Pipeline:
                     candidate = os.path.join(actual_outdir, base + suffix)
 
                 if os.path.isfile(candidate):
-                    df = _read_vt_table(candidate, ncols=ncols)
+                    if callable(ncols):
+                        df = ncols(candidate)
+                    else:
+                        df = _read_vt_table(candidate, ncols=ncols)
                     key = f"{command._vt_name}_{logical_name}_{idx}"
                     files[key] = df
         return files
@@ -2468,7 +2743,10 @@ class Pipeline:
                 path = getattr(command, f"_{logical_name}_outpath", None)
                 if not path or not os.path.isfile(path):
                     continue
-                df = _read_vt_table(path, ncols=ncols)
+                if callable(ncols):
+                    df = ncols(path)
+                else:
+                    df = _read_vt_table(path, ncols=ncols)
                 key = f"{command._vt_name}_{logical_name}_{idx}"
                 files[key] = df
         return files
