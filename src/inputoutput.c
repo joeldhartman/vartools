@@ -1969,6 +1969,18 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
   char outname[MAXLEN], tmpstring[MAXLEN];
   char effective_lcname[MAXLEN];
   const char *lcn;
+
+  /* In-memory capture: skip file output entirely and snapshot the
+     current LC state into the pre-allocated p->captured[] slot keyed by
+     c->outdir (which is being used as an opaque id, not a filesystem
+     path).  Used by libvartoolspipeline so cmd.o(capture=True) can run
+     without touching disk.  If the user *also* wanted a file, they
+     would have configured a separate -o command without "capture". */
+  if (c->capture_to_buffer) {
+    vartools_capture_current_lc(p, c->outdir);
+    return;
+  }
+
   /* If the input was auto-decompressed on read (.gz/.Z/.bz2/.fz),
      strip the compression suffix when constructing the default output
      filename so we don't write e.g. foo.fits.gz holding ASCII text,

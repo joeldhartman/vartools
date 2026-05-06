@@ -489,3 +489,9 @@ double kurtosis(int n, double *data);
 double skewness(int n, double *data);
 double percentile_nocopy(int n, double *data, double pct);
 double percentile_weight_nocopy(int n, double *data, double *err, double pct);
+
+/* In-process LC capture (libvartoolspipeline driver).  See vartools.h
+   for the public API; this declaration lets DoOutputLightCurve in
+   inputoutput.c invoke the helper directly without pulling in the
+   public header. */
+int vartools_capture_current_lc(ProgramData *p, const char *id);

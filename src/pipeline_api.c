@@ -82,6 +82,9 @@ static void _init_programdata(ProgramData *p)
   p->Nbuffs_free                   = VARTOOLS_DEFAULT_NOUTPUT_BUFFERS;
   p->Nbuffs_free_user_set          = 0;
   p->setlcname                     = NULL;
+  p->Ncaptured                     = 0;
+  p->Ncaptured_filled              = 0;
+  p->captured                      = NULL;
 #ifdef PARALLEL
   p->Nproc_allow                   = 1;
 #endif
@@ -186,6 +189,58 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
   /* Set up the per-thread LC data structure (single thread). */
   InitializeMemAllocDataFromLightCurve(&s->p, s->c, 1);
 
+  /* Pre-walk s->c[] to count cmd.o instances with capture_to_buffer set,
+     and allocate the captured-LC slots once for the lifetime of the
+     pipeline.  Slot indices match the order of CNUM_OUTPUTLCS commands
+     in the command sequence. */
+  {
+    int j, k;
+    s->p.Ncaptured = 0;
+    for (j = 0; j < s->p.Ncommands; j++) {
+      if (s->c[j].cnum == CNUM_OUTPUTLCS &&
+          s->c[j].Outputlcs->capture_to_buffer) {
+        s->p.Ncaptured++;
+      }
+    }
+    if (s->p.Ncaptured > 0) {
+      s->p.captured = (_CapturedLC *) malloc(
+          s->p.Ncaptured * sizeof(_CapturedLC));
+      if (!s->p.captured) vt_error(ERR_MEMALLOC);
+      for (j = 0; j < s->p.Ncaptured; j++) {
+        s->p.captured[j].id[0]      = '\0';
+        s->p.captured[j].filled     = 0;
+        s->p.captured[j].njd        = 0;
+        s->p.captured[j].n_vars     = 0;
+        s->p.captured[j].varnames   = NULL;
+        s->p.captured[j].datatypes  = NULL;
+        s->p.captured[j].databufs   = NULL;
+      }
+      /* Pre-fill ids from the command sequence so a duplicate-id check
+         can fire at init time (matching the Python wrapper, but also
+         protecting direct CLI use of -o <id> capture). */
+      k = 0;
+      for (j = 0; j < s->p.Ncommands; j++) {
+        if (s->c[j].cnum == CNUM_OUTPUTLCS &&
+            s->c[j].Outputlcs->capture_to_buffer) {
+          int kk;
+          strncpy(s->p.captured[k].id,
+                  s->c[j].Outputlcs->outdir, sizeof(s->p.captured[k].id) - 1);
+          s->p.captured[k].id[sizeof(s->p.captured[k].id) - 1] = '\0';
+          for (kk = 0; kk < k; kk++) {
+            if (!strcmp(s->p.captured[kk].id, s->p.captured[k].id)) {
+              fprintf(stderr,
+                  "Error: -o capture id '%s' used by more than one -o "
+                  "command in the pipeline.  Each capture id must be "
+                  "unique.\n", s->p.captured[k].id);
+              vt_error(ERR_USAGE);
+            }
+          }
+          k++;
+        }
+      }
+    }
+  }
+
   return (ProgramData *) s;
 }
 
@@ -225,6 +280,42 @@ int vartools_process_lc(ProgramData       *p,
 
   /* ---- Reset per-call state ---- */
   p->skipfaillc[0] = 0;
+
+  /* Free any LC snapshots from the previous vartools_process_lc() call so
+     captures from this run can be written into the same slots.  Memory
+     usage stays bounded by one LC's worth of snapshots; nothing
+     accumulates across batch iterations. */
+  if (p->captured && p->Ncaptured > 0) {
+    int j;
+    for (j = 0; j < p->Ncaptured; j++) {
+      _CapturedLC *cap = &p->captured[j];
+      if (cap->databufs) {
+        int v;
+        for (v = 0; v < cap->n_vars; v++) {
+          if (cap->databufs[v]) {
+            if (cap->datatypes[v] == VARTOOLS_TYPE_STRING) {
+              /* For strings the buffer is a malloc'd char ** of length njd
+                 with one strdup'd entry per row. */
+              char **strs = (char **) cap->databufs[v];
+              int r;
+              for (r = 0; r < cap->njd; r++) {
+                if (strs[r]) free(strs[r]);
+              }
+            }
+            free(cap->databufs[v]);
+          }
+        }
+        free(cap->databufs);
+        cap->databufs = NULL;
+      }
+      if (cap->varnames)  { free(cap->varnames);  cap->varnames  = NULL; }
+      if (cap->datatypes) { free(cap->datatypes); cap->datatypes = NULL; }
+      cap->n_vars = 0;
+      cap->njd    = 0;
+      cap->filled = 0;
+    }
+    p->Ncaptured_filled = 0;
+  }
 
   /* Grow the LC data arrays if this light curve is larger than any seen
    * so far.  MemAllocDataFromLightCurve is a no-op when already big enough. */
@@ -426,6 +517,194 @@ int vartools_get_lc_variables(ProgramData  *p,
 int vartools_get_njd(ProgramData *p)
 {
   return p->NJD[0];
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_capture_current_lc
+ *
+ * Internal helper invoked by DoOutputLightCurve when the
+ * capture_to_buffer flag is set.  Walks the variable registry and
+ * snapshots every VECTORTYPE_LC var into the matching p->captured[] slot
+ * (looked up by id).  The snapshots are owned by the slot and freed at
+ * the start of the next vartools_process_lc() call.
+ *
+ * Strings (VARTOOLS_TYPE_STRING) are deep-copied: the slot owns a
+ * malloc'd char ** of length njd with one strdup'd entry per row.
+ * Numeric types are flat-arrayed with one malloc'd buffer per var.
+ *
+ * Returns 0 on success, non-zero if the id is not found in the slot
+ * table (which should never happen because slots are pre-populated at
+ * pipeline init).
+ * ---------------------------------------------------------------------------
+ */
+int vartools_capture_current_lc(ProgramData *p, const char *id)
+{
+  int slot, i, count, v, r;
+  _Variable *var;
+  _CapturedLC *cap;
+  size_t bytes;
+  int njd;
+
+  if (!p->captured || p->Ncaptured == 0) return 1;
+
+  /* Locate the slot by id (linear scan; Ncaptured is typically a
+     small handful). */
+  for (slot = 0; slot < p->Ncaptured; slot++) {
+    if (!strcmp(p->captured[slot].id, id)) break;
+  }
+  if (slot == p->Ncaptured) return 1;
+
+  cap = &p->captured[slot];
+  njd = p->NJD[0];
+
+  /* Count the LC variables we'll snapshot. */
+  count = 0;
+  for (i = 0; i < p->NDefinedVariables; i++) {
+    var = p->DefinedVariables[i];
+    if (var && var->vectortype == VARTOOLS_VECTORTYPE_LC) count++;
+  }
+
+  cap->njd       = njd;
+  cap->n_vars    = count;
+  cap->varnames  = (char **) malloc(count * sizeof(char *));
+  cap->datatypes = (int *)   malloc(count * sizeof(int));
+  cap->databufs  = (void **) malloc(count * sizeof(void *));
+  if (!cap->varnames || !cap->datatypes || !cap->databufs)
+    vt_error(ERR_MEMALLOC);
+  for (v = 0; v < count; v++) cap->databufs[v] = NULL;
+
+  v = 0;
+  for (i = 0; i < p->NDefinedVariables; i++) {
+    var = p->DefinedVariables[i];
+    if (!var || var->vectortype != VARTOOLS_VECTORTYPE_LC) continue;
+    cap->varnames[v]  = var->varname;     /* not owned */
+    cap->datatypes[v] = var->datatype;
+    switch (var->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      bytes = (size_t)njd * sizeof(double);
+      cap->databufs[v] = malloc(bytes);
+      if (!cap->databufs[v]) vt_error(ERR_MEMALLOC);
+      memcpy(cap->databufs[v], (*((double ***) var->dataptr))[0], bytes);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      bytes = (size_t)njd * sizeof(float);
+      cap->databufs[v] = malloc(bytes);
+      if (!cap->databufs[v]) vt_error(ERR_MEMALLOC);
+      memcpy(cap->databufs[v], (*((float ***) var->dataptr))[0], bytes);
+      break;
+    case VARTOOLS_TYPE_INT:
+      bytes = (size_t)njd * sizeof(int);
+      cap->databufs[v] = malloc(bytes);
+      if (!cap->databufs[v]) vt_error(ERR_MEMALLOC);
+      memcpy(cap->databufs[v], (*((int ***) var->dataptr))[0], bytes);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      bytes = (size_t)njd * sizeof(long);
+      cap->databufs[v] = malloc(bytes);
+      if (!cap->databufs[v]) vt_error(ERR_MEMALLOC);
+      memcpy(cap->databufs[v], (*((long ***) var->dataptr))[0], bytes);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      bytes = (size_t)njd * sizeof(short);
+      cap->databufs[v] = malloc(bytes);
+      if (!cap->databufs[v]) vt_error(ERR_MEMALLOC);
+      memcpy(cap->databufs[v], (*((short ***) var->dataptr))[0], bytes);
+      break;
+    case VARTOOLS_TYPE_STRING: {
+      /* Vartools stores strings as char ***[thread][row] -> char *.
+         Snapshot is a malloc'd char ** of length njd, each entry
+         strdup'd so subsequent in-place edits don't disturb it. */
+      char **src = (*((char ****) var->dataptr))[0];
+      char **dst = (char **) malloc(njd * sizeof(char *));
+      if (!dst) vt_error(ERR_MEMALLOC);
+      for (r = 0; r < njd; r++) {
+        dst[r] = src[r] ? strdup(src[r]) : NULL;
+      }
+      cap->databufs[v] = (void *) dst;
+      break;
+    }
+    default:
+      cap->databufs[v] = NULL;   /* unsupported type — leave NULL */
+      break;
+    }
+    v++;
+  }
+
+  cap->filled = 1;
+  p->Ncaptured_filled++;
+  return 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_get_captured_lc
+ *
+ * Read back a previously-captured LC snapshot by id, populating *vars*
+ * with up to *max_vars* entries (one per LC variable).  *n_vars is set
+ * to the number of entries written; the function returns 0 on success
+ * or the total count if the caller's array was too small.  Returns -1
+ * if the id is not found, or -2 if the slot was never filled.
+ *
+ * The dataptrs in *vars* point into the captured buffers and are valid
+ * until the next vartools_process_lc() call (same lifetime contract as
+ * vartools_get_lc_variables).  Callers must memcpy out anything they
+ * want to keep across calls.
+ * ---------------------------------------------------------------------------
+ */
+int vartools_get_captured_lc(ProgramData     *p,
+                             const char      *id,
+                             VartoolsVarInfo *vars,
+                             int              max_vars,
+                             int             *n_vars)
+{
+  int slot, v, count;
+  _CapturedLC *cap;
+
+  if (n_vars) *n_vars = 0;
+  if (!p->captured || p->Ncaptured == 0) return -1;
+
+  for (slot = 0; slot < p->Ncaptured; slot++) {
+    if (!strcmp(p->captured[slot].id, id)) break;
+  }
+  if (slot == p->Ncaptured) return -1;
+
+  cap = &p->captured[slot];
+  if (!cap->filled) return -2;
+
+  count = 0;
+  for (v = 0; v < cap->n_vars; v++) {
+    if (count < max_vars) {
+      vars[count].name       = cap->varnames[v];
+      vars[count].datatype   = cap->datatypes[v];
+      vars[count].vectortype = VARTOOLS_VECTORTYPE_LC;
+      vars[count].length     = cap->njd;
+      vars[count].dataptr    = cap->databufs[v];
+    }
+    count++;
+  }
+
+  if (n_vars) *n_vars = count < max_vars ? count : max_vars;
+  return count > max_vars ? count : 0;
+}
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_get_captured_njd
+ *
+ * Return the number of points in a captured LC snapshot, or -1 if id
+ * is not found / -2 if the slot was never filled.
+ * ---------------------------------------------------------------------------
+ */
+int vartools_get_captured_njd(ProgramData *p, const char *id)
+{
+  int slot;
+  if (!p->captured || p->Ncaptured == 0) return -1;
+  for (slot = 0; slot < p->Ncaptured; slot++) {
+    if (!strcmp(p->captured[slot].id, id)) break;
+  }
+  if (slot == p->Ncaptured) return -1;
+  return p->captured[slot].filled ? p->captured[slot].njd : -2;
 }
 
 

@@ -719,12 +719,29 @@ class o(VartoolsCommand):
         return self._to_cli_args_for_mode("single")
 
     def _to_cli_args_for_mode(self, mode: str) -> List[str]:
+        # In any library mode (single or batch), a cmd.o(capture=True) with
+        # no explicit disk path is satisfied entirely in memory: vartools
+        # snapshots the current LC arrays into a buffer keyed by self.key,
+        # and pyvartools pulls them out via LibPipeline.read_capture(key).
+        # No file is written, no tmp directory is allocated.
+        if (mode in ("library_single", "library_batch") and self.capture
+                and self.outname is None and self.outdir is None):
+            return ["-o", str(self.key), "capture"]
         # ``library_batch`` is library-mode batch processing: vartools is
         # invoked once per LC through libvartoolspipeline, but a directory
         # of named output files is wanted (one per call).  vartools is in
         # single-file mode internally, so we emit ``-o <outdir> ... force-
         # outdirmode`` to flip the writer into directory-naming behaviour.
         force_outdir = (mode == "library_batch")
+        # Normalize: from here on, library_single behaves like single
+        # (single-LC, outname-as-path) and library_batch like list
+        # (batch, outdir-as-path).  The library/subprocess distinction
+        # at this point only changes whether the LC arrays are spilled
+        # to disk before vartools sees them; the -o argv is identical.
+        if mode == "library_single":
+            mode = "single"
+        elif mode == "library_batch":
+            mode = "list"
         if force_outdir:
             path = self.outdir or self._capture_path
             if path is None:

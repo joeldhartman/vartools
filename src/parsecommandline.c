@@ -5120,6 +5120,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    CompileAllExpressions once we can observe which variables are
 	    defined at the point where this -o command runs in the sequence. */
 	  c[cn].Outputlcs->force_outdir_mode = 0;
+	  c[cn].Outputlcs->capture_to_buffer = 0;
 	  i++;
 	  if(i < argc)
 	    {
@@ -5302,6 +5303,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(!strcmp(argv[i],"forceoutdirmode"))
 		{
 		  c[cn].Outputlcs->force_outdir_mode = 1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"capture"))
+		{
+		  c[cn].Outputlcs->capture_to_buffer = 1;
 		}
 	      else
 		i--;

@@ -1301,6 +1301,16 @@ typedef struct {
      with a list of light curves -- and is also available to any -o
      CLI invocation as the "forceoutdirmode" keyword. */
   int force_outdir_mode;
+  /* When set, this -o command does NOT open a file.  Instead, when
+     reached during pipeline execution it triggers a memcpy of the
+     current LC variables into the matching p->captured[] slot (keyed
+     by ``outdir`` -- which is treated as an opaque id, not a path,
+     in this mode).  Activated by the "capture" keyword on -o.  Used
+     by the in-process libvartoolspipeline driver to satisfy
+     cmd.o(capture=True) without disk I/O.  Mutually exclusive with
+     a real path argument: when capture_to_buffer is set, ``outdir``
+     is the in-memory id only. */
+  int capture_to_buffer;
 } _Outputlcs;
 
 typedef struct {

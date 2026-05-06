@@ -226,6 +226,26 @@ int vartools_get_lc_variables(ProgramData *p,
 /* Return the number of LC points after processing (may differ from input). */
 int vartools_get_njd(ProgramData *p);
 
+/* Snapshot the current LC variables into the p->captured[] slot keyed
+ * by *id*.  Used internally by DoOutputLightCurve when an
+ * "-o <id> capture" command is reached.  Returns 0 on success, non-zero
+ * if no slot matches *id* (which should not happen — slots are pre-
+ * populated at vartools_init_pipeline() from the parsed argv). */
+int vartools_capture_current_lc(ProgramData *p, const char *id);
+
+/* Read a captured LC snapshot back out by *id*.  Same shape as
+ * vartools_get_lc_variables: fills vars[0..min(count, max_vars)-1] and
+ * sets *n_vars.  Returns 0 on success, the total count if max_vars was
+ * too small, -1 if id not found, or -2 if the slot was never filled.
+ * Data pointers are valid until the next vartools_process_lc() call. */
+int vartools_get_captured_lc(ProgramData *p, const char *id,
+                             VartoolsVarInfo *vars, int max_vars,
+                             int *n_vars);
+
+/* Return the NJD of a captured snapshot, or -1 (id not found) /
+ * -2 (slot never filled). */
+int vartools_get_captured_njd(ProgramData *p, const char *id);
+
 /* Inject a full set of LC columns before processing.
  * col_names[0..2] must be "t", "mag", "err".  Additional columns are
  * matched by name against DefinedVariables (VECTORTYPE_LC, TYPE_DOUBLE).

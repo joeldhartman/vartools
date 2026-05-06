@@ -89,6 +89,23 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_char_p,                              # const char *lc_name
     ]
 
+    # --- Step D: in-memory LC capture for cmd.o(capture=True) ---
+
+    lib.vartools_get_captured_lc.restype = ctypes.c_int
+    lib.vartools_get_captured_lc.argtypes = [
+        ctypes.c_void_p,                              # ProgramData *p
+        ctypes.c_char_p,                              # const char *id
+        ctypes.POINTER(VartoolsVarInfo),              # VartoolsVarInfo *vars
+        ctypes.c_int,                                 # int max_vars
+        ctypes.POINTER(ctypes.c_int),                 # int *n_vars
+    ]
+
+    lib.vartools_get_captured_njd.restype = ctypes.c_int
+    lib.vartools_get_captured_njd.argtypes = [
+        ctypes.c_void_p,                              # ProgramData *p
+        ctypes.c_char_p,                              # const char *id
+    ]
+
     _lib = lib
     return _lib
 
@@ -335,6 +352,79 @@ class LibPipeline:
                         ctypes.c_short.from_address(vi.dataptr).value)
 
         return lc_columns, scalars
+
+    def read_capture(self, key: str) -> Optional[dict]:
+        """Read back an in-memory LC snapshot taken by a ``-o <key> capture``
+        command during the previous ``vartools_process_lc()`` call.
+
+        Returns a dict mapping LC-variable name to numpy array (one entry
+        per VECTORTYPE_LC variable defined at the snapshot point), or
+        ``None`` when the slot was never filled.  Strings come back as
+        Python lists of ``str``; numeric types as numpy arrays.
+
+        The vartools-side data buffers are valid until the next
+        ``process_lc()``/``process_lc_capture()`` call; this method
+        copies everything out before returning, so the result remains
+        usable across subsequent calls.
+        """
+        lib = _load_lib()
+        VarInfo = lib._VartoolsVarInfo
+
+        njd = lib.vartools_get_captured_njd(self._p, key.encode())
+        if njd < 0:
+            return None  # -1 (id not found) or -2 (slot never filled)
+
+        max_vars = 256
+        vars_array = (VarInfo * max_vars)()
+        n_vars = ctypes.c_int(0)
+        overflow = lib.vartools_get_captured_lc(
+            self._p, key.encode(), vars_array, max_vars,
+            ctypes.byref(n_vars))
+        if overflow > 0:
+            max_vars = overflow
+            vars_array = (VarInfo * max_vars)()
+            lib.vartools_get_captured_lc(
+                self._p, key.encode(), vars_array, max_vars,
+                ctypes.byref(n_vars))
+
+        out: dict = {}
+        for i in range(n_vars.value):
+            vi = vars_array[i]
+            vname = vi.name.decode("utf-8") if vi.name else None
+            if vname is None or vi.dataptr is None:
+                continue
+            length = vi.length
+            if vi.datatype == VARTOOLS_TYPE_DOUBLE:
+                arr = np.ctypeslib.as_array(
+                    (ctypes.c_double * length).from_address(vi.dataptr))
+                out[vname] = arr.copy()
+            elif vi.datatype == VARTOOLS_TYPE_INT:
+                arr = np.ctypeslib.as_array(
+                    (ctypes.c_int * length).from_address(vi.dataptr))
+                out[vname] = arr.astype(np.float64).copy()
+            elif vi.datatype == VARTOOLS_TYPE_FLOAT:
+                arr = np.ctypeslib.as_array(
+                    (ctypes.c_float * length).from_address(vi.dataptr))
+                out[vname] = arr.astype(np.float64).copy()
+            elif vi.datatype == VARTOOLS_TYPE_LONG:
+                arr = np.ctypeslib.as_array(
+                    (ctypes.c_long * length).from_address(vi.dataptr))
+                out[vname] = arr.astype(np.int64).copy()
+            elif vi.datatype == VARTOOLS_TYPE_SHORT:
+                arr = np.ctypeslib.as_array(
+                    (ctypes.c_short * length).from_address(vi.dataptr))
+                out[vname] = arr.astype(np.int64).copy()
+            elif vi.datatype == VARTOOLS_TYPE_STRING:
+                # The captured slot stores strings as a malloc'd char **
+                # (length njd) with one strdup'd entry per row.  Walk it
+                # and decode into Python strings.
+                ptr_arr = (ctypes.c_char_p * length).from_address(vi.dataptr)
+                out[vname] = [
+                    ptr_arr[r].decode("utf-8", errors="replace")
+                    if ptr_arr[r] is not None else ""
+                    for r in range(length)
+                ]
+        return out
 
     def _inject_lc_data(
         self,

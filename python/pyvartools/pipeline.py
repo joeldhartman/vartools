@@ -602,7 +602,7 @@ class Pipeline:
         # when the pipeline contains UserCommand instances (dynamically loaded
         # extensions are not supported by the in-process library).
         if (_library_enabled() and timeout is None and not init_lc_vars
-                and not self._has_output_reqs(mode="single")
+                and not self._has_output_reqs(mode="library_single")
                 and not self._has_user_commands() and not _has_global_opts):
             if capture_lc:
                 return self._run_library_capture(lc, command_offset=_command_offset)
@@ -1841,11 +1841,28 @@ class Pipeline:
                             and command.outdir is None
                             and not command.capture):
                         continue
-                elif mode == "library_batch":
-                    if (command.outdir is not None
+                elif mode in ("library_single", "library_batch"):
+                    # Step D: capture=True with NO disk path is library-
+                    # compatible -- vartools snapshots the LC into an
+                    # in-memory buffer, no tmp dir is allocated.  Capture
+                    # combined with a path still falls through to subprocess
+                    # for now (it would need vartools to both write the file
+                    # and capture in the same -o, which is a follow-up).
+                    if (command.capture
                             and command.outname is None
-                            and not command.capture):
+                            and command.outdir is None):
                         continue
+                    # outdir-only (no capture) is the Step C3 case.
+                    if mode == "library_batch":
+                        if (command.outdir is not None
+                                and command.outname is None
+                                and not command.capture):
+                            continue
+                    if mode == "library_single":
+                        if (command.outname is not None
+                                and command.outdir is None
+                                and not command.capture):
+                            continue
                 return True
         return False
 
@@ -1963,8 +1980,17 @@ class Pipeline:
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
     ) -> list:
-        """Build LibPipeline argv including -inputlcformat for extra columns."""
-        argv = self._commands_to_argv(scalars=scalars, command_offset=command_offset)
+        """Build LibPipeline argv including -inputlcformat for extra columns.
+
+        ``mode="library_single"`` flows through ``_commands_to_argv`` so
+        any cmd.o(capture=True) instances emit ``-o <key> capture`` for
+        the C-side in-memory snapshot path (Step D), and any cmd.o with
+        an explicit outname falls through the single-LC path-based
+        emission (Step B).
+        """
+        argv = self._commands_to_argv(scalars=scalars,
+                                      command_offset=command_offset,
+                                      mode="library_single")
         fmt = _inputlcformat_from_df(lc._df.columns)
         if fmt is not None:
             argv = ["-inputlcformat", fmt] + argv
@@ -2018,7 +2044,8 @@ class Pipeline:
         # the scalars are dropped.  This matches capture_lc=False semantics
         # for LC data.  Users who need scalar round-tripping should capture.
         _ = scalars
-        return Result(var=stats, lc=None, files={},
+        files = self._collect_library_o_captures()
+        return Result(var=stats, lc=None, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
     def _run_library_capture(self, lc: LightCurve, command_offset: int = 0) -> Result:
@@ -2061,7 +2088,8 @@ class Pipeline:
             lc_df = lc_df[col_order]
             out_lc = LightCurve(lc_df, name=lc.name, scalars=merged_scalars)
 
-        return Result(var=stats, lc=out_lc, files={},
+        files = self._collect_library_o_captures()
+        return Result(var=stats, lc=out_lc, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
     def _run_batch_library(
@@ -2096,6 +2124,11 @@ class Pipeline:
         # writes to disk gets a numeric suffix on collision.
         used_names: set = set()
         rows = []
+        # ``per_lc_captures`` is built up as a parallel list per key so the
+        # batch result has files[key] = [LightCurve_for_lc0, LightCurve_for_lc1,
+        # ...].  Captures buffers reset on every process_lc call so we have
+        # to pull them out before the next iteration.
+        per_lc_captures: dict = {}
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
             stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err,
@@ -2105,8 +2138,15 @@ class Pipeline:
                 data["Name"] = lc.name
                 stats = pd.Series(data)
             rows.append(stats)
+            captures = self._collect_library_o_captures()
+            for key, captured_lc in captures.items():
+                # Carry over the LC's own name on the captured LightCurve so
+                # downstream consumers can correlate by Name.
+                captured_lc.name = lc.name
+                per_lc_captures.setdefault(key, [None] * len(lcs))
+                per_lc_captures[key][i] = captured_lc
         df = pd.DataFrame(rows).reset_index(drop=True)
-        return BatchResult(var=df, lcs=None, files={},
+        return BatchResult(var=df, lcs=None, files=per_lc_captures,
                            known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
@@ -2856,6 +2896,10 @@ class Pipeline:
         ``_to_cli_args_for_mode()`` is invoked.  Commands with an
         explicit mode-appropriate path (``outname`` for single-LC,
         ``outdir`` for list/batch) are left untouched.
+
+        Only invoked in subprocess mode -- library mode satisfies
+        cmd.o(capture=True) entirely in memory via the C-side
+        ``-o <key> capture`` path, so no tmp directory is allocated.
         """
         from .commands.misc import o as OCommand
         for idx, command in enumerate(self.commands):
@@ -2875,6 +2919,38 @@ class Pipeline:
                 command._capture_path = cap_dir
             else:
                 command._capture_path = os.path.join(tmpdir, f"_o_cap_{idx}.lc")
+
+    def _collect_library_o_captures(self) -> dict:
+        """Pull cmd.o(capture=True) snapshots out of LibPipeline buffers.
+
+        Walks the pipeline's ``cmd.o`` instances; for each one with
+        ``capture=True`` and no explicit disk path, calls
+        ``LibPipeline.read_capture(key)`` to fetch the in-memory LC arrays
+        and wraps them in a ``LightCurve``.  Returns ``{key: LightCurve}``.
+
+        Skips capture commands that have a path set -- those still go
+        through subprocess (or could be reached via library mode in a
+        future "write file AND capture" mode that's out of scope here).
+        """
+        from .commands.misc import o as OCommand
+        out: dict = {}
+        if self._lib_pipeline is None:
+            return out
+        for command in self.commands:
+            if not (isinstance(command, OCommand) and command.capture):
+                continue
+            if command.outname is not None or command.outdir is not None:
+                continue
+            cols = self._lib_pipeline.read_capture(command.key)
+            if cols is None:
+                continue
+            df = pd.DataFrame(cols)
+            # Reorder so t, mag, err come first when present.
+            preferred = [c for c in ("t", "mag", "err") if c in df.columns]
+            extra = [c for c in df.columns if c not in preferred]
+            df = df[preferred + extra]
+            out[command.key] = LightCurve(df)
+        return out
 
     def _collect_o_captures_single(self, lc_name: str) -> dict:
         """Return captured ``cmd.o`` files for a single-LC run.
