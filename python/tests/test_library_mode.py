@@ -1056,3 +1056,93 @@ class TestSaveOutputsInLibraryMode:
         for df in per_lc:
             assert isinstance(df, pd.DataFrame)
             assert len(df) > 0
+
+
+# ---------------------------------------------------------------------------
+# UserCommand / userlib extensions in library mode
+# ---------------------------------------------------------------------------
+# vartools' user-extension .so files (fastchi2, splinedetrend, jktebop,
+# macula, magadd, hatpiflag, stitch, ftuneven) load via lt_dlopen during
+# parsecommandline.  In library mode pyvartools loads libvartoolspipeline
+# with RTLD_GLOBAL so its statically-linked GSL/CFITSIO/CSPICE symbols
+# are visible to those extensions when they're dlopen'd.
+
+@needs_library
+@needs_binary
+class TestUserCommandsInLibraryMode:
+    """``cmd.fastchi2`` and friends now run in library mode without a
+    subprocess fallback (Step E)."""
+
+    def test_fastchi2_library_mode(self):
+        """fastchi2 (which calls into libgsl) runs in library mode and
+        returns its own output columns alongside any subsequent ones."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        t = np.linspace(0, 30, 500)
+        mag = 10.0 + 0.05 * np.sin(2 * np.pi * t / 2.0)
+        err = np.full(500, 0.005)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="testlc")
+
+        pipe = vt.Pipeline().fastchi2(Nharm=2, freqmin=0.1,
+                                      freqmax=10.0).rms()
+        subprocess_called = []
+        original_execute = pipe._execute
+
+        def tracking_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return original_execute(command, timeout=timeout,
+                                    stdin_text=stdin_text)
+
+        with patch.object(pipe, "_execute", side_effect=tracking_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                result = pipe.run(lc)
+        assert not subprocess_called, (
+            "fastchi2 should run in library mode -- libvartoolspipeline "
+            "is loaded with RTLD_GLOBAL so libgsl symbols resolve when "
+            "fastchi2.so is dlopen'd"
+        )
+        # Pipeline should have produced fastchi2's output columns.
+        fastchi2_cols = [c for c in result.vars.index if c.startswith("Fastchi2")]
+        assert fastchi2_cols, (
+            f"Expected Fastchi2_* columns in result.vars; got "
+            f"{list(result.vars.index)}"
+        )
+        # And the rms call after it.
+        assert "RMS_1" in result.vars.index
+        assert math.isfinite(float(result.vars["RMS_1"]))
+
+    def test_fastchi2_value_parity_with_subprocess(self):
+        """Library and subprocess paths produce equal Fastchi2 outputs."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        t = np.linspace(0, 30, 500)
+        mag = 10.0 + 0.05 * np.sin(2 * np.pi * t / 2.0)
+        err = np.full(500, 0.005)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="testlc")
+
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            res_lib = vt.Pipeline().fastchi2(
+                Nharm=2, freqmin=0.1, freqmax=10.0).rms().run(lc)
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            res_sub = vt.Pipeline().fastchi2(
+                Nharm=2, freqmin=0.1, freqmax=10.0).rms().run(lc)
+
+        # Same column set, same values.
+        assert set(res_lib.vars.index) == set(res_sub.vars.index)
+        for col in res_lib.vars.index:
+            if col == "Name":
+                continue
+            v_lib = res_lib.vars[col]
+            v_sub = res_sub.vars[col]
+            try:
+                v_lib_f = float(v_lib)
+                v_sub_f = float(v_sub)
+            except (ValueError, TypeError):
+                # Non-numeric -- skip
+                continue
+            assert math.isclose(v_lib_f, v_sub_f, rel_tol=1e-10), (
+                f"{col}: library={v_lib_f}, subprocess={v_sub_f}"
+            )

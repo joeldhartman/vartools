@@ -574,9 +574,19 @@ class Pipeline:
                 obstacles.append("timeout= is incompatible with library mode")
             if init_lc_vars:
                 obstacles.append("init_lc_vars forces subprocess mode")
-            if self._has_output_reqs(mode="library_single"):
+            # Use the conservative mode for inprocess=True: cmd.python's
+            # C-level callback path has not been validated against the
+            # newer library-mode output configurations (save_*, cmd.o
+            # capture).  At least one specific combination
+            # (cmd.python(inprocess=True) + save_periodogram=True)
+            # segfaults during process_lc when the gate lets it through;
+            # rather than chase the underlying issue, we keep the
+            # historical behaviour of refusing inprocess=True whenever
+            # any output is requested.  Validating one combination at a
+            # time is a sensible follow-up.
+            if self._has_output_reqs():
                 obstacles.append(
-                    "this output configuration forces subprocess mode"
+                    "save_*=True / cmd.o(...) outputs force subprocess mode"
                 )
             if self._has_user_commands():
                 obstacles.append(
@@ -598,12 +608,14 @@ class Pipeline:
         # Fast path: in-process library mode when no output files are needed.
         # Falls back to subprocess when a timeout is requested (library mode
         # has no timeout support), or when init_lc_vars are supplied (library
-        # mode does not pass -inputlcformat to vartools_init_pipeline), or
-        # when the pipeline contains UserCommand instances (dynamically loaded
-        # extensions are not supported by the in-process library).
+        # mode does not pass -inputlcformat to vartools_init_pipeline).
+        # UserCommand / _UserLibCommand extensions ARE supported in library
+        # mode now: libvartoolspipeline is loaded with RTLD_GLOBAL so its
+        # gsl/cfitsio/etc. symbols are visible to user .so files when
+        # parsecommandline lt_dlopen's them.
         if (_library_enabled() and timeout is None and not init_lc_vars
                 and not self._has_output_reqs(mode="library_single")
-                and not self._has_user_commands() and not _has_global_opts):
+                and not _has_global_opts):
             if capture_lc:
                 return self._run_library_capture(lc, command_offset=_command_offset)
             return self._run_library(lc, command_offset=_command_offset)
@@ -1616,7 +1628,7 @@ class Pipeline:
         if (_library_enabled() and nthreads == 1 and not init_lc_vars
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
-                and not perlc_attrs and not self._has_user_commands()
+                and not perlc_attrs
                 and not _has_global_opts and not stats_file
                 and not batch_scalars and _command_offset == 0):
             return self._run_batch_library(lcs, raise_on_error=raise_on_error)

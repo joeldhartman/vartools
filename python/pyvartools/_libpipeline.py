@@ -32,7 +32,16 @@ def _load_lib() -> ctypes.CDLL:
 
     from ._binary import find_library
     path = find_library()
-    lib = ctypes.CDLL(path)
+    # Load with RTLD_GLOBAL so the symbols of libvartoolspipeline (which
+    # statically pulls in libgsl, libcfitsio, libcspice, etc.) are
+    # visible to any user-extension .so that vartools subsequently
+    # dlopens via lt_dlopen during parsecommandline.  Without this,
+    # extensions like fastchi2.so / macula.so / jktebop.so fail at
+    # symbol-lookup time (gsl_*, etc.) because Python's default
+    # ctypes.CDLL load uses RTLD_LOCAL.  Equivalent to how the
+    # standalone vartools binary's executable-side symbols are visible
+    # to its own dlopen calls.
+    lib = ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
 
     lib.vartools_init_pipeline.restype = ctypes.c_void_p
     lib.vartools_init_pipeline.argtypes = [
