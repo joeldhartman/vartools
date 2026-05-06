@@ -236,7 +236,8 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
             s->c[j].Outputlcs->capture_to_buffer) {
           int kk;
           strncpy(s->p.captured[k].id,
-                  s->c[j].Outputlcs->outdir, sizeof(s->p.captured[k].id) - 1);
+                  s->c[j].Outputlcs->capture_id,
+                  sizeof(s->p.captured[k].id) - 1);
           s->p.captured[k].id[sizeof(s->p.captured[k].id) - 1] = '\0';
           for (kk = 0; kk < k; kk++) {
             if (!strcmp(s->p.captured[kk].id, s->p.captured[k].id)) {

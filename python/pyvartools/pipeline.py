@@ -1844,24 +1844,23 @@ class Pipeline:
                 elif mode in ("library_single", "library_batch"):
                     # Step D: capture=True with NO disk path is library-
                     # compatible -- vartools snapshots the LC into an
-                    # in-memory buffer, no tmp dir is allocated.  Capture
-                    # combined with a path still falls through to subprocess
-                    # for now (it would need vartools to both write the file
-                    # and capture in the same -o, which is a follow-up).
+                    # in-memory buffer, no tmp dir is allocated.
                     if (command.capture
                             and command.outname is None
                             and command.outdir is None):
                         continue
-                    # outdir-only (no capture) is the Step C3 case.
+                    # outdir-only (no capture) is the Step C3 case;
+                    # outdir + capture=True writes the file AND captures
+                    # via the new "capture_id" keyword (also library-OK).
                     if mode == "library_batch":
                         if (command.outdir is not None
-                                and command.outname is None
-                                and not command.capture):
+                                and command.outname is None):
                             continue
+                    # Single-LC: outname-only (Step B) and outname +
+                    # capture=True (Step D follow-up) both library-OK.
                     if mode == "library_single":
                         if (command.outname is not None
-                                and command.outdir is None
-                                and not command.capture):
+                                and command.outdir is None):
                             continue
                 return True
         return False
@@ -2924,13 +2923,12 @@ class Pipeline:
         """Pull cmd.o(capture=True) snapshots out of LibPipeline buffers.
 
         Walks the pipeline's ``cmd.o`` instances; for each one with
-        ``capture=True`` and no explicit disk path, calls
-        ``LibPipeline.read_capture(key)`` to fetch the in-memory LC arrays
-        and wraps them in a ``LightCurve``.  Returns ``{key: LightCurve}``.
-
-        Skips capture commands that have a path set -- those still go
-        through subprocess (or could be reached via library mode in a
-        future "write file AND capture" mode that's out of scope here).
+        ``capture=True``, calls ``LibPipeline.read_capture(key)`` to
+        fetch the in-memory LC arrays and wraps them in a
+        ``LightCurve``.  Works for both pure-capture (no path) and
+        write+capture (with outname/outdir) -- vartools writes the file
+        on its way and also fills the slot.  Returns
+        ``{key: LightCurve}``.
         """
         from .commands.misc import o as OCommand
         out: dict = {}
@@ -2938,8 +2936,6 @@ class Pipeline:
             return out
         for command in self.commands:
             if not (isinstance(command, OCommand) and command.capture):
-                continue
-            if command.outname is not None or command.outdir is not None:
                 continue
             cols = self._lib_pipeline.read_capture(command.key)
             if cols is None:

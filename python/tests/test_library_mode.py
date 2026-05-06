@@ -492,27 +492,32 @@ class TestSingleLCOutputInLibraryMode:
             "or numeric formatting drift."
         )
 
-    def test_outname_with_capture_still_subprocess(self, simple_lc, tmp_path):
-        """``cmd.o(outname=path, capture=True)`` still goes through
-        subprocess until Step D wires capture through library mode."""
+    def test_outname_with_capture_uses_library_mode(self, simple_lc, tmp_path):
+        """``cmd.o(outname=path, capture=True)`` runs in library mode via
+        the new ``capture_id`` keyword: vartools writes the file and
+        also fills the in-memory slot in one call."""
         from pyvartools import pipeline as _pipeline_mod
 
         out = tmp_path / "out.lc"
         pipe = vt.Pipeline([cmd.clip(sigclip=5.0),
                             cmd.o(outname=str(out), capture=True, key="x")])
         subprocess_called = []
-        original_execute = pipe._execute
 
-        def tracking_execute(command, timeout=None, stdin_text=None):
+        def mock_execute(command, timeout=None, stdin_text=None):
             subprocess_called.append(True)
-            return original_execute(command, timeout=timeout, stdin_text=stdin_text)
+            return "", ""
 
-        with patch.object(pipe, "_execute", side_effect=tracking_execute):
-            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
-                pipe.run(simple_lc)
-        assert subprocess_called, (
-            "capture=True must still force subprocess until Step D lands"
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                result = pipe.run(simple_lc)
+        assert not subprocess_called, (
+            "capture+outname must run in library mode now (Step D follow-up)"
         )
+        assert out.is_file()
+        assert out.stat().st_size > 0
+        assert "x" in result.files
+        assert isinstance(result.files["x"], vt.LightCurve)
 
     def test_save_periodogram_still_forces_subprocess(self, sinusoidal_lc, tmp_path):
         """A pipeline mixing cmd.o(outname=...) and save_periodogram=True
@@ -634,8 +639,10 @@ class TestBatchOutputInLibraryMode:
             with pytest.raises(Exception):
                 pipe.run_batch(lcs)
 
-    def test_run_batch_capture_still_subprocess(self, tmp_path):
-        """``capture=True`` still forces subprocess (Step D)."""
+    def test_run_batch_capture_with_outdir_uses_library_mode(self, tmp_path):
+        """``capture=True`` + ``outdir=DIR`` runs in library mode and
+        produces both per-LC files on disk and per-LC captures in
+        ``batch.files[key]`` (Step D follow-up)."""
         from pyvartools import pipeline as _pipeline_mod
         lcs = [_make_lc_lib(name="a"), _make_lc_lib(name="b")]
         outdir = tmp_path / "out"; outdir.mkdir()
@@ -643,18 +650,25 @@ class TestBatchOutputInLibraryMode:
                             cmd.o(outdir=str(outdir),
                                   capture=True, key="cap")])
         subprocess_called = []
-        original_execute = pipe._execute
 
-        def tracking_execute(command, timeout=None, stdin_text=None):
+        def mock_execute(command, timeout=None, stdin_text=None):
             subprocess_called.append(True)
-            return original_execute(command, timeout=timeout, stdin_text=stdin_text)
+            return "", ""
 
-        with patch.object(pipe, "_execute", side_effect=tracking_execute):
-            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
-                pipe.run_batch(lcs)
-        assert subprocess_called, (
-            "capture=True must still force subprocess until Step D lands"
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                batch = pipe.run_batch(lcs)
+        assert not subprocess_called, (
+            "capture+outdir must run in library mode now (Step D follow-up)"
         )
+        # Both files written, both captures populated.
+        files = sorted(p.name for p in outdir.iterdir())
+        assert files == ["a", "b"]
+        assert "cap" in batch.files
+        assert len(batch.files["cap"]) == 2
+        for c in batch.files["cap"]:
+            assert isinstance(c, vt.LightCurve)
 
 
 def test_forceoutdirmode_emitted_for_library_batch():
@@ -686,14 +700,35 @@ def test_capture_argv_emits_capture_keyword():
             f"mode={mode}: expected pure-capture argv, got {args}"
         )
 
-    # capture=True + outname/outdir does NOT take the capture-only path —
-    # it falls through to the regular path-based emission.  (At wrapper
-    # gate level such pipelines force subprocess; this just makes sure
-    # the argv builder doesn't accidentally emit capture+path.)
-    c = cmd.o(capture=True, key="X", outname="/tmp/x.lc")
+
+def test_capture_argv_emits_capture_id_for_combined_mode():
+    """Pure-Python: ``cmd.o(capture=True, key="X", outname=PATH)`` in
+    library_single emits the path-based form *plus* ``capture_id X`` so
+    vartools writes the file AND fills the slot.  Same shape for
+    outdir+capture in library_batch."""
+    c = cmd.o(capture=True, key="X", outname="/tmp/file.lc")
     args = c._to_cli_args_for_mode("library_single")
-    assert "capture" not in args, (
-        "capture+outname should not emit capture keyword in library mode"
+    assert args[0] == "-o"
+    assert args[1] == "/tmp/file.lc"     # path, not the key
+    assert "capture" not in args         # bare "capture" not emitted
+    assert "capture_id" in args
+    # capture_id is followed immediately by the key.
+    idx = args.index("capture_id")
+    assert args[idx + 1] == "X"
+
+    c = cmd.o(capture=True, key="Y", outdir="/tmp/dir")
+    args = c._to_cli_args_for_mode("library_batch")
+    assert args[1] == "/tmp/dir"
+    assert "forceoutdirmode" in args
+    assert "capture_id" in args
+    assert args[args.index("capture_id") + 1] == "Y"
+
+    # In subprocess modes (single/list) capture_id is NOT emitted —
+    # those go through the existing tmp-file capture path.
+    c = cmd.o(capture=True, key="X", outname="/tmp/file.lc")
+    args = c._to_cli_args_for_mode("single")
+    assert "capture_id" not in args, (
+        "subprocess single mode shouldn't emit capture_id"
     )
 
 
@@ -824,28 +859,41 @@ class TestCaptureInLibraryMode:
             assert captured_lc.name == f"lc{i}"
             assert "t" in captured_lc._df.columns
 
-    def test_capture_with_outname_still_subprocess(self, simple_lc, tmp_path):
-        """capture=True combined with an explicit outname still falls
-        back to subprocess until that case is wired through."""
+    def test_capture_with_outname_writes_and_captures(self, simple_lc,
+                                                      tmp_path):
+        """``cmd.o(outname=path, capture=True)`` in library mode emits
+        the new ``capture_id`` keyword: vartools writes the file *and*
+        snapshots the post-write LC into ``result.files[key]`` in one
+        call, byte-equal to the subprocess capture path."""
         from pyvartools import pipeline as _pipeline_mod
-        out = tmp_path / "out.lc"
-        pipe = vt.Pipeline([cmd.clip(sigclip=5.0),
-                            cmd.o(outname=str(out), capture=True, key="cap")])
-        subprocess_called = []
-        original_execute = pipe._execute
-
-        def tracking_execute(command, timeout=None, stdin_text=None):
-            subprocess_called.append(True)
-            return original_execute(command, timeout=timeout,
-                                    stdin_text=stdin_text)
-
-        with patch.object(pipe, "_execute", side_effect=tracking_execute):
-            with patch.object(_pipeline_mod, "_library_enabled",
-                              return_value=True):
-                pipe.run(simple_lc)
-        assert subprocess_called, (
-            "capture+outname is a follow-up; should still be subprocess"
-        )
+        out_lib = tmp_path / "lib.lc"
+        out_sub = tmp_path / "sub.lc"
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            res_lib = vt.Pipeline([cmd.clip(sigclip=5.0),
+                                   cmd.o(outname=str(out_lib),
+                                         capture=True,
+                                         key="cap")]).run(simple_lc)
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            res_sub = vt.Pipeline([cmd.clip(sigclip=5.0),
+                                   cmd.o(outname=str(out_sub),
+                                         capture=True,
+                                         key="cap")]).run(simple_lc)
+        # File written in both modes.
+        assert out_lib.is_file()
+        assert out_sub.is_file()
+        # Library file matches subprocess file byte-for-byte.
+        assert out_lib.read_bytes() == out_sub.read_bytes()
+        # Captures populated in both, value-equal.
+        df_lib = res_lib.files["cap"]._df
+        df_sub = res_sub.files["cap"]._df
+        for col in df_lib.columns:
+            np.testing.assert_allclose(
+                df_lib[col].values, df_sub[col].values,
+                rtol=1e-12, atol=0,
+                err_msg=f"library vs subprocess drift in column {col}"
+            )
 
 
 # ---------------------------------------------------------------------------

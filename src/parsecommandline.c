@@ -5121,6 +5121,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    defined at the point where this -o command runs in the sequence. */
 	  c[cn].Outputlcs->force_outdir_mode = 0;
 	  c[cn].Outputlcs->capture_to_buffer = 0;
+	  c[cn].Outputlcs->capture_skip_file = 0;
+	  c[cn].Outputlcs->capture_id[0]     = '\0';
 	  i++;
 	  if(i < argc)
 	    {
@@ -5314,7 +5316,30 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    {
 	      if(!strcmp(argv[i],"capture"))
 		{
+		  /* "-o <id> capture": the first -o arg (parsed into
+		     ->outdir above) is actually the in-memory slot key, not
+		     a filesystem path; copy it into ->capture_id and skip
+		     the file write. */
 		  c[cn].Outputlcs->capture_to_buffer = 1;
+		  c[cn].Outputlcs->capture_skip_file = 1;
+		  strncpy(c[cn].Outputlcs->capture_id,
+			  c[cn].Outputlcs->outdir, MAXLEN - 1);
+		  c[cn].Outputlcs->capture_id[MAXLEN - 1] = '\0';
+		}
+	      else if(!strcmp(argv[i],"capture_id"))
+		{
+		  /* "-o <path> [...] capture_id <id>": write the file as
+		     normal AND snapshot the post-write LC state into the
+		     in-memory slot keyed by <id>. */
+		  c[cn].Outputlcs->capture_to_buffer = 1;
+		  c[cn].Outputlcs->capture_skip_file = 0;
+		  i++;
+		  if(i < argc) {
+		    strncpy(c[cn].Outputlcs->capture_id, argv[i], MAXLEN - 1);
+		    c[cn].Outputlcs->capture_id[MAXLEN - 1] = '\0';
+		  }
+		  else
+		    listcommands(argv[iterm],p);
 		}
 	      else
 		i--;

@@ -733,6 +733,10 @@ class o(VartoolsCommand):
         # single-file mode internally, so we emit ``-o <outdir> ... force-
         # outdirmode`` to flip the writer into directory-naming behaviour.
         force_outdir = (mode == "library_batch")
+        # Detect library mode before we normalize — needed below to
+        # decide whether to emit the new "capture_id <key>" keyword
+        # (write+capture combined; library mode only).
+        is_library = mode in ("library_single", "library_batch")
         # Normalize: from here on, library_single behaves like single
         # (single-LC, outname-as-path) and library_batch like list
         # (batch, outdir-as-path).  The library/subprocess distinction
@@ -823,6 +827,15 @@ class o(VartoolsCommand):
         # slot 9 — library_batch mode override (see top of method)
         if force_outdir:
             args += ["forceoutdirmode"]
+        # slot 10 — combined write+capture mode in library mode.  The
+        # "capture" keyword (no path) was already handled at the very
+        # top of this method.  If we got here in a library mode with
+        # capture=True, that means a real path was also given and we
+        # want both: the file gets written via the path-based slots
+        # above, and "capture_id <key>" tells vartools to also memcpy
+        # the post-write LC into the slot keyed by self.key.
+        if is_library and self.capture:
+            args += ["capture_id", str(self.key)]
         return args
 
     def _output_file_specs(self) -> dict:

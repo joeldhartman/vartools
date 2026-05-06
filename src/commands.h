@@ -1301,16 +1301,26 @@ typedef struct {
      with a list of light curves -- and is also available to any -o
      CLI invocation as the "forceoutdirmode" keyword. */
   int force_outdir_mode;
-  /* When set, this -o command does NOT open a file.  Instead, when
-     reached during pipeline execution it triggers a memcpy of the
-     current LC variables into the matching p->captured[] slot (keyed
-     by ``outdir`` -- which is treated as an opaque id, not a path,
-     in this mode).  Activated by the "capture" keyword on -o.  Used
-     by the in-process libvartoolspipeline driver to satisfy
-     cmd.o(capture=True) without disk I/O.  Mutually exclusive with
-     a real path argument: when capture_to_buffer is set, ``outdir``
-     is the in-memory id only. */
+  /* When set, this -o command triggers a memcpy of the current LC
+     variables into the matching p->captured[] slot keyed by
+     ``capture_id``.  Activated by either the "capture" keyword
+     (``-o <id> capture``, no file written) or the "capture_id <id>"
+     keyword (``-o <path> ... capture_id <id>``, file written *and*
+     captured).  Used by the libvartoolspipeline driver to satisfy
+     cmd.o(capture=True). */
   int capture_to_buffer;
+  /* When set together with capture_to_buffer, DoOutputLightCurve
+     snapshots and returns -- no fopen/fwrite.  Cleared (capture_to_
+     buffer still set) means "do the regular file write *and* the
+     snapshot".  Determined at parse time: "capture" keyword sets
+     skip=1 (the -o argument was an id, not a path); "capture_id"
+     keyword sets skip=0 (the -o argument is a real path). */
+  int capture_skip_file;
+  /* The slot key used to address p->captured[].  Always populated
+     when capture_to_buffer is set.  For the "capture" form (skip=1)
+     this is a copy of outdir.  For the "capture_id" form (skip=0)
+     this is the explicit id argument given after the keyword. */
+  char capture_id[MAXLEN];
 } _Outputlcs;
 
 typedef struct {

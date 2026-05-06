@@ -1970,14 +1970,16 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
   char effective_lcname[MAXLEN];
   const char *lcn;
 
-  /* In-memory capture: skip file output entirely and snapshot the
-     current LC state into the pre-allocated p->captured[] slot keyed by
-     c->outdir (which is being used as an opaque id, not a filesystem
-     path).  Used by libvartoolspipeline so cmd.o(capture=True) can run
-     without touching disk.  If the user *also* wanted a file, they
-     would have configured a separate -o command without "capture". */
-  if (c->capture_to_buffer) {
-    vartools_capture_current_lc(p, c->outdir);
+  /* In-memory capture: when the user gave the bare "capture" keyword,
+     skip the file write entirely -- the -o argument was a slot id, not
+     a filesystem path -- and snapshot the current LC state into the
+     pre-allocated p->captured[] slot keyed by c->capture_id.  Used by
+     libvartoolspipeline so cmd.o(capture=True) can run without disk
+     I/O.  When the user gave "capture_id <id>" alongside a real path,
+     fall through to the normal file-write logic below; the snapshot
+     fires after the file has been written (see end of function). */
+  if (c->capture_to_buffer && c->capture_skip_file) {
+    vartools_capture_current_lc(p, c->capture_id);
     return;
   }
 
@@ -2186,6 +2188,16 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
 			   c->outgzip ? "gzip" : (c->outbzip2 ? "bzip2" : NULL));
 	}
     }
+
+  /* "capture_id <id>" mode: file has been written; also snapshot the
+     post-write LC state into p->captured[] for libvartoolspipeline
+     consumers.  Library mode treats writelightcurves as a no-op when
+     p->captured is NULL (CLI path), so this branch is the only one
+     that actually puts data into the slot in combined-write+capture
+     usage. */
+  if (c->capture_to_buffer && !c->capture_skip_file) {
+    vartools_capture_current_lc(p, c->capture_id);
+  }
 }
 
 void ReadDatesFiles(ProgramData *p, Command *c)
