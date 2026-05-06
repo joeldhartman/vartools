@@ -277,6 +277,14 @@ int main(int argc, char **argv)
   p.Nbuffs_free = VARTOOLS_DEFAULT_NOUTPUT_BUFFERS;
   p.Nbuffs_free_user_set = 0;
   p.setlcname = NULL;
+  /* In-memory LC capture (libvartoolspipeline only).  The CLI path
+     never calls vartools_init_pipeline, so these stay zero/NULL and
+     vartools_capture_current_lc early-returns -- making "-o ID capture"
+     a silent no-op even with -parallel N (each thread independently
+     reads the NULL guard, so no race on the unallocated buffer). */
+  p.Ncaptured = 0;
+  p.Ncaptured_filled = 0;
+  p.captured = NULL;
 
 #ifdef DYNAMICLIB
   p.NUserLib = 0;

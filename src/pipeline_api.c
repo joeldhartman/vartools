@@ -192,7 +192,19 @@ ProgramData *vartools_init_pipeline(int argc, char **argv)
   /* Pre-walk s->c[] to count cmd.o instances with capture_to_buffer set,
      and allocate the captured-LC slots once for the lifetime of the
      pipeline.  Slot indices match the order of CNUM_OUTPUTLCS commands
-     in the command sequence. */
+     in the command sequence.
+
+     Thread-safety note: ``p->captured`` holds one set of buffers per
+     capture id, not per thread.  vartools_process_lc is documented as
+     single-threaded (one calling thread at a time per pipeline handle),
+     and that's how libvartoolspipeline drives it today.  If someone
+     ever wraps the API in a multi-threaded host that calls
+     vartools_process_lc concurrently on the same handle, the slots
+     would need to grow into a [thread][id] indexing scheme.  The
+     standalone CLI path (no library init) leaves p->captured == NULL,
+     so vartools_capture_current_lc early-returns and "-o ID capture"
+     becomes a silent no-op -- safe even with -parallel N because each
+     thread independently reads the NULL guard. */
   {
     int j, k;
     s->p.Ncaptured = 0;

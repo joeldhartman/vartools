@@ -846,3 +846,64 @@ class TestCaptureInLibraryMode:
         assert subprocess_called, (
             "capture+outname is a follow-up; should still be subprocess"
         )
+
+
+# ---------------------------------------------------------------------------
+# CLI thread-safety: ``-o ID capture`` is a silent no-op outside library mode,
+# safe under -parallel because each thread reads p->captured == NULL and
+# early-returns.  Locks in the contract documented at the top of
+# vartools_init_pipeline's pre-walk block.
+# ---------------------------------------------------------------------------
+
+@needs_binary
+class TestCliCaptureKeywordSafety:
+    def test_capture_keyword_silent_in_cli_single(self):
+        """Standalone vartools binary with `-o ID capture` runs successfully
+        and produces normal stats; the capture is silently discarded."""
+        import subprocess
+        proc = subprocess.run(
+            [vt.get_binary(), "-i", "-",
+             "-o", "discard", "capture",
+             "-rms", "-oneline"],
+            input="1.0 10.0 0.01\n2.0 10.1 0.01\n3.0 9.9 0.01\n",
+            capture_output=True, text=True, timeout=15,
+        )
+        assert proc.returncode == 0, (
+            f"vartools failed: stderr={proc.stderr!r}"
+        )
+        # Stats are emitted normally (capture didn't displace the -rms output).
+        assert "RMS" in proc.stdout
+
+    def test_capture_keyword_silent_in_cli_parallel(self, tmp_path):
+        """Same CLI invocation but with -l listfile and -parallel 4: still
+        a silent no-op, no race / crash from the multi-thread DoOutputLight
+        Curve calls.  Pre-Step-D the new ProgramData fields were
+        uninitialised on the CLI stack and could have been a non-NULL
+        pointer; main.c now zero-inits them."""
+        import subprocess
+        # Build a tiny list of 6 quick LCs.
+        lcs = []
+        for i in range(6):
+            p = tmp_path / f"lc{i}.txt"
+            with open(p, "w") as f:
+                for j in range(50):
+                    f.write(f"{j*0.1} {10.0 + 0.01*i + 0.001*j} 0.01\n")
+            lcs.append(str(p))
+        listfile = tmp_path / "list.txt"
+        listfile.write_text("\n".join(lcs) + "\n")
+
+        proc = subprocess.run(
+            [vt.get_binary(), "-l", str(listfile),
+             "-o", "discard", "capture",
+             "-rms", "-parallel", "4", "-oneline"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert proc.returncode == 0, (
+            f"vartools -parallel 4 with capture keyword failed: "
+            f"stderr={proc.stderr!r}"
+        )
+        # Six rows of stats output, one per LC.
+        rms_lines = [
+            line for line in proc.stdout.splitlines() if "RMS" in line
+        ]
+        assert len(rms_lines) >= 6
