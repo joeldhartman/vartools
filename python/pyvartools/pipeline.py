@@ -574,9 +574,9 @@ class Pipeline:
                 obstacles.append("timeout= is incompatible with library mode")
             if init_lc_vars:
                 obstacles.append("init_lc_vars forces subprocess mode")
-            if self._has_output_reqs():
+            if self._has_output_reqs(mode="library_single"):
                 obstacles.append(
-                    "save_*=True / cmd.o(...) outputs force subprocess mode"
+                    "this output configuration forces subprocess mode"
                 )
             if self._has_user_commands():
                 obstacles.append(
