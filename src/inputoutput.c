@@ -1974,8 +1974,15 @@ void DoOutputLightCurve(ProgramData *p, _Outputlcs *c, int lcid, int threadid)
      filename so we don't write e.g. foo.fits.gz holding ASCII text,
      or foo.fits.gz.fits when -o is given the "fits" keyword. */
   lcn = StripCompressionSuffix(p->lcnames[lcid], effective_lcname, MAXLEN);
-  /* First determine the output name of the light curve */
-  if(p->listflag || p->Ncopycommands > 0)
+  /* First determine the output name of the light curve.
+     Normally the directory-vs-file interpretation of c->outdir follows
+     listflag (set by -l, multi-file) vs fileflag (set by -i, single-file).
+     The "forceoutdirmode" keyword on -o overrides this so that even in
+     fileflag mode the argument is treated as an output directory and the
+     per-LC basename is derived from p->lcnames[lcid].  This is what the
+     in-process libvartoolspipeline driver uses to emit per-LC files when
+     processing a list of light curves through the single-file API. */
+  if(p->listflag || p->Ncopycommands > 0 || c->force_outdir_mode)
     {
       if(c->useoutnamecommand) {
 	for(i1=0; i1 < MAXLEN; i1++) outname[i1] = '\0';

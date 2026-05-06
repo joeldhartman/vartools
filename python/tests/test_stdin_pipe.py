@@ -131,8 +131,14 @@ class TestStdinStructure:
         assert len(received_stdin) == 1
         assert received_stdin[0] is not None
         assert isinstance(received_stdin[0], str)
-        # Should contain the numeric data
-        assert "10.0" in received_stdin[0] or "10." in received_stdin[0]
+        # Should contain the numeric data: parse one line and check it
+        # has three whitespace-separated numeric tokens.  This is robust
+        # to changes in the ASCII spill format (%.10f vs %.17g vs ...).
+        first_line = received_stdin[0].splitlines()[0]
+        toks = first_line.split()
+        assert len(toks) == 3
+        for tok in toks:
+            float(tok)  # raises if non-numeric
 
     def test_no_input_lc_file_created(self, simple_lc, tmp_path):
         """run() must not write an input.lc temp file."""

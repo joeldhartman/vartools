@@ -1292,6 +1292,15 @@ typedef struct {
      that were defined before this -o command (not ones created by later
      commands on the same command line). */
   int allcols_nvars_snapshot;
+  /* When set, treat the "-o" argument as an output *directory* (with the
+     per-LC basename derived from p->lcnames) even when running in single-
+     file (-i) mode.  Normally the directory-vs-file distinction follows
+     listflag (set by -l) vs fileflag (set by -i).  This override exists
+     so that the in-process libvartoolspipeline driver, which uses
+     fileflag mode, can still produce per-LC output files when called
+     with a list of light curves -- and is also available to any -o
+     CLI invocation as the "forceoutdirmode" keyword. */
+  int force_outdir_mode;
 } _Outputlcs;
 
 typedef struct {

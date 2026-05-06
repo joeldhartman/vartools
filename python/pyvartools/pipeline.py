@@ -50,6 +50,49 @@ FilePath = Union[str, Path]
 _SEQ_VAR = "_vtpy_seq_"
 
 
+def _spill_basename(lc: LightCurve, idx: int, used: set) -> str:
+    """Build a filesystem-safe spill filename derived from ``lc.name``.
+
+    When pyvartools writes a batch of in-memory LightCurves to a temp
+    directory so vartools can read them as files, the output filenames
+    that vartools' ``-o outdir`` machinery later derives are based on
+    those temp basenames.  Naming the temp files after ``lc.name`` makes
+    those output filenames carry the LC's identity instead of an opaque
+    index.
+
+    Rules:
+
+    * If ``lc.name`` is empty, falls back to ``"lc_NNNNNN"`` (zero-padded
+      *idx*).
+    * Strips any leading directory component (``os.path.basename``) so a
+      name like ``"data/sub/lc7"`` cannot escape the temp directory.
+    * Replaces every character that isn't ``[A-Za-z0-9._-]`` with ``"_"``.
+    * On collision against earlier basenames in *used*, appends ``_1``,
+      ``_2``, …
+
+    The basename is returned verbatim — no implicit extension is added.
+    Vartools' default ``-o outdir`` writer copies the input basename
+    unchanged, so library-mode runs (which use ``lc.name`` directly) and
+    subprocess-mode runs (which use this helper) produce identically
+    named output files.
+
+    *used* is mutated in place: the chosen basename is added before the
+    function returns.
+    """
+    raw = getattr(lc, "name", "") or ""
+    base = os.path.basename(raw)
+    base = "".join(c if c.isalnum() or c in "._-" else "_" for c in base)
+    if not base:
+        base = f"lc_{idx:06d}"
+    candidate = base
+    n = 1
+    while candidate in used:
+        candidate = f"{base}_{n}"
+        n += 1
+    used.add(candidate)
+    return candidate
+
+
 def _read_vt_table(path: str, ncols: Optional[int] = None) -> pd.DataFrame:
     """Read a vartools whitespace-delimited output file into a DataFrame.
 
@@ -559,7 +602,7 @@ class Pipeline:
         # when the pipeline contains UserCommand instances (dynamically loaded
         # extensions are not supported by the in-process library).
         if (_library_enabled() and timeout is None and not init_lc_vars
-                and not self._has_output_reqs()
+                and not self._has_output_reqs(mode="single")
                 and not self._has_user_commands() and not _has_global_opts):
             if capture_lc:
                 return self._run_library_capture(lc, command_offset=_command_offset)
@@ -570,7 +613,7 @@ class Pipeline:
             # vartools names the LC "stdin" internally, so output files
             # (periodograms etc.) will use "stdin" as their basename.
             lc_csv = lc._df.to_csv(sep=" ", header=False, index=False,
-                                   float_format="%.10f")
+                                   float_format="%.17g")
 
             work_outdir = outdir or tmpdir
             out_lc_path = os.path.join(tmpdir, "output.lc") if capture_lc else None
@@ -1571,20 +1614,27 @@ class Pipeline:
         # carried-forward scalars or a non-zero chain offset to the subprocess
         # path unconditionally.
         if (_library_enabled() and nthreads == 1 and not init_lc_vars
-                and not capture_lc and not self._has_output_reqs()
+                and not capture_lc
+                and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not self._has_user_commands()
                 and not _has_global_opts and not stats_file
                 and not batch_scalars and _command_offset == 0):
             return self._run_batch_library(lcs, raise_on_error=raise_on_error)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Write each LC to a numbered temp file; record names
+            # Write each LC to a temp file named after lc.name when possible
+            # so vartools' -o outdir machinery produces output basenames that
+            # match the input LC's identity (e.g. "1.lc" for LightCurve.from_
+            # _file("EXAMPLES/1") rather than "lc_000000.lc").  Names are
+            # sanitised for filesystem safety and disambiguated on collision.
             list_path = os.path.join(tmpdir, "lclist.txt")
             lc_paths = []
+            used_basenames: set = set()
             for i, lc in enumerate(lcs):
-                p = os.path.join(tmpdir, f"lc_{i:06d}.lc")
+                base = _spill_basename(lc, i, used_basenames)
+                p = os.path.join(tmpdir, base)
                 lc._df.to_csv(p, sep=" ", header=False, index=False,
-                              float_format="%.10f")
+                              float_format="%.17g")
                 lc_paths.append(p)
 
             col_assignments = {}
@@ -1756,21 +1806,46 @@ class Pipeline:
     # Library mode helpers
     # ------------------------------------------------------------------
 
-    def _has_output_reqs(self) -> bool:
+    def _has_output_reqs(self, mode: str = "any") -> bool:
         """True if any command needs the subprocess path for file I/O.
 
         Any ``save_*`` directive that wants the file captured into
-        ``result.files`` forces subprocess mode.  So does any ``cmd.o(...)``
-        instance — the library-mode pipeline does not know how to construct
-        per-LC output filenames from array-backed LCs, so both
-        ``capture=True`` and plain ``filename=...`` forms of ``-o`` must run
-        through the subprocess path.
+        ``result.files`` forces subprocess mode.  ``cmd.o(...)`` is more
+        nuanced: some configurations work in library mode, others don't.
+
+        Parameters
+        ----------
+        mode : str
+            Run context for the gate decision.  Conservative default
+            ``"any"`` matches the original behaviour (every ``cmd.o(...)``
+            forces subprocess).
+
+            * ``"single"`` — enables library mode for ``cmd.o(outname=path)``
+              without ``capture=True``.  vartools in fileflag mode writes
+              the LC to *path* directly.
+            * ``"library_batch"`` — enables library mode for ``cmd.o(outdir=
+              path)`` without ``capture=True``, relying on the new
+              ``forceoutdirmode`` keyword on the C-side ``-o`` parser to
+              flip directory-naming on inside fileflag context.
+
+            ``capture=True`` and any ``save_*`` directive still force
+            subprocess; unblocking those is Step D / Step #3 work.
         """
         from .commands.misc import o as OCommand
         for command in self.commands:
             if command._requested_outputs():
                 return True
             if isinstance(command, OCommand):
+                if mode == "single":
+                    if (command.outname is not None
+                            and command.outdir is None
+                            and not command.capture):
+                        continue
+                elif mode == "library_batch":
+                    if (command.outdir is not None
+                            and command.outname is None
+                            and not command.capture):
+                        continue
                 return True
         return False
 
@@ -1992,20 +2067,39 @@ class Pipeline:
     def _run_batch_library(
         self, lcs: List[LightCurve], raise_on_error: bool = True
     ) -> BatchResult:
-        """Execute a list of LCs via LibPipeline (init-once, loop per LC)."""
+        """Execute a list of LCs via LibPipeline (init-once, loop per LC).
+
+        ``mode="library_batch"`` flows through ``_commands_to_argv`` so that
+        ``cmd.o(outdir=...)`` instances emit ``forceoutdirmode``, switching
+        vartools' file-flag-context output writer into directory-naming
+        behaviour for the duration of each per-LC call.  Required for the
+        per-LC output filename to track ``lc.name`` rather than land at a
+        single shared path.
+        """
         from pyvartools._libpipeline import LibPipeline
         try:
             if self._lib_pipeline is None:
-                self._lib_pipeline = LibPipeline(self._commands_to_argv())
+                self._lib_pipeline = LibPipeline(
+                    self._commands_to_argv(mode="library_batch")
+                )
         except RuntimeError as exc:
             self._lib_pipeline = None
             err = RunError(str(exc))
             if raise_on_error:
                 raise err from exc
             return BatchResult(var=pd.DataFrame(), error=err)
+        # Disambiguate names so that two LCs with the same lc.name don't
+        # produce colliding output filenames in cmd.o(outdir=...) mode.
+        # _spill_basename is reused so library and subprocess paths agree
+        # on the per-LC basename vartools sees.  The Result's "Name"
+        # column still uses the original lc.name — only what vartools
+        # writes to disk gets a numeric suffix on collision.
+        used_names: set = set()
         rows = []
-        for lc in lcs:
-            stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err, name=lc.name)
+        for i, lc in enumerate(lcs):
+            vt_name = _spill_basename(lc, i, used_names)
+            stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err,
+                                                  name=vt_name)
             if isinstance(stats, pd.Series) and "Name" in stats.index:
                 data = stats.to_dict()
                 data["Name"] = lc.name

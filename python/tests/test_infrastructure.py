@@ -288,6 +288,107 @@ def test_run_batch_capture_lc_names_preserved():
     assert result.lcs[1].name == "beta"
 
 
+# ---------------------------------------------------------------------------
+# Spill-file basenames in run_batch (Step A of library-mode roadmap)
+# ---------------------------------------------------------------------------
+
+class TestSpillBasename:
+    """Pure-Python unit tests for ``_spill_basename`` — no binary needed."""
+
+    def test_uses_lc_name(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "alpha"
+        used: set = set()
+        assert _spill_basename(lc, 0, used) == "alpha"
+        assert "alpha" in used
+
+    def test_falls_back_when_name_blank(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = ""
+        assert _spill_basename(lc, 7, set()) == "lc_000007"
+
+    def test_strips_directory_components(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "data/sub/lc7"
+        # The basename component is "lc7" — directories cannot escape tmpdir.
+        assert _spill_basename(lc, 0, set()) == "lc7"
+
+    def test_sanitises_unsafe_chars(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "my LC #1?v2"
+        # Non-[A-Za-z0-9._-] chars become "_".
+        assert _spill_basename(lc, 0, set()) == "my_LC__1_v2"
+
+    def test_disambiguates_collisions(self):
+        from pyvartools.pipeline import _spill_basename
+        lc1 = _make_lc(); lc1.name = "x"
+        lc2 = _make_lc(); lc2.name = "x"
+        lc3 = _make_lc(); lc3.name = "x"
+        used: set = set()
+        assert _spill_basename(lc1, 0, used) == "x"
+        assert _spill_basename(lc2, 1, used) == "x_1"
+        assert _spill_basename(lc3, 2, used) == "x_2"
+
+    def test_empty_after_sanitisation_falls_back(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        # Name reduces to "" after basename-then-sanitise (slashes-only).
+        # os.path.basename("//") on Linux returns "", so the fallback fires.
+        lc.name = "//"
+        out = _spill_basename(lc, 5, set())
+        assert out == "lc_000005"
+
+    def test_extension_preserved_when_in_name(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "data.txt"
+        # ``.`` is allowed in the sanitised set, so an extension survives
+        # verbatim.  Vartools' -o writer echoes the input basename, so
+        # this lets the user round-trip ``"foo.csv" -> "foo.csv"``.
+        assert _spill_basename(lc, 0, set()) == "data.txt"
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_outdir_uses_lc_name(tmp_path):
+    """End-to-end: ``-o outdir`` produces files named after each lc.name."""
+    lcs = [_make_lc() for _ in range(3)]
+    lcs[0].name = "alpha"
+    lcs[1].name = "beta"
+    lcs[2].name = "gamma"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    vt.Pipeline([vt.commands.clip(sigclip=5.0),
+                 vt.commands.o(outdir=str(outdir))]).run_batch(lcs)
+    written = sorted(p.name for p in outdir.iterdir())
+    assert written == ["alpha", "beta", "gamma"]
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_outdir_disambiguates_duplicate_names(tmp_path):
+    """Two LCs with the same name don't clobber each other."""
+    lc1 = _make_lc(period=1.5); lc1.name = "dup"
+    lc2 = _make_lc(period=2.5); lc2.name = "dup"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    vt.Pipeline([vt.commands.clip(sigclip=5.0),
+                 vt.commands.o(outdir=str(outdir))]).run_batch([lc1, lc2])
+    written = sorted(p.name for p in outdir.iterdir())
+    assert written == ["dup", "dup_1"]
+    # Both files non-empty (not zero-length truncations from a clobber).
+    for fname in written:
+        assert (outdir / fname).stat().st_size > 0
+
+
 def test_run_filelist_capture_lc(tmp_path):
     lcs = [_make_lc(period=1.5 + i * 0.3) for i in range(3)]
     paths = []

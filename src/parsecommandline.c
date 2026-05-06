@@ -5119,6 +5119,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->allcols_nvars_snapshot = 0; /* filled in later by
 	    CompileAllExpressions once we can observe which variables are
 	    defined at the point where this -o command runs in the sequence. */
+	  c[cn].Outputlcs->force_outdir_mode = 0;
 	  i++;
 	  if(i < argc)
 	    {
@@ -5289,6 +5290,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		{
 		  c[cn].Outputlcs->outbzip2 = 1;
 		  c[cn].Outputlcs->outgzip = 0;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"forceoutdirmode"))
+		{
+		  c[cn].Outputlcs->force_outdir_mode = 1;
 		}
 	      else
 		i--;

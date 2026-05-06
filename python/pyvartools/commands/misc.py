@@ -719,29 +719,43 @@ class o(VartoolsCommand):
         return self._to_cli_args_for_mode("single")
 
     def _to_cli_args_for_mode(self, mode: str) -> List[str]:
-        path = self._path_for_mode(mode)
-        if path is None:
-            path = self._capture_path
-        if path is None:
-            if self._other_mode_set(mode):
-                wanted = "outname=" if mode == "single" else "outdir="
-                supplied = "outdir=" if mode == "single" else "outname="
-                run_methods = (
-                    "Pipeline.run / Pipeline.run_file"
-                    if mode == "single"
-                    else "Pipeline.run_filelist / Pipeline.run_batch / "
-                         "Pipeline.run_combinelcs"
-                )
+        # ``library_batch`` is library-mode batch processing: vartools is
+        # invoked once per LC through libvartoolspipeline, but a directory
+        # of named output files is wanted (one per call).  vartools is in
+        # single-file mode internally, so we emit ``-o <outdir> ... force-
+        # outdirmode`` to flip the writer into directory-naming behaviour.
+        force_outdir = (mode == "library_batch")
+        if force_outdir:
+            path = self.outdir or self._capture_path
+            if path is None:
                 raise RuntimeError(
-                    f"cmd.o was constructed with {supplied} but the "
-                    f"pipeline is being invoked in {mode}-LC mode "
-                    f"({run_methods}); supply {wanted} to use this "
-                    f"pipeline in {mode}-LC mode."
+                    "cmd.o in library_batch mode requires outdir=PATH "
+                    "(or capture=True); got neither."
                 )
-            raise RuntimeError(
-                "cmd.o with capture=True must be run through a Pipeline "
-                "(capture path has not been assigned yet)"
-            )
+        else:
+            path = self._path_for_mode(mode)
+            if path is None:
+                path = self._capture_path
+            if path is None:
+                if self._other_mode_set(mode):
+                    wanted = "outname=" if mode == "single" else "outdir="
+                    supplied = "outdir=" if mode == "single" else "outname="
+                    run_methods = (
+                        "Pipeline.run / Pipeline.run_file"
+                        if mode == "single"
+                        else "Pipeline.run_filelist / Pipeline.run_batch / "
+                             "Pipeline.run_combinelcs"
+                    )
+                    raise RuntimeError(
+                        f"cmd.o was constructed with {supplied} but the "
+                        f"pipeline is being invoked in {mode}-LC mode "
+                        f"({run_methods}); supply {wanted} to use this "
+                        f"pipeline in {mode}-LC mode."
+                    )
+                raise RuntimeError(
+                    "cmd.o with capture=True must be run through a Pipeline "
+                    "(capture path has not been assigned yet)"
+                )
         # The CLI parser for -o consumes keywords in fixed positional
         # slots with `else i--` fall-through, so they must be emitted in
         # this exact order (slot 1: name*; slot 2: columnformat/allcols;
@@ -789,6 +803,9 @@ class o(VartoolsCommand):
             args += ["gzip"]
         elif self.bzip2:
             args += ["bzip2"]
+        # slot 9 — library_batch mode override (see top of method)
+        if force_outdir:
+            args += ["forceoutdirmode"]
         return args
 
     def _output_file_specs(self) -> dict:
