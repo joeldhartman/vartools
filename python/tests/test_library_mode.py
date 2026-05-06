@@ -519,9 +519,11 @@ class TestSingleLCOutputInLibraryMode:
         assert "x" in result.files
         assert isinstance(result.files["x"], vt.LightCurve)
 
-    def test_save_periodogram_still_forces_subprocess(self, sinusoidal_lc, tmp_path):
+    def test_save_periodogram_with_outname_uses_library_mode(
+            self, sinusoidal_lc, tmp_path):
         """A pipeline mixing cmd.o(outname=...) and save_periodogram=True
-        is still subprocess (auxiliary outputs are Step #3 territory)."""
+        runs in library mode now (the per-Pipeline tmpdir holds the
+        save_* output files)."""
         from pyvartools import pipeline as _pipeline_mod
         out = tmp_path / "out.lc"
         pipe = vt.Pipeline([
@@ -529,18 +531,20 @@ class TestSingleLCOutputInLibraryMode:
             cmd.o(outname=str(out)),
         ])
         subprocess_called = []
-        original_execute = pipe._execute
 
-        def tracking_execute(command, timeout=None, stdin_text=None):
+        def mock_execute(command, timeout=None, stdin_text=None):
             subprocess_called.append(True)
-            return original_execute(command, timeout=timeout, stdin_text=stdin_text)
+            return "", ""
 
-        with patch.object(pipe, "_execute", side_effect=tracking_execute):
-            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
-                pipe.run(sinusoidal_lc)
-        assert subprocess_called, (
-            "save_periodogram=True must still force subprocess"
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                result = pipe.run(sinusoidal_lc)
+        assert not subprocess_called, (
+            "save_*=True + cmd.o(outname=...) should now run in library mode"
         )
+        assert out.is_file()
+        assert "LS_periodogram_0" in result.files
 
 
 # ---------------------------------------------------------------------------
@@ -955,3 +959,100 @@ class TestCliCaptureKeywordSafety:
             line for line in proc.stdout.splitlines() if "RMS" in line
         ]
         assert len(rms_lines) >= 6
+
+
+# ---------------------------------------------------------------------------
+# save_*=True outputs (save_periodogram et al.) in library mode
+# ---------------------------------------------------------------------------
+
+@needs_library
+@needs_binary
+class TestSaveOutputsInLibraryMode:
+    """``save_*=True`` outputs (save_periodogram, save_model, ...) run in
+    library mode by routing the C-side writers through a per-Pipeline
+    tmpdir.  No subprocess fork; the existing subprocess parsers handle
+    the file-readback path unchanged."""
+
+    def test_save_periodogram_single_lc(self, sinusoidal_lc):
+        from pyvartools import pipeline as _pipeline_mod
+
+        pipe = vt.Pipeline([
+            cmd.LS(0.5, 5.0, 0.01, npeaks=1, save_periodogram=True),
+        ])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                result = pipe.run(sinusoidal_lc)
+        assert not subprocess_called, (
+            "save_periodogram should now run in library mode"
+        )
+        key = "LS_periodogram_0"
+        assert key in result.files
+        df = result.files[key]
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+
+    def test_save_periodogram_value_parity_with_subprocess(self, sinusoidal_lc):
+        """Library and subprocess produce equal periodogram DataFrames."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        pipe_lib = vt.Pipeline([
+            cmd.LS(0.5, 5.0, 0.01, npeaks=1, save_periodogram=True),
+        ])
+        pipe_sub = vt.Pipeline([
+            cmd.LS(0.5, 5.0, 0.01, npeaks=1, save_periodogram=True),
+        ])
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+            res_lib = pipe_lib.run(sinusoidal_lc)
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=False):
+            res_sub = pipe_sub.run(sinusoidal_lc)
+        df_lib = res_lib.files["LS_periodogram_0"]
+        df_sub = res_sub.files["LS_periodogram_0"]
+        assert list(df_lib.columns) == list(df_sub.columns)
+        assert len(df_lib) == len(df_sub)
+        for col in df_lib.columns:
+            np.testing.assert_allclose(
+                df_lib[col].values, df_sub[col].values,
+                rtol=1e-10, atol=0,
+                err_msg=f"library/subprocess drift in periodogram col {col}",
+            )
+
+    def test_save_periodogram_batch(self):
+        """``run_batch`` accumulates per-LC save_periodogram DataFrames."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        n = 200
+        lcs = []
+        for i in range(3):
+            t = np.linspace(0, 100, n)
+            mag = 10.0 + 0.05 * np.sin(2*np.pi*t/(2.0+i*0.5))
+            err = np.full(n, 0.01)
+            lc = vt.LightCurve.from_arrays(t, mag, err)
+            lc.name = f"lc{i}"
+            lcs.append(lc)
+
+        pipe = vt.Pipeline([
+            cmd.LS(0.5, 5.0, 0.01, npeaks=1, save_periodogram=True),
+        ])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                batch = pipe.run_batch(lcs)
+        assert not subprocess_called
+        per_lc = batch.files["LS_periodogram_0"]
+        assert len(per_lc) == 3
+        for df in per_lc:
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) > 0

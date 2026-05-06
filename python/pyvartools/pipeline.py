@@ -1834,6 +1834,11 @@ class Pipeline:
         from .commands.misc import o as OCommand
         for command in self.commands:
             if command._requested_outputs():
+                # save_*=True outputs: subprocess always handles them; in
+                # library_* modes we route the writes through a per-Pipeline
+                # tmpdir and read them back, so they're library-compatible.
+                if mode in ("library_single", "library_batch"):
+                    continue
                 return True
             if isinstance(command, OCommand):
                 if mode == "single":
@@ -1978,6 +1983,7 @@ class Pipeline:
         lc: LightCurve,
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
+        mode: str = "library_single",
     ) -> list:
         """Build LibPipeline argv including -inputlcformat for extra columns.
 
@@ -1985,11 +1991,23 @@ class Pipeline:
         any cmd.o(capture=True) instances emit ``-o <key> capture`` for
         the C-side in-memory snapshot path (Step D), and any cmd.o with
         an explicit outname falls through the single-LC path-based
-        emission (Step B).
+        emission (Step B).  ``mode="library_batch"`` is used by
+        ``_run_batch_library``.
+
+        Before assembling the argv, allocates a per-Pipeline tmpdir
+        and assigns each command's ``_outdir``/``_outdir_map`` so that
+        any ``save_*=True`` outputs get a real path the C-side writers
+        can fopen.  Subsequent ``_collect_output_files`` calls read the
+        files back from this tmpdir.
         """
+        # Always assign output paths even when no save_* is requested --
+        # _assign_save_output_paths is a no-op for commands without
+        # output specs and just sets _outdir/_outdir_map to safe
+        # defaults for the rest.
+        self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
         argv = self._commands_to_argv(scalars=scalars,
                                       command_offset=command_offset,
-                                      mode="library_single")
+                                      mode=mode)
         fmt = _inputlcformat_from_df(lc._df.columns)
         if fmt is not None:
             argv = ["-inputlcformat", fmt] + argv
@@ -2044,6 +2062,15 @@ class Pipeline:
         # for LC data.  Users who need scalar round-tripping should capture.
         _ = scalars
         files = self._collect_library_o_captures()
+        # save_*=True outputs were written to self._lib_save_tmpdir by the
+        # C-side writers during process_lc; pull them back via the same
+        # subprocess-mode collectors so result.files contains the parsed
+        # DataFrames.  Both per-LC outputs and "file"-mode global outputs
+        # (e.g. SYSREM otrends) are handled.
+        if getattr(self, "_lib_save_tmpdir", None):
+            files.update(self._collect_output_files(
+                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir))
+            files.update(self._collect_global_output_files())
         return Result(var=stats, lc=None, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
@@ -2088,6 +2115,10 @@ class Pipeline:
             out_lc = LightCurve(lc_df, name=lc.name, scalars=merged_scalars)
 
         files = self._collect_library_o_captures()
+        if getattr(self, "_lib_save_tmpdir", None):
+            files.update(self._collect_output_files(
+                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir))
+            files.update(self._collect_global_output_files())
         return Result(var=stats, lc=out_lc, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
@@ -2106,6 +2137,10 @@ class Pipeline:
         from pyvartools._libpipeline import LibPipeline
         try:
             if self._lib_pipeline is None:
+                # Allocate the save_* tmpdir and assign each command's
+                # _outdir / _outdir_map before _commands_to_argv reads
+                # those paths via _outtoken (save_periodogram etc.).
+                self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
                 self._lib_pipeline = LibPipeline(
                     self._commands_to_argv(mode="library_batch")
                 )
@@ -2123,11 +2158,14 @@ class Pipeline:
         # writes to disk gets a numeric suffix on collision.
         used_names: set = set()
         rows = []
-        # ``per_lc_captures`` is built up as a parallel list per key so the
-        # batch result has files[key] = [LightCurve_for_lc0, LightCurve_for_lc1,
-        # ...].  Captures buffers reset on every process_lc call so we have
-        # to pull them out before the next iteration.
-        per_lc_captures: dict = {}
+        # ``per_lc_files`` accumulates per-LC outputs across the batch:
+        # files[key][i] is the captured LC / parsed save_* DataFrame for
+        # the i-th input.  cmd.o(capture=True) snapshots reset on every
+        # process_lc call so we have to pull them out per iteration;
+        # save_* writers overwrite their per-LC files in the shared
+        # tmpdir, so we read those back per iteration too.
+        per_lc_files: dict = {}
+        n = len(lcs)
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
             stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err,
@@ -2139,13 +2177,21 @@ class Pipeline:
             rows.append(stats)
             captures = self._collect_library_o_captures()
             for key, captured_lc in captures.items():
-                # Carry over the LC's own name on the captured LightCurve so
-                # downstream consumers can correlate by Name.
                 captured_lc.name = lc.name
-                per_lc_captures.setdefault(key, [None] * len(lcs))
-                per_lc_captures[key][i] = captured_lc
+                per_lc_files.setdefault(key, [None] * n)
+                per_lc_files[key][i] = captured_lc
+            if getattr(self, "_lib_save_tmpdir", None):
+                save_files = self._collect_output_files(
+                    vt_name, self._lib_save_tmpdir, self._lib_save_tmpdir)
+                for key, df in save_files.items():
+                    per_lc_files.setdefault(key, [None] * n)
+                    per_lc_files[key][i] = df
+        # "file"-mode global outputs (e.g. SYSREM otrends): one DataFrame
+        # per pipeline run, not per LC.  Collected once after the batch.
+        if getattr(self, "_lib_save_tmpdir", None):
+            per_lc_files.update(self._collect_global_output_files())
         df = pd.DataFrame(rows).reset_index(drop=True)
-        return BatchResult(var=df, lcs=None, files=per_lc_captures,
+        return BatchResult(var=df, lcs=None, files=per_lc_files,
                            known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
@@ -2396,46 +2442,13 @@ class Pipeline:
         # Pre-register carried-forward scalars as -expr const before any user
         # command so subsequent commands can reference them by name.
         cmd += self._scalar_injection_args(scalars)
+        # Assign each command's _outdir / _outdir_map so subsequent
+        # _to_cli_args / _to_cli_args_for_mode invocations can read the
+        # right path for save_* outputs.  Factored out so library mode
+        # can call the same machinery (it doesn't go through _build_cmd
+        # but still needs the per-command output paths set up).
+        self._assign_save_output_paths(outdir)
         for idx, command in enumerate(self.commands):
-            # Give each command that writes output files its own subdirectory
-            # so that two commands of the same type don't overwrite each other.
-            # Commands that specify an explicit output path (Mode 2/3) get that
-            # directory created instead; others fall back to a temp subdir.
-            specs = command._output_file_specs()
-            if specs:
-                base_cmd_outdir = os.path.join(outdir, f"cmd_{idx}")
-                outdir_map = {}
-                needs_base = False
-                for name, spec_tuple in specs.items():
-                    # _output_file_specs entries are ``(suffix, ncols)`` for
-                    # per-LC directory-style outputs (the default), where
-                    # ``ncols`` is either an ``int`` column-count override
-                    # for ``_read_vt_table``, ``None`` to auto-detect, or a
-                    # callable ``parser(path) -> object`` for non-tabular
-                    # formats.  ``(suffix, ncols, "file")`` marks a single
-                    # global file (e.g. -SYSREM ``otrends``); the
-                    # user-supplied path *is* the output file and must not
-                    # be makedirs-ed.
-                    spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
-                    save_spec = _norm_save(getattr(command, f"save_{name}", False))
-                    if save_spec.path is not None:
-                        if spec_mode == "file":
-                            parent = os.path.dirname(save_spec.path)
-                            if parent:
-                                os.makedirs(parent, exist_ok=True)
-                        else:
-                            os.makedirs(save_spec.path, exist_ok=True)
-                        outdir_map[name] = save_spec.path
-                    else:
-                        needs_base = True
-                        outdir_map[name] = base_cmd_outdir
-                if needs_base:
-                    os.makedirs(base_cmd_outdir, exist_ok=True)
-                command._outdir = base_cmd_outdir
-                command._outdir_map = outdir_map
-            else:
-                command._outdir = outdir
-                command._outdir_map = {}
             # Emit an explicit -columnsuffix for each user command so its
             # output-column names end in "_<command_offset+idx>" rather than
             # "_<idx>".  Required in chain continuations to avoid collision
@@ -2777,6 +2790,71 @@ class Pipeline:
                 f"stderr: {stderr_text.strip()}"
             )
         return "".join(stdout_lines), stderr_text
+
+    def _assign_save_output_paths(self, outdir: str) -> None:
+        """Set ``command._outdir`` and ``command._outdir_map`` for each
+        command's ``save_*`` output, given a base output directory.
+
+        Called by both ``_build_cmd`` (subprocess) and
+        ``_lib_argv_with_format`` (library mode) so each command's
+        ``_to_cli_args_for_mode`` sees the right per-output paths when
+        the argv is assembled.
+
+        Each command that requests outputs gets its own ``cmd_<idx>``
+        subdirectory (so two same-typed commands don't clobber each
+        other), unless the user supplied an explicit path -- in which
+        case that path is used directly.
+        """
+        for idx, command in enumerate(self.commands):
+            specs = command._output_file_specs()
+            if specs:
+                base_cmd_outdir = os.path.join(outdir, f"cmd_{idx}")
+                outdir_map = {}
+                needs_base = False
+                for name, spec_tuple in specs.items():
+                    # _output_file_specs entries are ``(suffix, ncols)`` for
+                    # per-LC directory-style outputs (the default), where
+                    # ``ncols`` is either an ``int`` column-count override
+                    # for ``_read_vt_table``, ``None`` to auto-detect, or a
+                    # callable ``parser(path) -> object`` for non-tabular
+                    # formats.  ``(suffix, ncols, "file")`` marks a single
+                    # global file (e.g. -SYSREM ``otrends``); the
+                    # user-supplied path *is* the output file and must not
+                    # be makedirs-ed.
+                    spec_mode = spec_tuple[2] if len(spec_tuple) >= 3 else "dir"
+                    save_spec = _norm_save(getattr(command, f"save_{name}", False))
+                    if save_spec.path is not None:
+                        if spec_mode == "file":
+                            parent = os.path.dirname(save_spec.path)
+                            if parent:
+                                os.makedirs(parent, exist_ok=True)
+                        else:
+                            os.makedirs(save_spec.path, exist_ok=True)
+                        outdir_map[name] = save_spec.path
+                    else:
+                        needs_base = True
+                        outdir_map[name] = base_cmd_outdir
+                if needs_base:
+                    os.makedirs(base_cmd_outdir, exist_ok=True)
+                command._outdir = base_cmd_outdir
+                command._outdir_map = outdir_map
+            else:
+                command._outdir = outdir
+                command._outdir_map = {}
+
+    def _ensure_lib_save_tmpdir(self) -> str:
+        """Lazily allocate a per-Pipeline tmpdir for save_* outputs in
+        library mode.  Cleanup is registered with weakref.finalize so
+        the directory is removed when the Pipeline is garbage-collected,
+        not at interpreter shutdown.
+        """
+        if getattr(self, "_lib_save_tmpdir", None) is None:
+            import shutil
+            import weakref
+            self._lib_save_tmpdir = tempfile.mkdtemp(prefix="pyvartools_libsave_")
+            weakref.finalize(self, shutil.rmtree,
+                             self._lib_save_tmpdir, ignore_errors=True)
+        return self._lib_save_tmpdir
 
     def _collect_output_files(
         self, lc_name: str, outdir: str, tmpdir: str
