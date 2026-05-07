@@ -16,9 +16,32 @@ jobs:
         run: sudo apt-get install gfortran
       - name: Install CFITSIO
         run: sudo apt-get install libcfitsio-dev
+      - name: Install GSL
+        run: sudo apt-get install libgsl-dev
       - name: Install R dev libraries
         run: sudo apt-get install r-base-dev
       - name: Configure VARTOOLS
         run: ./configure
       - name: make VARTOOLS
         run: make
+      - name: Install VARTOOLS
+        run: sudo make install
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python test deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov numpy pandas astropy
+      - name: Install pyvartools
+        run: sudo make install-python
+      # `make install-python` runs `pip install .` from the srcdir's
+      # python/ subtree.  After install, libvartoolspipeline.so lives at
+      # $prefix/share/vartools/USERLIBS/ and the binary's RPATH points
+      # there, so pyvartools' find_library() resolves it without
+      # explicit configuration.
+      - name: Run pyvartools tests
+        run: |
+          cd python
+          python -m pytest tests/ -q --tb=line --maxfail=10
