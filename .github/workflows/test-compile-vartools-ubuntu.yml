@@ -20,22 +20,36 @@ jobs:
         run: sudo apt-get install libgsl-dev
       - name: Install R dev libraries
         run: sudo apt-get install r-base-dev
+      # Set up Python BEFORE ./configure: vartools's configure looks
+      # for ${PYTHON}-config and tries to import numpy to locate the
+      # headers (configure.ac:201-260).  Without dev headers + numpy
+      # available at configure time, libvartoolspipeline.so builds
+      # without _HAVE_PYTHON, which breaks `-python` everywhere.  The
+      # same Python is used by setup-python, the embedded interpreter,
+      # and the pytest runner -- avoids ABI mismatch on the embedded
+      # Python.so.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python build deps (visible at configure time)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy
       - name: Configure VARTOOLS
         run: ./configure
       - name: make VARTOOLS
         run: make
       - name: Install VARTOOLS
         run: sudo make install
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
       - name: Install Python test deps
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov numpy pandas astropy
+        run: python -m pip install pytest pytest-cov pandas astropy
       - name: Install pyvartools
-        run: sudo make install-python
+        # No sudo: `make install-python` runs `pip install .` and we
+        # want it in setup-python's site-packages (not the system
+        # python3 -- sudo strips PATH and would resolve a different
+        # pip).
+        run: make install-python
       # `make install-python` runs `pip install .` from the srcdir's
       # python/ subtree.  libvartoolspipeline.so lives at
       # $prefix/share/vartools/USERLIBS/.  pyvartools' find_library()
