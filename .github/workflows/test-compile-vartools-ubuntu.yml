@@ -42,7 +42,18 @@ jobs:
         # AX_PYTHON_ENABLE).  The plain `--enable-python` form would
         # search only /usr/bin, missing setup-python's
         # /opt/hostedtoolcache install -- so pass the explicit path.
-        run: ./configure --enable-python=$(which python)
+        #
+        # Also pass --with-pythonconfig=$(which python3-config)
+        # explicitly: setup-python ships `python3-config` but not the
+        # bare `python-config`, so the default check for
+        # `${PYTHON}-config` (configure.ac:212) fails.  Without
+        # python-config, PYTHON_CSPEC is unset and the subsequent
+        # AC_CHECK_HEADER for numpy/arrayobject.h fails because its
+        # prologue `#include "Python.h"` can't find Python.h.
+        run: |
+          ./configure \
+            --enable-python=$(which python) \
+            --with-pythonconfig=$(which python3-config)
       - name: make VARTOOLS
         run: make
       - name: Install VARTOOLS
