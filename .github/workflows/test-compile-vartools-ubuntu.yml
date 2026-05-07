@@ -36,23 +36,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install numpy
-      - name: Debug — verify numpy headers are reachable in CI
-        # configure runs `python -c "import numpy; print(numpy.get_include())"`
-        # to compute NUMPY_INCLUDE_DIR, then AC_CHECK_HEADERs
-        # ${NUMPY_INCLUDE_DIR}/numpy/arrayobject.h with "#include
-        # Python.h" as prologue.  If this step shows the file exists
-        # but configure says "no", the failure is in the prologue
-        # compile, not the path.
-        run: |
-          set -x
-          which python
-          which python3-config
-          python --version
-          python -c "import numpy; print('numpy', numpy.__version__); print('include:', numpy.get_include())"
-          NUMPY_INC=$(python -c "import numpy; print(numpy.get_include())")
-          ls -la "$NUMPY_INC/numpy/arrayobject.h" || echo "MISSING: $NUMPY_INC/numpy/arrayobject.h"
-          python3-config --cflags --embed 2>/dev/null || python3-config --cflags
-          python3-config --ldflags --embed 2>/dev/null || python3-config --ldflags
       - name: Configure VARTOOLS
         # The AX_PYTHON_DEFAULT macro defaults Python support OFF;
         # need --enable-python=PATH to turn it on (m4/ax_python_embed.m4
@@ -71,21 +54,6 @@ jobs:
           ./configure \
             --enable-python=$(which python) \
             --with-pythonconfig=$(which python3-config)
-      - name: Debug — confirm Python+NumPy were detected at configure time
-        # AC_CHECK_HEADER for arrayobject.h is non-fatal; configure
-        # succeeds whether or not Python is wired up.  Inspect
-        # config.h and config.log to see what actually got defined,
-        # and (on failure) the compiler error from the AC_CHECK_HEADER
-        # test program.
-        if: always()
-        run: |
-          set -x
-          echo '---- HAVE_PYTHON in config.h ----'
-          grep -E 'HAVE_PYTHON|NUMPY' config.h || true
-          echo '---- AC_CHECK_HEADER region of config.log ----'
-          grep -n -A 30 'arrayobject\.h' config.log | head -200 || true
-          echo '---- last 80 lines of config.log ----'
-          tail -80 config.log
       - name: make VARTOOLS
         run: make
       - name: Install VARTOOLS
