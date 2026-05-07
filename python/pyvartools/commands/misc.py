@@ -397,6 +397,49 @@ class python(VartoolsCommand):
         self.inprocess = inprocess
         self.namespace = namespace
         if inprocess:
+            # The in-process callback path is gated on three C-side
+            # conditions (runpython.c:2638-2640):
+            #   !c->processallvariables && !c->iscontinueprocess
+            # plus a check inside vt_python_run_inprocess that fails on
+            # process_all_lcs (RunPythonCommand_all_lcs has no in-process
+            # branch).  When any of these conditions block in-process,
+            # vartools falls through to the subprocess fork path, which
+            # is unsafe inside a Python host process (forking with an
+            # active interpreter risks deadlocks / segfaults).  Reject
+            # those configurations at construction time so the user
+            # gets a clear error instead of a crash at .run().
+            #
+            # vartools' -python parser sets processallvariables=1 iff no
+            # invars/outvars/inoutvars are given (runpython.c:3120-3124).
+            # ``vars`` is also accepted by the wrapper as a convenience
+            # for the same input/output set.
+            if (vars is None and invars is None and outvars is None
+                    and process_all_lcs is False):
+                raise ValueError(
+                    "cmd.python(inprocess=True) requires at least one of "
+                    "invars=, outvars=, or vars= so vartools knows which "
+                    "variables to marshal across the C->Python callback. "
+                    "The bare form `python(\"x = 1\", inprocess=True)` is "
+                    "interpreted by vartools as 'process all variables', "
+                    "which is not supported by the in-process callback "
+                    "(see runpython.c:2423)."
+                )
+            if process_all_lcs:
+                raise ValueError(
+                    "cmd.python(inprocess=True, process_all_lcs=True) is "
+                    "not supported.  process_all_lcs routes through "
+                    "RunPythonCommand_all_lcs which has no in-process "
+                    "branch; falling through to subprocess from inside "
+                    "library mode is unsafe (Python-host fork)."
+                )
+            if continueprocess is not None:
+                raise ValueError(
+                    "cmd.python(inprocess=True, continueprocess=...) is "
+                    "not supported.  The in-process callback explicitly "
+                    "rejects iscontinueprocess (runpython.c:2640) and "
+                    "the subprocess fallback would fork the Python host "
+                    "process unsafely."
+                )
             # In-process path — register the C callback and namespace now
             # so the wrapper is ready by the time the pipeline executes.
             # Importing _python_inprocess pulls in ctypes + numpy and

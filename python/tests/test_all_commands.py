@@ -3721,12 +3721,45 @@ class TestPythonInprocessIntegration:
                      inprocess=True)
              ).run_combinelcs([[EXAMPLE_LC, EXAMPLE_LC]])
 
-    def test_inprocess_refused_when_outputs_force_subprocess(self):
-        """Pipeline that includes a save_*=True (forces subprocess in
-        run()) must reject inprocess=True with a clear message."""
+    def test_inprocess_refused_when_no_marshalled_vars(self):
+        """``cmd.python(inprocess=True)`` with no invars/outvars/vars
+        rejects at construction time -- vartools' parser would set
+        processallvariables=1 in that case, which the in-process
+        callback explicitly does not support and which would otherwise
+        fall through to a subprocess fork (unsafe inside a Python host
+        process; segfaults during process_lc)."""
+        with pytest.raises(ValueError, match="inprocess=True"):
+            cmd.python("x = 1", inprocess=True)
+
+    def test_inprocess_refused_with_process_all_lcs(self):
+        """``cmd.python(inprocess=True, process_all_lcs=True)`` -- the
+        process_all_lcs path uses RunPythonCommand_all_lcs which has
+        no in-process branch, so the call would fall through to the
+        unsafe subprocess fork."""
+        with pytest.raises(ValueError, match="process_all_lcs=True"):
+            cmd.python("x = 1", invars="mag",
+                       inprocess=True, process_all_lcs=True)
+
+    def test_inprocess_refused_with_continueprocess(self):
+        """``cmd.python(inprocess=True, continueprocess=N)`` -- the
+        in-process callback gate explicitly rejects iscontinueprocess
+        (runpython.c:2640)."""
+        with pytest.raises(ValueError, match="continueprocess"):
+            cmd.python("x = 1", invars="mag",
+                       inprocess=True, continueprocess=0)
+
+    def test_inprocess_with_save_periodogram_runs_in_library_mode(self):
+        """save_*=True is now library-compatible, so combining it with
+        cmd.python(inprocess=True) (with proper invars/outvars) runs
+        end-to-end without forcing subprocess.  This used to be blocked
+        by a conservative obstacle list as a workaround for the
+        no-invars segfault, which is now caught at ctor time."""
         lc = vt.LightCurve.from_file(EXAMPLE_LC)
-        with pytest.raises(RuntimeError, match="inprocess=True"):
-            (vt.Pipeline()
-             .LS(0.1, 10.0, 0.1, save_periodogram=True)
-             .python("x = 1", inprocess=True)
-             ).run(lc)
+        result = (vt.Pipeline()
+                  .LS(0.1, 10.0, 0.1, save_periodogram=True)
+                  .python("b = float(numpy.var(mag))",
+                          invars="mag", outvars="b", outputcolumns="b",
+                          inprocess=True)
+                  ).run(lc)
+        assert "PYTHON_b_1" in result.vars.index
+        assert "LS_periodogram_0" in result.files

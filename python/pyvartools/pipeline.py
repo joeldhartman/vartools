@@ -574,23 +574,19 @@ class Pipeline:
                 obstacles.append("timeout= is incompatible with library mode")
             if init_lc_vars:
                 obstacles.append("init_lc_vars forces subprocess mode")
-            # Use the conservative mode for inprocess=True: cmd.python's
-            # C-level callback path has not been validated against the
-            # newer library-mode output configurations (save_*, cmd.o
-            # capture).  At least one specific combination
-            # (cmd.python(inprocess=True) + save_periodogram=True)
-            # segfaults during process_lc when the gate lets it through;
-            # rather than chase the underlying issue, we keep the
-            # historical behaviour of refusing inprocess=True whenever
-            # any output is requested.  Validating one combination at a
-            # time is a sensible follow-up.
-            if self._has_output_reqs():
+            # save_*/cmd.o outputs and UserCommand extensions are now
+            # library-compatible (they do not force subprocess), so they
+            # are no longer obstacles for inprocess=True.  The earlier
+            # segfault that motivated the conservative gate turned out
+            # to be a separate issue: cmd.python(inprocess=True) without
+            # invars/outvars/vars hits processallvariables=1 mode, which
+            # the in-process callback doesn't support and which falls
+            # through to the (unsafe-in-library-mode) subprocess fork
+            # path.  That case is now caught at cmd.python construction
+            # time by an explicit ValueError, so it can't reach here.
+            if self._has_output_reqs(mode="library_single"):
                 obstacles.append(
-                    "save_*=True / cmd.o(...) outputs force subprocess mode"
-                )
-            if self._has_user_commands():
-                obstacles.append(
-                    "UserCommand / userlib extensions force subprocess mode"
+                    "this output configuration forces subprocess mode"
                 )
             if _has_global_opts:
                 obstacles.append(
