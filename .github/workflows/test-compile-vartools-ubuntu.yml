@@ -37,7 +37,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install numpy
       - name: Configure VARTOOLS
-        run: ./configure
+        # The AX_PYTHON_DEFAULT macro defaults Python support OFF;
+        # need --enable-python=PATH to turn it on (m4/ax_python_embed.m4
+        # AX_PYTHON_ENABLE).  The plain `--enable-python` form would
+        # search only /usr/bin, missing setup-python's
+        # /opt/hostedtoolcache install -- so pass the explicit path.
+        run: ./configure --enable-python=$(which python)
       - name: make VARTOOLS
         run: make
       - name: Install VARTOOLS
