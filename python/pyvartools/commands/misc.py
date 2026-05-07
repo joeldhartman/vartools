@@ -349,12 +349,22 @@ class python(VartoolsCommand):
         ``sys.modules`` and a caller-supplied globals dict with the
         calling code.  Default ``False``.
 
-        Limitations of the in-process path (these fall through to the
-        sub-process path; you'll get the standard subprocess behaviour
-        rather than an error):
+        Configurations rejected at construction time with ``ValueError``
+        (the in-process callback can't handle them and the subprocess
+        fall-through would fork the Python host process unsafely):
 
-        * ``process_all_lcs=True`` and ``continueprocess`` not yet
-          supported in-process.
+        * Bare form -- no ``invars``/``outvars``/``vars``: vartools'
+          parser interprets that as "process all variables", which is
+          unsupported in-process.
+        * ``process_all_lcs=True``: routes through
+          ``RunPythonCommand_all_lcs`` which has no in-process branch.
+        * ``continueprocess`` set: explicitly rejected by the in-process
+          gate (runpython.c:2640).
+
+        Other limitations (these silently fall through to the subprocess
+        path, but the calling Pipeline is in library mode so the fork
+        is again unsafe -- avoid these for now):
+
         * Only numeric vartools types are marshalled (``DOUBLE``,
           ``FLOAT``, ``INT``, ``LONG``).  String LC columns or
           string-typed per-star variables fall through.
