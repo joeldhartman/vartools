@@ -37,11 +37,17 @@ jobs:
       - name: Install pyvartools
         run: sudo make install-python
       # `make install-python` runs `pip install .` from the srcdir's
-      # python/ subtree.  After install, libvartoolspipeline.so lives at
-      # $prefix/share/vartools/USERLIBS/ and the binary's RPATH points
-      # there, so pyvartools' find_library() resolves it without
-      # explicit configuration.
+      # python/ subtree.  libvartoolspipeline.so lives at
+      # $prefix/share/vartools/USERLIBS/.  pyvartools' find_library()
+      # search includes the binary's RPATH and ldconfig, but libtool
+      # can strip the build-tree RPATH at install time and USERLIBSDIR
+      # isn't in the default ldconfig path on a fresh Ubuntu image.
+      # Set VARTOOLS_LIBRARY explicitly so the runtime-config branch
+      # of find_library() picks it up.
       - name: Run pyvartools tests
+        env:
+          VARTOOLS_LIBRARY: /usr/local/share/vartools/USERLIBS/libvartoolspipeline.so
         run: |
+          ls -la /usr/local/share/vartools/USERLIBS/ || true
           cd python
           python -m pytest tests/ -q --tb=line --maxfail=10
