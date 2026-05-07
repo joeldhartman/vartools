@@ -165,6 +165,69 @@ def _reorder_stats_by_seq(
     return stats
 
 
+def _apply_nameformat(fmt: str, lc_basename: str, lc_index: int) -> str:
+    """Apply vartools' ``-o ... nameformat`` substitution rules.
+
+    Mirrors the C-side logic in ``inputoutput.c``:
+
+    * ``%s`` -> full basename of the input LC path
+    * ``%b`` -> basename minus the last extension
+    * ``%d`` -> 1-indexed LC number
+    * ``%0Nd`` -> zero-padded 1-indexed LC number
+    * ``%%`` -> literal ``%``
+    * any other character -> literal
+
+    Used by the subprocess-mode capture-file collector to find the
+    files vartools wrote, since vartools applies the substitution
+    server-side and pyvartools needs to find them on disk.
+    """
+    out = []
+    i = 0
+    while i < len(fmt):
+        c = fmt[i]
+        if c != "%":
+            out.append(c)
+            i += 1
+            continue
+        i += 1
+        if i >= len(fmt):
+            out.append("%")
+            break
+        spec = fmt[i]
+        if spec == "s":
+            out.append(lc_basename)
+            i += 1
+        elif spec == "b":
+            stem, _, _ext = lc_basename.rpartition(".")
+            out.append(stem if stem else lc_basename)
+            i += 1
+        elif spec == "d":
+            out.append(str(lc_index + 1))
+            i += 1
+        elif spec == "0":
+            # Parse "%0Nd"
+            j = i + 1
+            while j < len(fmt) and fmt[j].isdigit():
+                j += 1
+            if j < len(fmt) and fmt[j] == "d":
+                width = int(fmt[i + 1:j]) if j > i + 1 else 0
+                out.append(f"{lc_index + 1:0{width}d}")
+                i = j + 1
+            else:
+                # malformed; emit literally
+                out.append("%")
+                out.append(spec)
+                i += 1
+        elif spec == "%":
+            out.append("%")
+            i += 1
+        else:
+            out.append("%")
+            out.append(spec)
+            i += 1
+    return "".join(out)
+
+
 def _apply_columnformat_names(lc: LightCurve, command) -> None:
     """Rename auto-generated ``col4``/``col5``/… columns on *lc* using the
     names declared in a ``cmd.o(..., columnformat=...)`` spec.
@@ -3049,7 +3112,11 @@ class Pipeline:
                     else command._capture_path)
             if path is None:
                 continue
+            cf_names = (command._columnformat_names()
+                        if hasattr(command, "_columnformat_names")
+                        else None)
             lc = None
+            file_path = None
             if os.path.isdir(path):
                 # nameformat case: single file somewhere inside the directory
                 candidates = [
@@ -3058,11 +3125,19 @@ class Pipeline:
                     if os.path.isfile(os.path.join(path, f))
                 ]
                 if len(candidates) == 1:
-                    lc = LightCurve.from_file(candidates[0], name=lc_name)
+                    file_path = candidates[0]
             elif os.path.isfile(path):
-                lc = LightCurve.from_file(path, name=lc_name)
+                file_path = path
+            if file_path is not None:
+                if cf_names:
+                    df = pd.read_csv(file_path, sep=r"\s+",
+                                     comment="#", header=None,
+                                     names=cf_names)
+                    lc = LightCurve(df, name=lc_name)
+                else:
+                    lc = LightCurve.from_file(file_path, name=lc_name)
+                    _apply_columnformat_names(lc, command)
             if lc is not None:
-                _apply_columnformat_names(lc, command)
                 files[command.key] = lc
         return files
 
@@ -3085,11 +3160,32 @@ class Pipeline:
             if base_dir is None:
                 continue
             lc_list = []
-            for lc_path, name in zip(lc_paths, lc_names):
-                out_path = os.path.join(base_dir, Path(lc_path).name)
+            cf_names = (command._columnformat_names()
+                        if hasattr(command, "_columnformat_names")
+                        else None)
+            for i, (lc_path, name) in enumerate(zip(lc_paths, lc_names)):
+                lc_basename = Path(lc_path).name
+                # Apply nameformat substitution if set, otherwise use the
+                # input basename (vartools' default).
+                if command.nameformat is not None:
+                    out_basename = _apply_nameformat(
+                        str(command.nameformat), lc_basename, i)
+                else:
+                    out_basename = lc_basename
+                out_path = os.path.join(base_dir, out_basename)
                 if os.path.isfile(out_path):
-                    one_lc = LightCurve.from_file(out_path, name=name)
-                    _apply_columnformat_names(one_lc, command)
+                    if cf_names:
+                        # columnformat= overrides the default t/mag/err
+                        # column layout; the file may have any subset /
+                        # superset of the standard columns.  Read it
+                        # positionally with the user-declared names.
+                        df = pd.read_csv(out_path, sep=r"\s+",
+                                         comment="#", header=None,
+                                         names=cf_names)
+                        one_lc = LightCurve(df, name=name)
+                    else:
+                        one_lc = LightCurve.from_file(out_path, name=name)
+                        _apply_columnformat_names(one_lc, command)
                     lc_list.append(one_lc)
                 else:
                     lc_list.append(None)

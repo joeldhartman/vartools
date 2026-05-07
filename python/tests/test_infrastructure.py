@@ -941,3 +941,66 @@ def test_fitsheader_structural_keys_in_user_header_dropped_on_write(tmp_path):
         assert "TTYPE1" not in hdul[0].header
         assert hdul[1].header["TFIELDS"] == 3      # astropy's real value
         assert hdul[1].header["NAXIS2"] == 50
+
+
+# ---------------------------------------------------------------------------
+# cmd.o(capture=True) with nameformat / columnformat keywords
+# ---------------------------------------------------------------------------
+# When the subprocess capture path applies, the collector must mirror
+# vartools' nameformat substitution (otherwise the captured file is not
+# found) and must respect columnformat (otherwise the wrong column names
+# come back).  Regression for issue surfaced 2026-05-06.
+
+def test_apply_nameformat_substitutions():
+    from pyvartools.pipeline import _apply_nameformat
+    # %s -> full basename
+    assert _apply_nameformat("%s.txt", "lc1.dat", 0) == "lc1.dat.txt"
+    # %b -> basename minus extension
+    assert _apply_nameformat("%b.csv", "lc1.dat", 0) == "lc1.csv"
+    assert _apply_nameformat("%b", "noext", 0) == "noext"
+    # %d -> 1-indexed LC number
+    assert _apply_nameformat("%d", "x", 4) == "5"
+    # %0Nd -> zero-padded
+    assert _apply_nameformat("file_%05d.lc", "x", 7) == "file_00008.lc"
+    # %% -> literal %
+    assert _apply_nameformat("%%s%s", "a", 0) == "%sa"
+    # combined
+    assert _apply_nameformat("%s_%05d.txt", "lc7", 9) == "lc7_00010.txt"
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_capture_with_nameformat_and_columnformat(tmp_path):
+    """run_batch + cmd.o(outdir=..., outname=..., nameformat=...,
+    columnformat=..., capture=True) populates result.files[key] with
+    the user-declared columns.  Regression: the subprocess capture path
+    used to look for files at <outdir>/<input-basename> instead of
+    applying the nameformat substitution, and didn't honor columnformat
+    for the read-back column names."""
+    lcs = [_make_lc() for _ in range(3)]
+    for i, lc in enumerate(lcs):
+        lc.name = f"lc{i}"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    # outname=str(tmp_path / "x") forces subprocess (both outname and
+    # outdir set is not library-batch-compatible).
+    result = vt.Pipeline([
+        vt.commands.clip(sigclip=5.0),
+        vt.commands.expr("tmp=t+2*mag"),
+        vt.commands.o(outname=str(tmp_path / "x"),
+                      outdir=str(outdir),
+                      nameformat="%s.txt",
+                      columnformat="tmp,mag",
+                      capture=True, key="cap"),
+    ]).run_batch(lcs)
+    assert "cap" in result.files
+    captured = result.files["cap"]
+    assert len(captured) == 3
+    for i, c in enumerate(captured):
+        assert c is not None, f"capture {i} is None"
+        assert list(c._df.columns) == ["tmp", "mag"], (
+            f"unexpected columns: {list(c._df.columns)}"
+        )
+        assert len(c._df) > 0
