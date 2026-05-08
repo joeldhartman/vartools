@@ -105,6 +105,46 @@ def _extract_perlc_scalar(val, lc_idx: int, lc_name: str):
     return val
 
 
+class LightCurveList(list):
+    """A ``list`` of captured ``LightCurve``\\s with positional + by-name access.
+
+    Returned by ``BatchResult.files[key]`` for any ``cmd.o(capture=True)``
+    output produced in batch mode.  Subclasses ``list`` so all of pandas
+    / numpy / standard slicing works, and adds:
+
+    * ``lcs[i]``        — same as ``list.__getitem__`` (int or slice).
+    * ``lcs['name']``   — return the first ``LightCurve`` whose ``.name``
+                          matches; ``KeyError`` if none.  ``None``
+                          placeholders (missing-file slots) are skipped.
+    * ``'name' in lcs`` — membership by name (string) or by identity
+                          (``LightCurve`` instance).
+
+    Positional alignment with the input batch is preserved — entries are
+    ``None`` where the captured output file was missing.
+    """
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            from .lightcurve import LightCurve
+            for lc in self:
+                if isinstance(lc, LightCurve) and lc.name == key:
+                    return lc
+            available = [lc.name for lc in self
+                         if isinstance(lc, LightCurve)]
+            raise KeyError(
+                f"No LightCurve in list with name={key!r}.  "
+                f"Available: {available}"
+            )
+        return super().__getitem__(key)
+
+    def __contains__(self, item) -> bool:
+        if isinstance(item, str):
+            from .lightcurve import LightCurve
+            return any(isinstance(lc, LightCurve) and lc.name == item
+                       for lc in self)
+        return super().__contains__(item)
+
+
 class LightCurveBatch:
     """A collection of LightCurves with a fluent command-chaining interface.
 

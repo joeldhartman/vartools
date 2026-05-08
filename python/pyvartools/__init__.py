@@ -32,7 +32,7 @@ from pyvartools import commands
 from pyvartools._binary import get_binary, set_binary, set_library
 from pyvartools._output import Output
 from pyvartools._vars import CommandStats, VarsNamespace
-from pyvartools._batch import LightCurveBatch
+from pyvartools._batch import LightCurveBatch, LightCurveList
 from pyvartools.lightcurve import LightCurve
 from pyvartools.perlc import PerLC
 from pyvartools.pipeline import LCColumn, LCVar, ListVar, Pipeline
@@ -52,6 +52,7 @@ __all__ = [
     "PerLC",
     "Pipeline",
     "LightCurveBatch",
+    "LightCurveList",
     "Result",
     "BatchResult",
     "PipelineValidationError",

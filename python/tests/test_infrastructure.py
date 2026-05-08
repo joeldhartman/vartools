@@ -219,6 +219,30 @@ def test_lightcurvebatch_getitem_by_name():
         _ = batch["missing"]
 
 
+def test_lightcurvelist_indexing():
+    lcs = [
+        vt.LightCurve.from_arrays(t=[1.0, 2.0], mag=[10.0, 11.0],
+                                  err=[0.01, 0.02], name=f"lc{i}")
+        for i in range(3)
+    ]
+    # Mix in a None placeholder to mirror real cmd.o(capture=True) output
+    # where some LCs may be missing from disk.
+    lcl = vt.LightCurveList([lcs[0], None, lcs[2]])
+
+    assert isinstance(lcl, list)             # plain list slicing/iter works
+    assert len(lcl) == 3
+    assert lcl[0] is lcs[0]
+    assert lcl[1] is None
+    assert lcl["lc0"] is lcs[0]
+    assert lcl["lc2"] is lcs[2]
+    assert "lc0" in lcl
+    assert "lc1" not in lcl                  # placeholder skipped
+    assert "missing" not in lcl
+
+    with pytest.raises(KeyError, match="lc0"):  # lists Available names
+        _ = lcl["missing"]
+
+
 # ---------------------------------------------------------------------------
 # stdout parser
 # ---------------------------------------------------------------------------

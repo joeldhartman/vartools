@@ -2249,7 +2249,8 @@ class Pipeline:
             captures = self._collect_library_o_captures()
             for key, captured_lc in captures.items():
                 captured_lc.name = lc.name
-                per_lc_files.setdefault(key, [None] * n)
+                from ._batch import LightCurveList
+                per_lc_files.setdefault(key, LightCurveList([None] * n))
                 per_lc_files[key][i] = captured_lc
             if getattr(self, "_lib_save_tmpdir", None):
                 save_files = self._collect_output_files(
@@ -3189,7 +3190,8 @@ class Pipeline:
                     lc_list.append(one_lc)
                 else:
                     lc_list.append(None)
-            files[command.key] = lc_list
+            from ._batch import LightCurveList
+            files[command.key] = LightCurveList(lc_list)
         return files
 
     # ------------------------------------------------------------------
