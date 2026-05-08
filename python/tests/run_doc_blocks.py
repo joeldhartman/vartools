@@ -42,6 +42,7 @@ PAGES = [
     "index.md",
     "lightcurve.md",
     "fluent.md",
+    "chaining.md",
     "pipeline.md",
     "results.md",
     "commands/index.md",
