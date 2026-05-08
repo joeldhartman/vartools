@@ -1,5 +1,33 @@
 # VARTOOLS — Developer Guide for Claude
 
+## Working agreement (read first)
+
+These are **durable** preferences that override default tooling
+behaviour.  They are also captured in the persistent memory store
+(`feedback_no_push_without_approval.md`,
+`feedback_confirm_before_big_project.md`); duplicated here so they
+survive context compaction within a session.
+
+* **Do not push to GitHub without explicit approval.**  Accumulate
+  commits locally on the working branch (currently `develop`) and stop.
+  Only run `git push` when the user says "push" (or equivalent).
+  Local commits are fine — they're easy to amend or drop.  A push
+  makes the change visible on GitHub Actions / collaborators.
+
+* **Confirm before starting a multi-step development project.**
+  Anything that introduces a new class / module, touches more than two
+  files, or that you'd describe with bullet points ("Plan: 1… 2… 3…")
+  should be paused on for explicit user approval before implementation
+  begins.  A short proposal ("here's what I'd add, here's what I'd
+  change, OK to proceed?") is preferred over diving in.  Quick fixes,
+  bug repairs, single-file edits, and continuations of an in-progress
+  task do not need this gate.
+
+* **Prefer a sketch before code.**  When the path is non-obvious or
+  the user's intent isn't yet 100% clear, write the design as a short
+  prose paragraph or bullet list first.  Faster to course-correct on
+  three sentences than on three files.
+
 ## Repository layout
 
 ```
@@ -102,6 +130,40 @@ binary is not installed (`@pytest.mark.skipif(not _HAVE_BINARY, ...)`).
 4. Export the class from `commands/__init__.py`.
 5. Add tests in `tests/test_all_commands.py`.
 6. Update `API_AUDIT.md` to mark the gap closed.
+
+## Sanitizer test pass (`make check-asan`)
+
+`make check-asan` rebuilds vartools with `-fsanitize=address,undefined` and runs
+`unittest.sh` against the instrumented binary.  Each ASan/UBSan hit gets written
+to `asan-report.<pid>` files in the build root; the target exits non-zero if any
+appear.
+
+```bash
+make check-asan                 # ~5 min full sanitizer pass
+ls asan-report.*                # inspect any reports written
+make clean && make              # restore the regular optimized build
+```
+
+When to run it:
+- Before tagging a release.
+- After editing memory-sensitive code (parsers, allocators, numerical loops,
+  anything in `parselc.c`/`parseinputlist.c`/`runpython.c`/`runR.c`).
+- When investigating a suspected memory bug.
+
+When NOT to run it:
+- Routine dev cycles — sanitizer-instrumented runs are 5–10x slower than the
+  un-instrumented suite.  Use the regular `unittest.sh` path for that.
+- In per-push CI — if/when CI gains an ASan job, wire it as a separate
+  workflow gated on weekly schedule or release tags, not the default push.
+
+The target uses `AM_CFLAGS`/`AM_LDFLAGS` overrides so the configured
+`./configure` CFLAGS are preserved (anaconda includes, march flags, etc.) with
+sanitizer flags layered on top.  `halt_on_error=0` and `abort_on_error=0` keep
+the run going past the first hit so one pass surfaces all issues.
+
+After a `check-asan` run, the build tree is in sanitizer mode.  Run `make clean
+&& make` to return to the normal optimized binary before doing further dev
+work.
 
 ## CI (GitHub Actions)
 
