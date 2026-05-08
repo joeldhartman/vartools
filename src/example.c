@@ -46,7 +46,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\tcomment \"a comment\" \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/ nameformat \"%%s.tmpout.fits\" fits\n\n");
+		    "\t-o EXAMPLES/ nameformat \"%s.tmpout.fits\" fits\n\n");
       printtostring(&s,
 		    "Copy the ASCII text light curve stored in the file EXAMPLES/1 to a fits-format light curve that will be in the file EXAMPLES/1.tmpout.fits. Add a keyword to the primary header. The name of the keyword will be \"TMPKEY\", it will be a string, and will take its value from the input-list variable x (which will evaluate to \"HELLO\" in this case). The comment \"a comment\" will be included in the output header.\n\n");
       commandfound = 1;
@@ -272,9 +272,9 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-changevariable t t \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat \"%%s.phase.txt\" \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat \"%s.phase.txt\" \\\n");
       printtostring(&s,
-		    "\t\tcolumnformat \"t:%%17.9f,mag:%%9.5f,err:%%9.5f,phase:%%9.5f\" \\\n");
+		    "\t\tcolumnformat \"t:%17.9f,mag:%9.5f,err:%9.5f,phase:%9.5f\" \\\n");
       printtostring(&s,
 		    "\t-header\n\n");
       printtostring(&s,
@@ -344,7 +344,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\nvartools -i EXAMPLES/1.UTC -quiet \\\n");
       printtostring(&s,
-		    "\t-readformat 0 inpututc '%%Y-%%M-%%DT%%h:%%m:%%s' 1 2 3 \\\n");
+		    "\t-readformat 0 inpututc '%Y-%M-%DT%h:%m:%s' 1 2 3 \\\n");
       printtostring(&s,
 		    "\t-converttime input jd inputsys-utc \\\n");
       printtostring(&s,
@@ -509,7 +509,7 @@ void example(char *c, ProgramData *p)
 		    "\t\t\'mag=(Npoints_5*(Chi2_6-Chi2_2)<-10000)*mag+\n");
       printtostring(&s,"\t\t    (Npoints_5*(Chi2_6-Chi2_2)>=-10000)*mag2\' \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.cleanharm'\n\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.cleanharm'\n\n");
       printtostring(&s,
 		    "An example of using the vartools analytic expression evaluation command, together with other commands, to fit a sinusoid signal to various light curves and subtract the signal only for cases where the sinusoid shows a significant delta chi2 improvement over the flat model. Here the -LS command is used to find a periodic signal, the first call to -expr copies the light curve magnitudes to a new vector variable mag2, -Killharm fits and subtracts a sinusoid model from mag, -chi2 and -rms are calculated on the residuals (currently stored in mag), and the second call to -expr sets the magnitude to the residuals if there is a significant chi2 improvement (Npoints_5*(Chi2_6-Chi2_2)<-10000), or back to the original magnitudes if the improvement is not significant (>=-10000). Note that the '<' and '>=' will evaluate to 1 (0) when true (false). One could alternatively use an -if, -else, and -fi construct to achieve a similar result.\n");
       printtostring(&s,
@@ -1071,11 +1071,11 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-o EXAMPLES/OUTDIR1 \\\n");
       printtostring(&s,
-		    "\t\tnameformat \"file_%%s_%%05d_simout.txt\" \\\n");
+		    "\t\tnameformat \"file_%s_%05d_simout.txt\" \\\n");
       printtostring(&s,
-		    "\t\tcolumnformat \"t:%%11.5f,phase:%%8.5f,mag:%%7.4f,err:%%7.4f\"\n\n");
+		    "\t\tcolumnformat \"t:%11.5f,phase:%8.5f,mag:%7.4f,err:%7.4f\"\n\n");
       printtostring(&s,
-		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %%17.9f, %%9.5f, and %%9.5f respectively.\n");
+		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %17.9f, %9.5f, and %9.5f respectively.\n");
       commandfound=1;
     }
   if(!strncmp(c,"-Phase",6) && strlen(c) == 6)
@@ -1129,7 +1129,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-inlistvars name:1:string,x:2,y:3 -rms \\\n");
       printtostring(&s,
-		    "\t-print name,x,y,RMS_0,mag format %%20s,%%.2f,%%.2f,%%.3f,%%.3f \\\n");
+		    "\t-print name,x,y,RMS_0,mag format %20s,%.2f,%.2f,%.3f,%.3f \\\n");
       printtostring(&s,
 		    "\t-header\n\n");
       printtostring(&s,
@@ -1305,7 +1305,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-restorelc 1 vars mag \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \\\n");
       printtostring(&s,
 		    "\t\tcolumnformat t,mag,mag_arima\n\n");
       printtostring(&s,
@@ -1356,7 +1356,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-restorelc 1 vars mag \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \\\n");
       printtostring(&s,
 		    "\t\tcolumnformat t,mag,mag_arima\n\n");
       printtostring(&s,
@@ -1780,7 +1780,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\t0 0.001 100 bin 100 period aov \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat %%s.test_tfa_sr_bin \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat %s.test_tfa_sr_bin \\\n");
       printtostring(&s,
 		    "\t-Killharm aov 5 0 0 \\\n");
       printtostring(&s,
@@ -1818,7 +1818,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\t0 0.001 100 bin 100 \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat %%s.test_tfa_sr_decorr \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat %s.test_tfa_sr_decorr \\\n");
       printtostring(&s,
 		    "\t-decorr 1 1 1 0 1 1 2 0 \\\n");
       printtostring(&s,
