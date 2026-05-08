@@ -177,6 +177,48 @@ def test_lightcurve_to_arrays():
     assert len(t) == len(lc)
 
 
+def test_lightcurve_cols_and_getitem():
+    lc = vt.LightCurve.from_arrays(
+        t=[1.0, 2.0, 3.0],
+        mag=[10.0, 11.0, 12.0],
+        err=[0.01, 0.02, 0.03],
+        aux={"tmp": [100.0, 200.0, 300.0]},
+        name="lc1",
+    )
+    assert lc.cols == ["t", "mag", "err", "tmp"]
+    assert "tmp" in lc
+    assert "missing" not in lc
+
+    tmp = lc["tmp"]
+    assert isinstance(tmp, np.ndarray)
+    np.testing.assert_array_equal(tmp, [100.0, 200.0, 300.0])
+
+    np.testing.assert_array_equal(lc["t"], lc.t)
+
+    with pytest.raises(KeyError, match="not in LightCurve"):
+        _ = lc["missing"]
+    with pytest.raises(TypeError, match="column names"):
+        _ = lc[0]
+
+
+def test_lightcurvebatch_getitem_by_name():
+    lcs = [
+        vt.LightCurve.from_arrays(t=[1.0, 2.0], mag=[10.0, 11.0],
+                                  err=[0.01, 0.02], name=f"lc{i}")
+        for i in range(3)
+    ]
+    batch = vt.LightCurveBatch(lcs)
+
+    assert batch[0] is lcs[0]
+    assert batch["lc1"] is lcs[1]
+    assert "lc2" in batch
+    assert "missing" not in batch
+    assert lcs[0] in batch
+
+    with pytest.raises(KeyError, match="No LightCurve in batch"):
+        _ = batch["missing"]
+
+
 # ---------------------------------------------------------------------------
 # stdout parser
 # ---------------------------------------------------------------------------

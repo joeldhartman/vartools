@@ -485,8 +485,34 @@ class LightCurveBatch:
     def __iter__(self):
         return iter(self._lcs)
 
-    def __getitem__(self, i: int) -> "LightCurve":
-        return self._lcs[i]
+    def __getitem__(self, key) -> "LightCurve":
+        """Return a LightCurve by integer position or by ``name``.
+
+        Examples
+        --------
+        >>> batch[0]            # first LC
+        >>> batch['hat-123']    # LC whose .name == 'hat-123'
+
+        Raises
+        ------
+        KeyError
+            If a string *key* does not match any ``LightCurve.name`` in
+            the batch.
+        """
+        if isinstance(key, str):
+            for lc in self._lcs:
+                if lc.name == key:
+                    return lc
+            raise KeyError(
+                f"No LightCurve in batch with name={key!r}.  "
+                f"Available: {[lc.name for lc in self._lcs]}"
+            )
+        return self._lcs[key]
+
+    def __contains__(self, item) -> bool:
+        if isinstance(item, str):
+            return any(lc.name == item for lc in self._lcs)
+        return item in self._lcs
 
     # ------------------------------------------------------------------
     # Repr

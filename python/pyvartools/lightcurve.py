@@ -520,6 +520,11 @@ class LightCurve:
     def err(self) -> Optional[np.ndarray]:
         return self._df["err"].to_numpy() if "err" in self._df.columns else None
 
+    @property
+    def cols(self) -> list:
+        """List of column names (e.g. ``['t', 'mag', 'err', 'tmp']``)."""
+        return list(self._df.columns)
+
     def to_dataframe(self) -> pd.DataFrame:
         """Return a copy of the internal DataFrame."""
         return self._df.copy()
@@ -728,6 +733,41 @@ class LightCurve:
 
     def __len__(self) -> int:
         return len(self._df)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._df.columns
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        """Return the named column as a numpy array.
+
+        Parameters
+        ----------
+        key : str
+            Column name.  See :attr:`cols` for the available list.
+
+        Returns
+        -------
+        numpy.ndarray
+            The column as a numpy array.  No copy is made when the
+            underlying pandas dtype is numpy-compatible.
+
+        Raises
+        ------
+        KeyError
+            If *key* is not a column of this light curve.
+        """
+        if not isinstance(key, str):
+            raise TypeError(
+                f"LightCurve indexing supports column names (str); "
+                f"got {type(key).__name__}.  Use ``to_dataframe()`` for "
+                f"row-level access."
+            )
+        if key not in self._df.columns:
+            raise KeyError(
+                f"Column {key!r} not in LightCurve.  "
+                f"Available: {list(self._df.columns)}"
+            )
+        return self._df[key].to_numpy()
 
     def __repr__(self) -> str:
         extra = f", scalars={len(self.scalars)}" if self.scalars else ""
