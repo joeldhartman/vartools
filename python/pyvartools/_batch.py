@@ -326,7 +326,7 @@ class LightCurveBatch:
         self,
         capture_lc: Optional[bool] = None,
         timeout: Optional[int] = None,
-        init_lc_vars=None,
+        perpoint_vars=None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -364,8 +364,8 @@ class LightCurveBatch:
         run_kwargs.pop("capture_lc", None)   # handled explicitly below
         if timeout is not None:
             run_kwargs["timeout"] = timeout
-        if init_lc_vars is not None:
-            run_kwargs["init_lc_vars"] = init_lc_vars
+        if perpoint_vars is not None:
+            run_kwargs["perpoint_vars"] = perpoint_vars
         if randseed is not None:
             run_kwargs["randseed"] = randseed
         run_kwargs["skipmissing"] = skipmissing

@@ -1,4 +1,4 @@
-"""Tests for ``segment_vars`` / ``lc_vars`` on ``run_combinelc(s)``.
+"""Tests for ``perlcsegment_vars`` / ``perlc_vars`` on ``run_combinelc(s)``.
 
 These two kwargs let users attach Python data to each segment / group of
 a combinelcs run without hand-rolling a vartools list file.  The tests
@@ -7,7 +7,7 @@ here cover:
 * type inference and explicit ``(values, type)`` overrides;
 * the rendered list-file content (numerically formatted floats, integer
   rendering, string rendering, comma-joined per-segment subcolumns);
-* the inlistvars wiring (segment_vars get ``combinelc=True``, lc_vars do
+* the perlc_vars wiring (perlcsegment_vars get ``combinelc=True``, perlc_vars do
   not);
 * validation: shape mismatches, name collisions, embedded whitespace in
   string values;
@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import pyvartools as vt
-from pyvartools.pipeline import Pipeline, ListVar
+from pyvartools.pipeline import Pipeline, PerLCColumn
 
 VARTOOLS_SRC = os.path.realpath(os.path.join(os.path.dirname(__file__),
                                              "..", ".."))
@@ -82,7 +82,7 @@ class TestNormalize:
         assert vs == ["A", "B"]
 
     def test_infer_type_nested(self):
-        # segment_vars values are nested list-of-lists
+        # perlcsegment_vars values are nested list-of-lists
         vs, t = Pipeline._normalize_extravar_spec([["A", "B"], ["C", "D"]])
         assert t == "string"
 
@@ -118,7 +118,7 @@ class TestFormat:
 
 
 # ---------------------------------------------------------------------------
-# List-file content + inlistvars wiring (no binary needed)
+# List-file content + perlc_vars wiring (no binary needed)
 # ---------------------------------------------------------------------------
 
 class _ListFileSpy:
@@ -166,7 +166,7 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt", "b.txt"], ["c.txt", "d.txt"]],
-            segment_vars={"fld": [["A", "B"], ["C", "D"]]},
+            perlcsegment_vars={"fld": [["A", "B"], ["C", "D"]]},
         )
         # Two rows, each: "<paths>  <comma-joined fields>"
         lines = spy.list_file_contents.strip().splitlines()
@@ -178,7 +178,7 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt"], ["b.txt"]],
-            lc_vars={"star": ["TIC1", "TIC2"]},
+            perlc_vars={"star": ["TIC1", "TIC2"]},
         )
         lines = spy.list_file_contents.strip().splitlines()
         assert lines == ["a.txt TIC1", "b.txt TIC2"]
@@ -187,8 +187,8 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt", "b.txt"]],
-            segment_vars={"fld": [["A", "B"]]},
-            lc_vars={"star": ["TIC9"]},
+            perlcsegment_vars={"fld": [["A", "B"]]},
+            perlc_vars={"star": ["TIC9"]},
         )
         # Cols: 1=paths(comma), 2=fld(comma per seg), 3=star
         line = spy.list_file_contents.strip()
@@ -198,8 +198,8 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt", "b.txt"]],
-            segment_vars={"telnum": [[1, 2]]},
-            lc_vars={"period": [1.234567890123]},
+            perlcsegment_vars={"telnum": [[1, 2]]},
+            perlc_vars={"period": [1.234567890123]},
         )
         line = spy.list_file_contents.strip()
         # int rendered as bare digits, double as %.10g
@@ -209,13 +209,13 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt", "b.txt"]],
-            segment_vars={"fld": [["A", "B"]]},
-            lc_vars={"star": ["TIC9"]},
+            perlcsegment_vars={"fld": [["A", "B"]]},
+            perlc_vars={"star": ["TIC9"]},
         )
         # Find the -inlistvars argument in the assembled cmd.
         i = spy.cmd.index("-inlistvars")
         ilv = spy.cmd[i + 1]
-        # segment_vars get combinelc; lc_vars do not.
+        # perlcsegment_vars get combinelc; perlc_vars do not.
         # The comma-separated entry list looks like
         #   fld:2:combinelc:string,star:3:string
         entries = ilv.split(",")
@@ -229,11 +229,11 @@ class TestListFileWriting:
         pipe = vt.Pipeline().rms()
         spy = _spy_combinelcs(pipe,
             groups=[["a.txt", "b.txt"]],
-            segment_vars={"fld": [["A", "B"]]},
+            perlcsegment_vars={"fld": [["A", "B"]]},
             delimiter=";",
         )
         line = spy.list_file_contents.strip()
-        # Both the path subcolumns and the segment_vars subcolumns use
+        # Both the path subcolumns and the perlcsegment_vars subcolumns use
         # the same delimiter as combinelcs itself.
         assert line == "a.txt;b.txt A;B"
 
@@ -245,52 +245,54 @@ class TestListFileWriting:
 class TestValidation:
     def test_segment_vars_wrong_outer_length(self):
         pipe = vt.Pipeline().rms()
-        with pytest.raises(ValueError, match="segment_vars"):
+        with pytest.raises(ValueError, match="perlcsegment_vars"):
             pipe.run_combinelcs(
                 groups=[["a.txt"], ["b.txt"]],
-                segment_vars={"fld": [["A"]]},  # only 1 entry, need 2
+                perlcsegment_vars={"fld": [["A"]]},  # only 1 entry, need 2
             )
 
     def test_segment_vars_wrong_inner_length(self):
         pipe = vt.Pipeline().rms()
-        with pytest.raises(ValueError, match="segment_vars"):
+        with pytest.raises(ValueError, match="perlcsegment_vars"):
             pipe.run_combinelcs(
                 groups=[["a.txt", "b.txt"]],
-                segment_vars={"fld": [["A"]]},  # 1 value, need 2
+                perlcsegment_vars={"fld": [["A"]]},  # 1 value, need 2
             )
 
     def test_segment_vars_inner_not_a_list(self):
         pipe = vt.Pipeline().rms()
-        with pytest.raises(TypeError, match="segment_vars"):
+        with pytest.raises(TypeError, match="perlcsegment_vars"):
             pipe.run_combinelcs(
                 groups=[["a.txt", "b.txt"]],
-                segment_vars={"fld": ["A"]},  # bare string, not list-of-list
+                perlcsegment_vars={"fld": ["A"]},  # bare string, not list-of-list
             )
 
     def test_lc_vars_wrong_length(self):
         pipe = vt.Pipeline().rms()
-        with pytest.raises(ValueError, match="lc_vars"):
+        with pytest.raises(ValueError, match="perlc_vars"):
             pipe.run_combinelcs(
                 groups=[["a.txt"], ["b.txt"]],
-                lc_vars={"star": ["TIC1"]},
+                perlc_vars={"star": ["TIC1"]},
             )
 
-    def test_name_collision_with_inlistvars(self):
+    def test_name_collision_schema_entry_vs_segment(self):
+        """A schema-form entry in perlc_vars must not share a name with
+        perlcsegment_vars."""
         pipe = vt.Pipeline().rms()
-        with pytest.raises(ValueError, match="both inlistvars"):
+        with pytest.raises(ValueError, match="schema entry"):
             pipe.run_combinelcs(
-                groups=[["a.txt"]],
-                inlistvars={"x": 7},
-                lc_vars={"x": ["foo"]},
+                groups=[["a.txt", "b.txt"]],
+                perlcsegment_vars={"x": [["A", "B"]]},
+                perlc_vars={"x": 7},  # schema form (col reference)
             )
 
     def test_name_collision_segment_vs_lc(self):
         pipe = vt.Pipeline().rms()
-        with pytest.raises(ValueError, match="both segment_vars and lc_vars"):
+        with pytest.raises(ValueError, match="both perlcsegment_vars and perlc_vars"):
             pipe.run_combinelcs(
                 groups=[["a.txt", "b.txt"]],
-                segment_vars={"x": [["A", "B"]]},
-                lc_vars={"x": ["foo"]},
+                perlcsegment_vars={"x": [["A", "B"]]},
+                perlc_vars={"x": ["foo"]},
             )
 
     def test_string_with_whitespace_rejected(self):
@@ -298,7 +300,7 @@ class TestValidation:
         with pytest.raises(ValueError, match="whitespace"):
             pipe.run_combinelcs(
                 groups=[["a.txt"]],
-                lc_vars={"star": ["a b"]},
+                perlc_vars={"star": ["a b"]},
             )
 
 
@@ -308,7 +310,7 @@ class TestValidation:
 
 class TestSingularAutoWrap:
     def test_singular_segment_vars(self):
-        """``run_combinelc(files, segment_vars={k: [...]})`` accepts a flat
+        """``run_combinelc(files, perlcsegment_vars={k: [...]})`` accepts a flat
         per-segment list and wraps it as a single-group entry for the
         plural form."""
         pipe = vt.Pipeline().rms()
@@ -317,8 +319,8 @@ class TestSingularAutoWrap:
         with pytest.raises(_Stop):
             pipe.run_combinelc(
                 ["a.txt", "b.txt"],
-                segment_vars={"fld": ["A", "B"]},
-                lc_vars={"star": "TIC9"},
+                perlcsegment_vars={"fld": ["A", "B"]},
+                perlc_vars={"star": "TIC9"},
             )
         line = spy.list_file_contents.strip()
         assert line == "a.txt,b.txt A,B TIC9"
@@ -330,8 +332,8 @@ class TestSingularAutoWrap:
         with pytest.raises(_Stop):
             pipe.run_combinelc(
                 ["a.txt", "b.txt"],
-                segment_vars={"id": (["001", "002"], "string")},
-                lc_vars={"period": (1.5, "double")},
+                perlcsegment_vars={"id": (["001", "002"], "string")},
+                perlc_vars={"period": (1.5, "double")},
             )
         line = spy.list_file_contents.strip()
         assert line == "a.txt,b.txt 001,002 1.5"
@@ -367,8 +369,8 @@ def test_end_to_end_stitch_shifts_file(tmp_path):
 
     result = pipe.run_combinelc(
         [lc1, lc2],
-        segment_vars={"fieldname": ["2_A", "2_B"]},
-        lc_vars={"starname": "2"},
+        perlcsegment_vars={"fieldname": ["2_A", "2_B"]},
+        perlc_vars={"starname": "2"},
     )
     assert result.error is None
 
@@ -406,8 +408,8 @@ def test_end_to_end_plural_two_groups(tmp_path):
                     method="poly 3", fitonly=True))
     batch = pipe.run_combinelcs(
         groups=[[lc1, lc2], [lc1, lc2]],
-        segment_vars={"fld": [["A1", "B1"], ["A2", "B2"]]},
-        lc_vars={"star": ["S1", "S2"]},
+        perlcsegment_vars={"fld": [["A1", "B1"], ["A2", "B2"]]},
+        perlc_vars={"star": ["S1", "S2"]},
     )
     assert batch.error is None
     assert len(batch.vars) == 2

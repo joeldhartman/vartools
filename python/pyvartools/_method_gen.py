@@ -32,7 +32,7 @@ Run-time options
 The following keyword argument names are reserved for pipeline run options
 and are separated from command parameters automatically:
 
-    capture_lc, timeout, init_lc_vars, randseed,
+    capture_lc, timeout, perpoint_vars, randseed,
     skipmissing, jdtol, matchstringid
 """
 
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 _RUN_OPT_NAMES: FrozenSet[str] = frozenset({
     "capture_lc",
     "timeout",
-    "init_lc_vars",
+    "perpoint_vars",
     "randseed",
     "skipmissing",
     "jdtol",

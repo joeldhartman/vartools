@@ -91,7 +91,7 @@ class CommandChain:
         self,
         capture_lc: bool = True,
         timeout: Optional[int] = None,
-        init_lc_vars=None,
+        perpoint_vars=None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -107,7 +107,7 @@ class CommandChain:
             ``False``) so the result can be used for further chaining.
         timeout : int, optional
             Maximum seconds to wait for each vartools invocation.
-        init_lc_vars : dict, optional
+        perpoint_vars : dict, optional
             Per-observation variables (passed to Pipeline.run).
         randseed : int, optional
             ``-randseed N`` for reproducible random-number sequences.
@@ -130,8 +130,8 @@ class CommandChain:
         run_kwargs.pop("capture_lc", None)   # handled as explicit parameter
         if timeout is not None:
             run_kwargs["timeout"] = timeout
-        if init_lc_vars is not None:
-            run_kwargs["init_lc_vars"] = init_lc_vars
+        if perpoint_vars is not None:
+            run_kwargs["perpoint_vars"] = perpoint_vars
         if randseed is not None:
             run_kwargs["randseed"] = randseed
         run_kwargs["skipmissing"] = skipmissing

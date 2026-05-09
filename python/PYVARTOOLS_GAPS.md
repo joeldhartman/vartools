@@ -55,7 +55,7 @@ has a non-numeric column (e.g. the fiphot string flag in
 column type, so callers fall through to `cmd.Raw(["-inputlcformat", "..."])`.
 
 **Fix needed:** extend `_inputlcformat_from_spec` to accept a per-column
-spec object (similar to `ListVar`) that carries `type=` and `format=`
+spec object (similar to `PerLCColumn`) that carries `type=` and `format=`
 fields, then emit `name:col:type[:fmt]` tokens.
 
 ## `combinelcs` mode — closed

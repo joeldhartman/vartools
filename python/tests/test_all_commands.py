@@ -2707,7 +2707,7 @@ class TestPerLC:
     def test_build_perlc_inlistvars(self):
         pipe = vt.Pipeline([cmd.LS(0.1, 10.0, 0.001)])
         col_assignments = {(0, "minp"): 2, (0, "maxp"): 3}
-        ivars = pipe._build_perlc_inlistvars(col_assignments)
+        ivars = pipe._build_cmdattr_perlc_vars(col_assignments)
         assert ivars["_perlc_0_minp"] == 2
         assert ivars["_perlc_0_maxp"] == 3
 
@@ -3497,7 +3497,7 @@ class TestPythonIntegration:
                  .python("b = numpy.var(mag)",
                          invars="mag", outvars="b", outputcolumns="b")
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         assert "PYTHON_b_0" in batch.vars.columns
         # Documented value for EXAMPLES/2 is 0.001342… — no need to be
         # bit-exact, but a sanity tolerance catches gross marshalling bugs.
@@ -3511,7 +3511,7 @@ class TestPythonIntegration:
                          init="def mean_minus_zero(x): return float(numpy.mean(x))",
                          invars="mag", outvars="b", outputcolumns="b")
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         assert "PYTHON_b_0" in batch.vars.columns
 
     def test_python_init_fromfile(self, tmp_path):
@@ -3523,7 +3523,7 @@ class TestPythonIntegration:
                          init=str(init_file), init_fromfile=True,
                          invars="mag", outvars="b", outputcolumns="b")
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         assert "PYTHON_b_0" in batch.vars.columns
 
     def test_python_fromfile(self, tmp_path):
@@ -3534,7 +3534,7 @@ class TestPythonIntegration:
                  .python(str(cmd_file), fromfile=True,
                          invars="mag", outvars="b", outputcolumns="b")
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         assert "PYTHON_b_0" in batch.vars.columns
 
     def test_python_vars_combined(self):
@@ -3549,7 +3549,7 @@ class TestPythonIntegration:
                  .python("mag = mag - numpy.mean(mag)", vars="mag")
                  .rms()
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         # After de-meaning, Mean_Mag_2 should be ~0; RMS unchanged.
         for v in batch.vars["Mean_Mag_2"]:
             assert abs(v) < 1e-10
@@ -3568,7 +3568,7 @@ class TestPythonIntegration:
                          invars="mag", outvars="b", outputcolumns="b",
                          process_all_lcs=True)
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         assert "PYTHON_b_0" in batch.vars.columns
         # Same answer as Example 1 (per-LC variance) — round-trip check.
         ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_0"].iloc[0]
@@ -3592,7 +3592,7 @@ class TestPythonIntegration:
                          continueprocess=1,
                          invars="mag", outvars="b", outputcolumns="b")
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         # PYTHON_b_1 = 1000 × variance.  EXAMPLES/2 has variance
         # 0.001342 → expected ~1.342 within whitespace-format tolerance.
         ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_1"].iloc[0]
@@ -3606,7 +3606,7 @@ class TestPythonIntegration:
                  .python("mag = mag - numpy.mean(mag)", vars="mag")
                  .rms()
                  ).run_filelist(self.LC_LIST,
-                                columns={"t": 1, "mag": 2, "err": 3})
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
         # After de-meaning, Mean_Mag should be ~0.
         for v in batch.vars["Mean_Mag_2"]:
             assert abs(v) < 1e-10
@@ -3702,7 +3702,7 @@ class TestPythonInprocessIntegration:
              .python("b = 0.0", outvars="b", outputcolumns="b",
                      inprocess=True)
              ).run_filelist([EXAMPLE_LC],
-                            columns={"t": 1, "mag": 2, "err": 3})
+                            perpoint_columns={"t": 1, "mag": 2, "err": 3})
 
     def test_inprocess_refused_for_run_batch(self):
         """run_batch() also rejects inprocess=True."""

@@ -69,7 +69,7 @@ _PREAMBLE_TEMPLATE = textwrap.dedent("""
     from pyvartools import commands as cmd
     from pyvartools import (
         Pipeline, PerLC, LightCurve, LightCurveBatch, Output, Result,
-        BatchResult, LCVar, ListVar,
+        BatchResult, PerPointVar, PerLCColumn,
     )
     _RESULTS = []
     _NS = globals()

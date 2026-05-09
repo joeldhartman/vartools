@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import pandas as pd
 
@@ -312,11 +312,11 @@ def _inputlcformat_from_spec(
 
           * an ``int`` (1-based column number for ASCII files);
           * a ``str`` (FITS binary-table column name);
-          * an :class:`LCColumn` instance for non-default type/format
-            (e.g. ``LCColumn(col=4, type="string")``).
+          * an :class:`PerPointColumn` instance for non-default type/format
+            (e.g. ``PerPointColumn(col=4, type="string")``).
     """
     def _emit(name, val):
-        if isinstance(val, LCColumn):
+        if isinstance(val, PerPointColumn):
             tail = f"{name}:{val.col}:{val.type}"
             if val.format is not None:
                 tail += f":{val.format}"
@@ -335,10 +335,10 @@ def _inputlcformat_from_spec(
 # ---------------------------------------------------------------------------
 
 @dataclass
-class LCVar:
+class PerPointVar:
     """Describe a new per-observation variable for ``-inputlcformat`` col=0.
 
-    Pass instances in the ``init_lc_vars`` dict of any Pipeline run method
+    Pass instances in the ``perpoint_vars`` dict of any Pipeline run method
     to tell vartools to create a variable that is *not* read from the light
     curve file but instead initialised from an analytic expression.
 
@@ -356,11 +356,11 @@ class LCVar:
     --------
     Create a per-observation mask variable initialised to zero::
 
-        pipe.run(lc, init_lc_vars={"mymask": vt.LCVar(type="double", init="0")})
+        pipe.run(lc, perpoint_vars={"mymask": vt.PerPointVar(type="double", init="0")})
 
     Create a phase variable based on record number::
 
-        pipe.run(lc, init_lc_vars={"phase": vt.LCVar(init="NR/1000.0")})
+        pipe.run(lc, perpoint_vars={"phase": vt.PerPointVar(init="NR/1000.0")})
     """
 
     type: str = "double"
@@ -368,10 +368,10 @@ class LCVar:
 
 
 @dataclass
-class LCColumn:
+class PerPointColumn:
     """Describe a column read from a light-curve file by ``-inputlcformat``.
 
-    Pass instances as values in the ``columns=`` dict of any Pipeline run
+    Pass instances as values in the ``perpoint_columns=`` dict of any Pipeline run
     method when a light-curve column has a non-default type or needs an
     explicit format string (e.g. UTC timestamps, string IDs).  Bare ``int``
     and ``str`` values still work as before for the common case of
@@ -395,15 +395,15 @@ class LCColumn:
 
         pipe.run_filelist(
             "lc_list.txt",
-            columns={"t": 1, "mag": 2, "err": 3,
-                     "fiphot_flag": vt.LCColumn(col=4, type="string")},
+            perpoint_columns={"t": 1, "mag": 2, "err": 3,
+                              "fiphot_flag": vt.PerPointColumn(col=4, type="string")},
         )
 
     Read a UTC timestamp column with a format spec::
 
-        pipe.run(lc, columns={"t": vt.LCColumn(col=1, type="utc",
-                                               format="%Y-%M-%DT%h:%m:%s"),
-                              "mag": 2, "err": 3})
+        pipe.run_file(path, perpoint_columns={"t": vt.PerPointColumn(col=1, type="utc",
+                                                                     format="%Y-%M-%DT%h:%m:%s"),
+                                              "mag": 2, "err": 3})
     """
 
     col: Union[int, str]
@@ -412,10 +412,10 @@ class LCColumn:
 
 
 @dataclass
-class ListVar:
+class PerLCColumn:
     """Describe a per-star variable for ``-inlistvars``.
 
-    Pass instances in the ``inlistvars`` dict of ``run_filelist()`` or
+    Pass instances in the ``perlc_vars`` dict of ``run_filelist()`` or
     ``run_batch()`` to tell vartools to read a per-star value from a column
     in the input list file, or to create and initialise the variable from
     an expression when ``col=0``.
@@ -441,21 +441,21 @@ class ListVar:
 
         batch = pipe.run_filelist(
             "lc_list.txt",
-            inlistvars={"minp": vt.ListVar(col=2), "maxp": vt.ListVar(col=3)},
+            perlc_vars={"minp": vt.PerLCColumn(col=2), "maxp": vt.PerLCColumn(col=3)},
         )
 
     Equivalently, using the shorthand int form::
 
         batch = pipe.run_filelist(
             "lc_list.txt",
-            inlistvars={"minp": 2, "maxp": 3},
+            perlc_vars={"minp": 2, "maxp": 3},
         )
 
     Initialise from an expression (no list column)::
 
         batch = pipe.run_filelist(
             "lc_list.txt",
-            inlistvars={"minp": vt.ListVar(col=0, type="double", init="0.1")},
+            perlc_vars={"minp": vt.PerLCColumn(col=0, type="double", init="0.1")},
         )
     """
 
@@ -467,7 +467,7 @@ class ListVar:
 
 def _inputlcformat_with_init(
     base_fmt: Optional[str],
-    init_vars: Dict[str, LCVar],
+    init_vars: Dict[str, PerPointVar],
 ) -> Optional[str]:
     """Append col=0 init-variable specs to an inputlcformat string.
 
@@ -490,19 +490,19 @@ def _inputlcformat_with_init(
     return ",".join(parts)
 
 
-def _inlistvars_from_spec(
-    inlistvars: Dict[str, Union[int, ListVar]]
+def _perlc_vars_from_spec(
+    perlc_vars: Dict[str, Union[int, PerLCColumn]]
 ) -> str:
     """Build the argument string for ``-inlistvars``.
 
     Parameters
     ----------
-    inlistvars : dict mapping str to int or ListVar
-        * ``int`` — shorthand for ``ListVar(col=N)`` with default type.
-        * ``ListVar`` — full specification.
+    perlc_vars : dict mapping str to int or PerLCColumn
+        * ``int`` — shorthand for ``PerLCColumn(col=N)`` with default type.
+        * ``PerLCColumn`` — full specification.
     """
     parts = []
-    for varname, spec in inlistvars.items():
+    for varname, spec in perlc_vars.items():
         if isinstance(spec, int):
             parts.append(f"{varname}:{spec}")
         else:
@@ -562,7 +562,7 @@ class Pipeline:
         capture_lc: bool = False,
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -584,14 +584,14 @@ class Pipeline:
         timeout : int, optional
             Maximum seconds to wait for vartools.  Raises ``RunError`` if
             exceeded.  ``None`` (default) means no limit.
-        init_lc_vars : dict mapping str to LCVar, optional
+        perpoint_vars : dict mapping str to PerPointVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
             Each entry adds a ``varname:0:type:init`` token telling vartools
             to define the variable and initialise it from an analytic
             expression.  The special variable ``NR`` is the 0-based
             observation index.  Example::
 
-                init_lc_vars={"mymask": vt.LCVar(type="double", init="0")}
+                perpoint_vars={"mymask": vt.PerPointVar(type="double", init="0")}
         randseed : int, optional
             Pass ``-randseed N`` to vartools for reproducible random-number
             sequences.
@@ -635,8 +635,8 @@ class Pipeline:
                 )
             if timeout is not None:
                 obstacles.append("timeout= is incompatible with library mode")
-            if init_lc_vars:
-                obstacles.append("init_lc_vars forces subprocess mode")
+            if perpoint_vars:
+                obstacles.append("perpoint_vars forces subprocess mode")
             # save_*/cmd.o outputs and UserCommand extensions are now
             # library-compatible (they do not force subprocess), so they
             # are no longer obstacles for inprocess=True.  The earlier
@@ -666,13 +666,13 @@ class Pipeline:
 
         # Fast path: in-process library mode when no output files are needed.
         # Falls back to subprocess when a timeout is requested (library mode
-        # has no timeout support), or when init_lc_vars are supplied (library
+        # has no timeout support), or when perpoint_vars are supplied (library
         # mode does not pass -inputlcformat to vartools_init_pipeline).
         # UserCommand / _UserLibCommand extensions ARE supported in library
         # mode now: libvartoolspipeline is loaded with RTLD_GLOBAL so its
         # gsl/cfitsio/etc. symbols are visible to user .so files when
         # parsecommandline lt_dlopen's them.
-        if (_library_enabled() and timeout is None and not init_lc_vars
+        if (_library_enabled() and timeout is None and not perpoint_vars
                 and not self._has_output_reqs(mode="library_single")
                 and not _has_global_opts):
             if capture_lc:
@@ -690,7 +690,7 @@ class Pipeline:
             out_lc_path = os.path.join(tmpdir, "output.lc") if capture_lc else None
             fmt = _inputlcformat_with_init(
                 _inputlcformat_from_df(lc._df.columns),
-                init_lc_vars or {},
+                perpoint_vars or {},
             )
 
             self._assign_o_capture_paths(tmpdir, is_batch=False)
@@ -749,8 +749,8 @@ class Pipeline:
         capture_lc: bool = False,
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
-        columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
+        perpoint_columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -770,7 +770,7 @@ class Pipeline:
             Directory for command output files.  Defaults to a fresh temp dir.
         timeout : int, optional
             Maximum seconds to wait for vartools.
-        columns : list of str  **or**  dict, optional
+        perpoint_columns : list of str  **or**  dict, optional
             Column specification passed to vartools as ``-inputlcformat``.
             * **list** — variable names in column order, e.g.
               ``["t", "mag", "err", "airmass"]``
@@ -778,9 +778,9 @@ class Pipeline:
               FITS column name, e.g. ``{"t": "BJD_TDB", "mag": "MAG", "err": "ERR"}``
             If ``None`` (default), vartools uses its built-in default mapping
             (columns 1, 2, 3 → t, mag, err).
-        init_lc_vars : dict mapping str to LCVar, optional
+        perpoint_vars : dict mapping str to PerPointVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
-            Appended to the format string produced from *columns*.  See
+            Appended to the format string produced from *perpoint_columns*.  See
             ``run()`` for details.
 
         Returns
@@ -794,8 +794,8 @@ class Pipeline:
         with tempfile.TemporaryDirectory() as tmpdir:
             work_outdir = outdir or tmpdir
             out_lc_path = os.path.join(tmpdir, "output.lc") if capture_lc else None
-            base_fmt = _inputlcformat_from_spec(columns) if columns is not None else None
-            fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
+            base_fmt = _inputlcformat_from_spec(perpoint_columns) if perpoint_columns is not None else None
+            fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
 
             self._assign_o_capture_paths(tmpdir, is_batch=False)
 
@@ -839,9 +839,9 @@ class Pipeline:
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
         raise_on_error: bool = True,
-        columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
-        inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        perpoint_columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
+        perlc_vars: Optional[Dict[str, Union[int, PerLCColumn]]] = None,
         combinelcs: bool = False,
         lcnumvar: Optional[str] = "lcnum",
         randseed: Optional[int] = None,
@@ -875,29 +875,29 @@ class Pipeline:
         raise_on_error : bool
             If False, a vartools failure is stored in ``result.error`` rather
             than raised.
-        columns : list of str  **or**  dict, optional
+        perpoint_columns : list of str  **or**  dict, optional
             Column specification passed to vartools as ``-inputlcformat``.
             * **list** — variable names in column order, e.g.
               ``["t", "mag", "err", "airmass"]``
             * **dict** — explicit mapping of variable name to column number or
               FITS column name, e.g. ``{"t": "BJD_TDB", "mag": "MAG", "err": "ERR"}``
             If ``None`` (default), vartools uses its built-in default mapping.
-        init_lc_vars : dict mapping str to LCVar, optional
+        perpoint_vars : dict mapping str to PerPointVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
-            Appended to the format string produced from *columns*.  See
+            Appended to the format string produced from *perpoint_columns*.  See
             ``run()`` for details.
-        inlistvars : dict mapping str to int or ListVar, optional
+        perlc_vars : dict mapping str to int or PerLCColumn, optional
             Per-star variables passed to vartools via ``-inlistvars``.
             Each entry defines a variable read from a column of the input list
             file, or initialised from an expression when col=0.
 
-            Use an ``int`` as shorthand for ``ListVar(col=N)``::
+            Use an ``int`` as shorthand for ``PerLCColumn(col=N)``::
 
-                inlistvars={"minp": 2, "maxp": 3}
+                perlc_vars={"minp": 2, "maxp": 3}
 
-            Use a ``ListVar`` for full control over type and initialisation::
+            Use a ``PerLCColumn`` for full control over type and initialisation::
 
-                inlistvars={"minp": vt.ListVar(col=2, type="double")}
+                perlc_vars={"minp": vt.PerLCColumn(col=2, type="double")}
 
             Per-star variables defined here can then be referenced by name
             in LS (and other commands) via the ``var`` form, e.g.
@@ -990,8 +990,8 @@ class Pipeline:
                 nth_args = nth_args + ["-nobuffer"]
                 if stats_file_buffer_lines is not None:
                     nth_args = nth_args + ["-bufferlines", str(int(stats_file_buffer_lines))]
-            base_fmt = _inputlcformat_from_spec(columns) if columns is not None else None
-            fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
+            base_fmt = _inputlcformat_from_spec(perpoint_columns) if perpoint_columns is not None else None
+            fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
 
             col_assignments = {}
             perlc_subs = {}
@@ -1017,18 +1017,18 @@ class Pipeline:
                     for p in paths:
                         f.write(p + "\n")
 
-            # Merge user-supplied inlistvars with auto-generated per-LC vars.
+            # Merge user-supplied perlc_vars with auto-generated per-LC vars.
             # When running in parallel, streaming, or resuming, also inject
             # the sequence-index variable so we can restore input order
             # after vartools finishes (and identify completed rows on
             # resume).
-            merged_inlistvars = dict(inlistvars) if inlistvars else {}
+            merged_perlc_vars = dict(perlc_vars) if perlc_vars else {}
             if col_assignments:
-                merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
+                merged_perlc_vars.update(self._build_cmdattr_perlc_vars(col_assignments))
             use_seq = nthreads > 1 or bool(stats_file)
             if use_seq:
-                merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
-            inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
+                merged_perlc_vars[_SEQ_VAR] = PerLCColumn(col=0, type="int", init="NF")
+            perlc_vars_str = _perlc_vars_from_spec(merged_perlc_vars) if merged_perlc_vars else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
 
@@ -1049,7 +1049,7 @@ class Pipeline:
                 out_lc_dir=out_lc_dir,
                 nth_args=nth_args,
                 input_lc_format=fmt,
-                inlistvars_str=inlistvars_str,
+                perlc_vars_str=perlc_vars_str,
                 perlc_subs=perlc_subs,
                 randseed=randseed,
                 skipmissing=skipmissing,
@@ -1127,11 +1127,10 @@ class Pipeline:
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
         raise_on_error: bool = True,
-        columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
-        inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
-        segment_vars: Optional[Dict[str, object]] = None,
-        lc_vars: Optional[Dict[str, object]] = None,
+        perpoint_columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
+        perlc_vars: Optional[Dict[str, Any]] = None,
+        perlcsegment_vars: Optional[Dict[str, object]] = None,
         lcnumvar: Optional[str] = "lcnum",
         delimiter: str = ",",
         randseed: Optional[int] = None,
@@ -1149,14 +1148,17 @@ class Pipeline:
         ----------
         files : sequence of str | Path
             Paths to combine into one in-memory light curve.
-        segment_vars : dict, optional
+        perlcsegment_vars : dict, optional
             Per-segment variables.  Each entry is a flat sequence of length
             ``len(files)`` (one value per segment), or a ``(values, type)``
             tuple to override the auto-detected type.  See
             :meth:`run_combinelcs` for the recognised types.
-        lc_vars : dict, optional
-            Per-LC scalar variables.  Each entry is a single value (or
-            ``(value, type)`` tuple).
+        perlc_vars : dict, optional
+            Per-LC variables.  Each entry is either:
+            * an ``int`` or :class:`PerLCColumn` — list-file column reference
+              (schema form); or
+            * a single Python value (or ``(value, type)`` tuple) — one value
+              for this LC (values form).
 
         Returns
         -------
@@ -1174,35 +1176,40 @@ class Pipeline:
                               out_shifts_file="/tmp/shifts.txt")
                       .run_combinelc(
                           ["seg1.txt", "seg2.txt"],
-                          segment_vars={"fieldname": ["A", "B"]},
-                          lc_vars={"starname": "TIC123"},
+                          perlcsegment_vars={"fieldname": ["A", "B"]},
+                          perlc_vars={"starname": "TIC123"},
                       ))
         """
         files = list(files)
         if not files:
             raise ValueError("run_combinelc() requires at least one file path.")
-        # Auto-wrap singular-shape segment_vars / lc_vars for the plural
-        # implementation: segment_vars[name] is a flat list per segment →
-        # wrap once for a single group; lc_vars[name] is a single value →
-        # wrap as a one-element list.
+        # Auto-wrap singular-shape perlcsegment_vars / perlc_vars values entries
+        # for the plural implementation:  perlcsegment_vars[name] is a flat list
+        # per segment → wrap once for a single group; a perlc_vars values entry
+        # is a single value → wrap as a one-element list.  Schema entries
+        # (int / PerLCColumn) pass through unchanged.
         seg_groups: Optional[Dict[str, object]] = None
-        if segment_vars:
+        if perlcsegment_vars:
             seg_groups = {}
-            for name, spec in segment_vars.items():
+            for name, spec in perlcsegment_vars.items():
                 if (isinstance(spec, tuple) and len(spec) == 2
                         and isinstance(spec[1], str)):
                     seg_groups[name] = ([list(spec[0])], spec[1])
                 else:
                     seg_groups[name] = [list(spec)]
-        lc_groups: Optional[Dict[str, object]] = None
-        if lc_vars:
-            lc_groups = {}
-            for name, spec in lc_vars.items():
-                if (isinstance(spec, tuple) and len(spec) == 2
+        forwarded_perlc_vars: Optional[Dict[str, Any]] = None
+        if perlc_vars:
+            forwarded_perlc_vars = {}
+            for name, spec in perlc_vars.items():
+                if isinstance(spec, PerLCColumn) or (
+                        isinstance(spec, int) and not isinstance(spec, bool)):
+                    # Schema entry — pass through.
+                    forwarded_perlc_vars[name] = spec
+                elif (isinstance(spec, tuple) and len(spec) == 2
                         and isinstance(spec[1], str)):
-                    lc_groups[name] = ([spec[0]], spec[1])
+                    forwarded_perlc_vars[name] = ([spec[0]], spec[1])
                 else:
-                    lc_groups[name] = [spec]
+                    forwarded_perlc_vars[name] = [spec]
         batch = self.run_combinelcs(
             groups=[files],
             nthreads=nthreads,
@@ -1210,11 +1217,10 @@ class Pipeline:
             outdir=outdir,
             timeout=timeout,
             raise_on_error=raise_on_error,
-            columns=columns,
-            init_lc_vars=init_lc_vars,
-            inlistvars=inlistvars,
-            segment_vars=seg_groups,
-            lc_vars=lc_groups,
+            perpoint_columns=perpoint_columns,
+            perpoint_vars=perpoint_vars,
+            perlc_vars=forwarded_perlc_vars,
+            perlcsegment_vars=seg_groups,
             lcnumvar=lcnumvar,
             delimiter=delimiter,
             randseed=randseed,
@@ -1238,11 +1244,10 @@ class Pipeline:
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
         raise_on_error: bool = True,
-        columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
-        inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
-        segment_vars: Optional[Dict[str, object]] = None,
-        lc_vars: Optional[Dict[str, object]] = None,
+        perpoint_columns: Optional[Union[List[str], Dict[str, Union[int, str]]]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
+        perlc_vars: Optional[Dict[str, Any]] = None,
+        perlcsegment_vars: Optional[Dict[str, object]] = None,
         lcnumvar: Optional[str] = "lcnum",
         delimiter: str = ",",
         randseed: Optional[int] = None,
@@ -1273,18 +1278,25 @@ class Pipeline:
         raise_on_error : bool
             If False, a vartools failure is stored in ``result.error`` rather
             than raised.
-        columns : list of str  **or**  dict, optional
+        perpoint_columns : list of str  **or**  dict, optional
             Column specification passed to vartools as ``-inputlcformat``.
-        init_lc_vars : dict mapping str to LCVar, optional
+        perpoint_vars : dict mapping str to PerPointVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
-        inlistvars : dict mapping str to int or ListVar, optional
-            Per-star variables passed to vartools via ``-inlistvars``.  Use
-            this when you want to read values from columns of an existing
-            list file or initialise from an expression.  For the common
-            case of attaching Python data to each segment / group, prefer
-            *segment_vars* / *lc_vars* below — they auto-build the list
-            file column for you.
-        segment_vars : dict, optional
+        perlc_vars : dict, optional
+            Per-LC variables.  Each entry is one of:
+
+            * ``int`` — list-file column reference (schema form, equivalent
+              to ``PerLCColumn(col=N)``).  Use this when reading values
+              from an existing list file or initialising from an expression
+              with ``PerLCColumn(col=0, init=...)``.
+            * :class:`PerLCColumn` — full schema specification.
+            * a flat sequence of length ``len(groups)`` (or a
+              ``(values, type)`` tuple) — values form.  Used to attach
+              Python data such as star names that the pipeline references
+              via vartools variable names (e.g. the ``starnamevar`` of
+              ``-stitch shifts_file``).  pyvartools auto-allocates a list
+              file column for these.
+        perlcsegment_vars : dict, optional
             Per-segment variables to broadcast across the points of each
             input file.  Each entry is either a sequence of length
             ``len(groups)``, where the *i*-th element is itself a sequence
@@ -1294,12 +1306,6 @@ class Pipeline:
             ``"long"``, ``"short"``, ``"string"``, ``"char"``.  Used by
             commands like ``-stitch`` that take a per-observation string
             field label.
-        lc_vars : dict, optional
-            Per-light-curve scalar variables, one value per group.  Each
-            entry is a flat sequence of length ``len(groups)`` (or a
-            ``(values, type)`` tuple).  Used to attach metadata such as
-            star names that the pipeline references via vartools variable
-            names (e.g. the ``starnamevar`` of ``-stitch shifts_file``).
         lcnumvar : str, optional
             Name of the per-observation integer variable vartools creates to
             record which file each point came from.  Defaults to ``"lcnum"``;
@@ -1307,7 +1313,7 @@ class Pipeline:
         delimiter : str
             Delimiter used to join paths within each group in the list file.
             Default ``","`` (the vartools ``combinelcs`` default).  The same
-            delimiter is used for *segment_vars* sub-columns.
+            delimiter is used for *perlcsegment_vars* sub-columns.
         randseed : int, optional
             Pass ``-randseed N`` to vartools.
         skipmissing : bool
@@ -1340,8 +1346,8 @@ class Pipeline:
                             out_shifts_file="/tmp/shifts.txt"))
             result = pipe.run_combinelcs(
                 groups=[["EXAMPLES/2", "EXAMPLES/2.shifted"]],
-                segment_vars={"fieldname": [["2_A", "2_B"]]},
-                lc_vars={"starname": ["2"]},
+                perlcsegment_vars={"fieldname": [["2_A", "2_B"]]},
+                perlc_vars={"starname": ["2"]},
             )
         """
         self._refuse_inprocess_in_subprocess_only("run_combinelcs")
@@ -1363,59 +1369,74 @@ class Pipeline:
                         f"groups."
                     )
 
-        # Validate and normalize segment_vars / lc_vars.  After this block,
-        # ``segment_vars_norm`` is {name: (list_of_lists, type)} and
-        # ``lc_vars_norm`` is {name: (flat_list, type)}.
+        # Split perlc_vars into schema entries (int / PerLCColumn) and values
+        # entries (everything else).  Schema entries become -inlistvars column
+        # references directly; values entries get a list-file column allocated
+        # below and rendered via _format_extravar_value.
+        perlc_vars_schema: Dict[str, Union[int, PerLCColumn]] = {}
+        perlc_vars_values_in: Dict[str, Any] = {}
+        if perlc_vars:
+            for name, spec in perlc_vars.items():
+                if isinstance(spec, PerLCColumn) or (
+                        isinstance(spec, int) and not isinstance(spec, bool)):
+                    perlc_vars_schema[name] = spec
+                else:
+                    perlc_vars_values_in[name] = spec
+
+        # Validate and normalize perlcsegment_vars / perlc_vars (values form).
+        # After this block, ``segment_vars_norm`` is {name: (list_of_lists, type)}
+        # and ``perlc_vars_values_norm`` is {name: (flat_list, type)}.
         segment_vars_norm: Dict[str, tuple] = {}
-        lc_vars_norm: Dict[str, tuple] = {}
+        perlc_vars_values_norm: Dict[str, tuple] = {}
         n_groups = len(groups)
-        if segment_vars:
-            for name, spec in segment_vars.items():
+        if perlcsegment_vars:
+            for name, spec in perlcsegment_vars.items():
                 values, vtype = self._normalize_extravar_spec(spec)
                 if len(values) != n_groups:
                     raise ValueError(
-                        f"segment_vars[{name!r}] has {len(values)} entries "
+                        f"perlcsegment_vars[{name!r}] has {len(values)} entries "
                         f"but groups has {n_groups}."
                     )
                 for i, segvals in enumerate(values):
                     if not isinstance(segvals, (list, tuple)):
                         raise TypeError(
-                            f"segment_vars[{name!r}][{i}] must be a list/"
+                            f"perlcsegment_vars[{name!r}][{i}] must be a list/"
                             f"tuple of per-segment values, got "
                             f"{type(segvals).__name__}."
                         )
                     if len(segvals) != len(groups[i]):
                         raise ValueError(
-                            f"segment_vars[{name!r}][{i}] has "
+                            f"perlcsegment_vars[{name!r}][{i}] has "
                             f"{len(segvals)} values but groups[{i}] has "
                             f"{len(groups[i])} files."
                         )
                 segment_vars_norm[name] = (values, vtype)
-        if lc_vars:
-            for name, spec in lc_vars.items():
+        if perlc_vars_values_in:
+            for name, spec in perlc_vars_values_in.items():
                 values, vtype = self._normalize_extravar_spec(spec)
                 if len(values) != n_groups:
                     raise ValueError(
-                        f"lc_vars[{name!r}] has {len(values)} entries but "
+                        f"perlc_vars[{name!r}] has {len(values)} entries but "
                         f"groups has {n_groups}."
                     )
-                lc_vars_norm[name] = (values, vtype)
+                perlc_vars_values_norm[name] = (values, vtype)
 
-        # Reject collisions: segment_vars vs lc_vars, then either of those
-        # against an existing inlistvars entry.  The order matters for the
-        # error message — segment-vs-lc is the more specific case.
-        for name in lc_vars_norm:
+        # Reject name collisions across perlcsegment_vars, the values entries
+        # of perlc_vars, and the schema entries of perlc_vars.
+        for name in perlc_vars_values_norm:
             if name in segment_vars_norm:
                 raise ValueError(
-                    f"Variable name {name!r} appears in both segment_vars "
-                    f"and lc_vars; pick a different name."
+                    f"Variable name {name!r} appears in both perlcsegment_vars "
+                    f"and perlc_vars; pick a different name."
                 )
-        if inlistvars:
-            for name in list(segment_vars_norm) + list(lc_vars_norm):
-                if name in inlistvars:
+        if perlc_vars_schema:
+            for name in (list(segment_vars_norm)
+                          + list(perlc_vars_values_norm)):
+                if name in perlc_vars_schema:
                     raise ValueError(
-                        f"Variable name {name!r} appears in both inlistvars "
-                        f"and segment_vars/lc_vars; pick a different name."
+                        f"Variable name {name!r} appears as both a schema entry "
+                        f"and a values entry across perlc_vars / "
+                        f"perlcsegment_vars; pick a different name."
                     )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1432,7 +1453,7 @@ class Pipeline:
             else:
                 next_col = 2
 
-            # Allocate columns for segment_vars and lc_vars, in the order
+            # Allocate columns for perlcsegment_vars and perlc_vars, in the order
             # they appear in their respective dicts.  Build the per-row text
             # for each new column so the list-file writer can emit it.
             extravar_cols: Dict[str, int] = {}
@@ -1447,7 +1468,7 @@ class Pipeline:
                 ]
                 extravar_rows[next_col] = rendered
                 next_col += 1
-            for name, (values, vtype) in lc_vars_norm.items():
+            for name, (values, vtype) in perlc_vars_values_norm.items():
                 extravar_cols[name] = next_col
                 rendered = [self._format_extravar_value(v, vtype)
                             for v in values]
@@ -1494,25 +1515,25 @@ class Pipeline:
             if out_lc_dir:
                 os.makedirs(out_lc_dir, exist_ok=True)
             nth_args = ["-parallel", str(nthreads)] if nthreads > 1 else []
-            base_fmt = _inputlcformat_from_spec(columns) if columns is not None else None
-            fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
+            base_fmt = _inputlcformat_from_spec(perpoint_columns) if perpoint_columns is not None else None
+            fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
             use_seq = nthreads > 1
-            merged_inlistvars_comb = dict(inlistvars) if inlistvars else {}
+            merged_perlc_vars_comb = dict(perlc_vars_schema)
             if col_assignments:
-                merged_inlistvars_comb.update(
-                    self._build_perlc_inlistvars(col_assignments)
+                merged_perlc_vars_comb.update(
+                    self._build_cmdattr_perlc_vars(col_assignments)
                 )
             for name, (_vals, vtype) in segment_vars_norm.items():
-                merged_inlistvars_comb[name] = ListVar(
+                merged_perlc_vars_comb[name] = PerLCColumn(
                     col=extravar_cols[name], type=vtype, combinelc=True
                 )
-            for name, (_vals, vtype) in lc_vars_norm.items():
-                merged_inlistvars_comb[name] = ListVar(
+            for name, (_vals, vtype) in perlc_vars_values_norm.items():
+                merged_perlc_vars_comb[name] = PerLCColumn(
                     col=extravar_cols[name], type=vtype
                 )
             if use_seq:
-                merged_inlistvars_comb[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
-            inlistvars_str = _inlistvars_from_spec(merged_inlistvars_comb) if merged_inlistvars_comb else None
+                merged_perlc_vars_comb[_SEQ_VAR] = PerLCColumn(col=0, type="int", init="NF")
+            perlc_vars_str = _perlc_vars_from_spec(merged_perlc_vars_comb) if merged_perlc_vars_comb else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
 
@@ -1522,7 +1543,7 @@ class Pipeline:
                 out_lc_dir=out_lc_dir,
                 nth_args=nth_args,
                 input_lc_format=fmt,
-                inlistvars_str=inlistvars_str,
+                perlc_vars_str=perlc_vars_str,
                 perlc_subs=perlc_subs,
                 randseed=randseed,
                 skipmissing=skipmissing,
@@ -1581,8 +1602,8 @@ class Pipeline:
         outdir: Optional[str] = None,
         timeout: Optional[int] = None,
         raise_on_error: bool = True,
-        init_lc_vars: Optional[Dict[str, LCVar]] = None,
-        inlistvars: Optional[Dict[str, Union[int, ListVar]]] = None,
+        perpoint_vars: Optional[Dict[str, PerPointVar]] = None,
+        perlc_vars: Optional[Dict[str, Union[int, PerLCColumn]]] = None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
@@ -1615,15 +1636,15 @@ class Pipeline:
             If False, a vartools failure is caught and stored in
             ``result.error`` rather than raised.  ``result.vars`` will be
             empty in that case.
-        init_lc_vars : dict mapping str to LCVar, optional
+        perpoint_vars : dict mapping str to PerPointVar, optional
             Per-observation variables to create via ``-inputlcformat`` col=0.
             Appended to the auto-generated format string.  See ``run()`` for
             details.
-        inlistvars : dict mapping str to int or ListVar, optional
+        perlc_vars : dict mapping str to int or PerLCColumn, optional
             Per-star variables passed to vartools via ``-inlistvars``.
             Note: for ``run_batch()`` the list file is a temporary file
             containing only LC paths (no extra columns).  This parameter is
-            therefore only useful with ``col=0`` ``ListVar`` entries that
+            therefore only useful with ``col=0`` ``PerLCColumn`` entries that
             initialise variables from expressions rather than reading from
             list columns.  To supply per-star values from a file use
             ``run_filelist()`` instead.
@@ -1684,7 +1705,7 @@ class Pipeline:
         # injection (no list-file machinery), so we route any batch with
         # carried-forward scalars or a non-zero chain offset to the subprocess
         # path unconditionally.
-        if (_library_enabled() and nthreads == 1 and not init_lc_vars
+        if (_library_enabled() and nthreads == 1 and not perpoint_vars
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs
@@ -1755,23 +1776,23 @@ class Pipeline:
             # Auto-discover extra columns from the first LC (all LCs in a batch
             # are expected to share the same column structure).
             base_fmt = _inputlcformat_from_df(lcs[0]._df.columns) if lcs else None
-            fmt = _inputlcformat_with_init(base_fmt, init_lc_vars or {})
-            # Merge user-supplied inlistvars with auto-generated per-LC vars
+            fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
+            # Merge user-supplied perlc_vars with auto-generated per-LC vars
             # and carried-forward scalars.  Scalars are registered by their
             # actual variable names (e.g. "LS_Period_1_0") so downstream
             # expressions can reference them directly.
-            merged_inlistvars = dict(inlistvars) if inlistvars else {}
+            merged_perlc_vars = dict(perlc_vars) if perlc_vars else {}
             if col_assignments:
-                merged_inlistvars.update(self._build_perlc_inlistvars(col_assignments))
+                merged_perlc_vars.update(self._build_cmdattr_perlc_vars(col_assignments))
             if scalar_col_assignments:
-                merged_inlistvars.update(scalar_col_assignments)
+                merged_perlc_vars.update(scalar_col_assignments)
             # Force the seq variable on whenever we're streaming or
             # resuming; it's the row-identity key both rely on.  In normal
             # parallel-only runs the existing logic still applies.
             use_seq = nthreads > 1 or bool(stats_file)
             if use_seq:
-                merged_inlistvars[_SEQ_VAR] = ListVar(col=0, type="int", init="NF")
-            inlistvars_str = _inlistvars_from_spec(merged_inlistvars) if merged_inlistvars else None
+                merged_perlc_vars[_SEQ_VAR] = PerLCColumn(col=0, type="int", init="NF")
+            perlc_vars_str = _perlc_vars_from_spec(merged_perlc_vars) if merged_perlc_vars else None
 
             self._assign_o_capture_paths(tmpdir, is_batch=True)
 
@@ -1781,7 +1802,7 @@ class Pipeline:
                 out_lc_dir=out_lc_dir,
                 nth_args=nth_args,
                 input_lc_format=fmt,
-                inlistvars_str=inlistvars_str,
+                perlc_vars_str=perlc_vars_str,
                 perlc_subs=perlc_subs,
                 randseed=randseed,
                 skipmissing=skipmissing,
@@ -2369,8 +2390,8 @@ class Pipeline:
             subs.setdefault(ci, {})[name] = f"expr {varname}"
         return subs
 
-    def _build_perlc_inlistvars(self, col_assignments) -> dict:
-        """Return {varname: col} inlistvars dict for per-LC attributes."""
+    def _build_cmdattr_perlc_vars(self, col_assignments) -> dict:
+        """Return {varname: col} perlc_vars dict for per-LC attributes."""
         result = {}
         for (ci, name), col in col_assignments.items():
             varname = f"_perlc_{ci}_{name}"
@@ -2381,8 +2402,8 @@ class Pipeline:
     def _infer_listvar_type(values) -> str:
         """Guess a vartools type tag from a list of Python values.
 
-        Used to default the ``type`` of an entry in ``segment_vars`` /
-        ``lc_vars`` when the user did not supply an explicit
+        Used to default the ``type`` of an entry in ``perlcsegment_vars`` /
+        ``perlc_vars`` when the user did not supply an explicit
         ``(values, type)`` tuple.  Recurses into nested lists so the
         per-segment list-of-lists shape works without flattening boilerplate
         at the call site.
@@ -2437,7 +2458,7 @@ class Pipeline:
             values = list(spec)
         except TypeError:
             raise TypeError(
-                f"segment_vars / lc_vars value must be a sequence (or "
+                f"perlcsegment_vars / perlc_vars value must be a sequence (or "
                 f"({{sequence}}, type) tuple), got {type(spec).__name__}."
             )
         return values, Pipeline._infer_listvar_type(values)
@@ -2473,7 +2494,7 @@ class Pipeline:
         out_lc_dir: Optional[str] = None,
         nth_args: Optional[List[str]] = None,
         input_lc_format: Optional[str] = None,
-        inlistvars_str: Optional[str] = None,
+        perlc_vars_str: Optional[str] = None,
         perlc_subs: Optional[dict] = None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
@@ -2494,8 +2515,8 @@ class Pipeline:
         _mode = "list" if input_flag and input_flag[0] == "-l" else "single"
         if input_lc_format:
             cmd += ["-inputlcformat", input_lc_format]
-        if inlistvars_str:
-            cmd += ["-inlistvars", inlistvars_str]
+        if perlc_vars_str:
+            cmd += ["-inlistvars", perlc_vars_str]
         if nth_args:
             cmd += nth_args
         if randseed is not None:
