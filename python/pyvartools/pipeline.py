@@ -902,6 +902,12 @@ class Pipeline:
             Per-star variables defined here can then be referenced by name
             in LS (and other commands) via the ``var`` form, e.g.
             ``cmd.LS("minp", "maxp", 1e-3)``.
+
+            Only schema entries (``int`` or :class:`PerLCColumn`) are
+            accepted in ``run_filelist``: in list-file mode pyvartools is
+            not the writer of the on-disk list and cannot append columns
+            for sequence values.  To supply per-LC values from Python,
+            use :meth:`run_batch` instead.
         combinelcs : bool
             If True, append ``combinelcs`` to the ``-l`` flag so vartools
             treats each line of the list file as a *group* of comma-separated
@@ -932,6 +938,22 @@ class Pipeline:
                 "Per-LC parameter values (PerLC / numpy arrays) cannot be used with "
                 "a pre-built list file. Either pass a list of file paths to "
                 "run_filelist(), or use run_batch() with LightCurve objects."
+            )
+
+        # run_filelist accepts only schema-form perlc_vars (int / PerLCColumn).
+        # Sequence-form values would require pyvartools to augment the user's
+        # list file in-flight, which it does not do in list-file mode.  Refuse
+        # with a clear pointer to run_batch.
+        _, _perlc_values_in = self._split_perlc_vars(perlc_vars)
+        if _perlc_values_in:
+            names = sorted(_perlc_values_in.keys())
+            raise ValueError(
+                f"perlc_vars entries {names} are sequence values, which "
+                f"run_filelist() does not support — pyvartools is not the "
+                f"writer of the on-disk list file and cannot append columns "
+                f"for them.  Use run_batch() with LightCurve objects, or "
+                f"convert the entries to schema form (PerLCColumn(col=N)) "
+                f"that point at columns of an existing list file."
             )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1373,15 +1395,7 @@ class Pipeline:
         # entries (everything else).  Schema entries become -inlistvars column
         # references directly; values entries get a list-file column allocated
         # below and rendered via _format_extravar_value.
-        perlc_vars_schema: Dict[str, Union[int, PerLCColumn]] = {}
-        perlc_vars_values_in: Dict[str, Any] = {}
-        if perlc_vars:
-            for name, spec in perlc_vars.items():
-                if isinstance(spec, PerLCColumn) or (
-                        isinstance(spec, int) and not isinstance(spec, bool)):
-                    perlc_vars_schema[name] = spec
-                else:
-                    perlc_vars_values_in[name] = spec
+        perlc_vars_schema, perlc_vars_values_in = self._split_perlc_vars(perlc_vars)
 
         # Validate and normalize perlcsegment_vars / perlc_vars (values form).
         # After this block, ``segment_vars_norm`` is {name: (list_of_lists, type)}
@@ -1640,14 +1654,23 @@ class Pipeline:
             Per-observation variables to create via ``-inputlcformat`` col=0.
             Appended to the auto-generated format string.  See ``run()`` for
             details.
-        perlc_vars : dict mapping str to int or PerLCColumn, optional
-            Per-star variables passed to vartools via ``-inlistvars``.
-            Note: for ``run_batch()`` the list file is a temporary file
-            containing only LC paths (no extra columns).  This parameter is
-            therefore only useful with ``col=0`` ``PerLCColumn`` entries that
-            initialise variables from expressions rather than reading from
-            list columns.  To supply per-star values from a file use
-            ``run_filelist()`` instead.
+        perlc_vars : dict, optional
+            Per-LC variables.  Each entry is one of:
+
+            * ``int`` or :class:`PerLCColumn` — schema form.  ``int`` is
+              shorthand for ``PerLCColumn(col=N)``.  Use ``col=0`` to define
+              a variable from an expression (e.g.
+              ``PerLCColumn(col=0, type="double", init="NF*0.1")``).
+            * a list / tuple / ``numpy.ndarray`` / ``pandas.Series`` of
+              length ``len(lcs)`` (or a ``(values, type)`` tuple) — values
+              form.  pyvartools allocates a list-file column for these
+              and writes one value per LC; vartools then exposes the
+              variable to downstream commands by name.
+
+            Mixing schema and values entries in the same dict is fine.  Use
+            the values form to attach Python data such as per-LC output
+            names (``cmd.o(namefromlist="outname")``) or per-LC parameters
+            referenced via ``var``/``expr``.
 
         Returns
         -------
@@ -1703,12 +1726,12 @@ class Pipeline:
         # extension libraries are not supported by the in-process library.
         # The library-mode fast path also does not support per-LC scalar
         # injection (no list-file machinery), so we route any batch with
-        # carried-forward scalars or a non-zero chain offset to the subprocess
-        # path unconditionally.
+        # carried-forward scalars, user perlc_vars, or a non-zero chain offset
+        # to the subprocess path unconditionally.
         if (_library_enabled() and nthreads == 1 and not perpoint_vars
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
-                and not perlc_attrs
+                and not perlc_attrs and not perlc_vars
                 and not _has_global_opts and not stats_file
                 and not batch_scalars and _command_offset == 0):
             return self._run_batch_library(lcs, raise_on_error=raise_on_error)
@@ -1729,12 +1752,29 @@ class Pipeline:
                               float_format="%.17g")
                 lc_paths.append(p)
 
+            # Split user-supplied perlc_vars into schema entries (int /
+            # PerLCColumn — forwarded to vartools as -inlistvars column refs)
+            # and values entries (everything else — get a fresh list-file
+            # column allocated below and rendered into the temp list file).
+            perlc_vars_schema, perlc_vars_values_in = self._split_perlc_vars(
+                perlc_vars)
+            perlc_vars_values_norm: Dict[str, tuple] = {}
+            batch_size = len(lcs)
+            for name, spec in perlc_vars_values_in.items():
+                values, vtype = self._normalize_extravar_spec(spec)
+                if len(values) != batch_size:
+                    raise ValueError(
+                        f"perlc_vars[{name!r}] has {len(values)} values but "
+                        f"the batch has {batch_size} light curves."
+                    )
+                perlc_vars_values_norm[name] = (values, vtype)
+
             col_assignments = {}
             perlc_subs = {}
             scalar_col_assignments: Dict[str, int] = {}
+            extravar_cols: Dict[str, int] = {}
             next_col = 2
             if perlc_attrs:
-                batch_size = len(lcs)
                 for (ci, name), perlc in perlc_attrs.items():
                     if len(perlc) != batch_size:
                         raise ValueError(
@@ -1752,13 +1792,25 @@ class Pipeline:
                 scalar_col_assignments[name] = next_col
                 next_col += 1
 
-            # Build a single dict {col: per-LC values} that unifies PerLC and
-            # scalar columns, then write the list file.
+            # Allocate columns for user perlc_vars values entries, continuing
+            # after PerLC + scalar columns.
+            for name in perlc_vars_values_norm:
+                extravar_cols[name] = next_col
+                next_col += 1
+
+            # Build a single dict {col: per-LC values} that unifies PerLC,
+            # scalar, and user-supplied values columns, then write the list
+            # file.  Values entries are pre-rendered via _format_extravar_value
+            # so the writer's default %.10g pathway doesn't crash on strings.
             col_to_values: Dict[int, list] = {}
             for (ci, name), col in col_assignments.items():
                 col_to_values[col] = list(perlc_attrs[(ci, name)])
             for name, col in scalar_col_assignments.items():
                 col_to_values[col] = batch_scalars[name]
+            for name, (values, vtype) in perlc_vars_values_norm.items():
+                col_to_values[extravar_cols[name]] = [
+                    self._format_extravar_value(v, vtype) for v in values
+                ]
             self._write_extra_cols_list_file(list_path, lc_paths, col_to_values)
 
             work_outdir = outdir or tmpdir
@@ -1777,15 +1829,20 @@ class Pipeline:
             # are expected to share the same column structure).
             base_fmt = _inputlcformat_from_df(lcs[0]._df.columns) if lcs else None
             fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
-            # Merge user-supplied perlc_vars with auto-generated per-LC vars
-            # and carried-forward scalars.  Scalars are registered by their
-            # actual variable names (e.g. "LS_Period_1_0") so downstream
-            # expressions can reference them directly.
-            merged_perlc_vars = dict(perlc_vars) if perlc_vars else {}
+            # Merge user-supplied perlc_vars schema entries with auto-
+            # generated per-LC vars (PerLC cmd-attributes), carried-forward
+            # scalars, and auto-allocated columns for values-form perlc_vars
+            # entries.  Scalars are registered by their actual variable names
+            # (e.g. "LS_Period_1_0") so downstream expressions can reference
+            # them directly.
+            merged_perlc_vars = dict(perlc_vars_schema)
             if col_assignments:
                 merged_perlc_vars.update(self._build_cmdattr_perlc_vars(col_assignments))
             if scalar_col_assignments:
                 merged_perlc_vars.update(scalar_col_assignments)
+            for name, (_vals, vtype) in perlc_vars_values_norm.items():
+                merged_perlc_vars[name] = PerLCColumn(
+                    col=extravar_cols[name], type=vtype)
             # Force the seq variable on whenever we're streaming or
             # resuming; it's the row-identity key both rely on.  In normal
             # parallel-only runs the existing logic still applies.
@@ -2334,7 +2391,8 @@ class Pipeline:
             must equal ``len(lc_paths)``).  Columns are written in ascending
             column-number order.  Column numbers must start at 2 (column 1
             is the LC path itself) and be contiguous; missing numbers are
-            not supported.
+            not supported.  String values are written as-is (whitespace-free
+            tokens); numeric values are formatted with ``%.10g``.
         """
         if not col_to_perlc_values:
             with open(list_path, "w") as f:
@@ -2346,8 +2404,36 @@ class Pipeline:
             for j, p in enumerate(lc_paths):
                 parts = [p]
                 for col in sorted_cols:
-                    parts.append(f"{col_to_perlc_values[col][j]:.10g}")
+                    val = col_to_perlc_values[col][j]
+                    parts.append(val if isinstance(val, str)
+                                 else f"{val:.10g}")
                 f.write(" ".join(parts) + "\n")
+
+    @staticmethod
+    def _split_perlc_vars(perlc_vars):
+        """Partition a perlc_vars dict by entry type.
+
+        Returns ``(schema, values_in)`` where:
+
+        * ``schema`` — entries whose value is ``int`` or :class:`PerLCColumn`.
+          These are forwarded directly to vartools as ``-inlistvars`` column
+          references.
+        * ``values_in`` — every other entry (list, tuple, ndarray, Series,
+          single value, ``(values, type)`` tuple).  Caller is responsible
+          for length-validating these against the batch size and rendering
+          them into a list-file column.
+        """
+        if not perlc_vars:
+            return {}, {}
+        schema: Dict[str, Any] = {}
+        values_in: Dict[str, Any] = {}
+        for name, spec in perlc_vars.items():
+            if isinstance(spec, PerLCColumn) or (
+                    isinstance(spec, int) and not isinstance(spec, bool)):
+                schema[name] = spec
+            else:
+                values_in[name] = spec
+        return schema, values_in
 
     def _collect_batch_scalars(self, lcs) -> dict:
         """Collect per-LC scalar values, keyed by scalar name.

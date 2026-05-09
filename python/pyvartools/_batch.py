@@ -327,12 +327,13 @@ class LightCurveBatch:
         capture_lc: Optional[bool] = None,
         timeout: Optional[int] = None,
         perpoint_vars=None,
+        perlc_vars=None,
         randseed: Optional[int] = None,
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
     ) -> "BatchResult":
-        """Execute the command chain on each LC sequentially.
+        """Execute the command chain on each LC.
 
         Parameters
         ----------
@@ -342,6 +343,16 @@ class LightCurveBatch:
             An explicit ``run(capture_lc=...)`` call overrides ``with_options``.
         timeout : int, optional
             Maximum seconds per LC.
+        perpoint_vars : dict mapping str to PerPointVar, optional
+            Per-observation init expressions, forwarded to the underlying run.
+        perlc_vars : dict, optional
+            Per-LC variables.  Schema entries (``int`` / ``PerLCColumn``)
+            and values entries (sequence of length ``len(self)``, or a
+            ``(values, type)`` tuple) are both accepted; see
+            :meth:`Pipeline.run_batch` for the dispatch rules.  When set,
+            pyvartools routes through ``Pipeline.run_batch()`` (single
+            vartools invocation) rather than the per-LC loop, so each LC
+            sees its own value through the ``-inlistvars`` mechanism.
         randseed : int, optional
         skipmissing : bool
         jdtol : float, optional
@@ -366,6 +377,8 @@ class LightCurveBatch:
             run_kwargs["timeout"] = timeout
         if perpoint_vars is not None:
             run_kwargs["perpoint_vars"] = perpoint_vars
+        if perlc_vars is not None:
+            run_kwargs["perlc_vars"] = perlc_vars
         if randseed is not None:
             run_kwargs["randseed"] = randseed
         run_kwargs["skipmissing"] = skipmissing
@@ -402,22 +415,24 @@ class LightCurveBatch:
         # collide with injected scalar names.
         segment_offset = len(prior_cmds) if self._prior_batch is not None else 0
 
-        if segment_offset > 0:
-            # Chain continuation — run all LCs in a single Pipeline.run_batch
-            # call so per-LC carried-forward scalars are injected as INLIST
-            # variables via -inlistvars (see Pipeline._collect_batch_scalars
-            # + run_batch).  This is both faster than the per-LC loop and
-            # correct (one -expr const value cannot satisfy distinct per-LC
-            # scalar values).
+        # Route through Pipeline.run_batch (single vartools invocation) when
+        # this is a chain continuation OR when the user supplied perlc_vars.
+        # Both cases need per-LC variables injected via -inlistvars, which
+        # the per-LC loop below cannot do (each loop iteration is its own
+        # vartools invocation).
+        use_run_batch = segment_offset > 0 or perlc_vars is not None
+
+        if use_run_batch:
             from .lightcurve import LightCurve
             from .pipeline import Pipeline
             input_lcs: List["LightCurve"] = []
             for i, lc in enumerate(self._lcs):
                 carry = dict(lc.scalars)
-                prior_r = self._prior_batch._result_at(i)
-                for k, v in prior_r.vars.items():
-                    if k != "Name" and k not in carry:
-                        carry[k] = v
+                if self._prior_batch is not None:
+                    prior_r = self._prior_batch._result_at(i)
+                    for k, v in prior_r.vars.items():
+                        if k != "Name" and k not in carry:
+                            carry[k] = v
                 input_lcs.append(
                     LightCurve(lc._df, name=lc.name, scalars=carry))
             batched = Pipeline(self._commands).run_batch(
