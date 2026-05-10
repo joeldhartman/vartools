@@ -1732,11 +1732,13 @@ class Pipeline:
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not perlc_vars
-                and not _has_global_opts and not stats_file
+                and not stats_file
                 and not batch_scalars):
             return self._run_batch_library(
                 lcs, raise_on_error=raise_on_error,
-                command_offset=_command_offset)
+                command_offset=_command_offset,
+                randseed=randseed, skipmissing=skipmissing,
+                jdtol=jdtol, matchstringid=matchstringid)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2095,6 +2097,10 @@ class Pipeline:
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
         mode: str = "single",
+        randseed: Optional[int] = None,
+        skipmissing: bool = False,
+        jdtol: Optional[float] = None,
+        matchstringid: bool = False,
     ) -> List[str]:
         """Build a CLI arg list from pipeline commands (for LibPipeline init).
 
@@ -2112,8 +2118,21 @@ class Pipeline:
             Run mode passed through to ``_to_cli_args_for_mode``.  Library
             mode always processes one LC at a time (mode="single"); the
             parameter is plumbed for completeness.
+        randseed, skipmissing, jdtol, matchstringid : optional
+            Global vartools options.  ``skipmissing`` and ``matchstringid``
+            apply to list-file reading; library mode has no list file, so
+            they are dropped here rather than emitted (the C parser would
+            reject ``-matchstringid`` without a stringid column).  Accepted
+            in the signature for API uniformity with the subprocess path so
+            a Pipeline can be reused across both.
         """
         args: List[str] = []
+        if randseed is not None:
+            args += ["-randseed", str(randseed)]
+        if jdtol is not None:
+            args += ["-jdtol", str(jdtol)]
+        # skipmissing / matchstringid are list-file-only — see docstring.
+        del skipmissing, matchstringid
         args += self._scalar_injection_args(scalars)
         for i, command in enumerate(self.commands):
             if command_offset > 0:
@@ -2276,6 +2295,10 @@ class Pipeline:
     def _run_batch_library(
         self, lcs: List[LightCurve], raise_on_error: bool = True,
         command_offset: int = 0,
+        randseed: Optional[int] = None,
+        skipmissing: bool = False,
+        jdtol: Optional[float] = None,
+        matchstringid: bool = False,
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2290,6 +2313,12 @@ class Pipeline:
         continuations (BatchResult → LightCurveBatch.run()) emit shifted
         ``-columnsuffix`` values and don't collide with prior-segment column
         names.
+
+        ``randseed`` / ``skipmissing`` / ``jdtol`` / ``matchstringid`` are
+        passed through to the C-side parser via the LibPipeline init argv.
+        ``skipmissing`` and ``matchstringid`` are list-file-only flags and
+        no-op in library mode, but accepted for API uniformity with the
+        subprocess path so a Pipeline can be reused across both.
         """
         from pyvartools._libpipeline import LibPipeline
         try:
@@ -2299,8 +2328,13 @@ class Pipeline:
                 # those paths via _outtoken (save_periodogram etc.).
                 self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
                 self._lib_pipeline = LibPipeline(
-                    self._commands_to_argv(mode="library_batch",
-                                           command_offset=command_offset)
+                    self._commands_to_argv(
+                        mode="library_batch",
+                        command_offset=command_offset,
+                        randseed=randseed,
+                        skipmissing=skipmissing,
+                        jdtol=jdtol,
+                        matchstringid=matchstringid)
                 )
         except RuntimeError as exc:
             self._lib_pipeline = None

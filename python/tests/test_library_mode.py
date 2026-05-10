@@ -379,6 +379,74 @@ class TestPipelineLibraryDispatch:
 
     @needs_library
     @needs_binary
+    @pytest.mark.parametrize("opt_kwargs", [
+        {"randseed": 7},
+        {"jdtol": 0.001},
+        {"skipmissing": True},      # no-op in library batch (no list file)
+        {"matchstringid": True},    # no-op in library batch (no list file)
+        {"randseed": 7, "jdtol": 0.001,
+         "skipmissing": True, "matchstringid": True},
+    ])
+    def test_pipeline_library_run_batch_global_opts_use_library(self, opt_kwargs):
+        """run_batch(randseed=, skipmissing=, jdtol=, matchstringid=) goes
+        through library mode after commit 2 of the library-batch widening
+        plan.  skipmissing / matchstringid are list-file-only and no-op in
+        library mode but accepted for API uniformity.
+        """
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.rms()])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+                batch = pipe.run_batch(lcs, **opt_kwargs)
+
+        assert not subprocess_called, (
+            f"subprocess was called for run_batch({opt_kwargs!r})"
+        )
+        assert len(batch.vars) == len(lcs)
+        # rms is deterministic so the values must match across calls regardless
+        # of which global opt was set; sanity-check that the column landed.
+        assert "RMS_0" in batch.vars.columns
+
+    @needs_library
+    @needs_binary
+    def test_pipeline_library_run_batch_global_opts_value_parity(self):
+        """Library batch with global opts produces the same vars values
+        as subprocess.  Uses randseed (the only global opt that observably
+        changes output for a deterministic command like rms is none, but
+        we still verify they all run cleanly and agree)."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.rms()])
+
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=False):
+            sub = pipe.run_batch(lcs, randseed=42, jdtol=0.0001)
+        # New Pipeline so the cached _lib_pipeline doesn't carry over the argv.
+        pipe = vt.Pipeline([cmd.rms()])
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+            lib = pipe.run_batch(lcs, randseed=42, jdtol=0.0001)
+
+        for col in sub.vars.columns:
+            if col == "Name":
+                continue
+            for i in range(len(lcs)):
+                assert math.isclose(float(sub.vars[col].iloc[i]),
+                                    float(lib.vars[col].iloc[i]),
+                                    rel_tol=1e-12, abs_tol=1e-12), (
+                    f"col={col} lc={i}: lib={lib.vars[col].iloc[i]} "
+                    f"vs sub={sub.vars[col].iloc[i]}"
+                )
+
+    @needs_library
+    @needs_binary
     def test_pipeline_library_run_batch_command_offset_uses_library(self):
         """run_batch(_command_offset=N) goes through library mode.
 
