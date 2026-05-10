@@ -1726,15 +1726,17 @@ class Pipeline:
         # extension libraries are not supported by the in-process library.
         # The library-mode fast path also does not support per-LC scalar
         # injection (no list-file machinery), so we route any batch with
-        # carried-forward scalars, user perlc_vars, or a non-zero chain offset
-        # to the subprocess path unconditionally.
+        # carried-forward scalars or user perlc_vars to the subprocess path
+        # unconditionally.
         if (_library_enabled() and nthreads == 1 and not perpoint_vars
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not perlc_vars
                 and not _has_global_opts and not stats_file
-                and not batch_scalars and _command_offset == 0):
-            return self._run_batch_library(lcs, raise_on_error=raise_on_error)
+                and not batch_scalars):
+            return self._run_batch_library(
+                lcs, raise_on_error=raise_on_error,
+                command_offset=_command_offset)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2272,7 +2274,8 @@ class Pipeline:
                       known_commands=[c._vt_name for c in self.commands])
 
     def _run_batch_library(
-        self, lcs: List[LightCurve], raise_on_error: bool = True
+        self, lcs: List[LightCurve], raise_on_error: bool = True,
+        command_offset: int = 0,
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2282,6 +2285,11 @@ class Pipeline:
         behaviour for the duration of each per-LC call.  Required for the
         per-LC output filename to track ``lc.name`` rather than land at a
         single shared path.
+
+        ``command_offset`` is forwarded to ``_commands_to_argv`` so chain
+        continuations (BatchResult → LightCurveBatch.run()) emit shifted
+        ``-columnsuffix`` values and don't collide with prior-segment column
+        names.
         """
         from pyvartools._libpipeline import LibPipeline
         try:
@@ -2291,7 +2299,8 @@ class Pipeline:
                 # those paths via _outtoken (save_periodogram etc.).
                 self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
                 self._lib_pipeline = LibPipeline(
-                    self._commands_to_argv(mode="library_batch")
+                    self._commands_to_argv(mode="library_batch",
+                                           command_offset=command_offset)
                 )
         except RuntimeError as exc:
             self._lib_pipeline = None

@@ -379,6 +379,36 @@ class TestPipelineLibraryDispatch:
 
     @needs_library
     @needs_binary
+    def test_pipeline_library_run_batch_command_offset_uses_library(self):
+        """run_batch(_command_offset=N) goes through library mode.
+
+        Before commit 1 of the library-batch widening plan, _command_offset != 0
+        forced subprocess.  Now it's just a -columnsuffix shift threaded through
+        _commands_to_argv.
+        """
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.rms()])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+                batch = pipe.run_batch(lcs, _command_offset=2)
+
+        assert not subprocess_called, (
+            "subprocess was called for run_batch(_command_offset=2)"
+        )
+        assert len(batch.vars) == len(lcs)
+        assert "RMS_2" in batch.vars.columns
+        assert "RMS_0" not in batch.vars.columns
+
+    @needs_library
+    @needs_binary
     def test_pipeline_library_capture_lc(self, simple_lc):
         """run(lc, capture_lc=True) in library mode returns a LightCurve."""
         from pyvartools import pipeline as _pipeline_mod
