@@ -230,6 +230,57 @@ class TestLibPipelineUnit:
         assert lp._p is not None
         del lp  # should not segfault
 
+    def test_set_inlist_value_double_observable(self):
+        """set_inlist_value('v', 3.14) is observable via -stats on the var."""
+        t = np.linspace(0, 1, 10)
+        mag = np.full(10, 10.0)
+        err = np.full(10, 0.01)
+        lp = LibPipeline(['-inlistvars', 'v:0:double:0.0',
+                          '-expr', 'vv=v', '-stats', 'vv', 'mean', '-oneline'])
+        for val in (3.14, 100.0, -1.5):
+            lp.set_inlist_value('v', val)
+            stats = lp.process_lc(t, mag, err, name='test')
+            assert math.isclose(float(stats['STATS_vv_MEAN_1']), val,
+                                rel_tol=1e-9, abs_tol=1e-9), (
+                f"set v={val} but observed {stats['STATS_vv_MEAN_1']}")
+
+    def test_set_inlist_value_int_dispatches_to_long(self):
+        """Python int dispatches to vartools_set_inlist_long; bool→int."""
+        t = np.linspace(0, 1, 10)
+        mag = np.full(10, 10.0)
+        err = np.full(10, 0.01)
+        lp = LibPipeline(['-inlistvars', 'flag:0:int:0',
+                          '-expr', 'ff=flag', '-stats', 'ff', 'mean', '-oneline'])
+        # int → long path; the C int setter is selected by datatype, so this
+        # only works because flag's declared type is int.  Bool gets routed
+        # through the C int setter directly.
+        lp.set_inlist_value('flag', True)
+        assert int(lp.process_lc(t, mag, err)['STATS_ff_MEAN_1']) == 1
+        lp.set_inlist_value('flag', False)
+        assert int(lp.process_lc(t, mag, err)['STATS_ff_MEAN_1']) == 0
+
+    def test_set_inlist_value_unwraps_numpy_scalars(self):
+        """numpy.float64(42.0) is unwrapped via .item() to Python float."""
+        t = np.linspace(0, 1, 10)
+        mag = np.full(10, 10.0); err = np.full(10, 0.01)
+        lp = LibPipeline(['-inlistvars', 'v:0:double:0.0',
+                          '-expr', 'vv=v', '-stats', 'vv', 'mean', '-oneline'])
+        lp.set_inlist_value('v', np.float64(42.0))
+        assert math.isclose(float(lp.process_lc(t, mag, err)['STATS_vv_MEAN_1']),
+                            42.0, rel_tol=1e-12)
+
+    def test_set_inlist_value_missing_raises(self):
+        """Setting a name that wasn't declared via -inlistvars raises."""
+        lp = LibPipeline(['-rms', '-oneline'])
+        with pytest.raises(RuntimeError, match="no INLIST variable named"):
+            lp.set_inlist_value('does_not_exist', 1.0)
+
+    def test_set_inlist_value_type_mismatch_raises(self):
+        """Setting a wrong-typed value raises."""
+        lp = LibPipeline(['-inlistvars', 'v:0:double:0.0', '-rms', '-oneline'])
+        with pytest.raises(RuntimeError, match="datatype does not match"):
+            lp.set_inlist_value('v', "hello")
+
 
 # ---------------------------------------------------------------------------
 # Pipeline library-mode dispatch tests

@@ -115,6 +115,25 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_char_p,                              # const char *id
     ]
 
+    # --- Tier C: per-call inlist value setters ---
+    # Update a -inlistvars variable's per-LC slot between successive
+    # vartools_process_lc() calls.  Returns 0 on success, -1 if no
+    # INLIST variable with that name exists, -2 on type mismatch.
+
+    for _tname, _ctype in (
+        ("double", ctypes.c_double),
+        ("int",    ctypes.c_int),
+        ("long",   ctypes.c_long),
+        ("short",  ctypes.c_short),
+    ):
+        _fn = getattr(lib, f"vartools_set_inlist_{_tname}")
+        _fn.restype = ctypes.c_int
+        _fn.argtypes = [ctypes.c_void_p, ctypes.c_char_p, _ctype]
+    lib.vartools_set_inlist_string.restype = ctypes.c_int
+    lib.vartools_set_inlist_string.argtypes = [
+        ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
+    ]
+
     _lib = lib
     return _lib
 
@@ -443,6 +462,62 @@ class LibPipeline:
                     for r in range(length)
                 ]
         return out
+
+    def set_inlist_value(self, name: str, value) -> None:
+        """Update an INLIST variable's per-LC value before the next call.
+
+        Use between successive ``process_lc`` / ``process_lc_capture``
+        invocations to supply per-LC values for variables declared via
+        ``-inlistvars name:0:type[:init]`` in the LibPipeline init argv.
+
+        Dispatches to the appropriate ``vartools_set_inlist_*`` C
+        entrypoint based on the Python type of *value*: ``bool``/``int``
+        → ``_long``, ``float`` → ``_double``, ``str`` → ``_string``.
+        Raises ``RuntimeError`` if the variable isn't registered or
+        the type doesn't match.
+        """
+        lib = _load_lib()
+        name_b = name.encode()
+        if isinstance(value, bool):
+            # bool is a subclass of int; check first.
+            rc = lib.vartools_set_inlist_int(self._p, name_b, ctypes.c_int(int(value)))
+            ctype_name = "int"
+        elif isinstance(value, int):
+            rc = lib.vartools_set_inlist_long(self._p, name_b, ctypes.c_long(value))
+            ctype_name = "long"
+        elif isinstance(value, float):
+            rc = lib.vartools_set_inlist_double(self._p, name_b, ctypes.c_double(value))
+            ctype_name = "double"
+        elif isinstance(value, str):
+            rc = lib.vartools_set_inlist_string(self._p, name_b, value.encode())
+            ctype_name = "string"
+        elif isinstance(value, (bytes, bytearray)):
+            rc = lib.vartools_set_inlist_string(self._p, name_b, bytes(value))
+            ctype_name = "string"
+        elif hasattr(value, "item"):
+            # numpy/pandas scalar — unwrap and recurse.
+            return self.set_inlist_value(name, value.item())
+        else:
+            raise TypeError(
+                f"set_inlist_value: unsupported Python type {type(value).__name__} "
+                f"for variable {name!r}"
+            )
+
+        if rc == -1:
+            raise RuntimeError(
+                f"set_inlist_value: no INLIST variable named {name!r} is "
+                f"registered.  Did the LibPipeline init argv include "
+                f"`-inlistvars {name}:0:<type>`?"
+            )
+        if rc == -2:
+            raise RuntimeError(
+                f"set_inlist_value: variable {name!r} exists but its datatype "
+                f"does not match the {ctype_name} setter (Python value "
+                f"was {value!r})."
+            )
+        if rc != 0:
+            raise RuntimeError(
+                f"set_inlist_value: unexpected return code {rc} from C")
 
     def _inject_lc_data(
         self,
