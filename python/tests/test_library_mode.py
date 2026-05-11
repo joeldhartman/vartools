@@ -992,6 +992,71 @@ class TestCaptureInLibraryMode:
         assert "after" in result.files
         assert len(result.files["before"]._df) >= len(result.files["after"]._df)
 
+    @needs_binary
+    def test_run_batch_capture_lc_uses_library_mode(self):
+        """``run_batch(capture_lc=True)`` goes through library mode after
+        commit 5 of the library-batch widening plan, instead of falling
+        through to subprocess."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.clip(sigclip=5.0)])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                batch = pipe.run_batch(lcs, capture_lc=True)
+
+        assert not subprocess_called, (
+            "run_batch(capture_lc=True) should run in library mode"
+        )
+        assert len(batch.lcs) == 3
+        for i, out_lc in enumerate(batch.lcs):
+            assert isinstance(out_lc, vt.LightCurve)
+            assert out_lc.name == lcs[i].name
+            assert "t" in out_lc._df.columns
+            assert "mag" in out_lc._df.columns
+            assert "err" in out_lc._df.columns
+
+    @needs_binary
+    def test_run_batch_capture_lc_parity_with_subprocess(self):
+        """Library batch with capture_lc=True produces identical LC arrays
+        to the subprocess path.  Catches any divergence in column ordering,
+        numeric formatting, or array dtype between
+        ``process_lc_capture`` (library) and the subprocess capture path."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+
+        def make_pipe():
+            return vt.Pipeline([cmd.clip(sigclip=5.0)])
+
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            sub = make_pipe().run_batch(lcs, capture_lc=True)
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            lib = make_pipe().run_batch(lcs, capture_lc=True)
+
+        for i in range(len(lcs)):
+            lib_lc = lib.lcs[i]
+            sub_lc = sub.lcs[i]
+            assert lib_lc is not None and sub_lc is not None
+            assert list(lib_lc._df.columns) == list(sub_lc._df.columns), (
+                f"LC {i}: column order mismatch "
+                f"(lib={list(lib_lc._df.columns)}, sub={list(sub_lc._df.columns)})"
+            )
+            for col in lib_lc._df.columns:
+                np.testing.assert_allclose(
+                    lib_lc._df[col].values, sub_lc._df[col].values,
+                    rtol=1e-12, atol=1e-12,
+                    err_msg=f"LC {i} col {col!r}: lib vs sub mismatch")
+
     def test_batch_capture_per_lc(self):
         """``run_batch`` with cmd.o(capture=True) returns ``files[key]`` as
         a list of LightCurves, one per input LC."""

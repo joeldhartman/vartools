@@ -1730,7 +1730,6 @@ class Pipeline:
         # carried-forward scalars or user perlc_vars to the subprocess path
         # unconditionally.
         if (_library_enabled() and nthreads == 1
-                and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not perlc_vars
                 and not stats_file
@@ -1740,7 +1739,8 @@ class Pipeline:
                 command_offset=_command_offset,
                 randseed=randseed, skipmissing=skipmissing,
                 jdtol=jdtol, matchstringid=matchstringid,
-                perpoint_vars=perpoint_vars)
+                perpoint_vars=perpoint_vars,
+                capture_lc=capture_lc)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2302,17 +2302,8 @@ class Pipeline:
         merged_scalars = dict(lc.scalars)
         merged_scalars.update(scalars or {})
 
-        out_lc = None
-        if lc_columns and "t" in lc_columns and "mag" in lc_columns:
-            lc_df = pd.DataFrame(lc_columns)
-            col_order = ["t", "mag"]
-            if "err" in lc_columns:
-                col_order.append("err")
-            for c in sorted(lc_columns.keys()):
-                if c not in col_order:
-                    col_order.append(c)
-            lc_df = lc_df[col_order]
-            out_lc = LightCurve(lc_df, name=lc.name, scalars=merged_scalars)
+        out_lc = self._lc_from_captured_columns(
+            lc_columns, lc.name, merged_scalars)
 
         files = self._collect_library_o_captures()
         if getattr(self, "_lib_save_tmpdir", None):
@@ -2322,6 +2313,31 @@ class Pipeline:
         return Result(var=stats, lc=out_lc, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
+    def _lc_from_captured_columns(
+        self,
+        lc_columns: dict,
+        name: str,
+        scalars: Optional[dict] = None,
+    ) -> Optional[LightCurve]:
+        """Build a LightCurve from a process_lc_capture column dict.
+
+        Used by both single-LC ``_run_library_capture`` and batch
+        ``_run_batch_library`` so the two paths produce identically-shaped
+        ``LightCurve`` objects: ``t``, ``mag``, optional ``err`` come first,
+        then any extra columns in sorted order.
+        """
+        if not (lc_columns and "t" in lc_columns and "mag" in lc_columns):
+            return None
+        lc_df = pd.DataFrame(lc_columns)
+        col_order = ["t", "mag"]
+        if "err" in lc_columns:
+            col_order.append("err")
+        for c in sorted(lc_columns.keys()):
+            if c not in col_order:
+                col_order.append(c)
+        lc_df = lc_df[col_order]
+        return LightCurve(lc_df, name=name, scalars=scalars or {})
+
     def _run_batch_library(
         self, lcs: List[LightCurve], raise_on_error: bool = True,
         command_offset: int = 0,
@@ -2330,6 +2346,7 @@ class Pipeline:
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
         perpoint_vars: Optional[Dict[str, "PerPointVar"]] = None,
+        capture_lc: bool = False,
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2402,6 +2419,8 @@ class Pipeline:
         # tmpdir, so we read those back per iteration too.
         per_lc_files: dict = {}
         n = len(lcs)
+        out_lcs: Optional[List[Optional[LightCurve]]] = (
+            [None] * n if capture_lc else None)
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
             # Pass any non-default LC columns (anything beyond t/mag/err)
@@ -2411,14 +2430,30 @@ class Pipeline:
             for col in lc._df.columns:
                 if col not in ("t", "mag", "err"):
                     extra_cols[col] = lc._df[col].values
-            stats = self._lib_pipeline.process_lc(
-                lc.t, lc.mag, lc.err, name=vt_name,
-                extra_columns=extra_cols if extra_cols else None)
+            if capture_lc:
+                stats, lc_columns, harvested_scalars = (
+                    self._lib_pipeline.process_lc_capture(
+                        lc.t, lc.mag, lc.err, name=vt_name,
+                        extra_columns=extra_cols if extra_cols else None))
+            else:
+                stats = self._lib_pipeline.process_lc(
+                    lc.t, lc.mag, lc.err, name=vt_name,
+                    extra_columns=extra_cols if extra_cols else None)
+                lc_columns = None
+                harvested_scalars = None
             if isinstance(stats, pd.Series) and "Name" in stats.index:
                 data = stats.to_dict()
                 data["Name"] = lc.name
                 stats = pd.Series(data)
             rows.append(stats)
+            if capture_lc:
+                # Merge input lc.scalars with harvested scalars so prior chain
+                # state flows through even when this run didn't redefine
+                # those names — matches the single-LC capture path.
+                merged_scalars = dict(lc.scalars)
+                merged_scalars.update(harvested_scalars or {})
+                out_lcs[i] = self._lc_from_captured_columns(
+                    lc_columns, lc.name, merged_scalars)
             captures = self._collect_library_o_captures()
             for key, captured_lc in captures.items():
                 captured_lc.name = lc.name
@@ -2436,7 +2471,7 @@ class Pipeline:
         if getattr(self, "_lib_save_tmpdir", None):
             per_lc_files.update(self._collect_global_output_files())
         df = pd.DataFrame(rows).reset_index(drop=True)
-        return BatchResult(var=df, lcs=None, files=per_lc_files,
+        return BatchResult(var=df, lcs=out_lcs, files=per_lc_files,
                            known_commands=[c._vt_name for c in self.commands])
 
     # ------------------------------------------------------------------
