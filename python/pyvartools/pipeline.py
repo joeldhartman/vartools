@@ -1721,19 +1721,27 @@ class Pipeline:
         # single value across the whole batch, which is wrong.
         batch_scalars = self._collect_batch_scalars(lcs)
 
-        # Fast path: in-process library mode when no output files are needed
-        # and parallel processing is not requested (library mode is single-threaded).
-        # Also skip when UserCommand instances are present — dynamically loaded
-        # extension libraries are not supported by the in-process library.
-        # The library-mode fast path also does not support per-LC scalar
-        # injection (no list-file machinery), so we route any batch with
-        # carried-forward scalars or user perlc_vars to the subprocess path
-        # unconditionally.
+        # Split perlc_vars: schema entries (int/PerLCColumn) reference real
+        # list-file columns and need the subprocess path; values entries
+        # (lists/arrays of per-LC values) can flow through the library-mode
+        # inlist API.  Length validation for values entries is done by
+        # _run_batch_library.
+        perlc_vars_schema, perlc_vars_values_in = self._split_perlc_vars(
+            perlc_vars)
+        perlc_vars_values_norm: Dict[str, tuple] = {}
+        if perlc_vars_values_in:
+            for name, spec in perlc_vars_values_in.items():
+                values, vtype = self._normalize_extravar_spec(spec)
+                perlc_vars_values_norm[name] = (values, vtype)
+
+        # Fast path: in-process library mode.  perlc_attrs / perlc_vars
+        # values-form / batch_scalars all flow through the new Tier C
+        # inlist API; perlc_vars schema-form (column refs) still requires
+        # a real list file and falls through to subprocess.
         if (_library_enabled() and nthreads == 1
                 and not self._has_output_reqs(mode="library_batch")
-                and not perlc_attrs and not perlc_vars
-                and seq_col_remap is None
-                and not batch_scalars):
+                and not perlc_vars_schema
+                and seq_col_remap is None):
             return self._run_batch_library(
                 lcs, raise_on_error=raise_on_error,
                 command_offset=_command_offset,
@@ -1742,7 +1750,10 @@ class Pipeline:
                 perpoint_vars=perpoint_vars,
                 capture_lc=capture_lc,
                 stats_file=stats_file,
-                stats_file_mode=stats_file_mode)
+                stats_file_mode=stats_file_mode,
+                perlc_vars_values=perlc_vars_values_norm or None,
+                perlc_attrs=perlc_attrs or None,
+                batch_scalars=batch_scalars or None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2043,6 +2054,13 @@ class Pipeline:
                     # outdir + capture=True writes the file AND captures
                     # via the new "capture_id" keyword (also library-OK).
                     if mode == "library_batch":
+                        # cmd.o(namefromlist=...) references a list-file
+                        # column (real or implicit) and requires subprocess.
+                        # The new per-LC names idiom (commit 5 of the Tier
+                        # C plan) uses cmd.o(outname=PerLC([...])) instead.
+                        if (command.namefromlist is not None
+                                and command.namefromlist is not False):
+                            return True
                         if (command.outdir is not None
                                 and command.outname is None):
                             continue
@@ -2133,6 +2151,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        perlc_subs: Optional[Dict[int, Dict[str, str]]] = None,
     ) -> List[str]:
         """Build a CLI arg list from pipeline commands (for LibPipeline init).
 
@@ -2169,7 +2188,11 @@ class Pipeline:
         for i, command in enumerate(self.commands):
             if command_offset > 0:
                 args += ["-columnsuffix", str(command_offset + i)]
-            args += command._to_cli_args_for_mode(mode)
+            subs = perlc_subs.get(i, {}) if perlc_subs else {}
+            if subs:
+                args += command._to_cli_args_with_perlc(subs, mode=mode)
+            else:
+                args += command._to_cli_args_for_mode(mode)
         # -printallscalars is harmless when no scalars exist and enables round-
         # tripping of user-created scalars (from -expr scalar / listvar) into
         # result.lc.scalars.  Only emit when chained (command_offset > 0) or
@@ -2351,6 +2374,9 @@ class Pipeline:
         capture_lc: bool = False,
         stats_file: Optional[str] = None,
         stats_file_mode: str = "overwrite",
+        perlc_vars_values: Optional[Dict[str, tuple]] = None,
+        perlc_attrs: Optional[dict] = None,
+        batch_scalars: Optional[Dict[str, list]] = None,
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2385,11 +2411,60 @@ class Pipeline:
         base_fmt = (_inputlcformat_from_df(lcs[0]._df.columns)
                     if lcs else None)
         fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
+
+        # Collect per-LC value sources into a single dispatch table.
+        # perlc_attrs:  {(ci, attr): PerLC}  — per-LC command parameters,
+        #               substituted into the command argv via perlc_subs.
+        # perlc_vars_values:  {name: (values, type)} — user-supplied
+        #               values-form perlc_vars.  Schema-form is handled
+        #               by the subprocess gate, never reaches here.
+        # batch_scalars:  {name: [values]} — auto-carried scalars from
+        #               chain continuations.
+        # Each entry becomes an -inlistvars declaration and is updated
+        # per-LC via the new set_inlist_value API.
+        inlist_decls: List[str] = []
+        inlist_values: Dict[str, list] = {}
+        perlc_subs: Dict[int, Dict[str, str]] = {}
+        batch_size = len(lcs)
+
+        if perlc_attrs:
+            for (ci, attr_name), perlc in sorted(perlc_attrs.items()):
+                if len(perlc) != batch_size:
+                    raise ValueError(
+                        f"PerLC parameter '{attr_name}' in command {ci} has "
+                        f"{len(perlc)} values but the batch has {batch_size} "
+                        f"light curves."
+                    )
+                values = list(perlc.values)
+                vtype = self._infer_listvar_type(values) or "double"
+                varname = f"_perlc_{ci}_{attr_name}"
+                inlist_decls.append(f"{varname}:0:{vtype}")
+                inlist_values[varname] = values
+                perlc_subs.setdefault(ci, {})[attr_name] = f"expr {varname}"
+
+        if batch_scalars:
+            for name in sorted(batch_scalars):
+                values = list(batch_scalars[name])
+                vtype = self._infer_listvar_type(values) or "double"
+                inlist_decls.append(f"{name}:0:{vtype}")
+                inlist_values[name] = values
+
+        if perlc_vars_values:
+            for name in sorted(perlc_vars_values):
+                values, vtype = perlc_vars_values[name]
+                if len(values) != batch_size:
+                    raise ValueError(
+                        f"perlc_vars[{name!r}] has {len(values)} values but "
+                        f"the batch has {batch_size} light curves."
+                    )
+                inlist_decls.append(f"{name}:0:{vtype}")
+                inlist_values[name] = list(values)
+
         try:
-            if self._lib_pipeline is None:
-                # Allocate the save_* tmpdir and assign each command's
-                # _outdir / _outdir_map before _commands_to_argv reads
-                # those paths via _outtoken (save_periodogram etc.).
+            # Rebuild the LibPipeline if any inlist declarations exist (the
+            # init argv depends on them).  Otherwise reuse a cached one.
+            if inlist_decls or self._lib_pipeline is None:
+                self._lib_pipeline = None
                 self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
                 argv = self._commands_to_argv(
                     mode="library_batch",
@@ -2397,7 +2472,10 @@ class Pipeline:
                     randseed=randseed,
                     skipmissing=skipmissing,
                     jdtol=jdtol,
-                    matchstringid=matchstringid)
+                    matchstringid=matchstringid,
+                    perlc_subs=perlc_subs if perlc_subs else None)
+                if inlist_decls:
+                    argv = ["-inlistvars", ",".join(inlist_decls)] + argv
                 if fmt is not None:
                     argv = ["-inputlcformat", fmt] + argv
                 self._lib_pipeline = LibPipeline(argv)
@@ -2459,6 +2537,12 @@ class Pipeline:
 
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
+            # Update INLIST variable values for this LC: perlc_attrs +
+            # perlc_vars values-form + batch_scalars.  Each was declared
+            # via -inlistvars in the init argv; this writes the per-LC
+            # value into the C-side slot[0] before process_lc reads it.
+            for varname, values in inlist_values.items():
+                self._lib_pipeline.set_inlist_value(varname, values[i])
             # Pass any non-default LC columns (anything beyond t/mag/err)
             # to vartools so columns registered in the init -inputlcformat
             # clause have data to bind to.

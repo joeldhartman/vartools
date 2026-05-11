@@ -1044,6 +1044,127 @@ class TestCaptureInLibraryMode:
         assert len(result.files["before"]._df) >= len(result.files["after"]._df)
 
     @needs_binary
+    def test_run_batch_perlc_vars_values_uses_library_mode(self):
+        """run_batch(perlc_vars={'name': [v0, v1, ...]}) flows through
+        library mode after Tier-C commit 3 lifts the gate."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.LS("minp", 2.0, 0.1)])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                batch = pipe.run_batch(
+                    lcs, perlc_vars={"minp": [0.3, 0.5, 0.7]})
+
+        assert not subprocess_called, (
+            "run_batch(perlc_vars=values) should run in library mode"
+        )
+        assert len(batch.vars) == 3
+        assert "LS_Period_1_0" in batch.vars.columns
+
+    @needs_binary
+    def test_run_batch_perlc_attrs_uses_library_mode(self):
+        """PerLC command-parameter values flow through library mode."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        # cmd.LS(minp=PerLC(...)) — per-LC command parameter.
+        pipe = vt.Pipeline([cmd.LS(vt.PerLC([0.3, 0.5, 0.7]), 2.0, 0.1)])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                batch = pipe.run_batch(lcs)
+
+        assert not subprocess_called, (
+            "PerLC command parameters should flow through library mode"
+        )
+        assert len(batch.vars) == 3
+
+    @needs_binary
+    def test_run_batch_perlc_vars_parity_library_vs_subprocess(self):
+        """Library and subprocess produce the same vars for perlc_vars."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+
+        def make_pipe():
+            return vt.Pipeline([cmd.LS("minp", 2.0, 0.1)])
+
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            sub = make_pipe().run_batch(
+                lcs, perlc_vars={"minp": [0.3, 0.5, 0.7]})
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            lib = make_pipe().run_batch(
+                lcs, perlc_vars={"minp": [0.3, 0.5, 0.7]})
+
+        for col in sub.vars.columns:
+            if col == "Name":
+                continue
+            for i in range(len(lcs)):
+                assert math.isclose(float(sub.vars[col].iloc[i]),
+                                    float(lib.vars[col].iloc[i]),
+                                    rel_tol=1e-9, abs_tol=1e-9), (
+                    f"col={col} lc={i}: lib={lib.vars[col].iloc[i]} "
+                    f"vs sub={sub.vars[col].iloc[i]}"
+                )
+
+    @needs_binary
+    def test_run_batch_chain_continuation_uses_library_mode(self):
+        """A chain continuation carries forward scalars via batch_scalars;
+        Tier-C commit 3 now routes that through library mode too."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            # First segment: produces LS_Period_1_0 in vars.
+            br1 = (vt.LightCurveBatch(lcs)
+                   .LS(0.5, 10.0, 0.1).run())
+
+        # Second segment: chain continuation. The carry-forward LS_Period_1_0
+        # becomes batch_scalars; should now route through library.
+        subprocess_called = []
+        from pyvartools.pipeline import Pipeline
+        original_execute = Pipeline._execute
+
+        def tracking_execute(self, command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return original_execute(self, command, timeout=timeout,
+                                    stdin_text=stdin_text)
+
+        with patch.object(Pipeline, "_execute", tracking_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                br2 = br1.expr("doubled=2*LS_Period_1_0",
+                               vartype="scalar").run()
+
+        assert not subprocess_called, (
+            "chain continuation should run in library mode after Tier-C "
+            "commit 3 (was forced to subprocess by batch_scalars before)"
+        )
+        # Verify the per-LC doubled values are correct.
+        for i, lc_result in enumerate(br2.lcs):
+            assert lc_result is not None
+            ls_period = br1._result_at(i).vars["LS_Period_1_0"]
+            assert math.isclose(lc_result.scalars["doubled"],
+                                2 * ls_period, rel_tol=1e-9)
+
+    @needs_binary
     def test_run_batch_capture_lc_uses_library_mode(self):
         """``run_batch(capture_lc=True)`` goes through library mode after
         commit 5 of the library-batch widening plan, instead of falling

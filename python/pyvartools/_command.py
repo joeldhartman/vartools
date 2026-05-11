@@ -123,13 +123,19 @@ class VartoolsCommand:
         """
         return self._to_cli_args()
 
-    def _to_cli_args_with_perlc(self, subs: dict) -> List[str]:
-        """Call _to_cli_args() with per-LC attrs temporarily replaced.
+    def _to_cli_args_with_perlc(self, subs: dict,
+                                mode: str = "single") -> List[str]:
+        """Call _to_cli_args_for_mode(mode) with per-LC attrs temporarily replaced.
 
         Parameters
         ----------
         subs : dict mapping attr_name -> replacement_string
             e.g. {"minper": "list column 2", "maxper": "list column 3"}
+        mode : str
+            Forwarded to ``_to_cli_args_for_mode``.  Defaults to ``"single"``
+            for callers that don't need mode-aware emission (e.g. legacy
+            subprocess path); library-batch callers pass
+            ``mode="library_batch"`` so that ``cmd.o`` emits ``forceoutdirmode``.
         """
         originals = {}
         for attr, replacement in subs.items():
@@ -137,7 +143,7 @@ class VartoolsCommand:
                 originals[attr] = getattr(self, attr)
                 object.__setattr__(self, attr, replacement)
         try:
-            return self._to_cli_args()
+            return self._to_cli_args_for_mode(mode)
         finally:
             for attr, orig in originals.items():
                 object.__setattr__(self, attr, orig)
