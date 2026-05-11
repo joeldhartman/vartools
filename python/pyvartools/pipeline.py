@@ -1728,7 +1728,7 @@ class Pipeline:
         # injection (no list-file machinery), so we route any batch with
         # carried-forward scalars or user perlc_vars to the subprocess path
         # unconditionally.
-        if (_library_enabled() and nthreads == 1 and not perpoint_vars
+        if (_library_enabled() and nthreads == 1
                 and not capture_lc
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not perlc_vars
@@ -1738,7 +1738,8 @@ class Pipeline:
                 lcs, raise_on_error=raise_on_error,
                 command_offset=_command_offset,
                 randseed=randseed, skipmissing=skipmissing,
-                jdtol=jdtol, matchstringid=matchstringid)
+                jdtol=jdtol, matchstringid=matchstringid,
+                perpoint_vars=perpoint_vars)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2299,6 +2300,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        perpoint_vars: Optional[Dict[str, "PerPointVar"]] = None,
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2319,23 +2321,36 @@ class Pipeline:
         ``skipmissing`` and ``matchstringid`` are list-file-only flags and
         no-op in library mode, but accepted for API uniformity with the
         subprocess path so a Pipeline can be reused across both.
+
+        ``perpoint_vars`` adds ``name:0:type:init-expr`` clauses to the
+        LibPipeline's ``-inputlcformat``, allocating per-row vartools
+        variables initialized from an expression rather than from an LC
+        column.  Combined with auto-discovery of extra columns from
+        ``lcs[0]._df``, this lets library batch handle arbitrary LC layouts.
         """
         from pyvartools._libpipeline import LibPipeline
+        # Build the -inputlcformat clause once (all LCs in a batch share
+        # column structure by convention).  Combines auto-discovered LC
+        # columns from lcs[0]._df with any user-supplied perpoint_vars.
+        base_fmt = (_inputlcformat_from_df(lcs[0]._df.columns)
+                    if lcs else None)
+        fmt = _inputlcformat_with_init(base_fmt, perpoint_vars or {})
         try:
             if self._lib_pipeline is None:
                 # Allocate the save_* tmpdir and assign each command's
                 # _outdir / _outdir_map before _commands_to_argv reads
                 # those paths via _outtoken (save_periodogram etc.).
                 self._assign_save_output_paths(self._ensure_lib_save_tmpdir())
-                self._lib_pipeline = LibPipeline(
-                    self._commands_to_argv(
-                        mode="library_batch",
-                        command_offset=command_offset,
-                        randseed=randseed,
-                        skipmissing=skipmissing,
-                        jdtol=jdtol,
-                        matchstringid=matchstringid)
-                )
+                argv = self._commands_to_argv(
+                    mode="library_batch",
+                    command_offset=command_offset,
+                    randseed=randseed,
+                    skipmissing=skipmissing,
+                    jdtol=jdtol,
+                    matchstringid=matchstringid)
+                if fmt is not None:
+                    argv = ["-inputlcformat", fmt] + argv
+                self._lib_pipeline = LibPipeline(argv)
         except RuntimeError as exc:
             self._lib_pipeline = None
             err = RunError(str(exc))
@@ -2360,8 +2375,16 @@ class Pipeline:
         n = len(lcs)
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
-            stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err,
-                                                  name=vt_name)
+            # Pass any non-default LC columns (anything beyond t/mag/err)
+            # to vartools so columns registered in the init -inputlcformat
+            # clause have data to bind to.
+            extra_cols = {}
+            for col in lc._df.columns:
+                if col not in ("t", "mag", "err"):
+                    extra_cols[col] = lc._df[col].values
+            stats = self._lib_pipeline.process_lc(
+                lc.t, lc.mag, lc.err, name=vt_name,
+                extra_columns=extra_cols if extra_cols else None)
             if isinstance(stats, pd.Series) and "Name" in stats.index:
                 data = stats.to_dict()
                 data["Name"] = lc.name

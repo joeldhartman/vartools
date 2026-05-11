@@ -183,6 +183,7 @@ class LibPipeline:
         mag: np.ndarray,
         err: np.ndarray,
         name: str = "lc",
+        extra_columns: Optional[dict] = None,
     ) -> pd.Series:
         """Run the pipeline on one light curve and return stats as a Series.
 
@@ -192,6 +193,11 @@ class LibPipeline:
             Time, magnitude/flux, and uncertainty arrays (length n).
         name : str
             Label written into the output 'Name' field.
+        extra_columns : dict, optional
+            Additional LC columns to inject before running, e.g. extra
+            data columns that the LibPipeline init argv's
+            ``-inputlcformat`` registered (col index > 3) or columns
+            referenced via ``-inlistvars`` perpoint expressions.
 
         Returns
         -------
@@ -203,6 +209,9 @@ class LibPipeline:
         mag_arr = np.ascontiguousarray(mag, dtype=np.float64)
         err_arr = np.ascontiguousarray(err, dtype=np.float64)
         n = len(t_arr)
+
+        if extra_columns:
+            self._inject_lc_data(t, mag, err, name, extra_columns)
 
         outbuf = ctypes.create_string_buffer(65536)
 

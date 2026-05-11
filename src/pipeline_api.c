@@ -351,6 +351,12 @@ int vartools_process_lc(ProgramData       *p,
     strncpy(p->lcnames[0], "lc", MAXLEN - 1);
   }
 
+  /* Fire any -inputlcformat col=0 init expressions (e.g. phase:0:double:NR).
+   * In file-reading mode these run inside the LC reader; the in-process
+   * path skips that reader so we evaluate them here against the freshly
+   * injected arrays. */
+  EvaluateInputLCExpressions(p, 0, 0, 0);
+
   /* Reset if-command stack if the pipeline uses -if/-fi. */
   if (p->isifcommands) {
     while (p->IfStack[0]->curpos > 0)

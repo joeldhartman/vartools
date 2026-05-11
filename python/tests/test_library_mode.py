@@ -447,6 +447,62 @@ class TestPipelineLibraryDispatch:
 
     @needs_library
     @needs_binary
+    def test_pipeline_library_run_batch_perpoint_vars_uses_library(self):
+        """run_batch(perpoint_vars=...) goes through library mode after
+        commit 3 of the library-batch widening plan.  The init-expression
+        clause is appended to -inputlcformat at LibPipeline init time."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.stats("phase", "max")])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+                batch = pipe.run_batch(
+                    lcs,
+                    perpoint_vars={"phase": vt.PerPointVar(
+                        type="double", init="NR")})
+
+        assert not subprocess_called, (
+            "subprocess was called for run_batch(perpoint_vars=...)"
+        )
+        assert len(batch.vars) == len(lcs)
+
+    @needs_library
+    @needs_binary
+    def test_pipeline_library_run_batch_perpoint_vars_value_parity(self):
+        """Library batch with perpoint_vars matches subprocess output."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        ppv = {"phase": vt.PerPointVar(type="double", init="NR")}
+
+        def make_pipe():
+            return vt.Pipeline([cmd.stats("phase", "max")])
+
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=False):
+            sub = make_pipe().run_batch(lcs, perpoint_vars=ppv)
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+            lib = make_pipe().run_batch(lcs, perpoint_vars=ppv)
+
+        for col in sub.vars.columns:
+            if col == "Name":
+                continue
+            for i in range(len(lcs)):
+                assert math.isclose(float(sub.vars[col].iloc[i]),
+                                    float(lib.vars[col].iloc[i]),
+                                    rel_tol=1e-12, abs_tol=1e-12), (
+                    f"col={col} lc={i}: lib={lib.vars[col].iloc[i]} "
+                    f"vs sub={sub.vars[col].iloc[i]}"
+                )
+
+    @needs_library
+    @needs_binary
     def test_pipeline_library_run_batch_command_offset_uses_library(self):
         """run_batch(_command_offset=N) goes through library mode.
 

@@ -67,6 +67,7 @@ void parsecommandline(int, char **, ProgramData *, Command **);
 int ReadAllLightCurves(ProgramData *, Command *);
 int ReadSingleLightCurve(ProgramData *, Command *, int, int, int);
 int ReadCombineLightCurve(ProgramData *, Command *, int, int);
+void EvaluateInputLCExpressions(ProgramData *p, int lc, int threadid, int Ninit);
 int findX(double *, double, int, int);
 int findX_string(char **, int *, char *, int, int);
 void difffluxtomag(double *t, double *mag, double *sig, int N, double mag_star, double mag_constant1, double offset);

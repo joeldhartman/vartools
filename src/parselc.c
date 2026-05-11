@@ -3764,7 +3764,7 @@ int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid
 {
   int retval;
   int i;
-  
+
   sprintf(p->lcnames[lc],"%s",p->combinelcinfo->combinelcnames[lc][0]);
   for(i = 0; i < p->combinelcinfo->Ncombinelcs[lc]; i++) {
     retval = ReadSingleLightCurve(p, c, lc, threadid, i);
@@ -3772,6 +3772,68 @@ int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid
       return(retval);
   }
   return 0;
+}
+
+void EvaluateInputLCExpressions(ProgramData *p, int lc, int threadid, int Ninit)
+{
+  /* Evaluate any -inputlcformat col=0 init expressions against the LC data
+   * currently sitting in the per-thread arrays.  Mirrors the inline loops
+   * in ReadSingleLightCurve / ReadBinaryLightCurve (parselc.c:2374, 3603)
+   * so that the in-process library entry point (vartools_process_lc) can
+   * also fire init expressions on the directly-injected LC arrays.  The
+   * multilcinputlistvar branch is intentionally omitted — that path applies
+   * only to -l combinelc list-file input, which library mode doesn't use.
+   */
+  int i, j, Nc;
+  _DataFromLightCurve *d;
+  double ***dblptr;
+  float ***floatptr;
+  int ***intptr;
+  short ***shortptr;
+  long ***longptr;
+
+  for(j = 0; j < p->NDataFromLightCurve; j++) {
+    d = &(p->DataFromLightCurve[j]);
+    if(d->incolumns[0] > 0) continue;
+    if(d->multilcinputlistvar >= 0) continue;
+    if(d->expression == NULL || d->scanformat == NULL) continue;
+    Nc = d->Ncolumns;
+    if(Nc != 0) vt_error(ERR_CODEERROR);
+    switch(d->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      dblptr = (double ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*dblptr)[threadid][i] =
+          EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      floatptr = (float ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*floatptr)[threadid][i] =
+          (float) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_INT:
+      intptr = (int ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*intptr)[threadid][i] =
+          (int) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      shortptr = (short ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*shortptr)[threadid][i] =
+          (short) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      longptr = (long ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*longptr)[threadid][i] =
+          (long) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    default:
+      vt_error(ERR_BADTYPE);
+    }
+  }
 }
 
 int ReadAllLightCurves(ProgramData *p, Command *c)
