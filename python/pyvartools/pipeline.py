@@ -1732,7 +1732,7 @@ class Pipeline:
         if (_library_enabled() and nthreads == 1
                 and not self._has_output_reqs(mode="library_batch")
                 and not perlc_attrs and not perlc_vars
-                and not stats_file
+                and seq_col_remap is None
                 and not batch_scalars):
             return self._run_batch_library(
                 lcs, raise_on_error=raise_on_error,
@@ -1740,7 +1740,9 @@ class Pipeline:
                 randseed=randseed, skipmissing=skipmissing,
                 jdtol=jdtol, matchstringid=matchstringid,
                 perpoint_vars=perpoint_vars,
-                capture_lc=capture_lc)
+                capture_lc=capture_lc,
+                stats_file=stats_file,
+                stats_file_mode=stats_file_mode)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write each LC to a temp file named after lc.name when possible
@@ -2347,6 +2349,8 @@ class Pipeline:
         matchstringid: bool = False,
         perpoint_vars: Optional[Dict[str, "PerPointVar"]] = None,
         capture_lc: bool = False,
+        stats_file: Optional[str] = None,
+        stats_file_mode: str = "overwrite",
     ) -> BatchResult:
         """Execute a list of LCs via LibPipeline (init-once, loop per LC).
 
@@ -2421,6 +2425,38 @@ class Pipeline:
         n = len(lcs)
         out_lcs: Optional[List[Optional[LightCurve]]] = (
             [None] * n if capture_lc else None)
+
+        # Streaming stats_file writer.  Library batch synthesizes the
+        # internal `Print__vtpy_seq__0_<N>` column that subprocess emits
+        # via `-print _vtpy_seq_`, so the persisted file remains
+        # inter-resumable with files produced by the subprocess path.
+        # Name comes from lc.name directly (not the spill-temp path that
+        # subprocess currently writes — see task #7 for the post-Tier-C
+        # subprocess-side cleanup that aligns the two paths byte-for-byte).
+        stats_fh = None
+        stats_col_order: List[str] = []
+        stats_header_written = False
+        seq_col_name = f"Print__vtpy_seq__0_{len(self.commands)}"
+        if stats_file:
+            if stats_file_mode not in ("overwrite", "append"):
+                raise ValueError(
+                    f"stats_file_mode must be 'overwrite' or 'append'; "
+                    f"got {stats_file_mode!r}"
+                )
+            out_path = Path(stats_file)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            f_mode = "w" if stats_file_mode == "overwrite" else "a"
+            stats_fh = open(out_path, f_mode, buffering=1)
+            stats_header_written = stats_file_mode == "append"
+            # In append mode, seed column_order from the existing file's
+            # header line so subsequent rows align with the prior layout.
+            if stats_file_mode == "append" and out_path.exists():
+                with open(out_path) as existing_fh:
+                    for first in existing_fh:
+                        if first.strip():
+                            stats_col_order = first.lstrip("#").split()
+                            break
+
         for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
             # Pass any non-default LC columns (anything beyond t/mag/err)
@@ -2454,6 +2490,28 @@ class Pipeline:
                 merged_scalars.update(harvested_scalars or {})
                 out_lcs[i] = self._lc_from_captured_columns(
                     lc_columns, lc.name, merged_scalars)
+            if stats_fh is not None:
+                # Synthesize the seq column subprocess emits via -print:
+                # vartools is sequential here, so seq = the LC's index
+                # in the input list.
+                seq_value = i
+                if not stats_col_order:
+                    stats_col_order = list(stats.index) + [seq_col_name]
+                if not stats_header_written:
+                    stats_fh.write("#" + " ".join(stats_col_order) + "\n")
+                    stats_header_written = True
+                row = []
+                for col in stats_col_order:
+                    if col == seq_col_name:
+                        row.append(str(seq_value))
+                    elif col in stats.index:
+                        val = stats[col]
+                        # Mirror _execute_streaming: replace embedded
+                        # whitespace so the row stays space-delimited.
+                        row.append(str(val).replace(" ", "_"))
+                    else:
+                        row.append("NaN")
+                stats_fh.write(" ".join(row) + "\n")
             captures = self._collect_library_o_captures()
             for key, captured_lc in captures.items():
                 captured_lc.name = lc.name
@@ -2470,6 +2528,8 @@ class Pipeline:
         # per pipeline run, not per LC.  Collected once after the batch.
         if getattr(self, "_lib_save_tmpdir", None):
             per_lc_files.update(self._collect_global_output_files())
+        if stats_fh is not None:
+            stats_fh.close()
         df = pd.DataFrame(rows).reset_index(drop=True)
         return BatchResult(var=df, lcs=out_lcs, files=per_lc_files,
                            known_commands=[c._vt_name for c in self.commands])

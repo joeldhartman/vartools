@@ -1024,6 +1024,70 @@ class TestCaptureInLibraryMode:
             assert "err" in out_lc._df.columns
 
     @needs_binary
+    def test_run_batch_stats_file_uses_library_mode(self, tmp_path):
+        """``run_batch(stats_file=PATH)`` goes through library mode after
+        commit 6 of the library-batch widening plan."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([cmd.rms()])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        sf = tmp_path / "out.stats"
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                pipe.run_batch(lcs, stats_file=str(sf))
+
+        assert not subprocess_called, (
+            "run_batch(stats_file=...) should run in library mode"
+        )
+        # File has 1 header + 3 data rows.
+        contents = sf.read_text()
+        lines = contents.strip().split("\n")
+        assert lines[0].startswith("#"), "header line missing '#' prefix"
+        assert len(lines) == 1 + len(lcs)
+        # Library batch writes lc.name in the Name column (not a temp path).
+        for i, lc in enumerate(lcs):
+            assert lc.name in lines[1 + i], (
+                f"row {i} should contain lc.name {lc.name!r}, got {lines[1+i]!r}"
+            )
+
+    @needs_binary
+    def test_run_batch_stats_file_resume_falls_back_to_subprocess(self, tmp_path):
+        """``run_batch(stats_file=PATH, resume=True)`` routes through
+        subprocess until the post-Tier-C byte-parity work lands.  The
+        library-batch path doesn't emit a seq column so _resume_partition
+        would have no key to match completed rows."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        lcs = make_lcs(n=3)
+        sf = tmp_path / "out.stats"
+        # First run writes a partial subprocess stats_file (with seq column).
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            vt.Pipeline([cmd.rms()]).run_batch(lcs[:1], stats_file=str(sf))
+
+        # Resume run with library enabled.  The seq_col_remap gate keeps
+        # routing to subprocess; verify by inspecting the final file —
+        # subprocess output contains the internal _vtpy_seq_ column,
+        # library output does not.
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            vt.Pipeline([cmd.rms()]).run_batch(
+                lcs, stats_file=str(sf), resume=True)
+
+        header = sf.read_text().split("\n", 1)[0]
+        assert "_vtpy_seq_" in header, (
+            "resume=True should force subprocess; the persisted file should "
+            "still contain the _vtpy_seq_ column.  Got header: " + header
+        )
+
+    @needs_binary
     def test_run_batch_capture_lc_parity_with_subprocess(self):
         """Library batch with capture_lc=True produces identical LC arrays
         to the subprocess path.  Catches any divergence in column ordering,

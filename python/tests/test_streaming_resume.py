@@ -85,7 +85,12 @@ class TestStatsFileStreaming:
 
     def test_stats_file_buffer_lines_emits_bufferlines_flag(self, tmp_path,
                                                              monkeypatch):
-        """stats_file_buffer_lines=1 should add ``-bufferlines 1`` to the cmd."""
+        """stats_file_buffer_lines=1 should add ``-bufferlines 1`` to the cmd.
+
+        -bufferlines tunes vartools' stdout buffering and only matters on the
+        subprocess streaming path; library batch doesn't go through vartools'
+        stdout at all.  Force subprocess for this test.
+        """
         sf = tmp_path / "stats.txt"
         lcs = [vt.LightCurve.from_file(_EXAMPLES / "1")]
         captured = {}
@@ -97,6 +102,7 @@ class TestStatsFileStreaming:
             return orig(self, cmd, *args, **kw)
 
         monkeypatch.setattr(_pmod.Pipeline, "_execute_streaming", spy)
+        monkeypatch.setattr(_pmod, "_library_enabled", lambda: False)
 
         (vt.Pipeline()
             .LS(0.1, 10.0, 0.1, npeaks=1)
@@ -107,7 +113,11 @@ class TestStatsFileStreaming:
 
     def test_stats_file_buffer_lines_default_omits_flag(self, tmp_path,
                                                         monkeypatch):
-        """Default (None) — no ``-bufferlines`` emitted; vartools uses 32."""
+        """Default (None) — no ``-bufferlines`` emitted; vartools uses 32.
+
+        Forces subprocess (see sibling test) so the cmd-construction
+        assertion has a cmd to look at.
+        """
         sf = tmp_path / "stats.txt"
         lcs = [vt.LightCurve.from_file(_EXAMPLES / "1")]
         captured = {}
@@ -119,6 +129,7 @@ class TestStatsFileStreaming:
             return orig(self, cmd, *args, **kw)
 
         monkeypatch.setattr(_pmod.Pipeline, "_execute_streaming", spy)
+        monkeypatch.setattr(_pmod, "_library_enabled", lambda: False)
 
         (vt.Pipeline()
             .LS(0.1, 10.0, 0.1, npeaks=1)
