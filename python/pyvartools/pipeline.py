@@ -1678,6 +1678,41 @@ class Pipeline:
         """
         self._refuse_inprocess_in_subprocess_only("run_batch")
         self._validate_o_for_batch()
+        # Auto-rewrite cmd.o(outname=PerLC([...])) → namefromlist + inlist
+        # var.  Both subprocess and library paths benefit from the same
+        # idiom (sticky #3 / #4 in tier-c-and-perlc-outname.md).  The
+        # mutations are reverted in a try/finally below so the user's
+        # Pipeline object is unchanged after the call.
+        _perlc_outname_additions, _perlc_outname_restore = \
+            self._auto_rewrite_perlc_outname()
+        try:
+            return self._run_batch_inner(
+                lcs, nthreads=nthreads, capture_lc=capture_lc, outdir=outdir,
+                timeout=timeout, raise_on_error=raise_on_error,
+                perpoint_vars=perpoint_vars, perlc_vars=perlc_vars,
+                randseed=randseed, skipmissing=skipmissing, jdtol=jdtol,
+                matchstringid=matchstringid, stats_file=stats_file,
+                stats_file_mode=stats_file_mode,
+                stats_file_buffer_lines=stats_file_buffer_lines,
+                resume=resume, _command_offset=_command_offset,
+                _perlc_outname_additions=_perlc_outname_additions)
+        finally:
+            self._restore_after_rewrite(_perlc_outname_restore)
+
+    def _run_batch_inner(
+        self,
+        lcs,
+        *,
+        nthreads, capture_lc, outdir, timeout, raise_on_error,
+        perpoint_vars, perlc_vars, randseed, skipmissing, jdtol,
+        matchstringid, stats_file, stats_file_mode, stats_file_buffer_lines,
+        resume, _command_offset, _perlc_outname_additions,
+    ) -> BatchResult:
+        """Body of run_batch after the auto-rewrite has been applied.
+
+        Factored out so the auto-rewrite mutations live inside a single
+        try/finally in the caller, not threaded through every early-return.
+        """
         perlc_attrs = self._collect_perlc_attrs()
         lcs = [_to_lc(lc) for lc in lcs]
         original_lcs = lcs  # snapshot for post-resume row assembly
@@ -1733,6 +1768,10 @@ class Pipeline:
             for name, spec in perlc_vars_values_in.items():
                 values, vtype = self._normalize_extravar_spec(spec)
                 perlc_vars_values_norm[name] = (values, vtype)
+        # Merge in the synthetic per-LC outname inlist vars from the
+        # auto-rewrite (cmd.o(outname=PerLC([...])) → namefromlist).
+        if _perlc_outname_additions:
+            perlc_vars_values_norm.update(_perlc_outname_additions)
 
         # Fast path: in-process library mode.  perlc_attrs / perlc_vars
         # values-form / batch_scalars all flow through the new Tier C
@@ -1787,6 +1826,10 @@ class Pipeline:
                         f"the batch has {batch_size} light curves."
                     )
                 perlc_vars_values_norm[name] = (values, vtype)
+            # Merge in synthetic per-LC outname inlist vars from the
+            # auto-rewrite (cmd.o(outname=PerLC([...])) → namefromlist).
+            if _perlc_outname_additions:
+                perlc_vars_values_norm.update(_perlc_outname_additions)
 
             col_assignments = {}
             perlc_subs = {}
@@ -1974,6 +2017,64 @@ class Pipeline:
     # Library mode helpers
     # ------------------------------------------------------------------
 
+    def _auto_rewrite_perlc_outname(self) -> tuple:
+        """Detect cmd.o(outname=PerLC([...])) and rewrite to namefromlist.
+
+        Mutates each matching cmd.o in place so that:
+        * ``outname`` is cleared (would otherwise be a confusing PerLC repr
+          in the emitted argv).
+        * ``namefromlist`` is set to a synthetic varname
+          ``_perlc_outname_<ci>``.
+        * ``_perlc_outname_synthetic`` marker is set so the library-mode
+          gate knows this is an auto-rewrite and not a real list-file ref.
+
+        Returns ``(additions, restore)`` where:
+        * ``additions`` is ``{varname: (values, "string")}`` to merge into
+          ``perlc_vars`` (values-form).
+        * ``restore`` is a list of ``(command, attr_dict)`` tuples; the
+          caller MUST call ``_restore_after_rewrite(restore)`` (typically
+          in a ``try/finally``) to undo the mutations after the run.
+
+        Validates that ``outdir`` is set — a PerLC outname without outdir
+        is ambiguous (no directory to land the per-LC names in) and
+        rejected.
+        """
+        from .perlc import PerLC
+        from .commands.misc import o as OCommand
+        additions: Dict[str, tuple] = {}
+        restore: List[tuple] = []
+        for ci, command in enumerate(self.commands):
+            if not isinstance(command, OCommand):
+                continue
+            if not isinstance(command.outname, PerLC):
+                continue
+            if command.outdir is None:
+                raise ValueError(
+                    f"cmd.o at position {ci} has outname=PerLC([...]) but "
+                    f"no outdir=; per-LC output names require outdir=PATH "
+                    f"to specify the directory under which to write."
+                )
+            varname = f"_perlc_outname_{ci}"
+            values = [str(v) for v in command.outname.values]
+            additions[varname] = (values, "string")
+            restore.append((command, {
+                "outname": command.outname,
+                "namefromlist": command.namefromlist,
+                "_perlc_outname_synthetic":
+                    getattr(command, "_perlc_outname_synthetic", False),
+            }))
+            command.outname = None
+            command.namefromlist = varname
+            command._perlc_outname_synthetic = True
+        return additions, restore
+
+    @staticmethod
+    def _restore_after_rewrite(restore) -> None:
+        """Undo mutations made by ``_auto_rewrite_perlc_outname``."""
+        for command, original_attrs in restore:
+            for name, val in original_attrs.items():
+                setattr(command, name, val)
+
     def _validate_o_for_batch(self) -> None:
         """Raise if any cmd.o in this pipeline is incompatible with batch mode.
 
@@ -2054,12 +2155,25 @@ class Pipeline:
                     # outdir + capture=True writes the file AND captures
                     # via the new "capture_id" keyword (also library-OK).
                     if mode == "library_batch":
+                        # cmd.o(outname=PerLC([...]), outdir=...) is the
+                        # new per-LC names idiom (Tier C commit 5): the
+                        # auto-rewrite in run_batch swaps PerLC outname to
+                        # a synthetic namefromlist + inlist var supplied
+                        # via the per-call API.  Library-compatible.
+                        from .perlc import PerLC
+                        if (isinstance(command.outname, PerLC)
+                                and command.outdir is not None):
+                            continue
                         # cmd.o(namefromlist=...) references a list-file
-                        # column (real or implicit) and requires subprocess.
-                        # The new per-LC names idiom (commit 5 of the Tier
-                        # C plan) uses cmd.o(outname=PerLC([...])) instead.
+                        # column and otherwise requires subprocess.
+                        # The auto-rewrite from outname=PerLC sets a marker
+                        # so this gate doesn't reject the rewritten state.
                         if (command.namefromlist is not None
-                                and command.namefromlist is not False):
+                                and command.namefromlist is not False
+                                and not getattr(
+                                    command,
+                                    "_perlc_outname_synthetic",
+                                    False)):
                             return True
                         if (command.outdir is not None
                                 and command.outname is None):
@@ -2427,6 +2541,21 @@ class Pipeline:
         perlc_subs: Dict[int, Dict[str, str]] = {}
         batch_size = len(lcs)
 
+        # Detect cmd.o instances with the per-LC outname auto-rewrite marker.
+        # Each one's synthetic perlc_var entry is redirected to vartools'
+        # auto-registered OUTPUTLCS_OUTFILENAME_<ci> inlist variable (no
+        # separate -inlistvars declaration needed; vartools auto-registers
+        # it from `namefromlist` in the cmd.o argv).
+        from .commands.misc import o as _OCommand
+        perlc_outname_synth: Dict[str, str] = {}  # {synth_name: vt_inlist_name}
+        for ci, command in enumerate(self.commands):
+            if not isinstance(command, _OCommand):
+                continue
+            if not getattr(command, "_perlc_outname_synthetic", False):
+                continue
+            synth = command.namefromlist  # the rewrite stored the synth here
+            perlc_outname_synth[synth] = f"OUTPUTLCS_OUTFILENAME_{ci}"
+
         if perlc_attrs:
             for (ci, attr_name), perlc in sorted(perlc_attrs.items()):
                 if len(perlc) != batch_size:
@@ -2457,6 +2586,12 @@ class Pipeline:
                         f"perlc_vars[{name!r}] has {len(values)} values but "
                         f"the batch has {batch_size} light curves."
                     )
+                if name in perlc_outname_synth:
+                    # Don't declare a separate -inlistvars entry; vartools'
+                    # `namefromlist` auto-registers OUTPUTLCS_OUTFILENAME_<ci>.
+                    # Route per-LC writes to that name via set_inlist_value.
+                    inlist_values[perlc_outname_synth[name]] = list(values)
+                    continue
                 inlist_decls.append(f"{name}:0:{vtype}")
                 inlist_values[name] = list(values)
 

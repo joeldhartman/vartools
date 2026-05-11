@@ -1044,6 +1044,129 @@ class TestCaptureInLibraryMode:
         assert len(result.files["before"]._df) >= len(result.files["after"]._df)
 
     @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_library_mode(self, tmp_path):
+        """cmd.o(outname=PerLC([...]), outdir=DIR) flows through library
+        mode after Tier-C commit 5's auto-rewrite."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        lcs = make_lcs(n=3)
+        names = ["alpha.lc", "beta.lc", "gamma.lc"]
+
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir),
+                  outname=vt.PerLC(names),
+                  allcols=True),
+        ])
+        subprocess_called = []
+
+        def mock_execute(command, timeout=None, stdin_text=None):
+            subprocess_called.append(True)
+            return "", ""
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                pipe.run_batch(lcs)
+
+        assert not subprocess_called, (
+            "cmd.o(outname=PerLC) should run in library mode"
+        )
+        # Each LC's output landed at outdir/<perlc_value>.
+        written = sorted(os.listdir(outdir))
+        assert written == sorted(names), (
+            f"expected {sorted(names)}, got {written}"
+        )
+
+    @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_subprocess_mode(self, tmp_path):
+        """The same auto-rewrite also works in subprocess (sticky #4)."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        lcs = make_lcs(n=3)
+        names = ["sub_a.lc", "sub_b.lc", "sub_c.lc"]
+
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir),
+                  outname=vt.PerLC(names),
+                  allcols=True),
+        ])
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            pipe.run_batch(lcs)
+
+        written = sorted(os.listdir(outdir))
+        assert written == sorted(names)
+
+    @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_byte_parity(self, tmp_path):
+        """Library and subprocess produce identical output bytes per LC
+        when using the cmd.o(outname=PerLC) idiom."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir_lib = tmp_path / "lib"; outdir_lib.mkdir()
+        outdir_sub = tmp_path / "sub"; outdir_sub.mkdir()
+        lcs = make_lcs(n=3)
+        names = [f"lc{i}.txt" for i in range(3)]
+
+        def make_pipe(d):
+            return vt.Pipeline([
+                cmd.clip(sigclip=5.0),
+                cmd.o(outdir=str(d), outname=vt.PerLC(names), allcols=True),
+            ])
+
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            make_pipe(outdir_lib).run_batch(lcs)
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=False):
+            make_pipe(outdir_sub).run_batch(lcs)
+
+        for name in names:
+            lib_bytes = (outdir_lib / name).read_bytes()
+            sub_bytes = (outdir_sub / name).read_bytes()
+            assert lib_bytes == sub_bytes, (
+                f"{name}: library vs subprocess bytes differ"
+            )
+
+    @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_without_outdir_errors(self):
+        """outname=PerLC without outdir is rejected at run_batch entry.
+
+        Caught by _validate_o_for_batch (commit 4a) before the auto-rewrite
+        gets a chance to check; the error message refers to outdir= as the
+        fix, which is the right hint for the user either way.
+        """
+        lcs = make_lcs(n=2)
+        pipe = vt.Pipeline([cmd.o(outname=vt.PerLC(["a", "b"]))])
+        with pytest.raises(ValueError, match="cmd.o.outdir="):
+            pipe.run_batch(lcs)
+
+    @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_does_not_mutate_command(self):
+        """The auto-rewrite uses try/finally; user's cmd.o is unchanged."""
+        from pyvartools import pipeline as _pipeline_mod
+        import tempfile
+
+        lcs = make_lcs(n=2)
+        names = ["one.lc", "two.lc"]
+        with tempfile.TemporaryDirectory() as outdir:
+            o_cmd = cmd.o(outdir=outdir,
+                          outname=vt.PerLC(names), allcols=True)
+            pipe = vt.Pipeline([cmd.clip(sigclip=5.0), o_cmd])
+            with patch.object(_pipeline_mod, "_library_enabled",
+                              return_value=True):
+                pipe.run_batch(lcs)
+            # outname is back to the original PerLC; namefromlist None.
+            assert isinstance(o_cmd.outname, vt.PerLC)
+            assert o_cmd.namefromlist is None
+
+    @needs_binary
     def test_run_batch_perlc_vars_values_uses_library_mode(self):
         """run_batch(perlc_vars={'name': [v0, v1, ...]}) flows through
         library mode after Tier-C commit 3 lifts the gate."""

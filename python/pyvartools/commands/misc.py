@@ -842,7 +842,17 @@ class o(VartoolsCommand):
         elif self.namecommand is not None:
             args += ["namecommand", str(self.namecommand)]
         elif self.namefromlist is not None and self.namefromlist is not False:
-            if self.namefromlist is True:
+            # In library_batch with the per-LC outname auto-rewrite marker,
+            # emit bare `namefromlist` (no column reference).  Vartools
+            # auto-registers OUTPUTLCS_OUTFILENAME_<cn> as an INLIST
+            # variable that the per-call set API can populate without
+            # needing a list-file column.  In subprocess (or single-LC),
+            # keep the existing `namefromlist column <X>` form so the
+            # list-file machinery binds correctly.
+            _perlc_synth_lib_batch = (
+                mode == "library_batch"
+                and getattr(self, "_perlc_outname_synthetic", False))
+            if self.namefromlist is True or _perlc_synth_lib_batch:
                 args += ["namefromlist"]
             else:
                 args += ["namefromlist", "column", str(self.namefromlist)]

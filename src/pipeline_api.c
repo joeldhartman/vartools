@@ -810,63 +810,86 @@ int vartools_set_lc_data(ProgramData     *p,
  *  -2 if the variable exists but has a different datatype than the setter
  * --------------------------------------------------------------------------- */
 
-static _Variable *_find_inlist_variable(ProgramData *p, const char *name)
+/* Look up INLIST storage by name.  Searches two registration paths:
+ *   1. -inlistvars declares CreateVariable-registered variables; the lookup
+ *      matches v->varname directly.
+ *   2. cmd.o(namefromlist) and similar auto-register a DataFromInputList
+ *      entry WITHOUT going through CreateVariable; the lookup matches
+ *      d->incolumn_names[0] (which has a "_<cnum>" suffix appended).
+ * Returns 0 on success (populates *out_dataptr and *out_datatype); -1 if no
+ * matching INLIST entry exists. */
+static int _find_inlist_storage(ProgramData *p, const char *name,
+                                 void **out_dataptr, int *out_datatype)
 {
   int i;
-  if (name == NULL) return NULL;
+  if (name == NULL) return -1;
   for (i = 0; i < p->NDefinedVariables; i++) {
     _Variable *v = p->DefinedVariables[i];
     if (v == NULL) continue;
     if (v->vectortype != VARTOOLS_VECTORTYPE_INLIST) continue;
     if (v->varname == NULL) continue;
-    if (strcmp(v->varname, name) == 0) return v;
+    if (strcmp(v->varname, name) == 0) {
+      *out_dataptr = v->dataptr;
+      *out_datatype = v->datatype;
+      return 0;
+    }
   }
-  return NULL;
+  for (i = 0; i < p->NDataFromInputList; i++) {
+    _DataFromInputList *d = &p->DataFromInputList[i];
+    if (d->Ncolumns != 0) continue;
+    if (d->incolumn_names == NULL || d->incolumn_names[0] == NULL) continue;
+    if (strcmp(d->incolumn_names[0], name) == 0) {
+      *out_dataptr = d->dataptr;
+      *out_datatype = d->datatype;
+      return 0;
+    }
+  }
+  return -1;
 }
 
 int vartools_set_inlist_double(ProgramData *p, const char *name, double value)
 {
-  _Variable *v = _find_inlist_variable(p, name);
-  if (v == NULL) return -1;
-  if (v->datatype != VARTOOLS_TYPE_DOUBLE) return -2;
-  (*((double **) v->dataptr))[0] = value;
+  void *dataptr; int datatype;
+  if (_find_inlist_storage(p, name, &dataptr, &datatype) != 0) return -1;
+  if (datatype != VARTOOLS_TYPE_DOUBLE) return -2;
+  (*((double **) dataptr))[0] = value;
   return 0;
 }
 
 int vartools_set_inlist_int(ProgramData *p, const char *name, int value)
 {
-  _Variable *v = _find_inlist_variable(p, name);
-  if (v == NULL) return -1;
-  if (v->datatype != VARTOOLS_TYPE_INT) return -2;
-  (*((int **) v->dataptr))[0] = value;
+  void *dataptr; int datatype;
+  if (_find_inlist_storage(p, name, &dataptr, &datatype) != 0) return -1;
+  if (datatype != VARTOOLS_TYPE_INT) return -2;
+  (*((int **) dataptr))[0] = value;
   return 0;
 }
 
 int vartools_set_inlist_long(ProgramData *p, const char *name, long value)
 {
-  _Variable *v = _find_inlist_variable(p, name);
-  if (v == NULL) return -1;
-  if (v->datatype != VARTOOLS_TYPE_LONG) return -2;
-  (*((long **) v->dataptr))[0] = value;
+  void *dataptr; int datatype;
+  if (_find_inlist_storage(p, name, &dataptr, &datatype) != 0) return -1;
+  if (datatype != VARTOOLS_TYPE_LONG) return -2;
+  (*((long **) dataptr))[0] = value;
   return 0;
 }
 
 int vartools_set_inlist_short(ProgramData *p, const char *name, short value)
 {
-  _Variable *v = _find_inlist_variable(p, name);
-  if (v == NULL) return -1;
-  if (v->datatype != VARTOOLS_TYPE_SHORT) return -2;
-  (*((short **) v->dataptr))[0] = value;
+  void *dataptr; int datatype;
+  if (_find_inlist_storage(p, name, &dataptr, &datatype) != 0) return -1;
+  if (datatype != VARTOOLS_TYPE_SHORT) return -2;
+  (*((short **) dataptr))[0] = value;
   return 0;
 }
 
 int vartools_set_inlist_string(ProgramData *p, const char *name, const char *value)
 {
-  _Variable *v = _find_inlist_variable(p, name);
-  if (v == NULL) return -1;
-  if (v->datatype != VARTOOLS_TYPE_STRING) return -2;
+  void *dataptr; int datatype;
+  if (_find_inlist_storage(p, name, &dataptr, &datatype) != 0) return -1;
+  if (datatype != VARTOOLS_TYPE_STRING) return -2;
   if (value == NULL) value = "";
-  char *slot = (*((char ***) v->dataptr))[0];
+  char *slot = (*((char ***) dataptr))[0];
   strncpy(slot, value, MAXLEN - 1);
   slot[MAXLEN - 1] = '\0';
   return 0;
