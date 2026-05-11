@@ -1677,6 +1677,7 @@ class Pipeline:
         BatchResult
         """
         self._refuse_inprocess_in_subprocess_only("run_batch")
+        self._validate_o_for_batch()
         perlc_attrs = self._collect_perlc_attrs()
         lcs = [_to_lc(lc) for lc in lcs]
         original_lcs = lcs  # snapshot for post-resume row assembly
@@ -1959,6 +1960,34 @@ class Pipeline:
     # ------------------------------------------------------------------
     # Library mode helpers
     # ------------------------------------------------------------------
+
+    def _validate_o_for_batch(self) -> None:
+        """Raise if any cmd.o in this pipeline is incompatible with batch mode.
+
+        Called by run_batch / LightCurveBatch.run.  ``cmd.o(outname=PATH)``
+        without ``outdir=`` is single-LC only — in batch each LC needs its
+        own output filename, so the constant ``outname`` would either
+        overwrite N-1 times or land at a single wrong path.  Raise early
+        rather than fall through to the subprocess path or fail mid-run.
+
+        ``cmd.o(namefromlist=...)`` is intentionally NOT rejected here:
+        it combines with ``perlc_vars`` (values form) to supply per-LC
+        output basenames through vartools' temp list file, which is a
+        legitimate run_batch pattern.
+        """
+        from .commands.misc import o as OCommand
+        for command in self.commands:
+            if not isinstance(command, OCommand):
+                continue
+            if (command.outname is not None
+                    and command.outdir is None
+                    and not command.capture):
+                raise ValueError(
+                    "cmd.o(outname=...) is single-LC mode; batch runs "
+                    "(run_batch, LightCurveBatch.run) need cmd.o(outdir=...) "
+                    "so each light curve writes to its own file under that "
+                    "directory."
+                )
 
     def _has_output_reqs(self, mode: str = "any") -> bool:
         """True if any command needs the subprocess path for file I/O.

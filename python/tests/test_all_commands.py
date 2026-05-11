@@ -2583,6 +2583,53 @@ class TestOutputAPIEndToEnd:
         assert "autocorrelation_result_0" not in result.files
 
 
+class TestRunBatchOutputValidation:
+    """Pipeline.run_batch and LightCurveBatch.run reject cmd.o configurations
+    that are single-LC-only (outname= without outdir=).  This replaces the
+    earlier silent subprocess fallback / mid-run RuntimeError."""
+
+    def _three_lcs(self):
+        return [make_lc() for _ in range(3)]
+
+    def test_run_batch_rejects_outname_without_outdir(self, tmp_path):
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outname=str(tmp_path / "out.lc")),
+        ])
+        with pytest.raises(ValueError, match="single-LC mode"):
+            pipe.run_batch(self._three_lcs())
+
+    def test_lightcurvebatch_rejects_outname_without_outdir(self, tmp_path):
+        with pytest.raises(ValueError, match="single-LC mode"):
+            (vt.LightCurveBatch(self._three_lcs())
+             .clip(sigclip=5.0)
+             .o(outname=str(tmp_path / "out.lc"))
+             .run())
+
+    def test_run_batch_accepts_outname_plus_outdir(self, tmp_path):
+        # Both set: validation lets it through; today's CLI builder uses
+        # outdir for batch and the second cmd.o keyword (nameformat) gives
+        # each LC a distinct filename.
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        result = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outname=str(tmp_path / "x"),
+                  outdir=str(outdir),
+                  nameformat="%s.txt"),
+        ]).run_batch(self._three_lcs())
+        assert len(result.vars) == 3
+
+    def test_run_batch_accepts_outdir_only(self, tmp_path):
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        result = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir)),
+        ]).run_batch(self._three_lcs())
+        assert len(result.vars) == 3
+
+
 # ===========================================================================
 # Per-LC parameter tests
 # ===========================================================================

@@ -401,6 +401,13 @@ class LightCurveBatch:
         if perlc_map:
             self._validate_perlc(perlc_map)
 
+        # Reject cmd.o configurations that require a real list file or that
+        # are single-LC-only.  Mirrors Pipeline.run_batch's check so the
+        # per-LC loop path raises the same error before it overwrites
+        # outname N times.
+        from .pipeline import Pipeline as _Pipeline
+        _Pipeline(self._commands)._validate_o_for_batch()
+
         prior_cmds: List[str] = list(
             self._prior_batch._known_commands or []
         ) if self._prior_batch is not None else []
