@@ -80,7 +80,9 @@ def _extract_perlc_scalar(val, lc_idx: int, lc_name: str):
     from .perlc import PerLC
 
     if isinstance(val, PerLC):
-        return float(val[lc_idx])
+        # PerLC.__getitem__ already unwraps numpy scalars to Python built-ins;
+        # numeric callers still see floats, string callers see str.
+        return val[lc_idx]
 
     if isinstance(val, pd.Series):
         if not pd.api.types.is_integer_dtype(val.index.dtype):

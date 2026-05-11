@@ -2662,6 +2662,30 @@ class TestPerLC:
         with pytest.raises(ValueError):
             PerLC(np.ones((2, 3)))
 
+    def test_perlc_strings_preserved(self):
+        """PerLC(['a', 'b', 'c']) preserves strings (polymorphism)."""
+        from pyvartools import PerLC
+        p = PerLC(["alpha", "beta", "gamma"])
+        assert len(p) == 3
+        assert p[0] == "alpha"
+        assert p[1] == "beta"
+        assert isinstance(p[2], str)
+
+    def test_perlc_ints_stay_ints(self):
+        """PerLC(int list) preserves int type, no float coercion."""
+        from pyvartools import PerLC
+        p = PerLC([7, 99, -3])
+        assert isinstance(p[0], int) and not isinstance(p[0], bool)
+        assert p[1] == 99
+
+    def test_perlc_numeric_round_trip(self):
+        """Existing numeric callers still see floats (no behaviour change)."""
+        from pyvartools import PerLC
+        p = PerLC([0.1, 0.2, 0.15])
+        assert p[0] == pytest.approx(0.1)
+        # Float input → float output, even though no explicit cast happens.
+        assert isinstance(p[1], float)
+
     def test_perlc_repr(self):
         from pyvartools import PerLC
         p = PerLC([1.0, 2.0])
