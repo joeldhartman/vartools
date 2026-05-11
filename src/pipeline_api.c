@@ -793,3 +793,81 @@ int vartools_set_lc_data(ProgramData     *p,
 
   return 0;
 }
+
+
+/* ---------------------------------------------------------------------------
+ * vartools_set_inlist_*
+ *
+ * Update the value of an INLIST variable (declared via -inlistvars) in the
+ * pipeline's single-LC storage slot between successive vartools_process_lc()
+ * calls.  Library mode allocates one inlist slot per variable at init time
+ * (Nlcs=1 from the injected -i -); these setters overwrite that slot before
+ * the next process_lc call so each LC sees its own per-LC value.
+ *
+ * Return values:
+ *   0 on success
+ *  -1 if the named variable doesn't exist or isn't an INLIST variable
+ *  -2 if the variable exists but has a different datatype than the setter
+ * --------------------------------------------------------------------------- */
+
+static _Variable *_find_inlist_variable(ProgramData *p, const char *name)
+{
+  int i;
+  if (name == NULL) return NULL;
+  for (i = 0; i < p->NDefinedVariables; i++) {
+    _Variable *v = p->DefinedVariables[i];
+    if (v == NULL) continue;
+    if (v->vectortype != VARTOOLS_VECTORTYPE_INLIST) continue;
+    if (v->varname == NULL) continue;
+    if (strcmp(v->varname, name) == 0) return v;
+  }
+  return NULL;
+}
+
+int vartools_set_inlist_double(ProgramData *p, const char *name, double value)
+{
+  _Variable *v = _find_inlist_variable(p, name);
+  if (v == NULL) return -1;
+  if (v->datatype != VARTOOLS_TYPE_DOUBLE) return -2;
+  (*((double **) v->dataptr))[0] = value;
+  return 0;
+}
+
+int vartools_set_inlist_int(ProgramData *p, const char *name, int value)
+{
+  _Variable *v = _find_inlist_variable(p, name);
+  if (v == NULL) return -1;
+  if (v->datatype != VARTOOLS_TYPE_INT) return -2;
+  (*((int **) v->dataptr))[0] = value;
+  return 0;
+}
+
+int vartools_set_inlist_long(ProgramData *p, const char *name, long value)
+{
+  _Variable *v = _find_inlist_variable(p, name);
+  if (v == NULL) return -1;
+  if (v->datatype != VARTOOLS_TYPE_LONG) return -2;
+  (*((long **) v->dataptr))[0] = value;
+  return 0;
+}
+
+int vartools_set_inlist_short(ProgramData *p, const char *name, short value)
+{
+  _Variable *v = _find_inlist_variable(p, name);
+  if (v == NULL) return -1;
+  if (v->datatype != VARTOOLS_TYPE_SHORT) return -2;
+  (*((short **) v->dataptr))[0] = value;
+  return 0;
+}
+
+int vartools_set_inlist_string(ProgramData *p, const char *name, const char *value)
+{
+  _Variable *v = _find_inlist_variable(p, name);
+  if (v == NULL) return -1;
+  if (v->datatype != VARTOOLS_TYPE_STRING) return -2;
+  if (value == NULL) value = "";
+  char *slot = (*((char ***) v->dataptr))[0];
+  strncpy(slot, value, MAXLEN - 1);
+  slot[MAXLEN - 1] = '\0';
+  return 0;
+}
