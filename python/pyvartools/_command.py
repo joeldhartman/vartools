@@ -214,5 +214,53 @@ class VartoolsCommand:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        args = self._to_cli_args()
-        return f"{self.__class__.__name__}({' '.join(args)})"
+        """Python-looking repr: ``LS(0.5, 10.0, 0.001, npeaks=2)``.
+
+        Walks the constructor signature and reads the current attribute
+        for each parameter.  Required positional parameters are shown
+        without their name; keyword parameters whose current value
+        equals the default are omitted.
+
+        Falls back to the ``ClassName(<cli tokens>)`` form when the
+        introspection fails entirely (any exception) OR when the
+        constructor has parameters but none are stored as attributes
+        with the matching names (e.g. ``UserCommand`` stashes its init
+        args under ``_lib_path`` / ``_cmd_name``).
+        """
+        import inspect
+        try:
+            sig = inspect.signature(self.__init__)
+            init_params = [(n, p) for n, p in sig.parameters.items()
+                           if n != "self"]
+            parts = []
+            matched_any = False
+            for name, param in init_params:
+                if not hasattr(self, name):
+                    continue
+                matched_any = True
+                val = getattr(self, name)
+                default = param.default
+                if default is not inspect.Parameter.empty:
+                    try:
+                        if val is default or val == default:
+                            continue
+                    except Exception:
+                        pass
+                    parts.append(f"{name}={val!r}")
+                else:
+                    parts.append(repr(val))
+            if init_params and not matched_any:
+                # Constructor takes args but none are surfaced as
+                # attributes; fall back to the CLI-token form so the
+                # repr stays useful.
+                raise _ReprIntrospectFailure()
+            return f"{self.__class__.__name__}({', '.join(parts)})"
+        except Exception:
+            args = self._to_cli_args()
+            return f"{self.__class__.__name__}({' '.join(args)})"
+
+
+class _ReprIntrospectFailure(Exception):
+    """Internal sentinel used by ``VartoolsCommand.__repr__`` to fall
+    back to the CLI-token form when constructor introspection yields no
+    matching attributes."""

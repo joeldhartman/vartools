@@ -415,17 +415,35 @@ class TestEdgeCases:
                 pipe.run_batch(lcs, nthreads=2)
         assert called, "nthreads=2 should force subprocess"
 
-    @needs_binary
-    def test_repr_of_pipeline(self):
-        """A user typing `pipe` in Jupyter would want a useful repr."""
+    def test_repr_of_pipeline_is_python_shaped(self):
+        """A user typing `pipe` in Jupyter sees Python-looking syntax,
+        not CLI tokens.  Each command shows positional args + non-default
+        kwargs in the form `ClassName(args)`; the Pipeline shows them in
+        a list."""
         pipe = vt.Pipeline([
             cmd.clip(5.0),
             cmd.LS(0.5, 10.0, 0.01, npeaks=2, save_periodogram=True),
             cmd.rms(),
         ])
         s = repr(pipe)
-        print(f"repr(pipe) = {s!r}")
-        # No assertion — informational.  A useful repr lists the commands.
+        # Each command's signature should be visible.
+        assert "clip(5.0)" in s
+        assert "LS(0.5, 10.0, 0.01" in s
+        assert "npeaks=2" in s
+        assert "save_periodogram=True" in s
+        assert "rms()" in s
+        # No raw CLI tokens like "-LS" or "-clip" should leak.
+        assert "-LS" not in s
+        assert "-clip" not in s
+        assert "-rms" not in s
+
+    def test_repr_omits_defaults(self):
+        """Kwargs whose value equals the default are not shown — keeps the
+        repr concise."""
+        # npeaks defaults to 5 in cmd.LS; with npeaks=5 explicit, repr
+        # should still NOT show npeaks=5.
+        s = repr(cmd.LS(0.5, 10.0, 0.01, npeaks=5))
+        assert "npeaks" not in s, f"default kwarg leaked: {s}"
 
     def test_negative_period_caught_at_construction(self):
         """cmd.LS(-0.5, ...) is rejected immediately, not silently."""
