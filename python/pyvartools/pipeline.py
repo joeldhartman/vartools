@@ -261,12 +261,13 @@ def _apply_columnformat_names(lc: LightCurve, command) -> None:
 
 
 def _to_lc(obj: LightCurveInput) -> LightCurve:
-    """Coerce a DataFrame or LightCurve to a LightCurve."""
+    """Coerce a DataFrame, file path, or LightCurve to a LightCurve."""
     if isinstance(obj, LightCurve):
         return obj
     if isinstance(obj, pd.DataFrame):
         return LightCurve.from_dataframe(obj)
-    # Try astropy TimeSeries
+    if isinstance(obj, (str, os.PathLike)):
+        return LightCurve.from_file(os.fspath(obj))
     try:
         from astropy.timeseries import TimeSeries
         if isinstance(obj, TimeSeries):
@@ -274,7 +275,8 @@ def _to_lc(obj: LightCurveInput) -> LightCurve:
     except ImportError:
         pass
     raise TypeError(
-        f"Expected LightCurve, DataFrame, or astropy TimeSeries; got {type(obj)}"
+        f"Expected LightCurve, DataFrame, file path, or astropy TimeSeries; "
+        f"got {type(obj)}"
     )
 
 
