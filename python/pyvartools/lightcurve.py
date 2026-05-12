@@ -520,6 +520,33 @@ class LightCurve:
     def err(self) -> Optional[np.ndarray]:
         return self._df["err"].to_numpy() if "err" in self._df.columns else None
 
+    def _arrays_for_vartools(self) -> Optional[tuple]:
+        """Return ``(t, mag, err)`` arrays sized to fit this LC, with the
+        same defaults vartools' CLI applies when an ``-inputlcformat``
+        omits one or more of those standard columns:
+
+        ``t = NR`` (0-based row index), ``mag = 0``, ``err = 1``.
+
+        Used by the library-mode injection paths so they match the
+        subprocess + CLI behaviour when the user-supplied DataFrame
+        doesn't have t/mag/err.  Returns ``None`` when the DataFrame
+        has zero rows.
+
+        Aux columns (anything other than t/mag/err) are unaffected;
+        they flow through ``extra_columns`` to vartools as named
+        variables and the user's data is preserved under its original
+        name."""
+        n = len(self._df)
+        if n == 0:
+            return None
+        t   = (self._df["t"].to_numpy()   if "t"   in self._df.columns
+               else np.arange(n, dtype=np.float64))
+        mag = (self._df["mag"].to_numpy() if "mag" in self._df.columns
+               else np.zeros(n, dtype=np.float64))
+        err = (self._df["err"].to_numpy() if "err" in self._df.columns
+               else np.ones(n, dtype=np.float64))
+        return t, mag, err
+
     @property
     def cols(self) -> list:
         """List of column names (e.g. ``['t', 'mag', 'err', 'tmp']``)."""

@@ -2379,12 +2379,17 @@ class Pipeline:
             for col in lc._df.columns:
                 if col not in ("t", "mag", "err"):
                     extra_cols[col] = lc._df[col].values
+            tmer = lc._arrays_for_vartools()
+            if tmer is None:
+                raise RunError("light curve has zero rows")
+            t_arr, mag_arr, err_arr = tmer
             if extra_cols:
                 stats, _, scalars = self._lib_pipeline.process_lc_capture(
-                    lc.t, lc.mag, lc.err, name=lc.name,
+                    t_arr, mag_arr, err_arr, name=lc.name,
                     extra_columns=extra_cols)
             else:
-                stats = self._lib_pipeline.process_lc(lc.t, lc.mag, lc.err, name=lc.name)
+                stats = self._lib_pipeline.process_lc(
+                    t_arr, mag_arr, err_arr, name=lc.name)
                 scalars = {}
         except RuntimeError as exc:
             self._lib_pipeline = None  # allow retry after failure
@@ -2423,8 +2428,12 @@ class Pipeline:
                 if col not in ("t", "mag", "err"):
                     extra_cols[col] = lc._df[col].values
 
+            tmer = lc._arrays_for_vartools()
+            if tmer is None:
+                raise RunError("light curve has zero rows")
+            t_arr, mag_arr, err_arr = tmer
             stats, lc_columns, scalars = self._lib_pipeline.process_lc_capture(
-                lc.t, lc.mag, lc.err, name=lc.name,
+                t_arr, mag_arr, err_arr, name=lc.name,
                 extra_columns=extra_cols if extra_cols else None,
             )
         except RuntimeError as exc:
@@ -2685,14 +2694,18 @@ class Pipeline:
             for col in lc._df.columns:
                 if col not in ("t", "mag", "err"):
                     extra_cols[col] = lc._df[col].values
+            tmer = lc._arrays_for_vartools()
+            if tmer is None:
+                raise RunError(f"light curve {lc.name!r} has zero rows")
+            t_arr, mag_arr, err_arr = tmer
             if capture_lc:
                 stats, lc_columns, harvested_scalars = (
                     self._lib_pipeline.process_lc_capture(
-                        lc.t, lc.mag, lc.err, name=vt_name,
+                        t_arr, mag_arr, err_arr, name=vt_name,
                         extra_columns=extra_cols if extra_cols else None))
             else:
                 stats = self._lib_pipeline.process_lc(
-                    lc.t, lc.mag, lc.err, name=vt_name,
+                    t_arr, mag_arr, err_arr, name=vt_name,
                     extra_columns=extra_cols if extra_cols else None)
                 lc_columns = None
                 harvested_scalars = None

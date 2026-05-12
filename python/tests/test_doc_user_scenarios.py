@@ -210,31 +210,73 @@ class TestErrorMessageQuality:
                                  subsample=0.1)]).run_batch(lcs)
 
     @needs_binary
-    def test_dataframe_with_wrong_column_names_silently_fails(self):
-        """**Known UX gap (pre-existing):** a DataFrame whose columns are
-        'time' / 'magnitude' / 'error' (rather than 't'/'mag'/'err') is
-        accepted without complaint, but produces garbage results
-        (Npoints=0, RMS=-1).  No exception, no warning.
+    def test_dataframe_missing_standard_cols_defaults_match_cli(self):
+        """A DataFrame whose columns are 'time' / 'magnitude' / 'error'
+        (rather than the standard t/mag/err) gets the same CLI-style
+        defaults vartools applies when ``-inputlcformat`` omits t/mag/err:
 
-        The docstring for ``LightCurve.from_dataframe`` says "any
-        DataFrame is accepted; columns named t/mag/err are treated as the
-        standard vartools vectors when present" — but the failure mode
-        when those columns are *missing* is a silent zero-row LC, which
-        a casual user is unlikely to notice.
+            t = NR  (0-based row index, so Npoints reflects len(df))
+            mag = 0
+            err = 1
 
-        This test pins the current behaviour so the gap is visible in
-        the test suite; tighten it (validate column names, or
-        auto-rename common aliases) as a separate UX fix."""
+        The user's `time`/`magnitude`/`error` columns flow through as
+        named auxiliary variables — they're available to vartools
+        commands by name, but the standard rms/LS/etc. commands use the
+        defaulted t/mag/err.  Matches `vartools -inputlcformat
+        time:1,magnitude:2,error:3 -rms` exactly."""
         df = pd.DataFrame({
             "time": np.linspace(0, 10, 50),
             "magnitude": np.full(50, 10.0),
             "error": np.full(50, 0.01),
         })
-        result = vt.rms(df)  # silently succeeds
-        # Sentinel values show the LC was empty for vartools.
-        assert int(result.vars["Npoints_0"]) == 0
-        assert float(result.vars["Mean_Mag_0"]) == -1.0
-        assert float(result.vars["RMS_0"]) == -1.0
+        result = vt.rms(df)
+        assert int(result.vars["Npoints_0"]) == 50
+        assert float(result.vars["Mean_Mag_0"]) == 0.0
+        assert float(result.vars["RMS_0"]) == 0.0
+        assert float(result.vars["Expected_RMS_0"]) == 1.0
+
+    @needs_binary
+    def test_dataframe_missing_cols_library_vs_subprocess_parity(self):
+        """The CLI-defaulting behaviour must match between library and
+        subprocess modes — otherwise the user gets different results
+        depending on which path is taken."""
+        from pyvartools import pipeline as _pipeline_mod
+        from unittest.mock import patch
+
+        df = pd.DataFrame({
+            "time": np.linspace(0, 10, 50),
+            "magnitude": np.full(50, 10.0),
+            "error": np.full(50, 0.01),
+        })
+
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+            lib = vt.rms(df).vars
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=False):
+            sub = vt.rms(df).vars
+
+        for col in ("Mean_Mag_0", "RMS_0", "Expected_RMS_0", "Npoints_0"):
+            assert float(lib[col]) == float(sub[col]), (
+                f"{col}: library={lib[col]} vs subprocess={sub[col]}"
+            )
+
+    @needs_binary
+    def test_from_arrays_partial_no_err_defaults_in_library(self):
+        """`from_arrays(t=t, mag=mag)` with no err: the run should use
+        the vartools CLI default err=1 (and produce Expected_RMS_0=1)."""
+        from pyvartools import pipeline as _pipeline_mod
+        from unittest.mock import patch
+
+        lc = vt.LightCurve.from_arrays(
+            t=np.linspace(0, 10, 50),
+            mag=10.0 + 0.05 * np.sin(np.linspace(0, 10, 50)),
+        )
+        assert lc.err is None  # introspection still says "missing"
+
+        # But the run defaults err=1, matching CLI.
+        with patch.object(_pipeline_mod, "_library_enabled", return_value=True):
+            result = vt.rms(lc)
+        assert float(result.vars["Expected_RMS_0"]) == 1.0
+        assert int(result.vars["Npoints_0"]) == 50
 
     @needs_binary
     def test_empty_batch(self):
