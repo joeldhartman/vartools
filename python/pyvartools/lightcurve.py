@@ -37,6 +37,23 @@ if TYPE_CHECKING:
 _STANDARD_COLS = ("t", "mag", "err")
 
 
+def _open_ascii(path: Path, mode: str = "r"):
+    """Open *path* for text reading, transparently handling .gz / .bz2.
+
+    Matches the compression formats vartools' file reader auto-detects.
+    """
+    suffix = str(path).lower()
+    if suffix.endswith(".gz") or suffix.endswith(".Z"):
+        import gzip
+        return gzip.open(path, mode + "t", encoding="utf-8",
+                          errors="replace")
+    if suffix.endswith(".bz2"):
+        import bz2
+        return bz2.open(path, mode + "t", encoding="utf-8",
+                         errors="replace")
+    return open(path, mode)
+
+
 def _read_ascii_header_names(path: Path):
     """Return column names from the last ``# name1 name2 ...`` comment line
     at the top of *path*, or ``None`` if no such line is present.
@@ -45,9 +62,12 @@ def _read_ascii_header_names(path: Path):
     ``#commandline`` log line (or any other `#...` line without space-
     separated tokens that look like identifiers) is ignored unless it
     happens to be the last header line and parses as a name list.
+
+    Transparently handles .gz, .Z, and .bz2-compressed files (matching
+    the compression formats vartools' file reader auto-detects).
     """
     try:
-        with open(path, "r") as fh:
+        with _open_ascii(path, "r") as fh:
             last_tokens = None
             for raw in fh:
                 s = raw.lstrip()
@@ -476,18 +496,21 @@ class LightCurve:
         with fits.open(path) as hdul:
             table = hdul[hdu]
             cols = {c.name.upper(): c.name for c in table.columns}
-            def _get(wanted: str) -> np.ndarray:
+            def _get(wanted: str, kwarg_hint: str) -> np.ndarray:
                 key = cols.get(wanted.upper())
                 if key is None:
                     raise ValueError(
                         f"Column '{wanted}' not found in FITS HDU {hdu} of "
-                        f"'{path}'.  Available: {list(cols.values())}"
+                        f"'{path}'.  Available: {list(cols.values())}.  "
+                        f"Pass {kwarg_hint}='<colname>' to LightCurve."
+                        f"from_file(...) to map a differently-named "
+                        f"column to {wanted}."
                     )
                 return np.asarray(table.data[key], dtype=float)
 
-            t   = _get(t_col)
-            mag = _get(mag_col)
-            err = _get(err_col)
+            t   = _get(t_col,   "t_col")
+            mag = _get(mag_col, "mag_col")
+            err = _get(err_col, "err_col")
             skip = {t_col.upper(), mag_col.upper(), err_col.upper()}
             aux = {
                 c.name: np.asarray(table.data[c.name])
