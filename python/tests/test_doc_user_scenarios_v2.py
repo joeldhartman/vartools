@@ -289,31 +289,85 @@ class TestEdgeCases:
         assert int(r.vars["Npoints_0"]) > 0
 
     @needs_binary
-    def test_loading_fits_file_with_default_cols_errors_helpfully(self):
-        """Generic FITS LC with time/mag/err columns.  Default reader looks
-        for BJD/Mag/Err (HATPI convention), so this should error — but the
-        error must tell the user how to fix it."""
+    def test_loading_fits_without_explicit_cols_errors(self):
+        """FITS files require explicit t_col / mag_col / err_col."""
         path = os.path.join(EXAMPLES_DIR, "2.fits")
         if not os.path.exists(path):
             pytest.skip(f"no test FITS file at {path}")
         with pytest.raises(ValueError) as excinfo:
             vt.LightCurve.from_file(path)
         msg = str(excinfo.value)
-        # Error should mention the kwarg name (t_col=) so the user knows
-        # how to point at the right column.
-        assert "t_col" in msg, f"error doesn't suggest t_col= override: {msg}"
+        # Error should name all three unset kwargs AND list available columns.
+        assert "t_col" in msg and "mag_col" in msg and "err_col" in msg
+        # And it should list the actual FITS column names so the user can
+        # see what to map t/mag/err onto.
+        assert "Available columns" in msg
 
     @needs_binary
-    def test_loading_fits_file_with_explicit_cols(self):
-        """With explicit t_col/mag_col/err_col, generic FITS files load."""
+    def test_loading_fits_with_explicit_cols(self):
+        """With explicit t_col/mag_col/err_col, FITS files load and every
+        FITS column is preserved in the DataFrame under its original
+        FITS column name."""
         path = os.path.join(EXAMPLES_DIR, "2.fits")
         if not os.path.exists(path):
             pytest.skip(f"no test FITS file at {path}")
         lc = vt.LightCurve.from_file(path, t_col="time", mag_col="mag",
                                       err_col="err")
         assert lc.t is not None and len(lc.t) > 0
+        # Both aliases AND original FITS column names present.
+        assert {"t", "mag", "err"}.issubset(set(lc._df.columns))
+        assert {"time", "mag", "err"}.issubset(set(lc._df.columns))
         r = vt.rms(lc)
         assert int(r.vars["Npoints_0"]) > 0
+
+    @needs_binary
+    def test_loading_fits_with_some_cols_set_to_none(self, tmp_path):
+        """Passing t_col=None means 'this FITS has no t column'; vartools
+        defaults t=NR at run time."""
+        try:
+            from astropy.io import fits
+        except ImportError:
+            pytest.skip("astropy not available")
+
+        # Build a FITS file with only mag and err — no t-like column.
+        mag = 10.0 + 0.05 * np.sin(np.linspace(0, 10, 50))
+        err = np.full(50, 0.005)
+        hdu = fits.BinTableHDU.from_columns([
+            fits.Column(name="brightness", format="D", array=mag),
+            fits.Column(name="uncertainty", format="D", array=err),
+        ])
+        fpath = tmp_path / "no_time.fits"
+        fits.HDUList([fits.PrimaryHDU(), hdu]).writeto(str(fpath))
+
+        lc = vt.LightCurve.from_file(
+            fpath, t_col=None, mag_col="brightness", err_col="uncertainty",
+        )
+        assert lc.t is None        # No t column registered
+        assert lc.mag is not None
+        # But running rms still works (vartools defaults t=NR).
+        r = vt.rms(lc)
+        assert int(r.vars["Npoints_0"]) == 50
+
+    @needs_binary
+    def test_loading_fits_with_unknown_col_lists_alternatives(self, tmp_path):
+        """If t_col= references a column that doesn't exist, the error
+        lists the actual FITS columns."""
+        try:
+            from astropy.io import fits
+        except ImportError:
+            pytest.skip("astropy not available")
+        mag = np.full(10, 10.0)
+        hdu = fits.BinTableHDU.from_columns([
+            fits.Column(name="t", format="D", array=np.arange(10.0)),
+            fits.Column(name="m", format="D", array=mag),
+            fits.Column(name="e", format="D", array=np.full(10, 0.01)),
+        ])
+        fpath = tmp_path / "short_names.fits"
+        fits.HDUList([fits.PrimaryHDU(), hdu]).writeto(str(fpath))
+
+        with pytest.raises(ValueError, match=r"not found"):
+            vt.LightCurve.from_file(
+                fpath, t_col="BJD", mag_col="m", err_col="e")
 
     @needs_binary
     def test_nthreads_falls_back_to_subprocess(self):

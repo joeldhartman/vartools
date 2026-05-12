@@ -37,6 +37,18 @@ if TYPE_CHECKING:
 _STANDARD_COLS = ("t", "mag", "err")
 
 
+# Sentinel for ``LightCurve.from_file(..., t_col=, mag_col=, err_col=)``.
+# When loading a FITS file, each kwarg must be explicitly set to a FITS
+# column name (a string) or to ``None`` (meaning "this LC has no such
+# column").  Leaving any of them at the default sentinel raises so the
+# user can't silently load a FITS file with the wrong column convention.
+class _UnsetT:
+    __slots__ = ()
+    def __repr__(self) -> str:
+        return "<UNSET>"
+_UNSET = _UnsetT()
+
+
 def _open_ascii(path: Path, mode: str = "r"):
     """Open *path* for text reading, transparently handling .gz / .bz2.
 
@@ -353,9 +365,9 @@ class LightCurve:
         path: Union[str, Path],
         name: str = "",
         format: Optional[str] = None,
-        t_col: str = "BJD",
-        mag_col: str = "Mag",
-        err_col: str = "Err",
+        t_col: Union[str, None, "_UnsetT"] = _UNSET,
+        mag_col: Union[str, None, "_UnsetT"] = _UNSET,
+        err_col: Union[str, None, "_UnsetT"] = _UNSET,
         hdu: int = 1,
     ) -> "LightCurve":
         """Read a light curve from a file.
@@ -482,49 +494,113 @@ class LightCurve:
         cls,
         path: Path,
         name: str,
-        t_col: str,
-        mag_col: str,
-        err_col: str,
+        t_col,
+        mag_col,
+        err_col,
         hdu: int,
     ) -> "LightCurve":
+        """Load a FITS file.
+
+        Every column in the table HDU is loaded under its original FITS
+        column name into the resulting LightCurve's DataFrame.  The user
+        must explicitly choose which (if any) FITS columns correspond
+        to ``t``, ``mag``, and ``err`` by passing matching ``t_col=``,
+        ``mag_col=``, ``err_col=`` keyword arguments to
+        :meth:`from_file`.  Passing ``None`` for any of the three means
+        the LC has no such column (at run time vartools defaults the
+        missing one — ``t=NR``, ``mag=0``, ``err=1``).  Leaving any of
+        the three unset raises ``ValueError`` listing the available
+        columns.
+
+        For example, with a FITS file whose table columns are
+        ``time / mag / err / airmass``::
+
+            lc = vt.LightCurve.from_file("foo.fits",
+                                          t_col="time", mag_col="mag",
+                                          err_col="err")
+
+        The DataFrame then carries ``t`` (aliased from ``time``),
+        ``mag``, ``err``, plus all original column names
+        (``time``, ``mag``, ``err``, ``airmass``).  Vartools commands
+        that need t/mag/err find them under those names; commands
+        that reference ``airmass`` by name also work.
+        """
         try:
             from astropy.io import fits
         except ImportError as e:
             raise ImportError(
                 "astropy is required to read FITS files."
             ) from e
+
+        # Validate kwargs first; we need the column list for the
+        # error message so we have to open the file.
         with fits.open(path) as hdul:
             table = hdul[hdu]
-            cols = {c.name.upper(): c.name for c in table.columns}
-            def _get(wanted: str, kwarg_hint: str) -> np.ndarray:
-                key = cols.get(wanted.upper())
+            available_cols = [c.name for c in table.columns]
+
+            unset = [
+                kwarg for kwarg, val in (
+                    ("t_col", t_col),
+                    ("mag_col", mag_col),
+                    ("err_col", err_col),
+                )
+                if isinstance(val, _UnsetT)
+            ]
+            if unset:
+                raise ValueError(
+                    f"FITS file {str(path)!r} requires explicit "
+                    f"{', '.join(unset)} keyword argument(s) on "
+                    f"LightCurve.from_file().  Available columns: "
+                    f"{available_cols}.  Pass each as the matching "
+                    f"FITS column name (e.g. t_col='BJD'), or pass "
+                    f"None to indicate the LC has no such column "
+                    f"(vartools will default the missing one)."
+                )
+
+            # Load every FITS column into aux under its original FITS
+            # column name.  Strings keep their dtype; everything else
+            # comes through as numeric.
+            aux: Dict[str, np.ndarray] = {}
+            for c in table.columns:
+                aux[c.name] = np.asarray(table.data[c.name])
+
+            cols_lookup = {c.name.upper(): c.name for c in table.columns}
+
+            def _resolve(wanted, kwarg_hint):
+                if wanted is None:
+                    return None
+                if not isinstance(wanted, str):
+                    raise TypeError(
+                        f"LightCurve.from_file: {kwarg_hint}= must be a "
+                        f"string FITS column name or None; got "
+                        f"{type(wanted).__name__}"
+                    )
+                key = cols_lookup.get(wanted.upper())
                 if key is None:
                     raise ValueError(
-                        f"Column '{wanted}' not found in FITS HDU {hdu} of "
-                        f"'{path}'.  Available: {list(cols.values())}.  "
-                        f"Pass {kwarg_hint}='<colname>' to LightCurve."
-                        f"from_file(...) to map a differently-named "
-                        f"column to {wanted}."
+                        f"FITS column {wanted!r} not found in HDU "
+                        f"{hdu} of {str(path)!r}.  Available: "
+                        f"{available_cols}.  Pass {kwarg_hint}="
+                        f"'<colname>' (or {kwarg_hint}=None) to "
+                        f"LightCurve.from_file()."
                     )
+                # Use the canonically-cased name from the FITS header
+                # so callers can reference it case-insensitively.
                 return np.asarray(table.data[key], dtype=float)
 
-            t   = _get(t_col,   "t_col")
-            mag = _get(mag_col, "mag_col")
-            err = _get(err_col, "err_col")
-            skip = {t_col.upper(), mag_col.upper(), err_col.upper()}
-            aux = {
-                c.name: np.asarray(table.data[c.name])
-                for c in table.columns
-                if c.name.upper() not in skip
-            }
-            # Merge primary + data-HDU headers into a single observational
-            # header, filtering out column/axis-structural keywords.  Primary
-            # first so extension-HDU keys can override on conflict.
+            t   = _resolve(t_col,   "t_col")
+            mag = _resolve(mag_col, "mag_col")
+            err = _resolve(err_col, "err_col")
+
+            # Merge primary + data-HDU headers into a single
+            # observational header, filtering out column/axis-
+            # structural keywords.
             merged = fits.Header(hdul[0].header.copy())
             if hdu != 0:
                 merged.update(hdul[hdu].header)
             header = _filter_structural(merged)
-        return cls.from_arrays(t, mag, err, aux=aux or None, name=name,
+
+        return cls.from_arrays(t, mag, err, aux=aux, name=name,
                                fitsheader=header)
 
     # ------------------------------------------------------------------

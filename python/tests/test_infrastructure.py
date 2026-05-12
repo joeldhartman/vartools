@@ -531,11 +531,17 @@ def test_lightcurve_from_fits_roundtrip(tmp_path):
     fpath = tmp_path / "star.fits"
     fits.HDUList([fits.PrimaryHDU(), hdu]).writeto(str(fpath))
 
-    lc = vt.LightCurve.from_file(fpath)   # auto-detect .fits
+    # FITS column names must be explicit (no defaults).
+    lc = vt.LightCurve.from_file(fpath, t_col="BJD", mag_col="Mag",
+                                  err_col="Err")
     assert len(lc) == 50
     np.testing.assert_allclose(lc.t,   t,   atol=1e-8)
     np.testing.assert_allclose(lc.mag, mag, atol=1e-8)
     np.testing.assert_allclose(lc.err, err, atol=1e-8)
+    # Original FITS column names also accessible.
+    assert "BJD" in lc._df.columns
+    assert "Mag" in lc._df.columns
+    assert "Err" in lc._df.columns
 
 
 def test_lightcurve_from_fits_custom_cols(tmp_path):
