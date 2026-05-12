@@ -706,7 +706,8 @@ example_files = \
  EXAMPLES/lc_list_tfa \
  EXAMPLES/9.gz \
  EXAMPLES/3.transit.fits \
- EXAMPLES/4.fits
+ EXAMPLES/4.fits \
+ EXAMPLES/Gaia-DR2-5481843025342799104_subphot.fits
 
 nobase_dist_pkgdata_DATA = $(example_files)
 
