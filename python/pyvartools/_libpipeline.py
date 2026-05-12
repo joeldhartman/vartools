@@ -573,3 +573,19 @@ class LibPipeline:
         if getattr(self, "_p", None) and _lib is not None:
             _lib.vartools_free_pipeline(self._p)
             self._p = None
+
+    def __reduce__(self):
+        # A LibPipeline wraps a raw ctypes pointer into a C-side
+        # ProgramData allocation; pickling and unpickling would create
+        # two Python objects pointing at the same C resource, and
+        # whichever got garbage-collected second would double-free.
+        # Pipeline excludes _lib_pipeline from its own pickled state,
+        # so reaching here means someone pickled a LibPipeline directly
+        # — refuse loudly.
+        raise TypeError(
+            "LibPipeline objects cannot be pickled (they hold a raw "
+            "ctypes pointer to a C-side allocation).  Pickle the "
+            "Pipeline that owns this LibPipeline instead — Pipeline's "
+            "__getstate__ drops the LibPipeline cache so the unpickled "
+            "copy starts fresh."
+        )

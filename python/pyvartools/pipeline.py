@@ -553,6 +553,40 @@ class Pipeline:
         self._lib_pipeline = None  # lazily created LibPipeline when library mode is active
 
     # ------------------------------------------------------------------
+    # Pickle support
+    # ------------------------------------------------------------------
+    # Library-mode runtime state is process-local: ``_lib_pipeline`` wraps
+    # a ctypes pointer into a C-side ProgramData allocation, and the save_*
+    # tmpdir is a filesystem path that won't exist in another process.
+    # Drop them on pickle so an unpickled Pipeline starts fresh — running
+    # it just rebuilds the LibPipeline lazily.
+    #
+    # Without this, pickle.dumps(pipe) on a Pipeline that had already been
+    # used produced two LibPipeline objects sharing the same C-side pointer
+    # (the original and the unpickled copy).  Whichever was garbage-collected
+    # second would double-free that pointer and abort the process.
+
+    _PICKLE_EXCLUDE = (
+        "_lib_pipeline",
+        "_lib_pipeline_key",
+        "_lib_pipeline_fmt",
+        "_lib_batch_argv",
+        "_lib_save_tmpdir",
+    )
+
+    def __getstate__(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()
+                if k not in self._PICKLE_EXCLUDE}
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        # Re-initialise transient fields; subsequent run methods will
+        # rebuild the LibPipeline on demand.
+        for k in self._PICKLE_EXCLUDE:
+            if k not in self.__dict__:
+                self.__dict__[k] = None
+
+    # ------------------------------------------------------------------
     # Single-LC run
     # ------------------------------------------------------------------
 
@@ -2679,7 +2713,8 @@ class Pipeline:
                             stats_col_order = first.lstrip("#").split()
                             break
 
-        for i, lc in enumerate(lcs):
+        try:
+          for i, lc in enumerate(lcs):
             vt_name = _spill_basename(lc, i, used_names)
             # Update INLIST variable values for this LC: perlc_attrs +
             # perlc_vars values-form + batch_scalars.  Each was declared
@@ -2756,6 +2791,18 @@ class Pipeline:
                 for key, df in save_files.items():
                     per_lc_files.setdefault(key, [None] * n)
                     per_lc_files[key][i] = df
+        except RuntimeError as exc:
+            # Per-LC error (e.g. zero-row LC, vartools_process_lc failure):
+            # honour raise_on_error.  When suppressing, return an empty
+            # BatchResult with the error attached so the caller can detect
+            # the failure without an exception interrupting their batch.
+            if stats_fh is not None:
+                stats_fh.close()
+            err = exc if isinstance(exc, RunError) else RunError(str(exc))
+            if raise_on_error:
+                raise err from exc
+            return BatchResult(var=pd.DataFrame(), error=err,
+                               known_commands=[c._vt_name for c in self.commands])
         # "file"-mode global outputs (e.g. SYSREM otrends): one DataFrame
         # per pipeline run, not per LC.  Collected once after the batch.
         if getattr(self, "_lib_save_tmpdir", None):
