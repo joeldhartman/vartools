@@ -483,8 +483,22 @@ class LibPipeline:
             rc = lib.vartools_set_inlist_int(self._p, name_b, ctypes.c_int(int(value)))
             ctype_name = "int"
         elif isinstance(value, int):
-            rc = lib.vartools_set_inlist_long(self._p, name_b, ctypes.c_long(value))
-            ctype_name = "long"
+            # The C-side declared datatype for this variable could be INT,
+            # LONG, or SHORT — try each in turn so the user doesn't have
+            # to think about width.  Each setter returns -2 ("type
+            # mismatch") if the variable is the wrong type; -1 ("not
+            # found") is final.
+            for _setter, _ctype, _name in (
+                (lib.vartools_set_inlist_int,   ctypes.c_int,   "int"),
+                (lib.vartools_set_inlist_long,  ctypes.c_long,  "long"),
+                (lib.vartools_set_inlist_short, ctypes.c_short, "short"),
+            ):
+                rc = _setter(self._p, name_b, _ctype(value))
+                if rc != -2:
+                    ctype_name = _name
+                    break
+            else:
+                ctype_name = "int/long/short"
         elif isinstance(value, float):
             rc = lib.vartools_set_inlist_double(self._p, name_b, ctypes.c_double(value))
             ctype_name = "double"
@@ -512,7 +526,7 @@ class LibPipeline:
         if rc == -2:
             raise RuntimeError(
                 f"set_inlist_value: variable {name!r} exists but its datatype "
-                f"does not match the {ctype_name} setter (Python value "
+                f"does not match any {ctype_name} setter (Python value "
                 f"was {value!r})."
             )
         if rc != 0:

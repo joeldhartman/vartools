@@ -2907,6 +2907,7 @@ class Pipeline:
         type.  ``None`` values are skipped — type is taken from the first
         non-``None`` value seen.
         """
+        import numpy as _np
         for v in values:
             if isinstance(v, (list, tuple)):
                 t = Pipeline._infer_listvar_type(v)
@@ -2917,11 +2918,11 @@ class Pipeline:
                 continue
             if isinstance(v, bool):
                 return "int"
-            if isinstance(v, int):
+            if isinstance(v, int) or isinstance(v, _np.integer):
                 return "int"
-            if isinstance(v, float):
+            if isinstance(v, float) or isinstance(v, _np.floating):
                 return "double"
-            if isinstance(v, str):
+            if isinstance(v, str) or isinstance(v, _np.str_):
                 return "string"
             raise TypeError(
                 f"Cannot infer vartools type from value {v!r} of type "
