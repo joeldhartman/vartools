@@ -76,7 +76,9 @@ class TestCLIArgs:
         assert args[0] == "-aov"
 
     def test_bls_basic(self):
-        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1)._to_cli_args()
+        # nfreq= required when density_mode=False (the "optimal"
+        # frequency grid is density-mode-only per vartools).
+        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, nfreq=1000)._to_cli_args()
         assert args[0] == "-BLS"
 
     def test_phase_basic(self):

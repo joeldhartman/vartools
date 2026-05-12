@@ -430,6 +430,22 @@ class BLS(VartoolsCommand):
         self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
 
+        # vartools' default "optimal" frequency grid only works when
+        # density_mode=True (which uses stellar density to bound the
+        # expected transit duration).  In r/q duration mode, the user
+        # must specify nfreq= or df= explicitly.  Catch the invalid
+        # combination at construction so the error fires before run
+        # time, with a clear message pointing at both fix paths.
+        if not self.density_mode and self.nfreq is None and self.df is None:
+            raise ValueError(
+                "cmd.BLS in r/q duration mode requires an explicit "
+                "frequency grid: pass `nfreq=N` (number of "
+                "frequencies) or `df=...` (frequency step).  The "
+                "default `optimal` spacing is only valid when "
+                "`density_mode=True` (which uses stellar density to "
+                "set the expected transit duration)."
+            )
+
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
         args = ["-BLS"]
@@ -444,12 +460,15 @@ class BLS(VartoolsCommand):
         else:
             args += ["r"] + _varexpr(self.rmin) + _varexpr(self.rmax)
         args += _varexpr(self.minper) + _varexpr(self.maxper)
-        # Frequency specification
+        # Frequency specification.  The valid-combination check fires
+        # at construction time (in __init__), so any reachable state
+        # here is one of: df set, nfreq set, or density_mode + optimal.
         if self.df is not None:
             args += ["df"] + _varexpr(self.df)
         elif self.nfreq is not None:
             args += ["nf"] + _varexpr(self.nfreq)
         else:
+            # density_mode is True by the __init__ guard.
             args += ["optimal"] + _varexpr(self.subsample)
         args += _varexpr(self.nbins)
         args += [str(self.timezone), str(self.npeaks)]

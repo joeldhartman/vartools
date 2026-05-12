@@ -142,19 +142,21 @@ class TestCLIArgsPeriodicity:
         assert "expr" in args and "tspan/200" in args
 
     def test_bls_minimal(self):
-        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1)._to_cli_args()
+        # nfreq= required when density_mode=False ("optimal" is
+        # density-mode-only per vartools).
+        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, nfreq=1000)._to_cli_args()
         assert args[0] == "-BLS"
 
     def test_bls_fittrap(self):
-        args = cmd.BLS(0.5, 10.0, fittrap=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, fittrap=True, nfreq=1000)._to_cli_args()
         assert "fittrap" in args
 
     def test_bls_correct_lc(self):
-        args = cmd.BLS(0.5, 10.0, correct_lc=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, correct_lc=True, nfreq=1000)._to_cli_args()
         assert "1" in args  # correctlc token
 
     def test_bls_save_periodogram(self):
-        c = cmd.BLS(0.5, 10.0, save_periodogram=True)
+        c = cmd.BLS(0.5, 10.0, save_periodogram=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "1" in args
@@ -418,19 +420,22 @@ class TestCLIArgsPeriodicity:
     # ------- BLS extensions (Batch 3a) -------
 
     def test_bls_minper_var(self):
-        args = cmd.BLS("minperiodvar", 10.0)._to_cli_args()
+        args = cmd.BLS("minperiodvar", 10.0, nfreq=1000)._to_cli_args()
         assert "var" in args and "minperiodvar" in args
 
     def test_bls_rmin_var(self):
-        args = cmd.BLS(0.5, 10.0, rmin="bls_rmin_var")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, rmin="bls_rmin_var",
+                       nfreq=1000)._to_cli_args()
         assert "var" in args and "bls_rmin_var" in args
 
     def test_bls_nbins_var(self):
-        args = cmd.BLS(0.5, 10.0, nbins="nbinvar")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, nbins="nbinvar",
+                       nfreq=1000)._to_cli_args()
         assert "var" in args and "nbinvar" in args
 
     def test_bls_qmin_qmax(self):
-        args = cmd.BLS(0.5, 10.0, qmin=0.01, qmax=0.1)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, qmin=0.01, qmax=0.1,
+                       nfreq=1000)._to_cli_args()
         assert "q" in args and "0.01" in args and "0.1" in args
 
     def test_bls_density_mode(self):
@@ -458,39 +463,45 @@ class TestCLIArgsPeriodicity:
         assert "df" in args and "0.001" in args
 
     def test_bls_extraparams(self):
-        args = cmd.BLS(0.5, 10.0, extraparams=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, extraparams=True,
+                       nfreq=1000)._to_cli_args()
         assert "extraparams" in args
 
     def test_bls_nobinnedrms(self):
-        args = cmd.BLS(0.5, 10.0, nobinnedrms=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, nobinnedrms=True,
+                       nfreq=1000)._to_cli_args()
         assert "nobinnedrms" in args
 
     def test_bls_save_phcurve(self):
-        c = cmd.BLS(0.5, 10.0, save_phcurve=True)
+        c = cmd.BLS(0.5, 10.0, save_phcurve=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "ophcurve" in args
 
     def test_bls_save_jdcurve(self):
-        c = cmd.BLS(0.5, 10.0, save_jdcurve=True)
+        c = cmd.BLS(0.5, 10.0, save_jdcurve=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "ojdcurve" in args
 
     def test_bls_freq_grid_steplogP(self):
-        args = cmd.BLS(0.5, 10.0, freq_grid="steplogP")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, freq_grid="steplogP",
+                       nfreq=1000)._to_cli_args()
         assert "steplogP" in args
 
     def test_bls_adjust_qmin(self):
-        args = cmd.BLS(0.5, 10.0, adjust_qmin=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, adjust_qmin=True,
+                       nfreq=1000)._to_cli_args()
         assert "adjust-qmin-by-mindt" in args
 
     def test_bls_reduce_nbins(self):
-        args = cmd.BLS(0.5, 10.0, adjust_qmin=True, reduce_nbins=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, adjust_qmin=True, reduce_nbins=True,
+                       nfreq=1000)._to_cli_args()
         assert "reduce-nbins" in args
 
     def test_bls_reportharmonics(self):
-        args = cmd.BLS(0.5, 10.0, reportharmonics=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, reportharmonics=True,
+                       nfreq=1000)._to_cli_args()
         assert "reportharmonics" in args
 
     # ------- BLSFixPer q mode (Batch 3b) -------
@@ -2824,16 +2835,19 @@ _VAR_PARAMS = [
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "maxp"),
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "subsample"),
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "finetune"),
-    # BLS — rmin/rmax branch (default when qmin=qmax=None)
-    (lambda: cmd.BLS(0.1, 10.0), "minper"),
-    (lambda: cmd.BLS(0.1, 10.0), "maxper"),
-    (lambda: cmd.BLS(0.1, 10.0), "rmin"),
-    (lambda: cmd.BLS(0.1, 10.0), "rmax"),
-    (lambda: cmd.BLS(0.1, 10.0), "nbins"),
-    (lambda: cmd.BLS(0.1, 10.0), "subsample"),   # emitted in "optimal" branch
+    # BLS — rmin/rmax branch.  In r/q mode the user must supply nfreq=
+    # or df=; the "optimal" frequency grid is density-mode-only.
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "minper"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "maxper"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "rmin"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "rmax"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "nbins"),
+    (lambda: cmd.BLS(0.1, 10.0, density_mode=True, stellar_density=1.0,
+                     min_exp_dur_frac=0.5, max_exp_dur_frac=1.5),
+        "subsample"),                            # "optimal" branch
     # BLS — qmin/qmax branch
-    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5), "qmin"),
-    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5), "qmax"),
+    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5, nfreq=1000), "qmin"),
+    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5, nfreq=1000), "qmax"),
     # BLS — nfreq branch
     (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "nfreq"),
     # BLS — df branch
