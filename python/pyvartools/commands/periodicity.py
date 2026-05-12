@@ -75,6 +75,32 @@ class LS(VartoolsCommand):
         maskpoints: Optional[str] = None,
         fixperiod_snr: Union[float, int, str, None] = None,
     ) -> None:
+        # Numeric minp/maxp must be positive and ordered.  Variable
+        # references / expressions / numpy arrays / PerLC are accepted
+        # as-is because their values may only be known at run time.
+        from pyvartools.perlc import PerLC
+        import numpy as _np
+        def _numeric(v) -> bool:
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return True
+            if isinstance(v, (_np.integer, _np.floating)):
+                return True
+            return False
+        if _numeric(minp) and minp <= 0:
+            raise ValueError(
+                f"cmd.LS: minp must be > 0 (got {minp!r}); use a positive "
+                f"period bound in days or pass a variable name / "
+                f"expression / PerLC for per-LC search bounds."
+            )
+        if _numeric(maxp) and maxp <= 0:
+            raise ValueError(
+                f"cmd.LS: maxp must be > 0 (got {maxp!r})."
+            )
+        if _numeric(minp) and _numeric(maxp) and minp >= maxp:
+            raise ValueError(
+                f"cmd.LS: minp ({minp}) must be strictly less than "
+                f"maxp ({maxp})."
+            )
         self.minp = minp
         self.maxp = maxp
         self.subsample = subsample

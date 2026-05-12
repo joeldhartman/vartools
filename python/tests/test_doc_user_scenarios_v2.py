@@ -427,14 +427,24 @@ class TestEdgeCases:
         print(f"repr(pipe) = {s!r}")
         # No assertion — informational.  A useful repr lists the commands.
 
-    @needs_binary
-    def test_negative_period_request(self):
-        """User typos `cmd.LS(-0.5, 10.0, 1e-3)` — does vartools / pyvartools
-        catch this clearly?"""
-        lc = _star_lcs(n=1)[0]
-        try:
-            r = vt.Pipeline([cmd.LS(-0.5, 10.0, 1e-3, npeaks=1)]).run(lc)
-            print(f"negative minp unexpectedly succeeded: "
-                  f"period={r.vars.get('LS_Period_1_0', 'missing')}")
-        except Exception as e:
-            print(f"negative minp raised: {type(e).__name__}: {e}")
+    def test_negative_period_caught_at_construction(self):
+        """cmd.LS(-0.5, ...) is rejected immediately, not silently."""
+        with pytest.raises(ValueError, match="minp must be > 0"):
+            cmd.LS(-0.5, 10.0, 1e-3, npeaks=1)
+
+    def test_zero_period_caught(self):
+        """minp=0 is also rejected (would be infinite frequency)."""
+        with pytest.raises(ValueError, match="minp must be > 0"):
+            cmd.LS(0.0, 10.0, 1e-3, npeaks=1)
+
+    def test_maxp_below_minp_caught(self):
+        """If both are numeric, minp < maxp is enforced."""
+        with pytest.raises(ValueError, match="minp.*less than.*maxp"):
+            cmd.LS(5.0, 1.0, 1e-3, npeaks=1)
+
+    def test_variable_ref_minp_allowed_at_construction(self):
+        """A variable name in minp= must be accepted at construction
+        (the value is only known at run time)."""
+        # Should not raise.
+        cmd.LS("minp_col", "maxp_col", 1e-3, npeaks=1)
+        cmd.LS("tspan/100", 10.0, 1e-3, npeaks=1)
