@@ -1148,6 +1148,89 @@ class TestCaptureInLibraryMode:
             pipe.run_batch(lcs)
 
     @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_length_mismatch_errors(self):
+        """outname=PerLC of length N + run_batch of M LCs (N != M) gives a
+        clear ValueError before launching vartools."""
+        lcs = make_lcs(n=2)
+        # 3 names but 2 LCs.
+        pipe = vt.Pipeline([
+            cmd.o(outdir="/tmp", outname=vt.PerLC(["a", "b", "c"])),
+        ])
+        with pytest.raises(ValueError, match=r"3 values"):
+            pipe.run_batch(lcs)
+
+    @needs_binary
+    def test_run_batch_multiple_cmd_o_outname_perlc(self, tmp_path):
+        """Multiple cmd.o(outname=PerLC) instances in one pipeline:
+        each lands in its own outdir with its own per-LC names."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir_a = tmp_path / "a"; outdir_a.mkdir()
+        outdir_b = tmp_path / "b"; outdir_b.mkdir()
+        lcs = make_lcs(n=3)
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir_a),
+                  outname=vt.PerLC(["a1.lc", "a2.lc", "a3.lc"]),
+                  allcols=True),
+            cmd.o(outdir=str(outdir_b),
+                  outname=vt.PerLC(["b1.lc", "b2.lc", "b3.lc"]),
+                  allcols=True),
+        ])
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            pipe.run_batch(lcs)
+        assert sorted(os.listdir(outdir_a)) == ["a1.lc", "a2.lc", "a3.lc"]
+        assert sorted(os.listdir(outdir_b)) == ["b1.lc", "b2.lc", "b3.lc"]
+
+    @needs_binary
+    def test_run_batch_cmd_o_outname_perlc_with_capture(self, tmp_path):
+        """cmd.o(outname=PerLC, capture=True) writes the file AND captures
+        the LightCurve into result.files[key]."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir = tmp_path / "out"; outdir.mkdir()
+        lcs = make_lcs(n=3)
+        names = ["cap_a.lc", "cap_b.lc", "cap_c.lc"]
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir),
+                  outname=vt.PerLC(names),
+                  capture=True, key="captured", allcols=True),
+        ])
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            batch = pipe.run_batch(lcs)
+        # Files on disk with the per-LC names:
+        assert sorted(os.listdir(outdir)) == sorted(names)
+        # AND in-memory capture:
+        assert "captured" in batch.files
+        captured = batch.files["captured"]
+        assert len(captured) == 3
+        for cap in captured:
+            assert isinstance(cap, vt.LightCurve)
+            assert "t" in cap._df.columns
+            assert "mag" in cap._df.columns
+
+    @needs_binary
+    def test_lightcurvebatch_run_cmd_o_outname_perlc(self, tmp_path):
+        """outname=PerLC works through the LightCurveBatch chaining API."""
+        from pyvartools import pipeline as _pipeline_mod
+
+        outdir = tmp_path / "out"; outdir.mkdir()
+        lcs = make_lcs(n=3)
+        names = [f"chain_{i}.lc" for i in range(3)]
+        with patch.object(_pipeline_mod, "_library_enabled",
+                          return_value=True):
+            batch = (vt.LightCurveBatch(lcs)
+                     .clip(sigclip=5.0)
+                     .o(outdir=str(outdir),
+                        outname=vt.PerLC(names), allcols=True)
+                     .run())
+        assert sorted(os.listdir(outdir)) == sorted(names)
+        assert len(batch.vars) == 3
+
+    @needs_binary
     def test_run_batch_cmd_o_outname_perlc_does_not_mutate_command(self):
         """The auto-rewrite uses try/finally; user's cmd.o is unchanged."""
         from pyvartools import pipeline as _pipeline_mod

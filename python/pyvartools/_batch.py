@@ -425,11 +425,14 @@ class LightCurveBatch:
         segment_offset = len(prior_cmds) if self._prior_batch is not None else 0
 
         # Route through Pipeline.run_batch (single vartools invocation) when
-        # this is a chain continuation OR when the user supplied perlc_vars.
-        # Both cases need per-LC variables injected via -inlistvars, which
-        # the per-LC loop below cannot do (each loop iteration is its own
-        # vartools invocation).
-        use_run_batch = segment_offset > 0 or perlc_vars is not None
+        # this is a chain continuation OR when the user supplied perlc_vars
+        # OR when any command has a PerLC attribute (including cmd.o
+        # outname=PerLC([...])).  All three need per-LC variables injected
+        # via -inlistvars, which the per-LC loop below cannot do (each
+        # loop iteration is its own single-LC vartools invocation).
+        use_run_batch = (segment_offset > 0
+                         or perlc_vars is not None
+                         or bool(perlc_map))
 
         if use_run_batch:
             from .lightcurve import LightCurve
