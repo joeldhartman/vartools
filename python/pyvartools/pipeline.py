@@ -3745,6 +3745,7 @@ class Pipeline:
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
         timeout: Optional[int] = 30,
+        perlc_vars: Optional[Dict[str, Union[int, "PerLCColumn", list, tuple]]] = None,
     ) -> List[str]:
         """Validate the pipeline by running vartools with ``-headeronly``.
 
@@ -3764,6 +3765,16 @@ class Pipeline:
             Seconds to wait for vartools (default 30).  Validation is
             normally instantaneous; the timeout exists to surface a
             hung binary rather than to bound real work.
+        perlc_vars : dict, optional
+            Same shape as :meth:`run_batch`'s ``perlc_vars``.  When the
+            pipeline contains commands that reference variables by name
+            (e.g. ``cmd.LS("minp", "maxp", 0.1)``), pass the same
+            ``perlc_vars`` you'd use at run time so vartools' parser can
+            see those variables and accept the command line.  Schema
+            entries (``int`` / :class:`PerLCColumn`) are forwarded as-is;
+            values entries are reduced to schema by inferring the
+            vartools type from the first value (the values themselves
+            aren't actually used during ``-headeronly``).
 
         Returns
         -------
@@ -3779,12 +3790,36 @@ class Pipeline:
             pipe = vt.Pipeline().LS(0.1, 10.0, 0.1, npeaks=3)
             cols = pipe.validate()
             # ['Name', 'LS_Period_1_0', 'Log10_LS_Prob_1_0', ...]
+
+            # With perlc_vars-referenced params:
+            pipe2 = vt.Pipeline().LS("minp", "maxp", 0.1)
+            cols2 = pipe2.validate(perlc_vars={"minp": [0.3, 0.5],
+                                                "maxp": [3.0, 5.0]})
         """
+        # Reduce values-form perlc_vars to schema-form so -inlistvars
+        # accepts the declaration during -headeronly (the actual values
+        # don't matter here; vartools just needs the names to resolve).
+        perlc_vars_str: Optional[str] = None
+        if perlc_vars:
+            schema, values_in = self._split_perlc_vars(perlc_vars)
+            merged_schema: Dict[str, Union[int, PerLCColumn]] = dict(schema)
+            # Synthesize PerLCColumn entries for values-form: pick the next
+            # available list-file column index (1 reserved for the LC path)
+            # and infer the type.
+            next_col = 2
+            for name, spec in values_in.items():
+                values, vtype = self._normalize_extravar_spec(spec)
+                merged_schema[name] = PerLCColumn(col=next_col, type=vtype)
+                next_col += 1
+            perlc_vars_str = (_perlc_vars_from_spec(merged_schema)
+                              if merged_schema else None)
+
         with tempfile.TemporaryDirectory(prefix="vt_validate_") as outdir:
             cmd = self._build_cmd(
                 input_flag=["-i", "-"],
                 outdir=outdir,
                 nth_args=["-parallel", str(nthreads)] if nthreads > 1 else None,
+                perlc_vars_str=perlc_vars_str,
                 randseed=randseed,
                 skipmissing=skipmissing,
                 jdtol=jdtol,

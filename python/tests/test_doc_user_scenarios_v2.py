@@ -264,18 +264,43 @@ class TestEdgeCases:
         assert "LS_Period_1_2" in r.vars.index
 
     @needs_binary
-    def test_validate_with_perlc_vars(self):
-        """Does validate() understand perlc_vars-shaped pipelines?  The
-        user might want to validate before a real batch run."""
-        pipe = vt.Pipeline([
-            cmd.LS("minp", "maxp", 0.1, npeaks=1),
-        ])
-        try:
-            cols = pipe.validate()
-            print(f"validate() with var-ref params: cols={cols[:5]}...")
-        except Exception as e:
-            print(f"validate() with var-ref params raised: "
-                  f"{type(e).__name__}: {e}")
+    def test_validate_with_perlc_vars_values(self):
+        """validate(perlc_vars={...}) pre-registers the named variables
+        so vartools' parser accepts var-ref command parameters during the
+        -headeronly probe."""
+        pipe = vt.Pipeline([cmd.LS("minp", "maxp", 0.1, npeaks=1)])
+        cols = pipe.validate(perlc_vars={
+            "minp": [0.3, 0.5],
+            "maxp": [3.0, 5.0],
+        })
+        # Sanity: validation succeeded and produced LS columns.
+        assert "Name" in cols
+        assert any("LS_Period_1" in c for c in cols)
+
+    @needs_binary
+    def test_validate_with_perlc_vars_schema(self):
+        """Schema-form perlc_vars (column refs) is forwarded as-is."""
+        pipe = vt.Pipeline([cmd.LS("minp", "maxp", 0.1, npeaks=1)])
+        from pyvartools import PerLCColumn
+        cols = pipe.validate(perlc_vars={
+            "minp": PerLCColumn(col=2, type="double"),
+            "maxp": PerLCColumn(col=3, type="double"),
+        })
+        assert any("LS_Period_1" in c for c in cols)
+
+    @needs_binary
+    def test_validate_without_perlc_vars_for_var_ref_pipeline_errors(self):
+        """If the pipeline references var-ref params but validate() is
+        called without perlc_vars=, the parser error still surfaces but
+        with a clearer cause."""
+        pipe = vt.Pipeline([cmd.LS("minp", "maxp", 0.1, npeaks=1)])
+        with pytest.raises(Exception) as excinfo:
+            pipe.validate()
+        # Vartools' own message ("undefined/initialized variable") is
+        # passed through; that's still informative enough for the user
+        # to spot the issue.
+        assert "minp" in str(excinfo.value).lower() or \
+               "undefined" in str(excinfo.value).lower()
 
     @needs_binary
     def test_loading_gz_file(self):
