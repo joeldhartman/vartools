@@ -407,7 +407,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = libltdl src USERLIBS/src USERFUNCS/src
-dist_doc_DATA = README USERLIBS/ReadME.USERLIBS USERFUNCS/ReadME.USERFUNCS
+dist_doc_DATA = README CITATION.cff USERLIBS/ReadME.USERLIBS USERFUNCS/ReadME.USERFUNCS
 example_files = \
  EXAMPLES/2.resample.example2 \
  EXAMPLES/6.png \

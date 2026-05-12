@@ -6,10 +6,10 @@ VARTOOLS is an astronomical time-series analysis program providing a wide range 
 
 Full documentation, tutorials, and examples (including the `pyvartools`
 Python API) are hosted at
-<http://www.astro.princeton.edu/~jhartman/vartools_new/>.
+<http://www.astro.princeton.edu/~jhartman/vartools.html>.
 
 The legacy single-page reference is at
-<https://www.astro.princeton.edu/~jhartman/vartools.html>.
+<http://www.astro.princeton.edu/~jhartman/vartools_old.html>.
 
 ## Building from source
 

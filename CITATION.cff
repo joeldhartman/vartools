@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+title: VARTOOLS
+message: >-
+  If you use VARTOOLS in published work, please cite the
+  Hartman & Bakos (2016) reference below.  Please also cite
+  the relevant sources for the algorithms used by individual
+  commands.
+type: software
+authors:
+  - given-names: Joel D.
+    family-names: Hartman
+    email: jhartman@astro.princeton.edu
+    affiliation: Princeton University
+  - given-names: Gáspár Á.
+    family-names: Bakos
+    affiliation: Princeton University
+url: http://www.astro.princeton.edu/~jhartman/vartools.html
+repository-code: https://github.com/joeldhartman/vartools
+license: GPL-3.0
+preferred-citation:
+  type: article
+  title: >-
+    VARTOOLS: A program for analyzing astronomical
+    time-series data
+  authors:
+    - given-names: Joel D.
+      family-names: Hartman
+    - given-names: Gáspár Á.
+      family-names: Bakos
+  journal: Astronomy and Computing
+  year: 2016
+  volume: 17
+  start: 1
+  doi: 10.1016/j.ascom.2016.05.006
