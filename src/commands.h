@@ -202,6 +202,7 @@
 #define PERTYPE_AUTOFIND 12
 #define PERTYPE_EXPR 13
 #define PERTYPE_VAR 14
+#define PERTYPE_PDM 15
 
 #define KILLHARM_OUTTYPE_DEFAULT 0
 #define KILLHARM_OUTTYPE_AMPPHASE 1
@@ -2302,6 +2303,7 @@ typedef struct {
 /* -PDM variant identifiers (shared between parser and pdm.c) */
 #define PDM_KIND_STEP        0
 #define PDM_KIND_LINTERP     1
+#define PDM_KIND_MULTICOVER  2
 
 typedef struct {
   int kind;                /* PDM_KIND_STEP, PDM_KIND_LINTERP, ... */
@@ -2333,6 +2335,13 @@ typedef struct {
   int finetune_source;
   _Variable *finetune_var;
   _Expression *finetune_expr;
+  /* Nc: number of phase-shifted bin sets ("covers") for the multicover variant.
+   * Nc = 1 for step/linterp; defaults to 2 for multicover. */
+  int Nc;
+  int *Nc_vals;
+  int Nc_source;
+  _Variable *Nc_var;
+  _Expression *Nc_expr;
   /* simple scalars */
   int Npeaks;
   int operiodogram;        /* 0/1: dump periodogram file per LC */
@@ -2348,6 +2357,18 @@ typedef struct {
   double **peakFAP;        /* [Nlcs][Npeaks] */
   double *avetheta;        /* [Nlcs] */
   double *rmstheta;        /* [Nlcs] */
+  /* fixperiodSNR: optionally compute theta/SNR/FAP at a specified period
+   * (taken from a prior -aov / -ls / -pdm / -Injectharm, or a literal,
+   * or a list column, or a fixcolumn back-reference).  Mirrors -aov. */
+  int fixperiodSNR;
+  int fixperiodSNR_pertype;
+  int fixperiodSNR_lastaovindex;
+  double fixperiodSNR_fixedperiod;
+  double **fixperiodSNR_periods;     /* [Nlcs][1] */
+  double *fixperiodSNR_peakvalues;   /* [Nlcs] -- theta at fixed period */
+  double *fixperiodSNR_peakSNR;      /* [Nlcs] */
+  double *fixperiodSNR_peakFAP;      /* [Nlcs] */
+  OutColumn *fixperiodSNR_linkedcolumn;
 } _PDM;
 
 

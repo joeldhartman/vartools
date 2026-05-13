@@ -475,6 +475,18 @@ void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int l
 void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
 void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name_num, int thisindex);
+void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
+                   int kind, int Nbin, int Nc, int useerr,
+                   double minP, double maxP, double subsample, double finetune,
+                   int Npeaks,
+                   double *perpeaks, double *thetapeaks, double *peakSNR,
+                   double *peakFAP,
+                   double clip, int clipiter,
+                   double *ave_theta, double *rms_theta,
+                   int outflag, char *outname, int ascii,
+                   int fixperiodSNR_on, double fixperiodSNR_period,
+                   double *fixperiodSNR_value, double *fixperiodSNR_SNR,
+                   double *fixperiodSNR_FAP);
 void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum);
 void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr);
 void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varptr, char vectortype, char datatype);

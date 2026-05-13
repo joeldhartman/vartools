@@ -3503,12 +3503,19 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Pdm->useerr = 1;
 	  c[cn].Pdm->Nbin = 0;     /* sentinel: use PDM_DEFAULT_NBIN */
 	  c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->Nc = 1;       /* updated to 2 when variant=multicover */
+	  c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->clip = 5.0;   /* default 5-sigma iterative clip (matches -aov) */
 	  c[cn].Pdm->clipiter = 1;
+	  c[cn].Pdm->fixperiodSNR = 0;
+	  c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_AOV;
+	  c[cn].Pdm->fixperiodSNR_lastaovindex = -1;
+	  c[cn].Pdm->fixperiodSNR_fixedperiod = 1.0;
+	  c[cn].Pdm->fixperiodSNR_linkedcolumn = NULL;
 	  sprintf(c[cn].Pdm->suffix, ".pdm");
 	  /* variant token (required) */
 	  i++;
@@ -3517,13 +3524,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    c[cn].Pdm->kind = PDM_KIND_STEP;
 	  else if(!strcmp(argv[i], "linterp"))
 	    c[cn].Pdm->kind = PDM_KIND_LINTERP;
+	  else if(!strcmp(argv[i], "multicover")) {
+	    c[cn].Pdm->kind = PDM_KIND_MULTICOVER;
+	    c[cn].Pdm->Nc = 2;   /* multicover default per SCz/S78 canonical */
+	  }
 	  else {
-	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step' or 'linterp')\n", argv[i]);
+	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step', 'linterp', or 'multicover')\n", argv[i]);
 	    listcommands(argv[iterm], p);
 	  }
-	  /* optional Nbin keyword (with var/expr/fixed value) */
+	  /* Optional Nbin (with var/expr/fixed) and -- for multicover -- Nc.
+	   * The two keywords are order-independent. */
 	  i++;
-	  if(i < argc) {
+	  while(i < argc) {
 	    if(!strcmp(argv[i], "Nbin")) {
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm], p);
@@ -3546,6 +3558,34 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      }
 	      i++;
 	    }
+	    else if(!strcmp(argv[i], "Nc")) {
+	      if(c[cn].Pdm->kind != PDM_KIND_MULTICOVER) {
+		fprintf(stderr, "-PDM: 'Nc' keyword is only valid with the multicover variant\n");
+		listcommands(argv[iterm], p);
+	      }
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->Nc_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->Nc_expr));
+	      }
+	      else {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->Nc = atoi(argv[i]);
+	      }
+	      i++;
+	    }
+	    else
+	      break;
 	  }
 	  /* required positionals with var/expr/fixed dispatch */
 	  if(i >= argc) listcommands(argv[iterm], p);
@@ -3625,9 +3665,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc) listcommands(argv[iterm], p);
 	    sprintf(c[cn].Pdm->outdir, "%s", argv[i]);
 	  }
-	  /* trailing keyword options: clip / noerr (order-insensitive).  FAP is
-	   * always computed analytically; a future `bootstrap` keyword will
-	   * recalibrate m_eff but not the FAP distribution itself. */
+	  /* trailing keyword options: clip / noerr / fixperiodSNR (order-
+	   * insensitive).  FAP is always computed analytically; a future
+	   * `bootstrap` keyword will recalibrate m_eff but not the FAP
+	   * distribution itself. */
 	  for(;;) {
 	    i++;
 	    if(i >= argc) { i--; break; }
@@ -3641,6 +3682,87 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm], p);
 	      c[cn].Pdm->clipiter = atoi(argv[i]);
+	    }
+	    else if(!strcmp(argv[i], "fixperiodSNR")) {
+	      /* fixperiodSNR <"aov" | "ls" | "pdm" | "injectharm" | "fix" P
+	       *               | "list" ["column" col] | "fixcolumn" <name|num>> */
+	      c[cn].Pdm->fixperiodSNR = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "aov")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_AOV;
+		m = -1;
+		for(l = 0; l < cn; l++)
+		  if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+		if(m < 0) {
+		  fprintf(stderr, "-PDM fixperiodSNR aov: no prior -aov / -aov_harm command found\n");
+		  listcommands(argv[iterm], p);
+		}
+		c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	      }
+	      else if(!strcmp(argv[i], "ls")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_LS;
+		m = -1;
+		for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+		if(m < 0) {
+		  fprintf(stderr, "-PDM fixperiodSNR ls: no prior -LS command found\n");
+		  listcommands(argv[iterm], p);
+		}
+		c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	      }
+	      else if(!strcmp(argv[i], "pdm")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_PDM;
+		m = -1;
+		for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+		if(m < 0) {
+		  fprintf(stderr, "-PDM fixperiodSNR pdm: no prior -PDM command found\n");
+		  listcommands(argv[iterm], p);
+		}
+		c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	      }
+	      else if(!strcmp(argv[i], "injectharm")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_INJECTHARM;
+		m = -1;
+		for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+		if(m < 0) {
+		  fprintf(stderr, "-PDM fixperiodSNR injectharm: no prior -Injectharm command found\n");
+		  listcommands(argv[iterm], p);
+		}
+		c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	      }
+	      else if(!strcmp(argv[i], "fix")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_FIX;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		c[cn].Pdm->fixperiodSNR_fixedperiod = atof(argv[i]);
+	      }
+	      else if(!strcmp(argv[i], "list")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_SPECIFIED;
+		k = 0;
+		i++;
+		if(i < argc) {
+		  if(!strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+		    i++;
+		    if(i < argc) k = atoi(argv[i]);
+		    else listcommands(argv[iterm], p);
+		  } else i--;
+		} else i--;
+		RegisterDataFromInputList(p,
+					  (void *) (&(c[cn].Pdm->fixperiodSNR_periods)),
+					  VARTOOLS_TYPE_DOUBLE,
+					  1, cn, 0, 0, NULL, k,
+					  "PDM_FIXPERIODSNR_PERIOD");
+	      }
+	      else if(!strcmp(argv[i], "fixcolumn")) {
+		c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_FIXCOLUMN;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		increaselinkedcols(p, &(c[cn].Pdm->fixperiodSNR_linkedcolumn), argv[i], cn);
+	      }
+	      else {
+		fprintf(stderr, "-PDM fixperiodSNR: unrecognised source '%s' (expected aov/ls/pdm/injectharm/fix/list/fixcolumn)\n", argv[i]);
+		listcommands(argv[iterm], p);
+	      }
 	    }
 	    else {
 	      i--;

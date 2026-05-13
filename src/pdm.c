@@ -161,18 +161,26 @@ static int pdm_isDifferentPeriods(double p1, double p2, double T)
 
 /* ---- Core theta evaluator ---- */
 
-/* Returns theta = s^2 / var_total at a single test period.
- * weights w[] sum to sumw (typically 1).  var_total is the weighted total
- * variance computed once by the caller (Sum w_i (y_i - mu_total)^2).
+/* Returns theta at a single test period.
+ *
+ * For step/linterp:  Nc=1, Nb=h->Nbin = number of phase bins.
+ * For multicover:    h->Nbin = Nb*Nc fine bins; theta is the SCz/S78 pooled
+ *                    SS_within (= average per-cover theta) over Nc covers.
+ *
+ * Single-pass O(N) binning into the (Nb*Nc)-element fine histogram; multicover
+ * then combines Nc consecutive fine bins per wide bin per cover, so the total
+ * cost is O(N + Nc^2*Nb) per trial period rather than O(Nc*N).
+ *
  * Returns PDM_ERROR_SCORE on degenerate input. */
 static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
                         double mu_total, double var_total, double period,
-                        _PDMHistType *h)
+                        int Nb, int Nc, _PDMHistType *h)
 {
   int i, ibin;
   double X, Y, wi, dph, alpha, mu_interp;
   double s_sq;
   int Nfilled;
+  int total_bins = h->Nbin;             /* = Nb*Nc */
 
   if (period <= 0.0 || var_total < PDM_MINVAR)
     return PDM_ERROR_SCORE;
@@ -185,8 +193,8 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
     if (wi <= 0.0) continue;
     dph = t[i] / period;
     X = dph - floor(dph);                 /* phase in [0,1) */
-    ibin = (int)(h->Nbin * X);
-    if (ibin >= h->Nbin) ibin = h->Nbin - 1;
+    ibin = (int)(total_bins * X);
+    if (ibin >= total_bins) ibin = total_bins - 1;
     if (ibin < 0) ibin = 0;
     Y = mag[i];
     h->binsumw[ibin]   += wi;
@@ -195,9 +203,10 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
     h->binN[ibin]++;
   }
 
-  /* Need at least two occupied bins, else the statistic is degenerate. */
+  /* For step/linterp need at least two occupied bins; for multicover apply the
+   * same check on the fine bins (looser than a per-cover check, but cheap). */
   Nfilled = 0;
-  for (i = 0; i < h->Nbin; i++)
+  for (i = 0; i < total_bins; i++)
     if (h->binN[i] >= PDM_CTMIN) Nfilled++;
   if (Nfilled < 2)
     return PDM_ERROR_SCORE;
@@ -207,7 +216,7 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
      * Using single-pass identity:
      *     sum_{i in j} w_i (y_i - mu_j)^2 = binsumwy2[j] - binsumwy[j]^2 / binsumw[j] */
     s_sq = 0.0;
-    for (i = 0; i < h->Nbin; i++) {
+    for (i = 0; i < total_bins; i++) {
       if (h->binN[i] < PDM_CTMIN) continue;
       s_sq += h->binsumwy2[i] - (h->binsumwy[i] * h->binsumwy[i] / h->binsumw[i]);
     }
@@ -225,7 +234,7 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
      * on the "hi" anchor. */
     int ibin_lo, ibin_hi;
     double w_hi;
-    for (i = 0; i < h->Nbin; i++) {
+    for (i = 0; i < total_bins; i++) {
       if (h->binN[i] >= PDM_CTMIN)
         h->binmean[i] = h->binsumwy[i] / h->binsumw[i];
       else
@@ -238,18 +247,18 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
       if (wi <= 0.0) continue;
       dph = t[i] / period;
       X = dph - floor(dph);
-      double xn = X * h->Nbin;
+      double xn = X * total_bins;
       ibin = (int)xn;
-      if (ibin >= h->Nbin) ibin = h->Nbin - 1;
+      if (ibin >= total_bins) ibin = total_bins - 1;
       if (ibin < 0) ibin = 0;
       alpha = xn - (double)ibin - 0.5;
       if (alpha < 0.0) {
-        ibin_lo = ibin - 1; if (ibin_lo < 0)         ibin_lo += h->Nbin;
+        ibin_lo = ibin - 1; if (ibin_lo < 0)         ibin_lo += total_bins;
         ibin_hi = ibin;
         w_hi = alpha + 1.0;                /* xn - (lo_centre = ibin - 0.5) */
       } else {
         ibin_lo = ibin;
-        ibin_hi = ibin + 1; if (ibin_hi >= h->Nbin)  ibin_hi -= h->Nbin;
+        ibin_hi = ibin + 1; if (ibin_hi >= total_bins)  ibin_hi -= total_bins;
         w_hi = alpha;                      /* xn - (lo_centre = ibin + 0.5) */
       }
       mu_interp = (1.0 - w_hi) * h->binmean[ibin_lo] + w_hi * h->binmean[ibin_hi];
@@ -259,34 +268,70 @@ static double pdm_theta(int kind, int N, double *t, double *mag, double *w,
     if (s_sq < 0.0) s_sq = 0.0;
     return s_sq / var_total;
   }
+  else if (kind == PDM_KIND_MULTICOVER) {
+    /* S78 multicover with the fine-binning optimisation.  Wide bin j of
+     * cover c covers phase [(c + j*Nc)/(Nb*Nc), (c + j*Nc + Nc)/(Nb*Nc)),
+     * i.e. Nc consecutive fine bins starting at (c + j*Nc) mod (Nb*Nc).
+     *
+     * SCz 1997 (pp. 943-944) explicitly notes that the analytic FAP is
+     * unknown for Nc > 1 because the per-cover Theta values are correlated.
+     * We still report theta_multicover = (sum_c SS_within^c) / (Nc*var_total),
+     * which equals the simple per-cover average of theta_c.  The caller emits
+     * an analytic FAP using the single-cover Beta((N-Nb)/2, (Nb-1)/2), which
+     * is conservative; the help text documents this caveat. */
+    int c, j, k, fb;
+    double wsum, wysum, wy2sum;
+    unsigned long Nsum;
+    s_sq = 0.0;
+    for (c = 0; c < Nc; c++) {
+      for (j = 0; j < Nb; j++) {
+        wsum = 0.0; wysum = 0.0; wy2sum = 0.0; Nsum = 0;
+        for (k = 0; k < Nc; k++) {
+          fb = (c + j * Nc + k) % total_bins;
+          wsum   += h->binsumw[fb];
+          wysum  += h->binsumwy[fb];
+          wy2sum += h->binsumwy2[fb];
+          Nsum   += h->binN[fb];
+        }
+        if (Nsum < PDM_CTMIN || wsum <= 0.0) continue;
+        s_sq += wy2sum - wysum * wysum / wsum;
+      }
+    }
+    if (s_sq < 0.0) s_sq = 0.0;
+    return s_sq / ((double)Nc * var_total);
+  }
 
-  /* Unsupported kind in this commit */
+  /* Unknown kind */
   return PDM_ERROR_SCORE;
 }
 
 /* Compute the periodogram (theta vs period) over a frequency sweep. */
 static void pdm_periodogram(int kind, int N, double *t, double *mag, double *w,
                             double mu_total, double var_total,
+                            int Nb, int Nc,
                             int Nperiod, double *periods, double *periodogram,
                             _PDMHistType *h)
 {
   int k;
   for (k = 0; k < Nperiod; k++)
     periodogram[k] = pdm_theta(kind, N, t, mag, w, mu_total, var_total,
-                               periods[k], h);
+                               periods[k], Nb, Nc, h);
 }
 
 /* ---- Find Npeaks lowest-theta periods, with fine-tune + multiple check ---- */
 
 void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
-                   int kind, int Nbin, int useerr,
+                   int kind, int Nbin, int Nc, int useerr,
                    double minP, double maxP, double subsample, double finetune,
                    int Npeaks,
                    double *perpeaks, double *thetapeaks, double *peakSNR,
                    double *peakFAP,
                    double clip, int clipiter,
                    double *ave_theta, double *rms_theta,
-                   int outflag, char *outname, int ascii)
+                   int outflag, char *outname, int ascii,
+                   int fixperiodSNR_on, double fixperiodSNR_period,
+                   double *fixperiodSNR_value, double *fixperiodSNR_SNR,
+                   double *fixperiodSNR_FAP)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple, m_eff;
   int Nused;
@@ -312,12 +357,19 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
     *ave_theta = 0.0;
     *rms_theta = 0.0;
+    if (fixperiodSNR_on) {
+      *fixperiodSNR_value = 1.0;
+      *fixperiodSNR_SNR   = 0.0;
+      *fixperiodSNR_FAP   = 0.0;
+    }
     return;
   }
 
   /* Use the configured Nbin (or default if <=0) */
   if (Nbin <= 0) Nbin = PDM_DEFAULT_NBIN;
-  pdm_hist_alloc(&h, Nbin);
+  if (Nc <= 0) Nc = 1;
+  if (kind != PDM_KIND_MULTICOVER) Nc = 1;   /* covers are a multicover concept */
+  pdm_hist_alloc(&h, Nbin * Nc);
 
   /* Copy t, mag, and build weight vector. */
   t   = (double *)malloc(N * sizeof(double));
@@ -347,6 +399,11 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
     *ave_theta = 0.0;
     *rms_theta = 0.0;
+    if (fixperiodSNR_on) {
+      *fixperiodSNR_value = 1.0;
+      *fixperiodSNR_SNR   = 0.0;
+      *fixperiodSNR_FAP   = 0.0;
+    }
     free(t); free(mag); free(w);
     pdm_hist_free(&h);
     return;
@@ -377,6 +434,11 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
     *ave_theta = 0.0;
     *rms_theta = 0.0;
+    if (fixperiodSNR_on) {
+      *fixperiodSNR_value = 1.0;
+      *fixperiodSNR_SNR   = 0.0;
+      *fixperiodSNR_FAP   = 0.0;
+    }
     free(t); free(mag); free(w);
     pdm_hist_free(&h);
     return;
@@ -414,7 +476,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
 
   /* Compute periodogram */
   pdm_periodogram(kind, Nused, t, mag, w, mu_total, var_total,
-                  Nperiod, periods, periodogram, &h);
+                  Nbin, Nc, Nperiod, periods, periodogram, &h);
 
   /* Mean / RMS of the periodogram (for SNR).  Skip ERROR scores. */
   Sum = 0.0; Sumsqr = 0.0;
@@ -589,7 +651,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     while (freq >= minfreq) {
       testperiod = 1.0 / freq;
       score = pdm_theta(kind, Nused, t, mag, w, mu_total, var_total,
-                        testperiod, &h);
+                        testperiod, Nbin, Nc, &h);
       if (score < PDM_ERROR_SCORE && score * 0.0 == 0.0)
         if (score < thetapeaks[j]) {
           thetapeaks[j] = score;
@@ -607,7 +669,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
           testperiod = perpeaks[j] * a / b;
           if (testperiod > minP && testperiod < maxP) {
             score = pdm_theta(kind, Nused, t, mag, w, mu_total, var_total,
-                              testperiod, &h);
+                              testperiod, Nbin, Nc, &h);
             if (score < PDM_ERROR_SCORE && score * 0.0 == 0.0)
               if (score < bestscore) {
                 ismultiple = 1; abest = a; bbest = b; bestscore = score;
@@ -654,6 +716,38 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* fixperiodSNR: evaluate theta/SNR/FAP at a caller-supplied period (resolved
+   * upstream from -aov/-ls/-pdm/-Injectharm/fix/list/fixcolumn).  Uses the
+   * same ave/std-of-periodogram noise estimate (after clipping) as the peak
+   * SNR; FAP uses the same single-cover Beta((N-Nb)/2, (Nb-1)/2) formula. */
+  if (fixperiodSNR_on) {
+    double t_fix;
+    if (fixperiodSNR_period <= 0.0) {
+      *fixperiodSNR_value = 1.0;
+      *fixperiodSNR_SNR   = 0.0;
+      *fixperiodSNR_FAP   = 0.0;
+    } else {
+      t_fix = pdm_theta(kind, Nused, t, mag, w, mu_total, var_total,
+                        fixperiodSNR_period, Nbin, Nc, &h);
+      if (t_fix < PDM_ERROR_SCORE && t_fix * 0.0 == 0.0) {
+        *fixperiodSNR_value = t_fix;
+        *fixperiodSNR_SNR = (ave_per - t_fix) / std_per;
+        if (b_ > 0.0 && a_ > 0.0) {
+          double x = 1.0 - t_fix;
+          if (x < 0.0) x = 0.0;
+          if (x > 1.0) x = 1.0;
+          *fixperiodSNR_FAP = negln_m_eff - log1minusbetai(a_, b_, x);
+        } else {
+          *fixperiodSNR_FAP = 0.0;
+        }
+      } else {
+        *fixperiodSNR_value = 1.0;
+        *fixperiodSNR_SNR   = 0.0;
+        *fixperiodSNR_FAP   = 0.0;
+      }
+    }
+  }
+
   free(t); free(mag); free(w);
   free(periods); free(periodogram);
   pdm_hist_free(&h);
@@ -665,6 +759,9 @@ void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name
 {
   char outname[MAXLEN];
   int i1, i2;
+  int fix_on = 0;
+  double fix_period = 1.0;
+  double *fix_value_ptr = NULL, *fix_SNR_ptr = NULL, *fix_FAP_ptr = NULL;
 
   if (Pdm->operiodogram) {
     i1 = 0; i2 = 0;
@@ -711,8 +808,55 @@ void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name
   else
     Pdm->Nbin_vals[lcnum] = Pdm->Nbin;
 
+  if (Pdm->Nc_source == VARTOOLS_SOURCE_EVALEXPRESSION)
+    Pdm->Nc_vals[lcnum] = (int) ceil(EvaluateExpression(lc_name_num, lcnum, 0, Pdm->Nc_expr));
+  else if (Pdm->Nc_source == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+    Pdm->Nc_vals[lcnum] = (int) ceil(EvaluateVariable_Double(lc_name_num, lcnum, 0, Pdm->Nc_var));
+  else
+    Pdm->Nc_vals[lcnum] = Pdm->Nc;
+
+  /* Resolve the fixperiodSNR period source (mirrors aov.c::RunAOVCommand). */
+  if (Pdm->fixperiodSNR) {
+    fix_on = 1;
+    switch (Pdm->fixperiodSNR_pertype) {
+      case PERTYPE_AOV:
+        i1 = Pdm->fixperiodSNR_lastaovindex;
+        if (c[i1 - thisindex].cnum == CNUM_AOV)
+          Pdm->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Aov->peakperiods[lcnum][0];
+        else if (c[i1 - thisindex].cnum == CNUM_HARMAOV)
+          Pdm->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].AovHarm->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_LS:
+        i1 = Pdm->fixperiodSNR_lastaovindex;
+        Pdm->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Ls->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_PDM:
+        i1 = Pdm->fixperiodSNR_lastaovindex;
+        Pdm->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Pdm->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_INJECTHARM:
+        i1 = Pdm->fixperiodSNR_lastaovindex;
+        Pdm->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Injectharm->periodinject[lcnum];
+        break;
+      case PERTYPE_FIX:
+        Pdm->fixperiodSNR_periods[lcnum][0] = Pdm->fixperiodSNR_fixedperiod;
+        break;
+      case PERTYPE_FIXCOLUMN:
+        getoutcolumnvalue(Pdm->fixperiodSNR_linkedcolumn, lcnum, lc_name_num,
+                          VARTOOLS_TYPE_DOUBLE, &(Pdm->fixperiodSNR_periods[lcnum][0]));
+        break;
+      default:
+        /* PERTYPE_SPECIFIED (list-column): pre-loaded by inputlist parsing */
+        break;
+    }
+    fix_period    = Pdm->fixperiodSNR_periods[lcnum][0];
+    fix_value_ptr = &(Pdm->fixperiodSNR_peakvalues[lcnum]);
+    fix_SNR_ptr   = &(Pdm->fixperiodSNR_peakSNR[lcnum]);
+    fix_FAP_ptr   = &(Pdm->fixperiodSNR_peakFAP[lcnum]);
+  }
+
   findPeaks_pdm(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum],
-                Pdm->kind, Pdm->Nbin_vals[lcnum], Pdm->useerr,
+                Pdm->kind, Pdm->Nbin_vals[lcnum], Pdm->Nc_vals[lcnum], Pdm->useerr,
                 Pdm->minp_vals[lcnum], Pdm->maxp_vals[lcnum],
                 Pdm->subsample_vals[lcnum], Pdm->finetune_vals[lcnum],
                 Pdm->Npeaks,
@@ -720,5 +864,6 @@ void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name
                 Pdm->peakSNR[lcnum], Pdm->peakFAP[lcnum],
                 Pdm->clip, Pdm->clipiter,
                 &Pdm->avetheta[lcnum], &Pdm->rmstheta[lcnum],
-                Pdm->operiodogram, outname, p->ascii);
+                Pdm->operiodogram, outname, p->ascii,
+                fix_on, fix_period, fix_value_ptr, fix_SNR_ptr, fix_FAP_ptr);
 }

@@ -1324,6 +1324,12 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    }
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta), "%9.5f", 1, 0, 0, 0, "Mean_PDM_Theta_%d", l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta), "%9.5f", 1, 0, 0, 0, "RMS_PDM_Theta_%d", l);
+	  if(c[l].Pdm->fixperiodSNR) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_periods),   "%14.8f", 2, 0, 0, 0, 0, "PDM_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakvalues), "%9.5f", 1, 0, 0, 0, "PDM_Theta_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakSNR),    "%9.5f", 1, 0, 0, 0, "PDM_SNR_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakFAP),    "%9.5f", 1, 0, 0, 0, "PDM_NEG_LN_FAP_PeriodFix_%d", l);
+	  }
 	  break;
 
 	case CNUM_HARMAOV:

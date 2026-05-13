@@ -747,7 +747,8 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Pdm->maxp_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Pdm->subsample_vals= (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Pdm->finetune_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
-	     (c[i].Pdm->Nbin_vals     = (int *)     malloc(Nlcs * sizeof(int))) == NULL)
+	     (c[i].Pdm->Nbin_vals     = (int *)     malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].Pdm->Nc_vals       = (int *)     malloc(Nlcs * sizeof(int))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].Pdm->peakperiods[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
@@ -755,6 +756,19 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Pdm->peakSNR[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].Pdm->peakFAP[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
 	      vt_error(ERR_MEMALLOC);
+	  if(c[i].Pdm->fixperiodSNR) {
+	    if((c[i].Pdm->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Pdm->fixperiodSNR_peakSNR    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Pdm->fixperiodSNR_peakFAP    = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(c[i].Pdm->fixperiodSNR_pertype != PERTYPE_SPECIFIED) {
+	      if((c[i].Pdm->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	      for(j=0;j<Nlcs;j++)
+		if((c[i].Pdm->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	    }
+	  }
 	  break;
 
 	case CNUM_HARMAOV:
