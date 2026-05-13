@@ -59,6 +59,8 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
   char outname[MAXLEN], outname2[MAXLEN], outname3[MAXLEN], outname4[MAXLEN],
     tmpstring[256];
 
+  SetAggregateNJD(p->NJD[lc2]);
+
   if(p->isifcommands) {
     if(!TestIf(p->IfStack[lc2], p, c, lc, lc2)) {
       if(c->cnum != CNUM_SAVELC && c->cnum != CNUM_RESTORELC) {
@@ -109,7 +111,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  i1 = sortlcbyvarlong(p->NJD[lc2], (*((long ***) (c->SortLC->sortvar->dataptr)))[lc2], lc2, p);
 	  break;
 	default:
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	  break;
 	}
       } else {
@@ -133,7 +135,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  i1 = sortlcbyvarlong_rev(p->NJD[lc2], (*((long ***) (c->SortLC->sortvar->dataptr)))[lc2], lc2, p);
 	  break;
 	default:
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	  break;
 	}
       }
@@ -141,12 +143,12 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_DIFFFLUXTOMAG:
       /* Convert from isis differential flux to magnitudes */
-      difffluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],c->DiffFluxtomag->magstar[lc][lc2],c->DiffFluxtomag->mag_constant1, c->DiffFluxtomag->offset);
+      difffluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],c->DiffFluxtomag->magstar[lc][lc2],VT_EVAL_DOUBLE(c->DiffFluxtomag, mag_constant1, lc, lc2), VT_EVAL_DOUBLE(c->DiffFluxtomag, offset, lc, lc2));
       break;
 
     case CNUM_FLUXTOMAG:
       /* Convert from isis differential flux to magnitudes */
-      fluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],c->Fluxtomag->mag_constant1, c->Fluxtomag->offset);
+      fluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc2), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc2));
       break;
 
     case CNUM_EXPRESSION:
@@ -188,7 +190,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_CLIP:
       /* Clip the light curve */
-      c->Clip->Nclip[lc2] = sigclip(p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &d2, &d3, &i1, c->Clip->sigclip, c->Clip->iter, lc2, p, c->Clip->niter, c->Clip->usemedian, c->Clip->markclip, c->Clip->clipvar, c->Clip->noinitmark);
+      c->Clip->Nclip[lc2] = sigclip(p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &d2, &d3, &i1, VT_EVAL_DOUBLE(c->Clip, sigclip, lc, lc2), VT_EVAL_INT(c->Clip, iter, lc, lc2), lc2, p, VT_EVAL_INT(c->Clip, niter, lc, lc2), c->Clip->usemedian, c->Clip->markclip, c->Clip->clipvar, c->Clip->noinitmark);
       break;
 
     case CNUM_CONVERTTIME:
@@ -198,12 +200,12 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_ENSEMBLERESCALESIG:
       /* There must be a bug in the program if we're calling ensemblerescalesig in single light curve process mode! */
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
 
-    case CNUM_HARMONICFILTER:
+    case CNUM_FOURIERFILTER:
       /* Apply a fourier filter to the light curve */
-      doHarmonicFilter(p, c->HarmonicFilter, lc2, lc);
+      doFourierFilter(p, c->FourierFilter, lc2, lc);
       break;
 
     case CNUM_PRINT:
@@ -406,7 +408,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  i1++;
 	}
       sprintf(outname,"%s/%s%s",c->Autocorr->outdir,&p->lcnames[lc][i2],c->Autocorr->suffix);
-      autocorrelation(p->t[lc2], p->mag[lc2], p->sig[lc2], p->NJD[lc2], c->Autocorr->start, c->Autocorr->stop, c->Autocorr->step, outname, lc2, lc, c->Autocorr->usemask, c->Autocorr->maskvar);
+      autocorrelation(p->t[lc2], p->mag[lc2], p->sig[lc2], p->NJD[lc2], VT_EVAL_DOUBLE(c->Autocorr, start, lc, lc2), VT_EVAL_DOUBLE(c->Autocorr, stop, lc, lc2), VT_EVAL_DOUBLE(c->Autocorr, step, lc, lc2), outname, lc2, lc, c->Autocorr->usemask, c->Autocorr->maskvar);
       break;
 
 
@@ -446,16 +448,16 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    {
 	      if(gnu_getline(&(c->GetLSAmpThresh->line),&(c->GetLSAmpThresh->line_size),c->GetLSAmpThresh->listfile) < 0)
 		{
-		  error2(ERR_GETLSAMPTHRESH_FILETOSHORT,c->GetLSAmpThresh->listfilename);
+		  vt_error2(ERR_GETLSAMPTHRESH_FILETOSHORT,c->GetLSAmpThresh->listfilename);
 		}
 	      sscanf(c->GetLSAmpThresh->line,"%s %lf",c->GetLSAmpThresh->filename,c->GetLSAmpThresh->amp);
 	      if((c->GetLSAmpThresh->infile = fopen(c->GetLSAmpThresh->filename,"r")) == NULL)
-		error2(ERR_FILENOTFOUND,c->GetLSAmpThresh->filename);
+		vt_error2(ERR_FILENOTFOUND,c->GetLSAmpThresh->filename);
 	      c->GetLSAmpThresh->sizesigfile = 0;
 	      while(gnu_getline(&(c->GetLSAmpThresh->line),&(c->GetLSAmpThresh->line_size),c->GetLSAmpThresh->infile) >= 0)
 		c->GetLSAmpThresh->sizesigfile = c->GetLSAmpThresh->sizesigfile + 1;
 	      if(c->GetLSAmpThresh->sizesigfile != p->NJD[lc2])
-		error2(ERR_SIGFILEWRONGLENGTH,c->GetLSAmpThresh->filename);
+		vt_error2(ERR_SIGFILEWRONGLENGTH,c->GetLSAmpThresh->filename);
 	    }
 	  if(c->GetLSAmpThresh->pertype != PERTYPE_SPECIFIED)
 	    getlsampthresh(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->GetLSAmpThresh->period[lc2][0],c->GetLSAmpThresh->harm_specsigflag,c->GetLSAmpThresh->infile,c->GetLSAmpThresh->Nsubharm,c->GetLSAmpThresh->Nharm,c->GetLSAmpThresh->minPer,c->GetLSAmpThresh->thresh,&c->GetLSAmpThresh->ampthresh_scale[lc2],&c->GetLSAmpThresh->amp[lc2],c->GetLSAmpThresh->use_orig_ls);
@@ -559,15 +561,20 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	{
 	  for(i1 = 0; i1 < c->Killharm->Nper; i1++)
 	    {
-	      c->Killharm->periods[lc2][i1] = c->Killharm->fixedperiods[i1];
+	      if(c->Killharm->fixedperiods_source[i1] == VARTOOLS_SOURCE_EVALEXPRESSION)
+		c->Killharm->periods[lc2][i1] = EvaluateExpression(lc, lc2, 0, c->Killharm->fixedperiods_expr[i1]);
+	      else if(c->Killharm->fixedperiods_source[i1] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+		c->Killharm->periods[lc2][i1] = EvaluateVariable_Double(lc, lc2, 0, c->Killharm->fixedperiods_var[i1]);
+	      else
+		c->Killharm->periods[lc2][i1] = c->Killharm->fixedperiods[i1];
 	    }
 	}
       if(p->NJD[lc2] > 1)
 	{
 	  if(c->Killharm->pertype != PERTYPE_SPECIFIED)
-	    dokillharms(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Killharm->Nper,c->Killharm->periods[lc2],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc2],c->Killharm->subharmB[lc2],c->Killharm->harmA[lc2],c->Killharm->harmB[lc2],c->Killharm->fundA[lc2],c->Killharm->fundB[lc2],&c->Killharm->mean[lc2], c->Killharm->omodel, outname, c->Killharm->amp[lc2], c->Killharm->fitonly, c->Killharm->outtype, c->Killharm->clip);
+	    dokillharms(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Killharm->Nper,c->Killharm->periods[lc2],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc2],c->Killharm->subharmB[lc2],c->Killharm->harmA[lc2],c->Killharm->harmB[lc2],c->Killharm->fundA[lc2],c->Killharm->fundB[lc2],&c->Killharm->mean[lc2], c->Killharm->omodel, outname, c->Killharm->amp[lc2], c->Killharm->fitonly, c->Killharm->outtype, VT_EVAL_DOUBLE(c->Killharm, clip, lc, lc2));
 	  else
-	    dokillharms(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Killharm->Nper,c->Killharm->periods[lc],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc2],c->Killharm->subharmB[lc2],c->Killharm->harmA[lc2],c->Killharm->harmB[lc2],c->Killharm->fundA[lc2],c->Killharm->fundB[lc2],&c->Killharm->mean[lc2], c->Killharm->omodel, outname,c->Killharm->amp[lc2], c->Killharm->fitonly, c->Killharm->outtype, c->Killharm->clip);
+	    dokillharms(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->Killharm->Nper,c->Killharm->periods[lc],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc2],c->Killharm->subharmB[lc2],c->Killharm->harmA[lc2],c->Killharm->harmB[lc2],c->Killharm->fundA[lc2],c->Killharm->fundB[lc2],&c->Killharm->mean[lc2], c->Killharm->omodel, outname,c->Killharm->amp[lc2], c->Killharm->fitonly, c->Killharm->outtype, VT_EVAL_DOUBLE(c->Killharm, clip, lc, lc2));
 	}
       break;
 
@@ -642,13 +649,21 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	{
 	  c->Starspot->period[lc2][0] = c->Starspot->fixedperiod;
 	}
-      c->Starspot->a[lc2] = c->Starspot->a0;
-      c->Starspot->b[lc2] = c->Starspot->b0;
-      c->Starspot->alpha[lc2] = c->Starspot->alpha0;
-      c->Starspot->inclination[lc2] = c->Starspot->inclination0;
-      c->Starspot->chi[lc2] = c->Starspot->chi0;
-      c->Starspot->psi0[lc2] = c->Starspot->psi00;
-      c->Starspot->mconst[lc2] = c->Starspot->mconst0;
+      else if(c->Starspot->pertype == PERTYPE_VAR)
+	{
+	  c->Starspot->period[lc2][0] = EvaluateVariable_Double(lc, lc2, 0, c->Starspot->fixedperiod_var);
+	}
+      else if(c->Starspot->pertype == PERTYPE_EXPR)
+	{
+	  c->Starspot->period[lc2][0] = EvaluateExpression(lc, lc2, 0, c->Starspot->fixedperiod_expr);
+	}
+      c->Starspot->a[lc2] = VT_EVAL_DOUBLE(c->Starspot, a0, lc, lc2);
+      c->Starspot->b[lc2] = VT_EVAL_DOUBLE(c->Starspot, b0, lc, lc2);
+      c->Starspot->alpha[lc2] = VT_EVAL_DOUBLE(c->Starspot, alpha0, lc, lc2);
+      c->Starspot->inclination[lc2] = VT_EVAL_DOUBLE(c->Starspot, inclination0, lc, lc2);
+      c->Starspot->chi[lc2] = VT_EVAL_DOUBLE(c->Starspot, chi0, lc, lc2);
+      c->Starspot->psi0[lc2] = VT_EVAL_DOUBLE(c->Starspot, psi00, lc, lc2);
+      c->Starspot->mconst[lc2] = VT_EVAL_DOUBLE(c->Starspot, mconst0, lc, lc2);
       if(p->NJD[lc2] > 1)
 	{
 	  if(c->Starspot->pertype != PERTYPE_SPECIFIED)
@@ -798,7 +813,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
 	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
 	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	else if(c->BlsFixPer->sizeuv[lc2] < p->NJD[lc2])
 	  {
@@ -807,7 +822,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    free(c->BlsFixPer->v[lc2]);
 	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
 	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	
 	/* Find the period if we're getting it from a previous command */
@@ -909,7 +924,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixDurTc->sizeuv[lc2] = p->NJD[lc2];
 	      if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
 		 (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  else if(c->BlsFixDurTc->sizeuv[lc2] < p->NJD[lc2])
 	    {
@@ -918,7 +933,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      free(c->BlsFixDurTc->v[lc2]);
 	      if((c->BlsFixDurTc->u[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
 		 (c->BlsFixDurTc->v[lc2] = (double *) malloc(c->BlsFixDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  
 	  if(c->BlsFixDurTc->operiodogram)
@@ -938,6 +953,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixDurTc->inputdur[lc2] = c->BlsFixDurTc->fixdur;
 	      d1 = c->BlsFixDurTc->inputdur[lc2];
 	    }
+	  else if(c->BlsFixDurTc->durtype == PERTYPE_VAR) {
+	    c->BlsFixDurTc->inputdur[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixDurTc->fixdur_var);
+	    d1 = c->BlsFixDurTc->inputdur[lc2];
+	  }
+	  else if(c->BlsFixDurTc->durtype == PERTYPE_EXPR) {
+	    c->BlsFixDurTc->inputdur[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixDurTc->fixdur_expr);
+	    d1 = c->BlsFixDurTc->inputdur[lc2];
+	  }
 	  else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc2, lc, 
 			      VARTOOLS_TYPE_DOUBLE, 
@@ -951,6 +974,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixDurTc->inputTC[lc2] = c->BlsFixDurTc->fixTC;
 	      d2 = c->BlsFixDurTc->fixTC;
 	    }
+	  else if(c->BlsFixDurTc->TCtype == PERTYPE_VAR) {
+	    c->BlsFixDurTc->inputTC[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixDurTc->fixTC_var);
+	    d2 = c->BlsFixDurTc->inputTC[lc2];
+	  }
+	  else if(c->BlsFixDurTc->TCtype == PERTYPE_EXPR) {
+	    c->BlsFixDurTc->inputTC[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixDurTc->fixTC_expr);
+	    d2 = c->BlsFixDurTc->inputTC[lc2];
+	  }
 	  else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc2, lc, 
 			      VARTOOLS_TYPE_DOUBLE, 
@@ -965,6 +996,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixDurTc->inputdepth[lc2] = c->BlsFixDurTc->fixdepthval;
 	      d3 = c->BlsFixDurTc->fixdepthval;
 	    }
+	    else if(c->BlsFixDurTc->depthtype == PERTYPE_VAR) {
+	      c->BlsFixDurTc->inputdepth[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixDurTc->fixdepthval_var);
+	      d3 = c->BlsFixDurTc->inputdepth[lc2];
+	    }
+	    else if(c->BlsFixDurTc->depthtype == PERTYPE_EXPR) {
+	      c->BlsFixDurTc->inputdepth[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixDurTc->fixdepthval_expr);
+	      d3 = c->BlsFixDurTc->inputdepth[lc2];
+	    }
 	    else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
 	      getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc2, lc, 
 				VARTOOLS_TYPE_DOUBLE, 
@@ -978,6 +1017,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixDurTc->inputqgress[lc2] = c->BlsFixDurTc->qgressval;
 	      d4 = c->BlsFixDurTc->qgressval;
 	    }
+	    else if(c->BlsFixDurTc->qgresstype == PERTYPE_VAR) {
+	      c->BlsFixDurTc->inputqgress[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixDurTc->qgressval_var);
+	      d4 = c->BlsFixDurTc->inputqgress[lc2];
+	    }
+	    else if(c->BlsFixDurTc->qgresstype == PERTYPE_EXPR) {
+	      c->BlsFixDurTc->inputqgress[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixDurTc->qgressval_expr);
+	      d4 = c->BlsFixDurTc->inputqgress[lc2];
+	    }
 	    else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
 	      getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc2, lc, 
 				VARTOOLS_TYPE_DOUBLE, 
@@ -988,11 +1035,28 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      d4 = c->BlsFixDurTc->inputqgress[lc];
 	    }
 	  }
-	  c->BlsFixDurTc->fmin[lc2] = dmax((2./(p->t[lc2][p->NJD[lc2]-1] - p->t[lc2][0])),1./c->BlsFixDurTc->maxper);
-	  c->BlsFixDurTc->nf2[lc2] = floor((((1./c->BlsFixDurTc->minper) - c->BlsFixDurTc->fmin[lc2])/c->BlsFixDurTc->df)+1.);
+	  { double _minper = VT_EVAL_DOUBLE(c->BlsFixDurTc, minper, lc, lc2);
+	    double _maxper = VT_EVAL_DOUBLE(c->BlsFixDurTc, maxper, lc, lc2);
+	    int _nf = VT_EVAL_INT(c->BlsFixDurTc, nf, lc, lc2);
+	    double _df = ((1./_minper) - (1./_maxper)) / (_nf - 1);
+#ifdef PARALLEL
+	  if(c->BlsFixDurTc->size_p[lc2] < _nf + 1) {
+	    c->BlsFixDurTc->p[lc2] = (double *) realloc(c->BlsFixDurTc->p[lc2], (_nf+1)*sizeof(double));
+	    if(c->BlsFixDurTc->p[lc2] == NULL) vt_error(ERR_MEMALLOC);
+	    c->BlsFixDurTc->size_p[lc2] = _nf + 1;
+	  }
+#else
+	  if(c->BlsFixDurTc->size_p < _nf + 1) {
+	    c->BlsFixDurTc->p = (double *) realloc(c->BlsFixDurTc->p, (_nf+1)*sizeof(double));
+	    if(c->BlsFixDurTc->p == NULL) vt_error(ERR_MEMALLOC);
+	    c->BlsFixDurTc->size_p = _nf + 1;
+	  }
+#endif
+	  c->BlsFixDurTc->fmin[lc2] = dmax((2./(p->t[lc2][p->NJD[lc2]-1] - p->t[lc2][0])),1./_maxper);
+	  c->BlsFixDurTc->nf2[lc2] = floor((((1./_minper) - c->BlsFixDurTc->fmin[lc2])/_df)+1.);
 	  if(c->BlsFixDurTc->nf2[lc2] > 0 && c->BlsFixDurTc->Npeak > 0) {
 	    /* Now either run bls  */
-	    eeblsfixdurtc(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixDurTc->u[lc2],c->BlsFixDurTc->v[lc2],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc2],c->BlsFixDurTc->fmin[lc2],c->BlsFixDurTc->df,
+	    eeblsfixdurtc(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->BlsFixDurTc->u[lc2],c->BlsFixDurTc->v[lc2],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc2],c->BlsFixDurTc->fmin[lc2],_df,
 #ifdef PARALLEL
 			  c->BlsFixDurTc->p[lc2]
 #else
@@ -1004,6 +1068,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc, p->lcnames[lc]);
 	    }
 	  }
+	  } /* close _minper/_maxper/_df scope */
 	} else {
 	if(!p->quiet_mode) {
 	  fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLS.\n", thisindex, lc, p->lcnames[lc]);
@@ -1057,7 +1122,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixPerDurTc->sizeuv[lc2] = p->NJD[lc2];
 	      if((c->BlsFixPerDurTc->u[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
 		 (c->BlsFixPerDurTc->v[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  else if(c->BlsFixPerDurTc->sizeuv[lc2] < p->NJD[lc2])
 	    {
@@ -1066,7 +1131,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      free(c->BlsFixPerDurTc->v[lc2]);
 	      if((c->BlsFixPerDurTc->u[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL ||
 		 (c->BlsFixPerDurTc->v[lc2] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[lc2] * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  
 	  if(c->BlsFixPerDurTc->pertype == PERTYPE_FIX)
@@ -1074,6 +1139,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixPerDurTc->inputper[lc2] = c->BlsFixPerDurTc->fixper;
 	      d0 = c->BlsFixPerDurTc->inputper[lc2];
 	    }
+	  else if(c->BlsFixPerDurTc->pertype == PERTYPE_VAR) {
+	    c->BlsFixPerDurTc->inputper[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixPerDurTc->fixper_var);
+	    d0 = c->BlsFixPerDurTc->inputper[lc2];
+	  }
+	  else if(c->BlsFixPerDurTc->pertype == PERTYPE_EXPR) {
+	    c->BlsFixPerDurTc->inputper[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixPerDurTc->fixper_expr);
+	    d0 = c->BlsFixPerDurTc->inputper[lc2];
+	  }
 	  else if(c->BlsFixPerDurTc->pertype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->BlsFixPerDurTc->fixper_linkedcolumn, lc2, lc, 
 			      VARTOOLS_TYPE_DOUBLE, 
@@ -1087,6 +1160,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixPerDurTc->inputdur[lc2] = c->BlsFixPerDurTc->fixdur;
 	      d1 = c->BlsFixPerDurTc->inputdur[lc2];
 	    }
+	  else if(c->BlsFixPerDurTc->durtype == PERTYPE_VAR) {
+	    c->BlsFixPerDurTc->inputdur[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixPerDurTc->fixdur_var);
+	    d1 = c->BlsFixPerDurTc->inputdur[lc2];
+	  }
+	  else if(c->BlsFixPerDurTc->durtype == PERTYPE_EXPR) {
+	    c->BlsFixPerDurTc->inputdur[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixPerDurTc->fixdur_expr);
+	    d1 = c->BlsFixPerDurTc->inputdur[lc2];
+	  }
 	  else if(c->BlsFixPerDurTc->durtype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->BlsFixPerDurTc->fixdur_linkedcolumn, lc2, lc, 
 			      VARTOOLS_TYPE_DOUBLE, 
@@ -1100,6 +1181,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixPerDurTc->inputTC[lc2] = c->BlsFixPerDurTc->fixTC;
 	      d2 = c->BlsFixPerDurTc->fixTC;
 	    }
+	  else if(c->BlsFixPerDurTc->TCtype == PERTYPE_VAR) {
+	    c->BlsFixPerDurTc->inputTC[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixPerDurTc->fixTC_var);
+	    d2 = c->BlsFixPerDurTc->inputTC[lc2];
+	  }
+	  else if(c->BlsFixPerDurTc->TCtype == PERTYPE_EXPR) {
+	    c->BlsFixPerDurTc->inputTC[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixPerDurTc->fixTC_expr);
+	    d2 = c->BlsFixPerDurTc->inputTC[lc2];
+	  }
 	  else if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIXCOLUMN) {
 	    getoutcolumnvalue(c->BlsFixPerDurTc->fixTC_linkedcolumn, lc2, lc, 
 			      VARTOOLS_TYPE_DOUBLE, 
@@ -1114,6 +1203,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      c->BlsFixPerDurTc->inputdepth[lc2] = c->BlsFixPerDurTc->fixdepthval;
 	      d3 = c->BlsFixPerDurTc->fixdepthval;
 	    }
+	    else if(c->BlsFixPerDurTc->depthtype == PERTYPE_VAR) {
+	      c->BlsFixPerDurTc->inputdepth[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixPerDurTc->fixdepthval_var);
+	      d3 = c->BlsFixPerDurTc->inputdepth[lc2];
+	    }
+	    else if(c->BlsFixPerDurTc->depthtype == PERTYPE_EXPR) {
+	      c->BlsFixPerDurTc->inputdepth[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixPerDurTc->fixdepthval_expr);
+	      d3 = c->BlsFixPerDurTc->inputdepth[lc2];
+	    }
 	    else if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIXCOLUMN) {
 	      getoutcolumnvalue(c->BlsFixPerDurTc->fixdepth_linkedcolumn, lc2, lc, 
 				VARTOOLS_TYPE_DOUBLE, 
@@ -1126,6 +1223,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIX) {
 	      c->BlsFixPerDurTc->inputqgress[lc2] = c->BlsFixPerDurTc->qgressval;
 	      d4 = c->BlsFixPerDurTc->qgressval;
+	    }
+	    else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_VAR) {
+	      c->BlsFixPerDurTc->inputqgress[lc2] = EvaluateVariable_Double(lc, lc2, 0, c->BlsFixPerDurTc->qgressval_var);
+	      d4 = c->BlsFixPerDurTc->inputqgress[lc2];
+	    }
+	    else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_EXPR) {
+	      c->BlsFixPerDurTc->inputqgress[lc2] = EvaluateExpression(lc, lc2, 0, c->BlsFixPerDurTc->qgressval_expr);
+	      d4 = c->BlsFixPerDurTc->inputqgress[lc2];
 	    }
 	    else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
 	      getoutcolumnvalue(c->BlsFixPerDurTc->fixqgress_linkedcolumn, lc2, lc, 
@@ -1328,29 +1433,37 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	  c->MandelAgolTransit->e0 = 0.;
 	  c->MandelAgolTransit->omega0 = 0.;
 	}
-      c->MandelAgolTransit->period[lc2] = c->MandelAgolTransit->P0;
-      c->MandelAgolTransit->T0[lc2] = c->MandelAgolTransit->T00;
-      c->MandelAgolTransit->r[lc2] = c->MandelAgolTransit->r0;
-      c->MandelAgolTransit->a[lc2] = c->MandelAgolTransit->a0;
-      c->MandelAgolTransit->e[lc2] = c->MandelAgolTransit->e0;
-      c->MandelAgolTransit->omega[lc2] = c->MandelAgolTransit->omega0;
+      c->MandelAgolTransit->period[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, P0, lc, lc2);
+      c->MandelAgolTransit->T0[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, T00, lc, lc2);
+      c->MandelAgolTransit->r[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, r0, lc, lc2);
+      c->MandelAgolTransit->a[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, a0, lc, lc2);
+      c->MandelAgolTransit->e[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, e0, lc, lc2);
+      { double _omega0_val = VT_EVAL_DOUBLE(c->MandelAgolTransit, omega0, lc, lc2);
+        if(c->MandelAgolTransit->omega0_source != VARTOOLS_SOURCE_FIXED)
+          _omega0_val *= M_PI/180.;
+        c->MandelAgolTransit->omega[lc2] = _omega0_val;
+      }
       if(c->MandelAgolTransit->inputinclterm) {
-	c->MandelAgolTransit->bimpact[lc2] = c->MandelAgolTransit->bimpact0;
-	c->MandelAgolTransit->inc[lc2] = c->MandelAgolTransit->bimpact0*(1. + c->MandelAgolTransit->e0*cos(c->MandelAgolTransit->omega0))/(1. - c->MandelAgolTransit->e0*c->MandelAgolTransit->e0)/(c->MandelAgolTransit->a0);
+	c->MandelAgolTransit->bimpact[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, bimpact0, lc, lc2);
+	c->MandelAgolTransit->inc[lc2] = c->MandelAgolTransit->bimpact[lc2]*(1. + c->MandelAgolTransit->e[lc2]*cos(c->MandelAgolTransit->omega[lc2]))/(1. - c->MandelAgolTransit->e[lc2]*c->MandelAgolTransit->e[lc2])/(c->MandelAgolTransit->a[lc2]);
 	c->MandelAgolTransit->inc[lc2] = 180.*acos(c->MandelAgolTransit->inc[lc2])/M_PI;
       }
       else {
-	c->MandelAgolTransit->inc[lc2] = c->MandelAgolTransit->inc0;
-	c->MandelAgolTransit->bimpact[lc2] = cos(c->MandelAgolTransit->inc0*M_PI/180.)*(1. - c->MandelAgolTransit->e0*c->MandelAgolTransit->e0)*(c->MandelAgolTransit->a0)/(1. + c->MandelAgolTransit->e0*cos(c->MandelAgolTransit->omega0));
+	c->MandelAgolTransit->inc[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, inc0, lc, lc2);
+	c->MandelAgolTransit->bimpact[lc2] = cos(c->MandelAgolTransit->inc[lc2]*M_PI/180.)*(1. - c->MandelAgolTransit->e[lc2]*c->MandelAgolTransit->e[lc2])*(c->MandelAgolTransit->a[lc2])/(1. + c->MandelAgolTransit->e[lc2]*cos(c->MandelAgolTransit->omega[lc2]));
       }
       c->MandelAgolTransit->sin_i[lc2] = c->MandelAgolTransit->sin_i0;
-      c->MandelAgolTransit->ldcoeffs[lc2][0] = c->MandelAgolTransit->ldcoeffs0[lc2];
-      c->MandelAgolTransit->ldcoeffs[lc2][1] = c->MandelAgolTransit->ldcoeffs0[1];
-      c->MandelAgolTransit->ldcoeffs[lc2][2] = c->MandelAgolTransit->ldcoeffs0[2];
-      c->MandelAgolTransit->ldcoeffs[lc2][3] = c->MandelAgolTransit->ldcoeffs0[3];
-      c->MandelAgolTransit->mconst[lc2] = c->MandelAgolTransit->mconst0;
-      c->MandelAgolTransit->gamma[lc2] = c->MandelAgolTransit->gamma0;
-      c->MandelAgolTransit->K[lc2] = c->MandelAgolTransit->K0;
+      for(i1=0;i1<4;i1++) {
+	if(c->MandelAgolTransit->ldcoeffs0_source[i1] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	  c->MandelAgolTransit->ldcoeffs[lc2][i1] = EvaluateExpression(lc, lc2, 0, c->MandelAgolTransit->ldcoeffs0_expr[i1]);
+	else if(c->MandelAgolTransit->ldcoeffs0_source[i1] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	  c->MandelAgolTransit->ldcoeffs[lc2][i1] = EvaluateVariable_Double(lc, lc2, 0, c->MandelAgolTransit->ldcoeffs0_var[i1]);
+	else
+	  c->MandelAgolTransit->ldcoeffs[lc2][i1] = c->MandelAgolTransit->ldcoeffs0[i1];
+      }
+      c->MandelAgolTransit->mconst[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, mconst0, lc, lc2);
+      c->MandelAgolTransit->gamma[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, gamma0, lc, lc2);
+      c->MandelAgolTransit->K[lc2] = VT_EVAL_DOUBLE(c->MandelAgolTransit, K0, lc, lc2);
       if(p->NJD[lc2] > 1)
 	{
 	  fitmandelagoltransit_amoeba(p, p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],&c->MandelAgolTransit->period[lc2],&c->MandelAgolTransit->T0[lc2],&c->MandelAgolTransit->r[lc2],&c->MandelAgolTransit->a[lc2],&c->MandelAgolTransit->inc[lc2],&c->MandelAgolTransit->bimpact[lc2],&c->MandelAgolTransit->e[lc2],&c->MandelAgolTransit->omega[lc2],&c->MandelAgolTransit->mconst[lc2],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc2],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc2],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc2], &c->MandelAgolTransit->gamma[lc2], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc2);
@@ -1379,12 +1492,12 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      sprintf(outname,"%s/%s%s",c->MicroLens->modeloutdir,&p->lcnames[lc][i2],c->MicroLens->modelsuffix);
 	    }
 	}
-      microlens(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],lc,c->MicroLens,outname,&c->MicroLens->f0[lc2],&c->MicroLens->f1[lc2],&c->MicroLens->u0[lc2],&c->MicroLens->t0[lc2],&c->MicroLens->tmax[lc2],&c->MicroLens->chi2_[lc2]);
+      microlens(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],lc,lc2,c->MicroLens,outname,&c->MicroLens->f0[lc2],&c->MicroLens->f1[lc2],&c->MicroLens->u0[lc2],&c->MicroLens->t0[lc2],&c->MicroLens->tmax[lc2],&c->MicroLens->chi2_[lc2]);
       break;
 
     case CNUM_SYSREM:
       /* There must be a bug in the program if we're calling sysrem in single light curve process mode! */
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
 
     case CNUM_TFA:
@@ -1525,7 +1638,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_MEDIANFILTER:
       /* median filter the light curve */
-      medianfilter(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],c->MedianFilter->time,c->MedianFilter->usemean,c->MedianFilter->replace);
+      medianfilter(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc2),c->MedianFilter->usemean,c->MedianFilter->replace);
       break;
 
     case CNUM_PHASE:
@@ -1565,6 +1678,16 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	      d1 = c->Phase->fixperiod;
 	      c->Phase->period[lc2][0] = d1;
 	    }
+	  else if(c->Phase->pertype == PERTYPE_VAR)
+	    {
+	      d1 = EvaluateVariable_Double(lc, lc2, 0, c->Phase->fixperiod_var);
+	      c->Phase->period[lc2][0] = d1;
+	    }
+	  else if(c->Phase->pertype == PERTYPE_EXPR)
+	    {
+	      d1 = EvaluateExpression(lc, lc2, 0, c->Phase->fixperiod_expr);
+	      c->Phase->period[lc2][0] = d1;
+	    }
 	  else if(c->Phase->pertype == PERTYPE_FIXCOLUMN)
 	    {
 	      getoutcolumnvalue(c->Phase->period_linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &d1);
@@ -1592,6 +1715,12 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    }
 	    else if(c->Phase->t0type == PERTYPE_FIX) {
 	      d2 = c->Phase->fixT0;
+	    }
+	    else if(c->Phase->t0type == PERTYPE_VAR) {
+	      d2 = EvaluateVariable_Double(lc, lc2, 0, c->Phase->fixT0_var);
+	    }
+	    else if(c->Phase->t0type == PERTYPE_EXPR) {
+	      d2 = EvaluateExpression(lc, lc2, 0, c->Phase->fixT0_expr);
 	    }
 	    else if(c->Phase->t0type == PERTYPE_FIXCOLUMN) {
 	      getoutcolumnvalue(c->Phase->T0_linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &d2);
@@ -1718,7 +1847,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       break;
 
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
 }
@@ -1785,7 +1914,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    i1 = sortlcbyvarlong(p->NJD[lc], (*((long ***) (c->SortLC->sortvar->dataptr)))[lc], lc, p);
 	    break;
 	  default:
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	    break;
 	  }
 	} else {
@@ -1809,7 +1938,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    i1 = sortlcbyvarlong_rev(p->NJD[lc], (*((long ***) (c->SortLC->sortvar->dataptr)))[lc], lc, p);
 	    break;
 	  default:
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	    break;
 	  }
 	}
@@ -1825,7 +1954,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    continue;
 	  }
 	}
-	difffluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],c->DiffFluxtomag->magstar[lc][0],c->DiffFluxtomag->mag_constant1, c->DiffFluxtomag->offset);
+	difffluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],c->DiffFluxtomag->magstar[lc][0],VT_EVAL_DOUBLE(c->DiffFluxtomag, mag_constant1, lc, lc), VT_EVAL_DOUBLE(c->DiffFluxtomag, offset, lc, lc));
       }
       break;
 
@@ -1838,7 +1967,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    continue;
 	  }
 	}
-	fluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],c->Fluxtomag->mag_constant1, c->Fluxtomag->offset);
+	fluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc));
       }
       break;
 
@@ -1923,7 +2052,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    continue;
 	  }
 	}
-	c->Clip->Nclip[lc] = sigclip(p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], &d1, &d2, &d3, &i1, c->Clip->sigclip, c->Clip->iter, lc, p, c->Clip->niter, c->Clip->usemedian, c->Clip->markclip, c->Clip->clipvar, c->Clip->noinitmark);
+	c->Clip->Nclip[lc] = sigclip(p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], &d1, &d2, &d3, &i1, VT_EVAL_DOUBLE(c->Clip, sigclip, lc, lc), VT_EVAL_INT(c->Clip, iter, lc, lc), lc, p, VT_EVAL_INT(c->Clip, niter, lc, lc), c->Clip->usemedian, c->Clip->markclip, c->Clip->clipvar, c->Clip->noinitmark);
       }
       break;
 
@@ -1945,7 +2074,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       if((ers1 = (double *) malloc(p->Nlcs * sizeof(double))) == NULL ||
 	 (ers2 = (double *) malloc(p->Nlcs * sizeof(double))) == NULL ||
 	 (ers3 = (double *) malloc(p->Nlcs * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       i2 = 0;
       for(lc=0;lc<p->Nlcs;lc++)
 	{
@@ -1962,7 +2091,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	}
       if(i2 < 5)
-	error(ERR_NOTENOUGHSTARS_ERS);
+	vt_error(ERR_NOTENOUGHSTARS_ERS);
       c->Ensemblerescalesig->a = ((mean2(i2,ers1,ers2,ers3)*mean1(i2,ers3))-(mean(i2,ers2,ers3)*mean(i2,ers1,ers3)))/((mean1(i2,ers3)*mean2(i2,ers1,ers1,ers3))-(mean(i2,ers1,ers3)*mean(i2,ers1,ers3)));
       c->Ensemblerescalesig->b = ((mean(i2,ers2,ers3)*mean2(i2,ers1,ers1,ers3))-(mean(i2,ers1,ers3)*mean2(i2,ers1,ers2,ers3)))/((mean1(i2,ers3)*mean2(i2,ers1,ers1,ers3))-(mean(i2,ers1,ers3)*mean(i2,ers1,ers3)));
       while((i3 = purge_bad(&i2,ers1,ers2,ers3,c->Ensemblerescalesig->a,c->Ensemblerescalesig->b,c->Ensemblerescalesig->erssigclip,1)) > 0)
@@ -1992,10 +2121,10 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
       free(ers3);
       break;
 
-    case CNUM_HARMONICFILTER:
+    case CNUM_FOURIERFILTER:
       /* Apply a fourier filter to the light curve */
       for(lc=0;lc<p->Nlcs;lc++)
-	doHarmonicFilter(p, c->HarmonicFilter, lc, lc);
+	doFourierFilter(p, c->FourierFilter, lc, lc);
       break;
 
     case CNUM_RESAMPLE:
@@ -2063,7 +2192,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 
     case CNUM_COPYLC:
       /* This command cannot be used with readallformat */
-      error(ERR_READALL_ANDCOPYLC);
+      vt_error(ERR_READALL_ANDCOPYLC);
       break;
 
     case CNUM_RESTORELC:
@@ -2297,7 +2426,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      i1++;
 	    }
 	  sprintf(outname,"%s/%s%s",c->Autocorr->outdir,&p->lcnames[lc][i2],c->Autocorr->suffix);
-	  autocorrelation(p->t[lc], p->mag[lc], p->sig[lc], p->NJD[lc], c->Autocorr->start, c->Autocorr->stop, c->Autocorr->step, outname, lc, lc, c->Autocorr->usemask, c->Autocorr->maskvar);
+	  autocorrelation(p->t[lc], p->mag[lc], p->sig[lc], p->NJD[lc], VT_EVAL_DOUBLE(c->Autocorr, start, lc, lc), VT_EVAL_DOUBLE(c->Autocorr, stop, lc, lc), VT_EVAL_DOUBLE(c->Autocorr, step, lc, lc), outname, lc, lc, c->Autocorr->usemask, c->Autocorr->maskvar);
 	}
       break;
 
@@ -2381,16 +2510,16 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		{
 		  if(gnu_getline(&(c->GetLSAmpThresh->line),&(c->GetLSAmpThresh->line_size),c->GetLSAmpThresh->listfile) < 0)
 		    {
-		      error2(ERR_GETLSAMPTHRESH_FILETOSHORT,c->GetLSAmpThresh->listfilename);
+		      vt_error2(ERR_GETLSAMPTHRESH_FILETOSHORT,c->GetLSAmpThresh->listfilename);
 		    }
 		  sscanf(c->GetLSAmpThresh->line,"%s %lf",c->GetLSAmpThresh->filename,c->GetLSAmpThresh->amp);
 		  if((c->GetLSAmpThresh->infile = fopen(c->GetLSAmpThresh->filename,"r")) == NULL)
-		    error2(ERR_FILENOTFOUND,c->GetLSAmpThresh->filename);
+		    vt_error2(ERR_FILENOTFOUND,c->GetLSAmpThresh->filename);
 		  c->GetLSAmpThresh->sizesigfile = 0;
 		  while(gnu_getline(&(c->GetLSAmpThresh->line),&(c->GetLSAmpThresh->line_size),c->GetLSAmpThresh->infile) >= 0)
 		    c->GetLSAmpThresh->sizesigfile = c->GetLSAmpThresh->sizesigfile + 1;
 		  if(c->GetLSAmpThresh->sizesigfile != p->NJD[lc])
-		    error2(ERR_SIGFILEWRONGLENGTH,c->GetLSAmpThresh->filename);
+		    vt_error2(ERR_SIGFILEWRONGLENGTH,c->GetLSAmpThresh->filename);
 		}
 	      getlsampthresh(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->GetLSAmpThresh->period[lc][0],c->GetLSAmpThresh->harm_specsigflag,c->GetLSAmpThresh->infile,c->GetLSAmpThresh->Nsubharm,c->GetLSAmpThresh->Nharm,c->GetLSAmpThresh->minPer,c->GetLSAmpThresh->thresh,&c->GetLSAmpThresh->ampthresh_scale[lc],&c->GetLSAmpThresh->amp[lc],c->GetLSAmpThresh->use_orig_ls);
 	    }
@@ -2505,11 +2634,16 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    {
 	      for(i1 = 0; i1 < c->Killharm->Nper; i1++)
 		{
-		  c->Killharm->periods[lc][i1] = c->Killharm->fixedperiods[i1];
+		  if(c->Killharm->fixedperiods_source[i1] == VARTOOLS_SOURCE_EVALEXPRESSION)
+		    c->Killharm->periods[lc][i1] = EvaluateExpression(lc, lc, 0, c->Killharm->fixedperiods_expr[i1]);
+		  else if(c->Killharm->fixedperiods_source[i1] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+		    c->Killharm->periods[lc][i1] = EvaluateVariable_Double(lc, lc, 0, c->Killharm->fixedperiods_var[i1]);
+		  else
+		    c->Killharm->periods[lc][i1] = c->Killharm->fixedperiods[i1];
 		}
 	    }
 	  if(p->NJD[lc] > 1)
-	    dokillharms(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Killharm->Nper,c->Killharm->periods[lc],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc],c->Killharm->subharmB[lc],c->Killharm->harmA[lc],c->Killharm->harmB[lc],c->Killharm->fundA[lc],c->Killharm->fundB[lc],&c->Killharm->mean[lc],c->Killharm->omodel,outname,c->Killharm->amp[lc], c->Killharm->fitonly, c->Killharm->outtype, c->Killharm->clip);
+	    dokillharms(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->Killharm->Nper,c->Killharm->periods[lc],c->Killharm->Nsubharm,c->Killharm->Nharm,c->Killharm->subharmA[lc],c->Killharm->subharmB[lc],c->Killharm->harmA[lc],c->Killharm->harmB[lc],c->Killharm->fundA[lc],c->Killharm->fundB[lc],&c->Killharm->mean[lc],c->Killharm->omodel,outname,c->Killharm->amp[lc], c->Killharm->fitonly, c->Killharm->outtype, VT_EVAL_DOUBLE(c->Killharm, clip, lc, lc));
 	}
       break;
 
@@ -2609,13 +2743,21 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    {
 	      c->Starspot->period[lc][0] = c->Starspot->fixedperiod;
 	    }
-	  c->Starspot->a[lc] = c->Starspot->a0;
-	  c->Starspot->b[lc] = c->Starspot->b0;
-	  c->Starspot->alpha[lc] = c->Starspot->alpha0;
-	  c->Starspot->inclination[lc] = c->Starspot->inclination0;
-	  c->Starspot->chi[lc] = c->Starspot->chi0;
-	  c->Starspot->psi0[lc] = c->Starspot->psi00;
-	  c->Starspot->mconst[lc] = c->Starspot->mconst0;
+	  else if(c->Starspot->pertype == PERTYPE_VAR)
+	    {
+	      c->Starspot->period[lc][0] = EvaluateVariable_Double(lc, lc, 0, c->Starspot->fixedperiod_var);
+	    }
+	  else if(c->Starspot->pertype == PERTYPE_EXPR)
+	    {
+	      c->Starspot->period[lc][0] = EvaluateExpression(lc, lc, 0, c->Starspot->fixedperiod_expr);
+	    }
+	  c->Starspot->a[lc] = VT_EVAL_DOUBLE(c->Starspot, a0, lc, lc);
+	  c->Starspot->b[lc] = VT_EVAL_DOUBLE(c->Starspot, b0, lc, lc);
+	  c->Starspot->alpha[lc] = VT_EVAL_DOUBLE(c->Starspot, alpha0, lc, lc);
+	  c->Starspot->inclination[lc] = VT_EVAL_DOUBLE(c->Starspot, inclination0, lc, lc);
+	  c->Starspot->chi[lc] = VT_EVAL_DOUBLE(c->Starspot, chi0, lc, lc);
+	  c->Starspot->psi0[lc] = VT_EVAL_DOUBLE(c->Starspot, psi00, lc, lc);
+	  c->Starspot->mconst[lc] = VT_EVAL_DOUBLE(c->Starspot, mconst0, lc, lc);
 	  if(p->NJD[lc] > 1)
 	    fitstarspot_amoeba(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],&c->Starspot->period[lc][0],&c->Starspot->a[lc],&c->Starspot->b[lc],&c->Starspot->alpha[lc],&c->Starspot->inclination[lc],&c->Starspot->chi[lc],&c->Starspot->psi0[lc],&c->Starspot->mconst[lc],c->Starspot->fitP,c->Starspot->fita,c->Starspot->fitb,c->Starspot->fitalpha,c->Starspot->fiti,c->Starspot->fitchi,c->Starspot->fitpsi0,c->Starspot->fitmconst,&c->Starspot->chisq[lc],c->Starspot->correctlc,c->Starspot->omodel,outname);
 	}
@@ -2790,7 +2932,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPer->sizeuv[0] = p->NJD[lc];
 		  if((c->BlsFixPer->u[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixPer->v[0] = (double *) malloc(c->Bls->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      else if(c->BlsFixPer->sizeuv[0] < p->NJD[lc])
 		{
@@ -2799,7 +2941,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  free(c->BlsFixPer->v[0]);
 		  if((c->BlsFixPer->u[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixPer->v[0] = (double *) malloc(c->BlsFixPer->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      
 	      /* Find the period if we're getting it from a previous command */
@@ -2901,7 +3043,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixDurTc->sizeuv[0] = p->NJD[lc];
 		  if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      else if(c->BlsFixDurTc->sizeuv[0] < p->NJD[lc])
 		{
@@ -2910,7 +3052,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  free(c->BlsFixDurTc->v[0]);
 		  if((c->BlsFixDurTc->u[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixDurTc->v[0] = (double *) malloc(c->BlsFixDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      
 	      if(c->BlsFixDurTc->operiodogram)
@@ -2930,9 +3072,17 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixDurTc->inputdur[lc] = c->BlsFixDurTc->fixdur;
 		  d1 = c->BlsFixDurTc->inputdur[lc];
 		}
+	      else if(c->BlsFixDurTc->durtype == PERTYPE_VAR) {
+		c->BlsFixDurTc->inputdur[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixDurTc->fixdur_var);
+		d1 = c->BlsFixDurTc->inputdur[lc];
+	      }
+	      else if(c->BlsFixDurTc->durtype == PERTYPE_EXPR) {
+		c->BlsFixDurTc->inputdur[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixDurTc->fixdur_expr);
+		d1 = c->BlsFixDurTc->inputdur[lc];
+	      }
 	      else if(c->BlsFixDurTc->durtype == PERTYPE_FIXCOLUMN) {
-		getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc, lc, 
-				  VARTOOLS_TYPE_DOUBLE, 
+		getoutcolumnvalue(c->BlsFixDurTc->fixdur_linkedcolumn, lc, lc,
+				  VARTOOLS_TYPE_DOUBLE,
 				  &(c->BlsFixDurTc->inputdur[lc]));
 		d1 = c->BlsFixDurTc->inputdur[lc];
 	      } else {
@@ -2943,9 +3093,17 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixDurTc->inputTC[lc] = c->BlsFixDurTc->fixTC;
 		  d2 = c->BlsFixDurTc->fixTC;
 		}
+	      else if(c->BlsFixDurTc->TCtype == PERTYPE_VAR) {
+		c->BlsFixDurTc->inputTC[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixDurTc->fixTC_var);
+		d2 = c->BlsFixDurTc->inputTC[lc];
+	      }
+	      else if(c->BlsFixDurTc->TCtype == PERTYPE_EXPR) {
+		c->BlsFixDurTc->inputTC[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixDurTc->fixTC_expr);
+		d2 = c->BlsFixDurTc->inputTC[lc];
+	      }
 	      else if(c->BlsFixDurTc->TCtype == PERTYPE_FIXCOLUMN) {
-		getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc, lc, 
-				  VARTOOLS_TYPE_DOUBLE, 
+		getoutcolumnvalue(c->BlsFixDurTc->fixTC_linkedcolumn, lc, lc,
+				  VARTOOLS_TYPE_DOUBLE,
 				  &(c->BlsFixDurTc->inputTC[lc]));
 		d2 = c->BlsFixDurTc->inputTC[lc];
 	      }
@@ -2957,9 +3115,17 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixDurTc->inputdepth[lc] = c->BlsFixDurTc->fixdepthval;
 		  d3 = c->BlsFixDurTc->fixdepthval;
 		}
+		else if(c->BlsFixDurTc->depthtype == PERTYPE_VAR) {
+		  c->BlsFixDurTc->inputdepth[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixDurTc->fixdepthval_var);
+		  d3 = c->BlsFixDurTc->inputdepth[lc];
+		}
+		else if(c->BlsFixDurTc->depthtype == PERTYPE_EXPR) {
+		  c->BlsFixDurTc->inputdepth[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixDurTc->fixdepthval_expr);
+		  d3 = c->BlsFixDurTc->inputdepth[lc];
+		}
 		else if(c->BlsFixDurTc->depthtype == PERTYPE_FIXCOLUMN) {
-		  getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc, lc, 
-				    VARTOOLS_TYPE_DOUBLE, 
+		  getoutcolumnvalue(c->BlsFixDurTc->fixdepth_linkedcolumn, lc, lc,
+				    VARTOOLS_TYPE_DOUBLE,
 				    &(c->BlsFixDurTc->inputdepth[lc]));
 		  d3 = c->BlsFixDurTc->inputdepth[lc];
 		}
@@ -2970,9 +3136,17 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixDurTc->inputqgress[lc] = c->BlsFixDurTc->qgressval;
 		  d4 = c->BlsFixDurTc->qgressval;
 		}
+		else if(c->BlsFixDurTc->qgresstype == PERTYPE_VAR) {
+		  c->BlsFixDurTc->inputqgress[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixDurTc->qgressval_var);
+		  d4 = c->BlsFixDurTc->inputqgress[lc];
+		}
+		else if(c->BlsFixDurTc->qgresstype == PERTYPE_EXPR) {
+		  c->BlsFixDurTc->inputqgress[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixDurTc->qgressval_expr);
+		  d4 = c->BlsFixDurTc->inputqgress[lc];
+		}
 		else if(c->BlsFixDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
-		  getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc, lc, 
-				    VARTOOLS_TYPE_DOUBLE, 
+		  getoutcolumnvalue(c->BlsFixDurTc->fixqgress_linkedcolumn, lc, lc,
+				    VARTOOLS_TYPE_DOUBLE,
 				    &(c->BlsFixDurTc->inputqgress[lc]));
 		  d4 = c->BlsFixDurTc->inputqgress[lc];
 		}
@@ -2980,11 +3154,28 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  d4 = c->BlsFixDurTc->inputqgress[lc];
 		}
 	      }
-	      c->BlsFixDurTc->fmin[lc] = dmax((2./(p->t[lc][p->NJD[lc]-1] - p->t[lc][0])),1./c->BlsFixDurTc->maxper);
-	      c->BlsFixDurTc->nf2[lc] = floor((((1./c->BlsFixDurTc->minper) - c->BlsFixDurTc->fmin[lc])/c->BlsFixDurTc->df)+1.);
+	      { double _minper = VT_EVAL_DOUBLE(c->BlsFixDurTc, minper, lc, lc);
+		double _maxper = VT_EVAL_DOUBLE(c->BlsFixDurTc, maxper, lc, lc);
+		int _nf = VT_EVAL_INT(c->BlsFixDurTc, nf, lc, lc);
+		double _df = ((1./_minper) - (1./_maxper)) / (_nf - 1);
+#ifdef PARALLEL
+	      if(c->BlsFixDurTc->size_p[lc] < _nf + 1) {
+		c->BlsFixDurTc->p[lc] = (double *) realloc(c->BlsFixDurTc->p[lc], (_nf+1)*sizeof(double));
+		if(c->BlsFixDurTc->p[lc] == NULL) vt_error(ERR_MEMALLOC);
+		c->BlsFixDurTc->size_p[lc] = _nf + 1;
+	      }
+#else
+	      if(c->BlsFixDurTc->size_p < _nf + 1) {
+		c->BlsFixDurTc->p = (double *) realloc(c->BlsFixDurTc->p, (_nf+1)*sizeof(double));
+		if(c->BlsFixDurTc->p == NULL) vt_error(ERR_MEMALLOC);
+		c->BlsFixDurTc->size_p = _nf + 1;
+	      }
+#endif
+	      c->BlsFixDurTc->fmin[lc] = dmax((2./(p->t[lc][p->NJD[lc]-1] - p->t[lc][0])),1./_maxper);
+	      c->BlsFixDurTc->nf2[lc] = floor((((1./_minper) - c->BlsFixDurTc->fmin[lc])/_df)+1.);
 	      if(c->BlsFixDurTc->nf2[lc] > 0 && c->BlsFixDurTc->Npeak > 0) {
 		/* Now either run bls  */
-		eeblsfixdurtc(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixDurTc->u[lc],c->BlsFixDurTc->v[lc],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc],c->BlsFixDurTc->fmin[lc],c->BlsFixDurTc->df,
+		eeblsfixdurtc(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->BlsFixDurTc->u[lc],c->BlsFixDurTc->v[lc],d2,d1,c->BlsFixDurTc->fixdepth,d3,d4,c->BlsFixDurTc->nf2[lc],c->BlsFixDurTc->fmin[lc],_df,
 #ifdef PARALLEL
 			      c->BlsFixDurTc->p[lc]
 #else
@@ -2996,6 +3187,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLSFixDurTc.\n", thisindex, lc, p->lcnames[lc]);
 		}
 	      }
+	      } /* close _minper/_maxper/_df scope */
 	    } else {
 	    if(!p->quiet_mode) {
 	      fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve has too few points for BLSFixDurTc.\n", thisindex, lc, p->lcnames[lc]);
@@ -3058,7 +3250,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPerDurTc->sizeuv[0] = p->NJD[lc];
 		  if((c->BlsFixPerDurTc->u[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixPerDurTc->v[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      else if(c->BlsFixPerDurTc->sizeuv[0] < p->NJD[lc])
 		{
@@ -3067,7 +3259,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  free(c->BlsFixPerDurTc->v[0]);
 		  if((c->BlsFixPerDurTc->u[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL ||
 		     (c->BlsFixPerDurTc->v[0] = (double *) malloc(c->BlsFixPerDurTc->sizeuv[0] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      
 	      if(c->BlsFixPerDurTc->pertype == PERTYPE_FIX)
@@ -3075,6 +3267,14 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPerDurTc->inputper[lc] = c->BlsFixPerDurTc->fixper;
 		  d0 = c->BlsFixPerDurTc->inputper[lc];
 		}
+	      else if(c->BlsFixPerDurTc->pertype == PERTYPE_VAR) {
+	        c->BlsFixPerDurTc->inputper[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixPerDurTc->fixper_var);
+	        d0 = c->BlsFixPerDurTc->inputper[lc];
+	      }
+	      else if(c->BlsFixPerDurTc->pertype == PERTYPE_EXPR) {
+	        c->BlsFixPerDurTc->inputper[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixPerDurTc->fixper_expr);
+	        d0 = c->BlsFixPerDurTc->inputper[lc];
+	      }
 	      else if(c->BlsFixPerDurTc->pertype == PERTYPE_FIXCOLUMN) {
 		getoutcolumnvalue(c->BlsFixPerDurTc->fixper_linkedcolumn, lc, lc, 
 				  VARTOOLS_TYPE_DOUBLE, 
@@ -3088,6 +3288,14 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPerDurTc->inputdur[lc] = c->BlsFixPerDurTc->fixdur;
 		  d1 = c->BlsFixPerDurTc->inputdur[lc];
 		}
+	      else if(c->BlsFixPerDurTc->durtype == PERTYPE_VAR) {
+	        c->BlsFixPerDurTc->inputdur[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixPerDurTc->fixdur_var);
+	        d1 = c->BlsFixPerDurTc->inputdur[lc];
+	      }
+	      else if(c->BlsFixPerDurTc->durtype == PERTYPE_EXPR) {
+	        c->BlsFixPerDurTc->inputdur[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixPerDurTc->fixdur_expr);
+	        d1 = c->BlsFixPerDurTc->inputdur[lc];
+	      }
 	      else if(c->BlsFixPerDurTc->durtype == PERTYPE_FIXCOLUMN) {
 		getoutcolumnvalue(c->BlsFixPerDurTc->fixdur_linkedcolumn, lc, lc, 
 				  VARTOOLS_TYPE_DOUBLE, 
@@ -3101,6 +3309,14 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPerDurTc->inputTC[lc] = c->BlsFixPerDurTc->fixTC;
 		  d2 = c->BlsFixPerDurTc->fixTC;
 		}
+	      else if(c->BlsFixPerDurTc->TCtype == PERTYPE_VAR) {
+	        c->BlsFixPerDurTc->inputTC[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixPerDurTc->fixTC_var);
+	        d2 = c->BlsFixPerDurTc->inputTC[lc];
+	      }
+	      else if(c->BlsFixPerDurTc->TCtype == PERTYPE_EXPR) {
+	        c->BlsFixPerDurTc->inputTC[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixPerDurTc->fixTC_expr);
+	        d2 = c->BlsFixPerDurTc->inputTC[lc];
+	      }
 	      else if(c->BlsFixPerDurTc->TCtype == PERTYPE_FIXCOLUMN) {
 		getoutcolumnvalue(c->BlsFixPerDurTc->fixTC_linkedcolumn, lc, lc, 
 				  VARTOOLS_TYPE_DOUBLE, 
@@ -3115,6 +3331,14 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  c->BlsFixPerDurTc->inputdepth[lc] = c->BlsFixPerDurTc->fixdepthval;
 		  d3 = c->BlsFixPerDurTc->fixdepthval;
 		}
+		else if(c->BlsFixPerDurTc->depthtype == PERTYPE_VAR) {
+		  c->BlsFixPerDurTc->inputdepth[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixPerDurTc->fixdepthval_var);
+		  d3 = c->BlsFixPerDurTc->inputdepth[lc];
+		}
+		else if(c->BlsFixPerDurTc->depthtype == PERTYPE_EXPR) {
+		  c->BlsFixPerDurTc->inputdepth[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixPerDurTc->fixdepthval_expr);
+		  d3 = c->BlsFixPerDurTc->inputdepth[lc];
+		}
 		else if(c->BlsFixPerDurTc->depthtype == PERTYPE_FIXCOLUMN) {
 		  getoutcolumnvalue(c->BlsFixPerDurTc->fixdepth_linkedcolumn, lc, lc, 
 				    VARTOOLS_TYPE_DOUBLE, 
@@ -3127,6 +3351,14 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIX) {
 		  c->BlsFixPerDurTc->inputqgress[lc] = c->BlsFixPerDurTc->qgressval;
 		  d4 = c->BlsFixPerDurTc->qgressval;
+		}
+		else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_VAR) {
+		  c->BlsFixPerDurTc->inputqgress[lc] = EvaluateVariable_Double(lc, lc, 0, c->BlsFixPerDurTc->qgressval_var);
+		  d4 = c->BlsFixPerDurTc->inputqgress[lc];
+		}
+		else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_EXPR) {
+		  c->BlsFixPerDurTc->inputqgress[lc] = EvaluateExpression(lc, lc, 0, c->BlsFixPerDurTc->qgressval_expr);
+		  d4 = c->BlsFixPerDurTc->inputqgress[lc];
 		}
 		else if(c->BlsFixPerDurTc->qgresstype == PERTYPE_FIXCOLUMN) {
 		  getoutcolumnvalue(c->BlsFixPerDurTc->fixqgress_linkedcolumn, lc, lc, 
@@ -3344,29 +3576,37 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      c->MandelAgolTransit->e0 = 0.;
 	      c->MandelAgolTransit->omega0 = 0.;
 	    }
-	  c->MandelAgolTransit->period[lc] = c->MandelAgolTransit->P0;
-	  c->MandelAgolTransit->T0[lc] = c->MandelAgolTransit->T00;
-	  c->MandelAgolTransit->r[lc] = c->MandelAgolTransit->r0;
-	  c->MandelAgolTransit->a[lc] = c->MandelAgolTransit->a0;
+	  c->MandelAgolTransit->period[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, P0, lc, lc);
+	  c->MandelAgolTransit->T0[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, T00, lc, lc);
+	  c->MandelAgolTransit->r[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, r0, lc, lc);
+	  c->MandelAgolTransit->a[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, a0, lc, lc);
+	  c->MandelAgolTransit->e[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, e0, lc, lc);
+	  { double _omega0_val = VT_EVAL_DOUBLE(c->MandelAgolTransit, omega0, lc, lc);
+	    if(c->MandelAgolTransit->omega0_source != VARTOOLS_SOURCE_FIXED)
+	      _omega0_val *= M_PI/180.;
+	    c->MandelAgolTransit->omega[lc] = _omega0_val;
+	  }
 	  if(c->MandelAgolTransit->inputinclterm) {
-	    c->MandelAgolTransit->bimpact[lc] = c->MandelAgolTransit->bimpact0;
-	    c->MandelAgolTransit->inc[lc] = c->MandelAgolTransit->bimpact0*(1. + c->MandelAgolTransit->e0*cos(c->MandelAgolTransit->omega0))/(1. - c->MandelAgolTransit->e0*c->MandelAgolTransit->e0)/(c->MandelAgolTransit->a0);
+	    c->MandelAgolTransit->bimpact[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, bimpact0, lc, lc);
+	    c->MandelAgolTransit->inc[lc] = c->MandelAgolTransit->bimpact[lc]*(1. + c->MandelAgolTransit->e[lc]*cos(c->MandelAgolTransit->omega[lc]))/(1. - c->MandelAgolTransit->e[lc]*c->MandelAgolTransit->e[lc])/(c->MandelAgolTransit->a[lc]);
 	    c->MandelAgolTransit->inc[lc] = 180.*acos(c->MandelAgolTransit->inc[lc])/M_PI;
 	  }
 	  else {
-	    c->MandelAgolTransit->inc[lc] = c->MandelAgolTransit->inc0;
-	    c->MandelAgolTransit->bimpact[lc] = cos(c->MandelAgolTransit->inc0*M_PI/180.)*(1. - c->MandelAgolTransit->e0*c->MandelAgolTransit->e0)*(c->MandelAgolTransit->a0)/(1. + c->MandelAgolTransit->e0*cos(c->MandelAgolTransit->omega0));
+	    c->MandelAgolTransit->inc[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, inc0, lc, lc);
+	    c->MandelAgolTransit->bimpact[lc] = cos(c->MandelAgolTransit->inc[lc]*M_PI/180.)*(1. - c->MandelAgolTransit->e[lc]*c->MandelAgolTransit->e[lc])*(c->MandelAgolTransit->a[lc])/(1. + c->MandelAgolTransit->e[lc]*cos(c->MandelAgolTransit->omega[lc]));
 	  }
 	  //c->MandelAgolTransit->sin_i[lc] = c->MandelAgolTransit->sin_i0;
-	  c->MandelAgolTransit->e[lc] = c->MandelAgolTransit->e0;
-	  c->MandelAgolTransit->omega[lc] = c->MandelAgolTransit->omega0;
-	  c->MandelAgolTransit->ldcoeffs[lc][0] = c->MandelAgolTransit->ldcoeffs0[0];
-	  c->MandelAgolTransit->ldcoeffs[lc][1] = c->MandelAgolTransit->ldcoeffs0[1];
-	  c->MandelAgolTransit->ldcoeffs[lc][2] = c->MandelAgolTransit->ldcoeffs0[2];
-	  c->MandelAgolTransit->ldcoeffs[lc][3] = c->MandelAgolTransit->ldcoeffs0[3];
-	  c->MandelAgolTransit->gamma[lc] = c->MandelAgolTransit->gamma0;
-	  c->MandelAgolTransit->K[lc] = c->MandelAgolTransit->K0;
-	  c->MandelAgolTransit->mconst[lc] = c->MandelAgolTransit->mconst0;
+	  for(i1=0;i1<4;i1++) {
+	    if(c->MandelAgolTransit->ldcoeffs0_source[i1] == VARTOOLS_SOURCE_EVALEXPRESSION)
+	      c->MandelAgolTransit->ldcoeffs[lc][i1] = EvaluateExpression(lc, lc, 0, c->MandelAgolTransit->ldcoeffs0_expr[i1]);
+	    else if(c->MandelAgolTransit->ldcoeffs0_source[i1] == VARTOOLS_SOURCE_EXISTINGVARIABLE)
+	      c->MandelAgolTransit->ldcoeffs[lc][i1] = EvaluateVariable_Double(lc, lc, 0, c->MandelAgolTransit->ldcoeffs0_var[i1]);
+	    else
+	      c->MandelAgolTransit->ldcoeffs[lc][i1] = c->MandelAgolTransit->ldcoeffs0[i1];
+	  }
+	  c->MandelAgolTransit->gamma[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, gamma0, lc, lc);
+	  c->MandelAgolTransit->K[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, K0, lc, lc);
+	  c->MandelAgolTransit->mconst[lc] = VT_EVAL_DOUBLE(c->MandelAgolTransit, mconst0, lc, lc);
 	  if(p->NJD[lc] > 1)
 	    {
 	      fitmandelagoltransit_amoeba(p, p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],&c->MandelAgolTransit->period[lc],&c->MandelAgolTransit->T0[lc],&c->MandelAgolTransit->r[lc],&c->MandelAgolTransit->a[lc],&c->MandelAgolTransit->inc[lc],&c->MandelAgolTransit->bimpact[lc],&c->MandelAgolTransit->e[lc],&c->MandelAgolTransit->omega[lc],&c->MandelAgolTransit->mconst[lc],c->MandelAgolTransit->type,c->MandelAgolTransit->ldcoeffs[lc],c->MandelAgolTransit->fitephem,c->MandelAgolTransit->fitr,c->MandelAgolTransit->fita,c->MandelAgolTransit->fitinclterm,c->MandelAgolTransit->fite,c->MandelAgolTransit->fitomega,c->MandelAgolTransit->fitmconst,c->MandelAgolTransit->fitldcoeffs, &c->MandelAgolTransit->chisq[lc],c->MandelAgolTransit->correctlc,c->MandelAgolTransit->omodel,outname, c->MandelAgolTransit->fitRV, c->MandelAgolTransit->RVinputfile, c->MandelAgolTransit->RVmodeloutfile, &c->MandelAgolTransit->K[lc], &c->MandelAgolTransit->gamma[lc], c->MandelAgolTransit->fitK, c->MandelAgolTransit->fitgamma, c->MandelAgolTransit->refititer, c->MandelAgolTransit->ophcurve, outname3, c->MandelAgolTransit->phmin, c->MandelAgolTransit->phmax, c->MandelAgolTransit->phstep, c->MandelAgolTransit->ojdcurve, outname4, c->MandelAgolTransit->jdstep, c->MandelAgolTransit->modelvarname, c->MandelAgolTransit->modelvar, lc);
@@ -3404,7 +3644,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  sprintf(outname,"%s/%s%s",c->MicroLens->modeloutdir,&p->lcnames[lc][i2],c->MicroLens->modelsuffix);
 		}
 	    }
-	  microlens(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],lc,c->MicroLens,outname,&c->MicroLens->f0[lc],&c->MicroLens->f1[lc],&c->MicroLens->u0[lc],&c->MicroLens->t0[lc],&c->MicroLens->tmax[lc],&c->MicroLens->chi2_[lc]);
+	  microlens(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],lc,lc,c->MicroLens,outname,&c->MicroLens->f0[lc],&c->MicroLens->f1[lc],&c->MicroLens->u0[lc],&c->MicroLens->t0[lc],&c->MicroLens->tmax[lc],&c->MicroLens->chi2_[lc]);
 	}
       break;
 
@@ -3602,7 +3842,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    continue;
 	  }
 	}
-	medianfilter(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],c->MedianFilter->time,c->MedianFilter->usemean,c->MedianFilter->replace);
+	medianfilter(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc),c->MedianFilter->usemean,c->MedianFilter->replace);
       }
       break;
 
@@ -3651,6 +3891,16 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		  d1 = c->Phase->fixperiod;
 		  c->Phase->period[lc][0] = d1;
 		}
+	      else if(c->Phase->pertype == PERTYPE_VAR)
+		{
+		  d1 = EvaluateVariable_Double(lc, lc, 0, c->Phase->fixperiod_var);
+		  c->Phase->period[lc][0] = d1;
+		}
+	      else if(c->Phase->pertype == PERTYPE_EXPR)
+		{
+		  d1 = EvaluateExpression(lc, lc, 0, c->Phase->fixperiod_expr);
+		  c->Phase->period[lc][0] = d1;
+		}
 	      else if(c->Phase->pertype == PERTYPE_FIXCOLUMN)
 		{
 		  getoutcolumnvalue(c->Phase->period_linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &d1);
@@ -3678,6 +3928,12 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		}
 		else if(c->Phase->t0type == PERTYPE_FIX) {
 		  d2 = c->Phase->fixT0;
+		}
+		else if(c->Phase->t0type == PERTYPE_VAR) {
+		  d2 = EvaluateVariable_Double(lc, lc, 0, c->Phase->fixT0_var);
+		}
+		else if(c->Phase->t0type == PERTYPE_EXPR) {
+		  d2 = EvaluateExpression(lc, lc, 0, c->Phase->fixT0_expr);
 		}
 		else if(c->Phase->t0type == PERTYPE_FIXCOLUMN) {
 		  getoutcolumnvalue(c->Phase->T0_linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &d2);
@@ -3881,7 +4137,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 #endif
 
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
       break;
     }
 }

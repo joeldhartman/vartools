@@ -4,7 +4,11 @@
 #include "jktebop.h"
 #include "jktebop_lib.h"
 
-/* STOPPED WORKING HERE ---- Check for TBD below */
+/* Forward declaration — output a uniformly-sampled model curve in JD or
+ * phase space, given the per-LC parameters already stored in the
+ * _Jktebop struct.  Implemented at the bottom of this file. */
+static void output_jktebop_curve(_Jktebop *Jktebop, int lc_num, double *t, int NJD, const char *curveoutname);
+
 
 /* This is the source code for a sample user-defined command
    to be used with vartools.
@@ -1121,6 +1125,29 @@ void jktebop_ShowHelp(FILE *outfile)
 	  );
 }
 
+void jktebop_ShowExample(FILE *outfile)
+/* Output an example for this command */
+{
+  fprintf(outfile,
+          "\nvartools -L USERLIBS/src/.libs/jktebop.so \\\n"
+          "\t-i EXAMPLES/3 -oneline \\\n"
+          "\t-jktebop inject \\\n"
+          "\t\tPeriod fix 2.5 \\\n"
+          "\t\tT0 fix 53727.0 \\\n"
+          "\t\tr1+r2 fix 0.15 \\\n"
+          "\t\tr2/r1 fix 0.5 \\\n"
+          "\t\tM2/M1 fix 0.6 \\\n"
+          "\t\tJ2/J1 fix 0.3 \\\n"
+          "\t\ti fix 89.0 \\\n"
+          "\t\tesinomega fix 0.0 \\\n"
+          "\t\tecosomega fix 0.0 \\\n"
+          "\t\tLD1 quad fix 0.3 0.3 \\\n"
+          "\t\tLD2 lockLD1 \\\n"
+          "\t\tomodel EXAMPLES/OUTDIR1/ \\\n"
+          "\t-BLS q 0.01 0.1 1.0 5.0 5000 200 7 1 0 0 0\n\n"
+          "Inject a JKTEBOP detached eclipsing-binary signal into the light curve EXAMPLES/3 and recover it with -BLS. The injected system has a 2.5-day period, T0=53727.0, sum of fractional radii (R1+R2)/a = 0.15, radius ratio R2/R1 = 0.5, mass ratio M2/M1 = 0.6, surface-brightness ratio J2/J1 = 0.3, inclination 89 deg, and a circular orbit. Both stars use a quadratic limb-darkening law with coefficients (0.3, 0.3); LD2 is locked to LD1. The injected light-curve model is written to EXAMPLES/OUTDIR1/ (filename .jktebop.model). The subsequent -BLS command recovers the primary eclipse signal.\n");
+}
+
 void jktebop_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)
 /* 
    This is the function called by VARTOOLS to run the command on a
@@ -1152,9 +1179,10 @@ void jktebop_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_
   _Jktebop *Jktebop;
 
   char lcoutname[MAXLEN];
+  char curveoutname[MAXLEN];
 
-  void dojktebopinject(int, double *, double *, double *, _Jktebop*, int, char*);
-  void dojktebopfit(int, double *, double *, double *, _Jktebop*, int, char*);
+  void dojktebopinject(int, double *, double *, double *, _Jktebop*, int, char*, char*);
+  void dojktebopfit(int, double *, double *, double *, _Jktebop*, int, char*, char*);
 
 
   /* Cast the userdata pointer given by VARTOOLS into a _Jktebop type
@@ -1184,17 +1212,27 @@ void jktebop_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_
   if(Jktebop->omodel)
     VARTOOLS_GetOutputFilename(lcoutname,lcname,Jktebop->outdir,"jktebop",
 			       Jktebop->format, lc_name_num);
-  else 
+  else
     lcoutname[0] = '\0';
+
+  /* Build the curve-output filename when requested.  The default suffix
+     is "jktebopcurve" (vartools' GetOutputFilename adds the leading dot,
+     so the on-disk file becomes <basename>.jktebopcurve). */
+  if(Jktebop->ocurve)
+    VARTOOLS_GetOutputFilename(curveoutname, lcname, Jktebop->ocurve_outdir,
+                               "jktebopcurve",
+                               Jktebop->ocurve_outdir_format, lc_name_num);
+  else
+    curveoutname[0] = '\0';
 
   /* Perform the actual routine, we use separate functions for injecting
      and for fitting the light curve. Here we pass the Jktebop struct which
      contains all the parameter data, and the lc_num index which we need
      to reference the correct components of the parameter data arrays */
   if(Jktebop->injectorfit == JKTEBOP_INJECT) {
-    dojktebopinject(NJD, t, mag, err, Jktebop, lc_num, lcoutname);
+    dojktebopinject(NJD, t, mag, err, Jktebop, lc_num, lcoutname, curveoutname);
   } else {
-    dojktebopfit(NJD, t, mag, err, Jktebop, lc_num, lcoutname);
+    dojktebopfit(NJD, t, mag, err, Jktebop, lc_num, lcoutname, curveoutname);
   }
   
 }
@@ -1205,7 +1243,7 @@ void jktebop_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_
  jktebop_RunCommand function and perform the actual processing routine.
 ***************************************************************************/
 
-void dojktebopinject(int NJD, double *t, double *mag, double *err, _Jktebop *Jktebop, int lc_num, char *lcoutname)
+void dojktebopinject(int NJD, double *t, double *mag, double *err, _Jktebop *Jktebop, int lc_num, char *lcoutname, char *curveoutname)
 {
   /* Inject a JKTEBOP model into a light curve. Optionally output the
      model.  If the user requested that the model be subtracted with
@@ -1310,8 +1348,9 @@ void dojktebopinject(int NJD, double *t, double *mag, double *err, _Jktebop *Jkt
   }
   
   /* Output the curve if asked to */
-  /******** TBD --- IMPLEMENT THIS ******/
-  
+  if(Jktebop->ocurve)
+    output_jktebop_curve(Jktebop, lc_num, t, NJD, curveoutname);
+
   /* Subtract the model if asked to */
   if(Jktebop->correctlc) {
     for(i=0; i < NJD; i++) {
@@ -1326,7 +1365,7 @@ void dojktebopinject(int NJD, double *t, double *mag, double *err, _Jktebop *Jkt
 }
 
 
-void dojktebopfit(int NJD, double *t, double *mag, double *err, _Jktebop *Jktebop, int lc_num, char *lcoutname)
+void dojktebopfit(int NJD, double *t, double *mag, double *err, _Jktebop *Jktebop, int lc_num, char *lcoutname, char *curveoutname)
 {
   int amoeba_val;
   double best_chi2;
@@ -1367,7 +1406,8 @@ void dojktebopfit(int NJD, double *t, double *mag, double *err, _Jktebop *Jktebo
     }
     
     /* Output the curve if asked to */
-    /******** TBD --- IMPLEMENT THIS ******/
+    if(Jktebop->ocurve)
+      output_jktebop_curve(Jktebop, lc_num, t, NJD, curveoutname);
 
     /* Subtract the model if asked to */
     if(Jktebop->correctlc) {
@@ -2044,3 +2084,178 @@ void simulateEBOPEBlc(int N, double *JD, double *magout, double T0, double perio
     }
 }
 
+
+/* output_jktebop_curve — write a uniformly-sampled JKTEBOP model curve.
+ *
+ * Reads the per-LC model parameters out of the _Jktebop struct, builds a
+ * uniform JD or phase grid (per Jktebop->ocurvetype) at step
+ * Jktebop->ocurvestep, evaluates the EBOP model on that grid via
+ * simulateEBOPEBlc, and writes <curveoutname>.
+ *
+ * The phase output runs from 0 to 1 and uses fictitious JD values
+ * T0 + phase*period to drive the model; the JD output runs from t[0] to
+ * t[NJD-1].  The header line and column layout match MandelAgolTransit's
+ * ophcurve / ojdcurve outputs (#Phase Mag_model / #Time Mag_model Phase).
+ */
+static void output_jktebop_curve(_Jktebop *Jktebop, int lc_num,
+                                 double *t, int NJD,
+                                 const char *curveoutname)
+{
+  FILE *outfile;
+  int i, Ncurve;
+  double *jdtmp, *magtmp, ph;
+
+  /* Local copies of the per-LC parameters — same set as dojktebopinject. */
+  double Period, T0, r1r2, r2_r1, M2_M1, J2_J1;
+  double esinomega, ecosomega, incl, bimpact;
+  double LD1a, LD1b, LD2a, LD2b;
+  double gravdark1, gravdark2, reflection1, reflection2, L3, tidallag;
+  int LD1law, LD2law, use_i_or_b;
+
+  void simulateEBOPEBlc(int N, double *JD, double *magout, double T0,
+                        double period, double esinomega, double ecosomega,
+                        int use_i_or_b, double *incl, double *bimpact,
+                        double r1r2, double r2_r1, double q, double J2J1,
+                        double L3, double grav1, double grav2,
+                        double reflection1, double reflection2,
+                        double quadA1, double quadB1,
+                        double quadA2, double quadB2, double tidallag,
+                        int ldtype1, int ldtype2);
+
+  if(curveoutname == NULL || curveoutname[0] == '\0')
+    return;
+  if(Jktebop->ocurvestep <= 0.)
+    return;
+
+  Period = Jktebop->Period[lc_num];
+  T0 = Jktebop->T0[lc_num];
+  r1r2 = Jktebop->r1r2[lc_num];
+  r2_r1 = Jktebop->r2_r1[lc_num];
+  M2_M1 = Jktebop->M2_M1[lc_num];
+  J2_J1 = Jktebop->J2_J1[lc_num];
+  use_i_or_b = Jktebop->use_i_or_b;
+  if(use_i_or_b == JKTEBOP_USEI) {
+    incl = Jktebop->incl[lc_num];
+    bimpact = 0.;
+  } else {
+    incl = 0.;
+    bimpact = Jktebop->bimpact[lc_num];
+  }
+  esinomega = Jktebop->esinomega[lc_num];
+  ecosomega = Jktebop->ecosomega[lc_num];
+
+  LD1law = Jktebop->LD1law;
+  switch(LD1law) {
+  case JKTEBOP_LDLAW_LINEAR:
+    LD1a = Jktebop->LD1_coeffs[lc_num][0];
+    LD1b = 0.;
+    break;
+  default:
+    LD1a = Jktebop->LD1_coeffs[lc_num][0];
+    LD1b = Jktebop->LD1_coeffs[lc_num][1];
+  }
+  LD2law = Jktebop->LD2law;
+  switch(LD2law) {
+  case JKTEBOP_LDLAW_LOCKLD1:
+    LD2a = LD1a;
+    LD2b = LD1b;
+    LD2law = LD1law;
+    break;
+  case JKTEBOP_LDLAW_LINEAR:
+    LD2a = Jktebop->LD2_coeffs[lc_num][0];
+    LD2b = 0.;
+    break;
+  default:
+    LD2a = Jktebop->LD2_coeffs[lc_num][0];
+    LD2b = Jktebop->LD2_coeffs[lc_num][1];
+  }
+  gravdark1 = Jktebop->gravdark1[lc_num];
+  gravdark2 = Jktebop->gravdark2[lc_num];
+  reflection1 = Jktebop->reflection1[lc_num];
+  reflection2 = Jktebop->reflection2[lc_num];
+  L3 = Jktebop->L3[lc_num];
+  tidallag = Jktebop->tidallag[lc_num];
+
+  if(Jktebop->ocurvetype == JKTEBOP_OUTCURVE_TYPE_PHASE) {
+    if(Period <= 0.)
+      return;
+    /* Phase grid runs 0..1 in steps of ocurvestep. */
+    Ncurve = (int) ((1.0 / Jktebop->ocurvestep) + 1.5);
+    if(Ncurve < 2) Ncurve = 2;
+
+    jdtmp = (double *) malloc(Ncurve * sizeof(double));
+    magtmp = (double *) malloc(Ncurve * sizeof(double));
+    if(jdtmp == NULL || magtmp == NULL) {
+      fprintf(stderr,"Memory Allocation Error in output_jktebop_curve\n");
+      if(jdtmp) free(jdtmp);
+      if(magtmp) free(magtmp);
+      return;
+    }
+    for(i = 0; i < Ncurve; i++) {
+      ph = (double) i * Jktebop->ocurvestep;
+      if(ph > 1.0) ph = 1.0;
+      jdtmp[i] = T0 + ph * Period;
+    }
+    simulateEBOPEBlc(Ncurve, jdtmp, magtmp, T0, Period, esinomega, ecosomega,
+                     use_i_or_b, &incl, &bimpact, r1r2, r2_r1, M2_M1, J2_J1,
+                     L3, gravdark1, gravdark2, reflection1, reflection2,
+                     LD1a, LD1b, LD2a, LD2b, tidallag, LD1law, LD2law);
+
+    if((outfile = fopen(curveoutname,"w")) == NULL) {
+      fprintf(stderr,"Cannot write to %s\n",curveoutname);
+      free(jdtmp); free(magtmp);
+      return;
+    }
+    fprintf(outfile,"#Phase Mag_model\n");
+    for(i = 0; i < Ncurve; i++) {
+      ph = (double) i * Jktebop->ocurvestep;
+      if(ph > 1.0) ph = 1.0;
+      fprintf(outfile,"%.17g %.17g\n", ph, magtmp[i]);
+    }
+    fclose(outfile);
+    free(jdtmp);
+    free(magtmp);
+  } else {
+    /* JD-mode: uniform grid from t[0] to t[N-1]. */
+    if(NJD < 2)
+      return;
+    Ncurve = (int) ((t[NJD-1] - t[0]) / Jktebop->ocurvestep) + 1;
+    if(Ncurve < 2) Ncurve = 2;
+
+    jdtmp = (double *) malloc(Ncurve * sizeof(double));
+    magtmp = (double *) malloc(Ncurve * sizeof(double));
+    if(jdtmp == NULL || magtmp == NULL) {
+      fprintf(stderr,"Memory Allocation Error in output_jktebop_curve\n");
+      if(jdtmp) free(jdtmp);
+      if(magtmp) free(magtmp);
+      return;
+    }
+    for(i = 0; i < Ncurve; i++) {
+      jdtmp[i] = t[0] + (double) i * Jktebop->ocurvestep;
+      if(jdtmp[i] > t[NJD-1]) jdtmp[i] = t[NJD-1];
+    }
+    simulateEBOPEBlc(Ncurve, jdtmp, magtmp, T0, Period, esinomega, ecosomega,
+                     use_i_or_b, &incl, &bimpact, r1r2, r2_r1, M2_M1, J2_J1,
+                     L3, gravdark1, gravdark2, reflection1, reflection2,
+                     LD1a, LD1b, LD2a, LD2b, tidallag, LD1law, LD2law);
+
+    if((outfile = fopen(curveoutname,"w")) == NULL) {
+      fprintf(stderr,"Cannot write to %s\n",curveoutname);
+      free(jdtmp); free(magtmp);
+      return;
+    }
+    fprintf(outfile,"#Time Mag_model Phase\n");
+    for(i = 0; i < Ncurve; i++) {
+      if(Period > 0.) {
+        ph = ((jdtmp[i] - T0) / Period);
+        ph -= floor(ph);
+      } else {
+        ph = 0.0;
+      }
+      fprintf(outfile,"%.17g %.17g %.17g\n", jdtmp[i], magtmp[i], ph);
+    }
+    fclose(outfile);
+    free(jdtmp);
+    free(magtmp);
+  }
+}

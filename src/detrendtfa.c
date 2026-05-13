@@ -136,7 +136,7 @@ void zero_trend_averages(int Njd, int Ntrends, double **trends, double clipping,
   long double val1, val2;
   if(usemedian || useMAD) {
     if((b = (double *) malloc(Njd * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   for(j=0;j<Ntrends;j++)
     {
@@ -243,7 +243,7 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
 
   if((fits_open_file(&infile,trendname,READONLY,&status)))
     {
-      error2_noexit(ERR_CANNOTOPEN,trendname);
+      vt_error2_noexit(ERR_CANNOTOPEN,trendname);
       return(ERR_CANNOTOPEN);
     }
   if(fits_get_hdu_num(infile, &hdunum) == 1)
@@ -254,7 +254,7 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
     fits_get_hdu_type(infile, &hdutype, &status);
   
   if(hdutype == IMAGE_HDU) {
-    error2_noexit(ERR_IMAGEHDU,trendname);
+    vt_error2_noexit(ERR_IMAGEHDU,trendname);
     return(ERR_IMAGEHDU);
   }
 
@@ -262,14 +262,14 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
   fits_get_num_cols(infile, &ncols, &status);
 
   if((nullarray = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((nullarraystore = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(jdcol_isfromheader) {
     fits_get_colnum(infile, 0, jdcol_headername, JDcol_trend_ptr, &status);
     if(status == COL_NOT_FOUND) {
-      error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, jdcol_headername);
+      vt_error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, jdcol_headername);
       return(ERR_MISSING_FITSLC_HEADERNAME);
     }
   }
@@ -277,7 +277,7 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
   if(magcol_isfromheader) {
     fits_get_colnum(infile, 0, magcol_headername, magcol_trend_ptr, &status);
     if(status == COL_NOT_FOUND) {
-      error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, magcol_headername);
+      vt_error2_noexit(ERR_MISSING_FITSLC_HEADERNAME, magcol_headername);
       return(ERR_MISSING_FITSLC_HEADERNAME);
     }
   }
@@ -288,35 +288,35 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
     if(*sizevec == 0) {
       *sizevec = nrows;
       if((*magin_tmp = (double *) malloc(*sizevec * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(p->matchstringid) {
 	if((*stringid_tmp = (char **) malloc(*sizevec * sizeof(char *))) == NULL ||
 	   (*stringid_tmpidx = (int *) malloc(*sizevec * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0;j<*sizevec;j++)
 	  {
 	    if(((*stringid_tmp)[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
       } else {
 	if((*jdin_tmp = (double *) malloc(*sizevec * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     } else {
       if((*magin_tmp = (double *) realloc(*magin_tmp, nrows*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(p->matchstringid) {
 	if((*stringid_tmp = (char **) realloc(*stringid_tmp, nrows * sizeof(char *))) == NULL ||
 	   (*stringid_tmpidx = (int *) realloc(*stringid_tmpidx, nrows * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=*sizevec; j<nrows; j++)
 	  {
 	    if(((*stringid_tmp)[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
       } else {
 	if((*jdin_tmp = (double *) realloc(*jdin_tmp, nrows*sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       *sizevec = nrows;
     }
@@ -351,13 +351,13 @@ int ReadFitsTFATemplate(ProgramData *p, int jdcol_isfromheader, char *jdcol_head
   }
   if(status) {
     fits_report_error(stderr, status);
-    error(ERR_FITSERROR);
+    vt_error(ERR_FITSERROR);
   }
   
   fits_close_file(infile, &status);
   if(status) {
     fits_report_error(stderr, status);
-    error(ERR_FITSERROR);
+    vt_error(ERR_FITSERROR);
   }
   
 #ifdef PARALLEL
@@ -412,8 +412,8 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   double trend_prior_mean_in, trend_prior_std_in;
   char stringidin[MAXIDSTRINGLENGTH];
   void *ptr1, *ptr2;
-  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
-  void error2(int, char *);
+  int i, j, k, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, kk;
+  void vt_error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
   size_t line_size = MAXSTRINGLENGTH;
@@ -464,11 +464,11 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 
   if((dates = fopen(tfa->dates_name,"r")) == NULL)
     {
-      error2(ERR_FILENOTFOUND,tfa->dates_name);
+      vt_error2(ERR_FILENOTFOUND,tfa->dates_name);
     }
   if((trend_list = fopen(tfa->trend_list_name,"r")) == NULL)
     {
-      error2(ERR_FILENOTFOUND,tfa->trend_list_name);
+      vt_error2(ERR_FILENOTFOUND,tfa->trend_list_name);
     }
   tfa->Njd = 0;
   while(gnu_getline(&line,&line_size,dates) >= 0)
@@ -481,11 +481,11 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
     {
       if((tfa->stringid = (char **) malloc(tfa->Njd * sizeof(char *))) == NULL ||
 	 (tfa->stringid_idx = (int *) malloc(tfa->Njd * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<tfa->Njd;i++)
 	{
 	  if((tfa->stringid[i] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  tfa->stringid_idx[i] = i;
 	}
       tfa->Njd = 0;
@@ -499,7 +499,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   else
     {
       if((tfa->JD = (double *) malloc(tfa->Njd * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       tfa->Njd = 0;
       while(gnu_getline(&line,&line_size,dates) >= 0)
@@ -515,7 +515,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   /*tfa->clipping = DEFAULT_CLIPPING_VALUE;*/
 
   if((tfa->Njd_mout = (int *) malloc(Nthreads * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < Nthreads; i++)
     tfa->Njd_mout[i] = tfa->Njd;
@@ -524,14 +524,14 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
     error(ERR_MEMALLOC);
   */
   if((tfa->m_out = (double **) malloc(Nthreads * sizeof(double **))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Nthreads; i++) {
     if((tfa->m_out[i] = (double *) malloc(tfa->Njd_mout[i] * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if((tfa->trends = (double **) malloc(tfa->Njd * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   tfa->Ntrends = 0;
   while(gnu_getline(&line,&line_size,trend_list) >= 0)
@@ -539,18 +539,18 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 
   if((tfa->trendx = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
      (tfa->trendy = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<tfa->Njd;i++)
     {
       if((tfa->trends[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if((tfa->trend_names = (char **) malloc(tfa->Ntrends * sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<tfa->Ntrends;i++)
     {
       if((tfa->trend_names[i] = (char *) malloc(MAXSTRINGLENGTH * sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   rewind(trend_list);
   i=0;
@@ -559,13 +559,13 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
 #ifdef USECFITSIO
-      jj = strlen(tfa->trend_names[i]);
-      ii = jj - 5;
-      if(ii > 0) {
-	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(tfa->trend_names[i])) {
+	{
 	  /* This is a fits light curve */
 	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
-	    error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
+	    vt_error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
 	  }
 	  if(!p->matchstringid) {
 	    j = 0;
@@ -648,7 +648,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
       }
 #endif
       if((trendin = fopen(trend_name,"r")) == NULL)
-	error2(ERR_FILENOTFOUND,trend_name);
+	vt_error2(ERR_FILENOTFOUND,trend_name);
       if(!p->matchstringid)
 	{
 	  /* We are not using string-ids for the matching, we don't need to read the template light curve into a separate data vector */
@@ -675,7 +675,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		      lccol++;
 		    }
 		  else
-		    error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+		    vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		  if(lccol > col2)
 		    {
 		      lcindx = lcindx_old;
@@ -695,7 +695,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 			  lccol++;
 			}
 		      else
-			error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+			vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		    }
 
 		  if(!j) {
@@ -766,11 +766,11 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		  if((magin_tmp = (double *) malloc(sizetmpvec * sizeof(double))) == NULL ||
 		     (stringid_tmp = (char **) malloc(sizetmpvec * sizeof(char *))) == NULL ||
 		     (stringid_tmpidx = (int *) malloc(sizetmpvec * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<sizetmpvec;j++)
 		    {
 		      if((stringid_tmp[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	      else
@@ -778,11 +778,11 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		  if((magin_tmp = (double *) realloc(magin_tmp, lengthtmp * sizeof(double))) == NULL ||
 		     (stringid_tmp = (char **) realloc(stringid_tmp, lengthtmp * sizeof(char *))) == NULL ||
 		     (stringid_tmpidx = (int *) realloc(stringid_tmpidx, lengthtmp * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=sizetmpvec;j<lengthtmp;j++)
 		    {
 		      if((stringid_tmp[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		  sizetmpvec = lengthtmp;
 		}
@@ -812,7 +812,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 		      lccol++;
 		    }
 		  else
-		    error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+		    vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		  if(lccol > col2)
 		    {
 		      lcindx = lcindx_old;
@@ -832,7 +832,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
 			  lccol++;
 			}
 		      else
-			error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+			vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		    }
 
 		  strncpy(stringid_tmp[lengthtmp],stringidin,MAXIDSTRINGLENGTH);
@@ -884,11 +884,11 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
     if((tfa->trend_prior_means = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
        (tfa->trend_prior_stds = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
        (tfa->is_trend_prior = (int *) malloc(tfa->Ntrends * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < tfa->Ntrends; i++) tfa->is_trend_prior[i] = 0;
     if((trend_list = fopen(tfa->trend_prior_list_name,"r")) == NULL)
       {
-	error2(ERR_FILENOTFOUND,tfa->trend_prior_list_name);
+	vt_error2(ERR_FILENOTFOUND,tfa->trend_prior_list_name);
       }
     while(gnu_getline(&line,&line_size,trend_list) >= 0)
       {
@@ -931,12 +931,12 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
   for(i=0;i<tfa->Njd+tfa->Ntrend_priors;i++)
     if((tfa->u[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
       {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
   for(i=0;i<tfa->Ntrends;i++)
     if((tfa->v[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
       {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
 
   if((tfa->u2 = (double ***) malloc(Nthreads * sizeof(double **))) == NULL ||
@@ -944,7 +944,7 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
      (tfa->w2 = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
      (tfa->a = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
      (tfa->b = (double **) malloc(Nthreads * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < Nthreads; i++) {
     if((tfa->u2[i] = (double **) malloc((tfa->Njd + tfa->Ntrend_priors) * sizeof(double *))) == NULL ||
@@ -952,15 +952,15 @@ void initialize_tfa(_TFA *tfa, ProgramData *p)
        (tfa->w2[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
        (tfa->a[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
        (tfa->b[i] = (double *) malloc((tfa->Njd + tfa->Ntrend_priors) * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
     for(j=0; j < tfa->Njd + tfa->Ntrend_priors; j++) {
       if((tfa->u2[i][j] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     for(j=0; j < tfa->Ntrends; j++) {
       if((tfa->v2[i][j] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -1008,13 +1008,13 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 
   if(tfa->Ntrends > 0) {
     if((skip_trend = (int *) malloc(tfa->Ntrends*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0;i<tfa->Ntrends;i++) skip_trend[i] = 0;
   }
 
   if(tfa->use_lc_errors) {
     if((evec = (double *) malloc(tfa->Njd * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   /* Increase the output vector length if necessary */
@@ -1022,7 +1022,7 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
     {
       tfa->Njd_mout[threadid] = N;
       if((tfa->m_out[threadid] = (double *) realloc((void *) tfa->m_out[threadid],N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
 
   /* set-up the b vector for running tfa */
@@ -1186,7 +1186,7 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
     {
       if((coeff_file = fopen(coeff_file_name,"w")) == NULL)
 	{
-	  error2(ERR_CANNOTWRITE,coeff_file_name);
+	  vt_error2(ERR_CANNOTWRITE,coeff_file_name);
 	}
       l=0;
       for(i=0; i<tfa->Ntrends;i++)
@@ -1203,7 +1203,7 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
   if(outlc)
     {
       if((lcout = fopen(lc_out_name,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,lc_out_name);
+	vt_error2(ERR_CANNOTWRITE,lc_out_name);
     }
   l=0;
   for(i=0;i<N;i++)
@@ -1350,8 +1350,8 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   char stringidin[MAXIDSTRINGLENGTH];
   double jdin, magin, jdin_last;
   void *ptr1, *ptr2;
-  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, ii, jj, kk;
-  void error2(int, char *);
+  int i, j, k, i_, nbins, lcline, lccol, lcindx, lcindx_old, col1, col2, type1, type2, kk;
+  void vt_error2(int, char *);
   char trend_name[MAXSTRINGLENGTH], dums[MAXSTRINGLENGTH];
   char *line;
   size_t line_size = MAXSTRINGLENGTH;
@@ -1412,12 +1412,12 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
     {
       if((tfa->signal_bin = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
 	 (tfa->signal_bin_N = (int **) malloc(Nthreads * sizeof(int *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       for(i_=0; i_ < Nthreads; i_++) {
 	if((tfa->signal_bin[i_] = (double *) malloc(nbins * sizeof(double))) == NULL ||
 	   (tfa->signal_bin_N[i_] = (int *) malloc(nbins * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     }
 
@@ -1425,19 +1425,19 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   if(!tfa->use_bin && !tfa->use_harm)
     {
       if((listfile = fopen(tfa->signal_listname,"r")) == NULL)
-	error2(ERR_FILENOTFOUND,tfa->signal_listname);
+	vt_error2(ERR_FILENOTFOUND,tfa->signal_listname);
       i=0;
       while(gnu_getline(&line,&line_size,listfile) >= 0)
 	i++;
       if(i != Nlcs)
-	error2(ERR_GETLSAMPTHRESH_FILETOSHORT, tfa->signal_listname);
+	vt_error2(ERR_GETLSAMPTHRESH_FILETOSHORT, tfa->signal_listname);
       rewind(listfile);
       if((tfa->signalfilenames = (char **) malloc(Nlcs * sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Nlcs;i++)
 	{
 	  if((tfa->signalfilenames[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       i = 0;
       while(gnu_getline(&line,&line_size,listfile) >= 0)
@@ -1450,11 +1450,11 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 
   if((dates = fopen(tfa->dates_name,"r")) == NULL)
     {
-      error2(ERR_FILENOTFOUND,tfa->dates_name);
+      vt_error2(ERR_FILENOTFOUND,tfa->dates_name);
     }
   if((trend_list = fopen(tfa->trend_list_name,"r")) == NULL)
     {
-      error2(ERR_FILENOTFOUND,tfa->trend_list_name);
+      vt_error2(ERR_FILENOTFOUND,tfa->trend_list_name);
     }
   tfa->Njd = 0;
   while(gnu_getline(&line,&line_size,dates) >= 0)
@@ -1467,16 +1467,16 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
     {
       if((tfa->stringid = (char **) malloc(tfa->Njd * sizeof(char *))) == NULL ||
 	 (tfa->stringid_idx = (int *) malloc(tfa->Njd * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(tfa->use_harm)
 	{
 	  if((tfa->JD = (double *) malloc(tfa->Njd * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       for(i=0;i<tfa->Njd;i++)
 	{
 	  if((tfa->stringid[i] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  tfa->stringid_idx[i] = i;
 	}
       tfa->Njd = 0;
@@ -1501,7 +1501,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   else
     {
       if((tfa->JD = (double *) malloc(tfa->Njd * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       tfa->Njd = 0;
       while(gnu_getline(&line,&line_size,dates) >= 0)
@@ -1517,7 +1517,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   /*tfa->clipping = DEFAULT_CLIPPING_VALUE;*/
 
   if((tfa->Njd_mout = (int *) malloc(Nthreads * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Nthreads; i++)
     tfa->Njd_mout[i] = tfa->Njd;
 
@@ -1525,31 +1525,31 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
      (tfa->signal = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
      (tfa->signal_bin_ids = (int **) malloc(Nthreads * sizeof(int *))) == NULL ||
      (tfa->inputsignal = (double **) malloc(Nthreads * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Nthreads; i++) {
     if((tfa->m_out[i] = (double *) malloc(tfa->Njd_mout[i] * sizeof(double))) == NULL ||
        (tfa->signal[i] = (double *) malloc(tfa->Njd_mout[i] * sizeof(double))) == NULL ||
        (tfa->signal_bin_ids[i] = (int *) malloc(tfa->Njd_mout[i] * sizeof(int))) == NULL||
        (tfa->inputsignal[i] = (double *) malloc(tfa->Njd_mout[i] * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(tfa->use_harm)
     {
       if((tfa->harmterm = (double ***) malloc(Nthreads * sizeof(double **))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i_ = 0; i_ < Nthreads; i_++) {
 	if((tfa->harmterm[i_] = (double **) malloc(tfa->Njd_mout[i_] * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(i=0;i<tfa->Njd_mout[i_];i++)
 	  {
 	    if((tfa->harmterm[i_][i] = (double *) malloc((2*(1 + tfa->Nharm + tfa->Nsubharm))*sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
       }
     }
 
   if((tfa->trends = (double **) malloc(tfa->Njd * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   tfa->Ntrends = 0;
   while(gnu_getline(&line,&line_size,trend_list) >= 0)
@@ -1557,18 +1557,18 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 
   if((tfa->trendx = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL ||
      (tfa->trendy = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<tfa->Njd;i++)
     {
       if((tfa->trends[i] = (double *) malloc(tfa->Ntrends * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if((tfa->trend_names = (char **) malloc(tfa->Ntrends * sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<tfa->Ntrends;i++)
     {
       if((tfa->trend_names[i] = (char *) malloc(MAXSTRINGLENGTH * sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   rewind(trend_list);
   i=0;
@@ -1577,13 +1577,13 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
       sscanf(line,"%s %lf %lf",trend_name, &tfa->trendx[i], &tfa->trendy[i]);
       sprintf(tfa->trend_names[i],"%s",trend_name);
 #ifdef USECFITSIO
-      jj = strlen(tfa->trend_names[i]);
-      ii = jj - 5;
-      if(ii > 0) {
-	if(!strcmp(&(tfa->trend_names[i][ii]),".fits")) {
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(tfa->trend_names[i])) {
+	{
 	  /* This is a fits light curve */
 	  if(ReadFitsTFATemplate(p,tfa->jdcol_isfromheader,tfa->jdcol_headername,&(tfa->JDcol_trend),tfa->magcol_isfromheader,tfa->magcol_headername,&(tfa->magcol_trend),tfa->trend_names[i],&sizetmpvec,&lengthtmp,&magin_tmp,&jdin_tmp,&stringid_tmp,&stringid_tmpidx)) {
-	    error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
+	    vt_error2(ERR_TFATEMPLATEFITSREADERROR,trend_name);
 	  }
 	  if(!p->matchstringid) {
 	    j = 0;
@@ -1665,7 +1665,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
       }
 #endif
       if((trendin = fopen(trend_name,"r")) == NULL)
-	error2(ERR_FILENOTFOUND,trend_name);
+	vt_error2(ERR_FILENOTFOUND,trend_name);
       if(!p->matchstringid)
 	{
 	  /* We are not using string-ids for the matching, we don't need to read the template light curve into a separate data vector */
@@ -1691,7 +1691,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		      lccol++;
 		    }
 		  else
-		    error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+		    vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		  if(lccol > col2)
 		    {
 		      lcindx = lcindx_old;
@@ -1711,7 +1711,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 			  lccol++;
 			}
 		      else
-			error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+			vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		    }
 
 		  while((j < tfa->Njd ? (jdin > tfa->JD[j] + p->JDTOL) : 0))
@@ -1752,11 +1752,11 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		  if((magin_tmp = (double *) malloc(sizetmpvec * sizeof(double))) == NULL ||
 		     (stringid_tmp = (char **) malloc(sizetmpvec * sizeof(char *))) == NULL ||
 		     (stringid_tmpidx = (int *) malloc(sizetmpvec * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<sizetmpvec;j++)
 		    {
 		      if((stringid_tmp[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	      else
@@ -1764,11 +1764,11 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		  if((magin_tmp = (double *) realloc(magin_tmp, lengthtmp * sizeof(double))) == NULL ||
 		     (stringid_tmp = (char **) realloc(stringid_tmp, lengthtmp * sizeof(char *))) == NULL ||
 		     (stringid_tmpidx = (int *) realloc(stringid_tmpidx, lengthtmp * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  for(j=sizetmpvec;j<lengthtmp;j++)
 		    {
 		      if((stringid_tmp[j] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		  sizetmpvec = lengthtmp;
 		}
@@ -1798,7 +1798,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 		      lccol++;
 		    }
 		  else
-		    error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+		    vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		  if(lccol > col2)
 		    {
 		      lcindx = lcindx_old;
@@ -1818,7 +1818,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 			  lccol++;
 			}
 		      else
-			error2(ERR_INPUTMISSINGCOLUMN,trend_name);
+			vt_error2(ERR_INPUTMISSINGCOLUMN,trend_name);
 		    }
 
 		  strncpy(stringid_tmp[lengthtmp],stringidin,MAXIDSTRINGLENGTH);
@@ -1888,7 +1888,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 	     (tfa->v_decorr = (double ***) malloc(Nthreads * sizeof(double **))) == NULL ||
 	     (tfa->w1_decorr = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
 	     (tfa->a_decorr = (double **) malloc(Nthreads * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  for(i_ = 0; i_ < Nthreads; i_++) {
 
@@ -1897,18 +1897,18 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 	       (tfa->v_decorr[i_] = (double **) malloc(tfa->Ndecorr * sizeof(double *))) == NULL ||
 	       (tfa->w1_decorr[i_] = (double *) malloc(tfa->Ndecorr * sizeof(double))) == NULL ||
 	       (tfa->a_decorr[i_] = (double *) malloc(tfa->Ndecorr * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 
 	    for(i=0;i<tfa->Njd;i++)
 	      if((tfa->decorr_trends[i_][i] = (double *) malloc(tfa->Ndecorr * sizeof(double))) == NULL ||
 		 (tfa->u_decorr[i_][i] = (double *) malloc(tfa->Ndecorr * sizeof(double))) == NULL)
 		{
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		}
 	    for(i=0;i<tfa->Ndecorr;i++)
 	      if((tfa->v_decorr[i_][i] = (double *) malloc(tfa->Ndecorr * sizeof(double))) == NULL)
 		{
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		}
 
 	  }
@@ -1923,17 +1923,17 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
   if((tfa->u = (double **) malloc(tfa->Njd * sizeof(double *))) == NULL ||
      (tfa->v = (double **) malloc(tfa->Ntfatot * sizeof(double *))) == NULL ||
      (tfa->w1 = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0;i<tfa->Njd;i++)
     if((tfa->u[i] = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL)
       {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
   for(i=0;i<tfa->Ntfatot;i++)
     if((tfa->v[i] = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL)
       {
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       }
 
   if((tfa->u2 = (double ***) malloc(Nthreads * sizeof(double **))) == NULL ||
@@ -1942,7 +1942,7 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
      (tfa->a = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
      (tfa->b = (double **) malloc(Nthreads * sizeof(double *))) == NULL ||
      (tfa->bstore = (double **) malloc(Nthreads * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i_=0;i_<Nthreads;i_++) {
     if((tfa->u2[i_] = (double **) malloc(tfa->Njd * sizeof(double *))) == NULL ||
@@ -1951,17 +1951,17 @@ void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
        (tfa->a[i_] = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL ||
        (tfa->b[i_] = (double *) malloc(tfa->Njd * sizeof(double))) == NULL ||
        (tfa->bstore[i_] = (double *) malloc(tfa->Njd * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
     for(i=0;i<tfa->Njd;i++)
       if((tfa->u2[i_][i] = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL)
 	{
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
     for(i=0;i<tfa->Ntfatot;i++)
       if((tfa->v2[i_][i] = (double *) malloc(tfa->Ntfatot * sizeof(double))) == NULL)
 	{
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	}
   }
 
@@ -2010,34 +2010,34 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
       tfa->Njd_mout[threadid] = N;
       if((tfa->m_out[threadid] = (double *) realloc((void *) tfa->m_out[threadid],N * sizeof(double))) == NULL ||
 	 (tfa->signal[threadid] = (double *) realloc((void *) tfa->signal[threadid], N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(use_harm)
 	{
 	  if((tfa->harmterm[threadid] = (double **) realloc(tfa->harmterm[threadid], N * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0;i<N;i++)
 	    {
 	      if((tfa->harmterm[threadid][i] = (double *) malloc((2*(1 + Nharm + Nsubharm))*sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	}
       if(use_bin)
 	{
 	  if((tfa->signal_bin_ids[threadid] = (int *) realloc((void *) tfa->signal_bin_ids[threadid], N * sizeof(int))) == NULL ||
 	     (tfa->inputsignal[threadid] = (double *) realloc((void *) tfa->inputsignal[threadid], N * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
     }
 
   if(!use_bin && !use_harm)
     {
       if((signalfile = fopen(signalfilename,"r")) == NULL)
-	error2(ERR_FILENOTFOUND,signalfilename);
+	vt_error2(ERR_FILENOTFOUND,signalfilename);
       i=0;
       while(gnu_getline(&line,&line_size,signalfile) >= 0)
 	i++;
       if(i != N)
-	error2(ERR_SIGFILEWRONGLENGTH,signalfilename);
+	vt_error2(ERR_SIGFILEWRONGLENGTH,signalfilename);
       rewind(signalfile);
       i=0;
       while(gnu_getline(&line,&line_size,signalfile) >= 0)
@@ -2790,7 +2790,7 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
     {
       if((coeff_file = fopen(coeff_file_name,"w")) == NULL)
 	{
-	  error2(ERR_CANNOTWRITE,coeff_file_name);
+	  vt_error2(ERR_CANNOTWRITE,coeff_file_name);
 	}
       l=0;
       for(i=0; i<tfa->Ntrends;i++)
@@ -2821,7 +2821,7 @@ void detrend_tfa_sr(ProgramData *p, _TFA_SR *tfa, int N, double *t, double *m, d
   if(outlc)
     {
       if((lcout = fopen(lc_out_name,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,lc_out_name);
+	vt_error2(ERR_CANNOTWRITE,lc_out_name);
     }
   l=0;
   for(i=0;i<N;i++)

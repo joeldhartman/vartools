@@ -780,7 +780,7 @@ void stitch_ShowSyntax(FILE *outfile)
 			 "\t\t[\"out_shifts_file\" outshiftsfile1[,outshiftsfile2,...]\n");
   VARTOOLS_printtostring(&s,
 			 "\t\t\t[\"include_missing\"]]]\n");
-  fprintf(outfile,s.s);
+  fprintf(outfile,"%s",s.s);
 }
 
 void stitch_ShowHelp(FILE *outfile)
@@ -811,7 +811,20 @@ void stitch_ShowHelp(FILE *outfile)
   VARTOOLS_printtostring(&s,"\"add_stitchparams_fitsheader\" - log the vartools control parameters for stitching to the header of any light curve that is subsequently output in FITS format. Use the \"primary\" keyword to log the parameters to the primary header of the FITS file, or the \"extension\" keyword to log them in the first extension header. Use \"append\" to append the FITS header keywords to the header whether or not the keywords may already be present, or \"update\" to update any header keywords that may already be present.\n\n");
   VARTOOLS_printtostring(&s,"\"add_shifts_fitsheader\" - log the shifts determined by the -stitch command into the header of any light curve file that is subsequently output in FITS format. Here the basename of the keyword(s) used to store the shift values should be given. A good option is \"SHFT\". The values of lcnumvar associated with each shift will be indicated using two letters (AA for 0, AB for 1, AC for 2, etc). This will be followed by two letters indicating the value of refnumvar if relevant. Additional options are similar to those for the \"add_stitchparams_fitsheader\" option.\n\n");
   VARTOOLS_printtostring(&s,"\"shifts_file\" - optionally read-in from a file and apply any previously determined shifts for each star and light curve group, and/or write out the determined shifts for each star. First provide the name of a light curve variable storing a string field identifier for each observation. This field (or telescope ID) will be stored in the shifts file and used to match up points in a light curve with any previously measured shift for that field. Then provide the name of a input list variable storing the string star name for each light curve. This will also be stored in the shifts file and used to match up light curves with previously measured shifts for that star.  Optionally provide the \"append_refnum_to_fieldlabel\" to append the reference number to the end of the string field labels to provide a final string for matching.  To use an input shifts file give the \"in_shifts_file\" followed by a comma-separated list of shifts files to read-in previously measured shifts from. There should be one file per variable being shifted. Optionally give the \"nobs_refit\" followed by an integer to redetermine the shifts for any fields where the existing shift was based on fewer than nobs_refit observations, and where the new light curve contains at least that many observations of that field. The names of any input shift files used to determine shifts will be added to the header of subsequently output light curves if they are output in FITS format. Optionally give the \"header_basename_only\" to only list the basename of the shifts file, and not the full path.  Finally give the \"out_shifts_file\" to output a file with the measured shifts. Provide a list of files to use, one per variable being stitched. To include in the output shifts file any fields from the input list that had no observations in the current light curve, give the \"include_missing\" keyword.\n\n");
-  fprintf(outfile,s.s);
+  fprintf(outfile,"%s",s.s);
+}
+
+void stitch_ShowExample(FILE *outfile)
+/* Output an example for this command */
+{
+  fprintf(outfile,
+          "\nvartools -L USERLIBS/src/.libs/stitch.so \\\n"
+          "\t-l EXAMPLES/lc_list_stitch combinelcs lcnumvar lcnum \\\n"
+          "\t-expr 'mask=mag*0+1' \\\n"
+          "\t-rms \\\n"
+          "\t-stitch mag err mask lcnum median \\\n"
+          "\t-rms -oneline\n\n"
+          "Combine two light-curve segments (EXAMPLES/2 and EXAMPLES/2.shifted, which is EXAMPLES/2 with +0.3 mag added) into a single in-memory light curve using the combinelcs option of -l, then fit and remove the inter-segment offset with -stitch. The list file EXAMPLES/lc_list_stitch contains the comma-separated pair of file names; the lcnumvar keyword stores the segment index (0 or 1) per point in the variable lcnum, which -stitch needs to identify which points belong to which segment. -expr creates a per-point mask vector that is uniformly 1 (no points masked); a real application would derive mask from quality flags. -stitch is told to operate on the mag/err pair, using the mask, with median offsets per segment. The two -rms calls show that before stitching the combined light curve has an inflated RMS due to the offset, and after stitching the RMS returns to the original EXAMPLES/2 value.\n");
 }
 
 void stitch_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)

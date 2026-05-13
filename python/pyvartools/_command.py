@@ -110,13 +110,32 @@ class VartoolsCommand:
             f"{self.__class__.__name__} must implement _to_cli_args()"
         )
 
-    def _to_cli_args_with_perlc(self, subs: dict) -> List[str]:
-        """Call _to_cli_args() with per-LC attrs temporarily replaced.
+    def _to_cli_args_for_mode(self, mode: str) -> List[str]:
+        """Return CLI fragments for this command, parameterised by run mode.
+
+        ``mode`` is ``"single"`` when vartools will be invoked with ``-i``
+        (run / run_file) and ``"list"`` for ``-l`` (run_filelist /
+        run_batch / run_combinelcs).  The default implementation ignores
+        ``mode`` and delegates to :meth:`_to_cli_args`; commands whose
+        emission depends on the run mode (e.g. ``cmd.o`` whose output
+        path is interpreted as a filename in single mode and as a
+        directory in list mode) override this method instead.
+        """
+        return self._to_cli_args()
+
+    def _to_cli_args_with_perlc(self, subs: dict,
+                                mode: str = "single") -> List[str]:
+        """Call _to_cli_args_for_mode(mode) with per-LC attrs temporarily replaced.
 
         Parameters
         ----------
         subs : dict mapping attr_name -> replacement_string
             e.g. {"minper": "list column 2", "maxper": "list column 3"}
+        mode : str
+            Forwarded to ``_to_cli_args_for_mode``.  Defaults to ``"single"``
+            for callers that don't need mode-aware emission (e.g. legacy
+            subprocess path); library-batch callers pass
+            ``mode="library_batch"`` so that ``cmd.o`` emits ``forceoutdirmode``.
         """
         originals = {}
         for attr, replacement in subs.items():
@@ -124,7 +143,7 @@ class VartoolsCommand:
                 originals[attr] = getattr(self, attr)
                 object.__setattr__(self, attr, replacement)
         try:
-            return self._to_cli_args()
+            return self._to_cli_args_for_mode(mode)
         finally:
             for attr, orig in originals.items():
                 object.__setattr__(self, attr, orig)
@@ -146,6 +165,31 @@ class VartoolsCommand:
                 Expected number of columns (for read_csv); None = auto-detect.
         """
         return {}
+
+    # ------------------------------------------------------------------
+    # Back-reference resolution for chained calls
+    # ------------------------------------------------------------------
+
+    def _resolve_back_references(self, prev) -> None:
+        """Substitute CLI back-reference keywords with literal values from *prev*.
+
+        When a command is issued as a continuation from a prior Result /
+        BatchResult, string keywords like ``"ls"``, ``"aov"``, ``"bls"``,
+        ``"both"``, ``"injectharm"``, and ``"fixcolumn <NAME>"`` that the
+        vartools CLI would resolve against earlier commands in the same
+        invocation cannot work out of the box — each chain step is a separate
+        vartools invocation, so the "prior command" does not exist in the
+        current one.
+
+        Subclasses override this hook to rewrite their own parameters into
+        numeric values pulled from *prev*.  The hook is called once, after
+        ``__init__`` but before the command is placed in a Pipeline.  When
+        *prev* is a ``BatchResult`` the substituted value may be a ``PerLC``
+        array (one value per LC).
+
+        The default implementation does nothing.
+        """
+        return None
 
     # ------------------------------------------------------------------
     # Requested output files tracking (set by Pipeline)
@@ -170,5 +214,53 @@ class VartoolsCommand:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        args = self._to_cli_args()
-        return f"{self.__class__.__name__}({' '.join(args)})"
+        """Python-looking repr: ``LS(0.5, 10.0, 0.001, npeaks=2)``.
+
+        Walks the constructor signature and reads the current attribute
+        for each parameter.  Required positional parameters are shown
+        without their name; keyword parameters whose current value
+        equals the default are omitted.
+
+        Falls back to the ``ClassName(<cli tokens>)`` form when the
+        introspection fails entirely (any exception) OR when the
+        constructor has parameters but none are stored as attributes
+        with the matching names (e.g. ``UserCommand`` stashes its init
+        args under ``_lib_path`` / ``_cmd_name``).
+        """
+        import inspect
+        try:
+            sig = inspect.signature(self.__init__)
+            init_params = [(n, p) for n, p in sig.parameters.items()
+                           if n != "self"]
+            parts = []
+            matched_any = False
+            for name, param in init_params:
+                if not hasattr(self, name):
+                    continue
+                matched_any = True
+                val = getattr(self, name)
+                default = param.default
+                if default is not inspect.Parameter.empty:
+                    try:
+                        if val is default or val == default:
+                            continue
+                    except Exception:
+                        pass
+                    parts.append(f"{name}={val!r}")
+                else:
+                    parts.append(repr(val))
+            if init_params and not matched_any:
+                # Constructor takes args but none are surfaced as
+                # attributes; fall back to the CLI-token form so the
+                # repr stays useful.
+                raise _ReprIntrospectFailure()
+            return f"{self.__class__.__name__}({', '.join(parts)})"
+        except Exception:
+            args = self._to_cli_args()
+            return f"{self.__class__.__name__}({' '.join(args)})"
+
+
+class _ReprIntrospectFailure(Exception):
+    """Internal sentinel used by ``VartoolsCommand.__repr__`` to fall
+    back to the CLI-token form when constructor introspection yields no
+    matching attributes."""

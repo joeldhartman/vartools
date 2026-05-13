@@ -26,7 +26,7 @@ PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
  parsecommandline.c processcommand.c rescalesig.c runblsfixdurtc.c \
  runblsfixper.c runbls_sn.c sigclip.c starspot.c statistics.c svdcmp.c \
  sysrem.c transitmodel.c util.c transit.c GetBLSsignaltorednoise.c \
- autocorrelation.c harmonicfilter.c injectharm.c dftclean.c injecttransit.c \
+ autocorrelation.c fourierfilter.c injectharm.c dftclean.c injecttransit.c \
  saverestorelc.c saverestorelistdata.c outcolumns.c medianfilter.c \
  findblends.c microlens.c fittrap.c addnoise.c example.c parseinputlist.c \
  parselc.c converttime.c userlib.c linfit.c help.c resample.c \

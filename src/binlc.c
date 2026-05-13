@@ -44,13 +44,13 @@
            ((vec) = malloc(sizeof(typ))) == NULL || \
 	   (stats_type[(indx)] = (int *) malloc(sizeof(int))) == NULL || \
            (pctval[(indx)] = (double *) malloc(sizeof(double))) == NULL) \
-        error(ERR_MEMALLOC); \
+        vt_error(ERR_MEMALLOC); \
     } else { \
         if((ptrindx[(indx)] = (int *) realloc(ptrindx[(indx)],(Nptr[(indx)]+1)*sizeof(int))) == NULL || \
            ((vec) = realloc(vec, (Nptr[(indx)]+1)*sizeof(typ))) == NULL || \
 	   (stats_type[(indx)] = (int *) realloc(stats_type[(indx)],(Nptr[(indx)]+1)*sizeof(int))) == NULL || \
            (pctval[(indx)] = (double *) realloc(pctval[(indx)],(Nptr[(indx)]+1)*sizeof(double))) == NULL ) \
-        error(ERR_MEMALLOC); \
+        vt_error(ERR_MEMALLOC); \
     } \
     ptrindx[(indx)][Nptr[(indx)]] = k; \
     stats_type[(indx)][Nptr[(indx)]] = default_stats_type; \
@@ -62,12 +62,12 @@
       if((ptrindx[(indx)] = (int *) malloc(sizeof(int))) == NULL || \
 	 (stats_type[(indx)] = (int *) malloc(sizeof(int))) == NULL || \
 	 (pctval[(indx)] = (double *) malloc(sizeof(double))) == NULL) \
-        error(ERR_MEMALLOC); \
+        vt_error(ERR_MEMALLOC); \
     } else { \
       if((ptrindx[(indx)] = (int *) realloc(ptrindx[(indx)],(Nptr[(indx)]+1)*sizeof(int))) == NULL || \
 	 (stats_type[(indx)] = (int *) realloc(stats_type[(indx)],(Nptr[(indx)]+1)*sizeof(int))) == NULL || \
          (pctval[(indx)] = (double *) realloc(pctval[(indx)],(Nptr[(indx)]+1)*sizeof(double))) == NULL) \
-        error(ERR_MEMALLOC);						\
+        vt_error(ERR_MEMALLOC);						\
     } \
     ptrindx[(indx)][Nptr[(indx)]] = k; \
     stats_type[(indx)][Nptr[(indx)]] = default_stats_type; \
@@ -125,7 +125,7 @@
       (*vec1)[lcnum][j] = getsum_##typ(nbin[i],vec2[k][i]); \
       break; \
     default: \
-      error(ERR_CODEERROR); \
+      vt_error(ERR_CODEERROR); \
     } \
     if(tflag == VARTOOLS_BINLC_TIMETYPE_NOSHRINK) { \
         for(j2=1; j2 < nbin[i]; j2++) { \
@@ -215,7 +215,7 @@
       } \
       break; \
     default: \
-      error(ERR_CODEERROR); \
+      vt_error(ERR_CODEERROR); \
     } \
     if(tflag == VARTOOLS_BINLC_TIMETYPE_NOSHRINK) { \
       for(u=0; u < d->Ncolumns; u++) { \
@@ -242,7 +242,7 @@ int binlc_parsevarstring(_Binlc *c) {
      (c->binstats = (int *) malloc(c->Nvar * sizeof(int))) == NULL ||
      (c->binvars = (_Variable **) malloc(c->Nvar * sizeof(_Variable *))) == NULL ||
      (c->pctval = (double *) malloc(c->Nvar * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   i1 = 0;
   i2 = 0;
   for(k=0; k < c->Nvar; k++) {
@@ -253,7 +253,7 @@ int binlc_parsevarstring(_Binlc *c) {
       return 1;
     }
     if((c->binvarnames[k] = (char *) malloc((i2 - i1 + 1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=i1; j < i2; j++) {
       c->binvarnames[k][j-i1] = c->binvarstring[j];
     }
@@ -271,11 +271,11 @@ int binlc_parsevarstring(_Binlc *c) {
 	if(!lentmpstring) {
 	  lentmpstring = i2 - i1 + 1;
 	  if((tmpstring = (char *) malloc(lentmpstring * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  lentmpstring = i2 - i1 + 1;
 	  if((tmpstring = (char *) realloc(tmpstring, lentmpstring * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       }
       for(j=i1; j < i2; j++) {
@@ -332,7 +332,7 @@ int binlc_parsevarstring(_Binlc *c) {
 	c->binstats[k] = VARTOOLS_STATSTYPE_SUM;
       }
       else {
-	error2(ERR_INVALIDSTATISTIC,tmpstring);
+	vt_error2(ERR_INVALIDSTATISTIC,tmpstring);
       }
       
     }
@@ -347,7 +347,7 @@ int binlc_parsevarstring(_Binlc *c) {
 	c->binstats[k] = VARTOOLS_STATSTYPE_WEIGHTEDMEAN;
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       i2 = i2+1;
     }
   }
@@ -438,11 +438,11 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 
   medflag = c->medflag; 
   binsize_Nbins_flag = c->binsize_Nbins_flag;
-  Nbins = c->Nbins;
+  Nbins = VT_EVAL_INT(c, Nbins, lclistnum, lcnum);
   firstbinflag = c->firstbinflag;
   tflag = c->tflag;
-  binsize = c->binsize;
-  firstbin = c->firstbin;
+  binsize = VT_EVAL_DOUBLE(c, binsize, lclistnum, lcnum);
+  firstbin = VT_EVAL_DOUBLE(c, firstbin, lclistnum, lcnum);
   T0source = c->T0source;
 
   switch(medflag) {
@@ -480,7 +480,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
     
     t0 = t0lc;
     if(t1 < t0)
-      error(ERR_UNSORTEDLIGHTCURVE);
+      vt_error(ERR_UNSORTEDLIGHTCURVE);
 
     if(binsize_Nbins_flag)
       {
@@ -501,6 +501,8 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
       getoutcolumnvalue(c->t0_linkedcolumn, lcnum, lclistnum, VARTOOLS_TYPE_DOUBLE, &t0);
     } else if(T0source == PERTYPE_FIX) {
       t0 = c->t0fixval;
+    } else if(T0source == PERTYPE_VAR) {
+      t0 = EvaluateVariable_Double(lclistnum, lcnum, 0, c->t0fixval_var);
     } else if(T0source == PERTYPE_SPECIFIED) {
       t0 = c->t0listval[lclistnum];
     } else if(T0source == PERTYPE_EXPR) {
@@ -635,7 +637,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 	break;
       }
     if(d->variable != NULL) {
@@ -668,13 +670,13 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 		 (bin_time = (double **) malloc(Nbins * sizeof(double *))) == NULL ||
 		 (nbin = (int *) malloc(Nbins * sizeof(int))) == NULL ||
 		 (startindx = (int *) malloc(Nbins * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(i=0;i<Nbins;i++)
 		{
 		  if((bin_mag[i] = (double *) malloc(n * sizeof(double))) == NULL ||
 		     (bin_sig[i] = (double *) malloc(n * sizeof(double))) == NULL ||
 		     (bin_time[i] = (double *) malloc(n * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  else
@@ -684,7 +686,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 		 (bin_time = (double **) realloc(bin_time, Nbins * sizeof(double *))) == NULL ||
 		 (nbin = (int *) realloc(nbin, Nbins * sizeof(int))) == NULL ||
 		 (startindx = (int *) realloc(startindx, Nbins * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      if(n > size2)
 		{
 		  size2 = n;
@@ -693,14 +695,14 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 		      if((bin_mag[i] = (double *) realloc(bin_mag[i], n * sizeof(double))) == NULL ||
 			 (bin_sig[i] = (double *) realloc(bin_sig[i], n * sizeof(double))) == NULL ||
 			 (bin_time[i] = (double *) realloc(bin_time[i], n * sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		  for(;i<Nbins;i++)
 		    {
 		      if((bin_mag[i] = (double *) malloc(n * sizeof(double))) == NULL ||
 			 (bin_sig[i] = (double *) malloc(n * sizeof(double))) == NULL ||
 			 (bin_time[i] = (double *) malloc(n * sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	      else
@@ -710,7 +712,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 		      if((bin_mag[i] = (double *) malloc(size2 * sizeof(double))) == NULL ||
 			 (bin_sig[i] = (double *) malloc(size2 * sizeof(double))) == NULL ||
 			 (bin_time[i] = (double *) malloc(size2 * sizeof(double))) == NULL)
-			error(ERR_MEMALLOC);
+			vt_error(ERR_MEMALLOC);
 		    }
 		}
 	      size1 = Nbins;
@@ -724,7 +726,7 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 	      if((bin_mag[i] = (double *) realloc(bin_mag[i], n * sizeof(double))) == NULL ||
 		 (bin_sig[i] = (double *) realloc(bin_sig[i], n * sizeof(double))) == NULL ||
 		 (bin_time[i] = (double *) realloc(bin_time[i], n * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	}
 
@@ -732,106 +734,106 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
       if(otherdata) {
 	for(k=0;k<Nptr[0];k++) {
 	  if((bin_dblptr[k] = (double **) malloc(Nbins * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < Nbins; i++) {
 	    if((bin_dblptr[k][i] = (double *) malloc(n * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	for(k=0;k<Nptr[1];k++) {
 	  d = &(p->DataFromLightCurve[ptrindx[1][k]]);
 	  if((bin_dbl2ptr[k] = (double ***) malloc(d->Ncolumns*sizeof(double **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < d->Ncolumns; j++) {
 	    if((bin_dbl2ptr[k][j] = (double **) malloc(Nbins * sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < Nbins; i++) {
 	      if((bin_dbl2ptr[k][j][i] = (double *) malloc(n * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	}
 	for(k=0;k<Nptr[2];k++) {
 	  if((bin_shortptr[k] = (short **) malloc(Nbins * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < Nbins; i++) {
 	    if((bin_shortptr[k][i] = (short *) malloc(n * sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	for(k=0;k<Nptr[3];k++) {
 	  d = &(p->DataFromLightCurve[ptrindx[3][k]]);
 	  if((bin_short2ptr[k] = (short ***) malloc(d->Ncolumns*sizeof(short **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < d->Ncolumns; j++) {
 	    if((bin_short2ptr[k][j] = (short **) malloc(Nbins * sizeof(short *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < Nbins; i++) {
 	      if((bin_short2ptr[k][j][i] = (short *) malloc(n * sizeof(short))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	}
 	for(k=0;k<Nptr[4];k++) {
 	  if((bin_intptr[k] = (int **) malloc(Nbins * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < Nbins; i++) {
 	    if((bin_intptr[k][i] = (int *) malloc(n * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	for(k=0;k<Nptr[5];k++) {
 	  d = &(p->DataFromLightCurve[ptrindx[5][k]]);
 	  if((bin_int2ptr[k] = (int ***) malloc(d->Ncolumns*sizeof(int **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < d->Ncolumns; j++) {
 	    if((bin_int2ptr[k][j] = (int **) malloc(Nbins * sizeof(int *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < Nbins; i++) {
 	      if((bin_int2ptr[k][j][i] = (int *) malloc(n * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	}
 	for(k=0;k<Nptr[10];k++) {
 	  if((bin_floatptr[k] = (float **) malloc(Nbins * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < Nbins; i++) {
 	    if((bin_floatptr[k][i] = (float *) malloc(n * sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	for(k=0;k<Nptr[11];k++) {
 	  d = &(p->DataFromLightCurve[ptrindx[11][k]]);
 	  if((bin_float2ptr[k] = (float ***) malloc(d->Ncolumns*sizeof(float **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < d->Ncolumns; j++) {
 	    if((bin_float2ptr[k][j] = (float **) malloc(Nbins * sizeof(float *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < Nbins; i++) {
 	      if((bin_float2ptr[k][j][i] = (float *) malloc(n * sizeof(float))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	}
 	for(k=0;k<Nptr[12];k++) {
 	  if((bin_longptr[k] = (long **) malloc(Nbins * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < Nbins; i++) {
 	    if((bin_longptr[k][i] = (long *) malloc(n * sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	}
 	for(k=0;k<Nptr[13];k++) {
 	  d = &(p->DataFromLightCurve[ptrindx[13][k]]);
 	  if((bin_long2ptr[k] = (long ***) malloc(d->Ncolumns*sizeof(long **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < d->Ncolumns; j++) {
 	    if((bin_long2ptr[k][j] = (long **) malloc(Nbins * sizeof(long *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < Nbins; i++) {
 	      if((bin_long2ptr[k][j][i] = (long *) malloc(n * sizeof(long))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	}

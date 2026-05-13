@@ -19,9 +19,112 @@
 #include "programdata.h"
 #include "functions.h"
 
+#include <sys/wait.h>
+
 #ifdef USECFITSIO
 #include "fitsio.h"
 #endif
+
+/* Returns 1 if the filename has a suffix that cfitsio can open as a
+   FITS file (.fits plus the on-the-fly compression variants
+   recognised by cfitsio's read drivers); returns 0 otherwise.
+   Used to dispatch input light curves to the FITS reader. */
+int IsFitsFilename(const char *name)
+{
+  static const char *suffixes[] = {
+    ".fits", ".fits.gz", ".fits.fz", ".fits.Z", ".fits.bz2"
+  };
+  int n = (int) (sizeof(suffixes) / sizeof(suffixes[0]));
+  int nlen, slen, k;
+  if(name == NULL) return 0;
+  nlen = (int) strlen(name);
+  for(k = 0; k < n; k++) {
+    slen = (int) strlen(suffixes[k]);
+    if(nlen >= slen && !strcmp(name + nlen - slen, suffixes[k]))
+      return 1;
+  }
+  return 0;
+}
+
+/* Returns 1 if the filename has a compression suffix (.gz, .Z, .bz2)
+   that vartools should auto-decompress for non-FITS reads.  FITS
+   inputs are dispatched via IsFitsFilename() and handled by cfitsio
+   directly, so callers should consult IsFitsFilename() first. */
+static int IsCompressedAsciiFilename(const char *name)
+{
+  static const char *suffixes[] = {".gz", ".Z", ".bz2"};
+  int n = (int)(sizeof(suffixes)/sizeof(suffixes[0]));
+  int nlen, slen, k;
+  if(name == NULL) return 0;
+  nlen = (int) strlen(name);
+  for(k = 0; k < n; k++) {
+    slen = (int) strlen(suffixes[k]);
+    if(nlen > slen && !strcmp(name + nlen - slen, suffixes[k]))
+      return 1;
+  }
+  return 0;
+}
+
+/* popen() the appropriate decompressor (gzip -dc for .gz/.Z, bzip2 -dc
+   for .bz2) for an ASCII input file; returns a stdio FILE* the caller
+   must close with pclose, or NULL on failure.  *prog_out (if non-NULL)
+   is set to a static string naming the chosen decompressor (used in
+   pclose-status diagnostics).  The caller is responsible for ensuring
+   the filename does not contain shell metacharacters (matches the
+   existing -opencommand convention). */
+static FILE *OpenCompressedAsciiFile(const char *name, const char **prog_out)
+{
+  char cmd[MAXLEN];
+  const char *prog = NULL;
+  int nlen, slen;
+  if(prog_out != NULL) *prog_out = NULL;
+  if(name == NULL) return NULL;
+  nlen = (int) strlen(name);
+  slen = 3;  /* ".gz" */
+  if(nlen > slen && !strcmp(name + nlen - slen, ".gz")) prog = "gzip -dc";
+  if(prog == NULL) {
+    slen = 2;  /* ".Z" */
+    if(nlen > slen && !strcmp(name + nlen - slen, ".Z")) prog = "gzip -dc";
+  }
+  if(prog == NULL) {
+    slen = 4;  /* ".bz2" */
+    if(nlen > slen && !strcmp(name + nlen - slen, ".bz2")) prog = "bzip2 -dc";
+  }
+  if(prog == NULL) return NULL;
+  if(prog_out != NULL) *prog_out = prog;
+  if(snprintf(cmd, sizeof(cmd), "%s %s", prog, name) >= (int) sizeof(cmd))
+    return NULL;
+  return popen(cmd, "r");
+}
+
+/* Closes infile via pclose() and warns to stderr if the spawned
+   decompressor exited with non-zero status (e.g. exit 127 means the
+   program was not found on PATH; non-zero generally means the input
+   was not in the expected compressed format).  Caller still gets the
+   data that was read up to the point of failure; this is a diagnostic
+   warning, not a hard error. */
+static void ClosePopenedFile(FILE *infile, const char *lcname,
+			     const char *prog)
+{
+  int rc = pclose(infile);
+  if(rc != 0 && prog != NULL) {
+    if(WIFEXITED(rc)) {
+      fprintf(stderr,
+	      "vartools: warning: '%s' exited with status %d while reading '%s'%s\n",
+	      prog, WEXITSTATUS(rc), lcname,
+	      WEXITSTATUS(rc) == 127 ?
+	      " (decompressor not found on PATH?)" : "");
+    } else if(WIFSIGNALED(rc)) {
+      fprintf(stderr,
+	      "vartools: warning: '%s' was killed by signal %d while reading '%s'\n",
+	      prog, WTERMSIG(rc), lcname);
+    } else {
+      fprintf(stderr,
+	      "vartools: warning: '%s' returned wait status %d while reading '%s'\n",
+	      prog, rc, lcname);
+    }
+  }
+}
 
 void ParseSkipCharString(char *argv, int *Nskip, char **skipchars)
 {
@@ -40,11 +143,11 @@ void ParseSkipCharString(char *argv, int *Nskip, char **skipchars)
 	  if((*Nskip) == 0) {
 	    *Nskip = 1;
 	    if(((*skipchars) = (char *) malloc(1)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  } else {
 	    (*Nskip) = (*Nskip) + 1;
 	    if(((*skipchars) = (char *) realloc((*skipchars),(*Nskip))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  (*skipchars)[(*Nskip)-1] = argv[i];
 	}
@@ -64,25 +167,25 @@ void SetupInputVariable(ProgramData *p, char *varname, int column, int datatype,
   if(!strcmp(varname,"t")) {
     if(datatype != VARTOOLS_TYPE_DOUBLE && 
        datatype != VARTOOLS_TYPE_CONVERTJD) {
-      error(ERR_WRONGTYPEFORSPECIALVARIABLE);
+      vt_error(ERR_WRONGTYPEFORSPECIALVARIABLE);
     }
     p->tvar = variable;
   }
   else if(!strcmp(varname,"mag")) {
     if(datatype != VARTOOLS_TYPE_DOUBLE) {
-      error(ERR_WRONGTYPEFORSPECIALVARIABLE);
+      vt_error(ERR_WRONGTYPEFORSPECIALVARIABLE);
     }
     p->magvar = variable;
   }
   else if(!strcmp(varname,"err")) {
     if(datatype != VARTOOLS_TYPE_DOUBLE) {
-      error(ERR_WRONGTYPEFORSPECIALVARIABLE);
+      vt_error(ERR_WRONGTYPEFORSPECIALVARIABLE);
     }
     p->sigvar = variable;
   }
   else if(!strcmp(varname,"id")) {
     if(datatype != VARTOOLS_TYPE_STRING) {
-      error(ERR_WRONGTYPEFORSPECIALVARIABLE);
+      vt_error(ERR_WRONGTYPEFORSPECIALVARIABLE);
     }
     p->idvar = variable;
   }
@@ -107,9 +210,9 @@ void SetupInputVariable(ProgramData *p, char *varname, int column, int datatype,
 			       INCOLUMN_HEADER_INDICATOR,
 			       varname);
     if((p->DataFromLightCurve[p->NDataFromLightCurve-1].incolumn_header_names = (char **) malloc(sizeof(char *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if((p->DataFromLightCurve[p->NDataFromLightCurve-1].incolumn_header_names[0] = (char *) malloc(MAXLEN)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(p->DataFromLightCurve[p->NDataFromLightCurve-1].incolumn_header_names[0], "%s", incolumn_header_name);
   }
 #endif
@@ -172,7 +275,7 @@ int ParseInputLCFormatString(char *argv, ProgramData *p)
 	if((parsecopy = (char *) realloc(parsecopy, sizestring)) == NULL ||
 	   (format = (char *) realloc(format, sizestring)) == NULL ||
 	   (varname = (char *) realloc(varname, sizestring)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       parsecopy[j] = '\0';
       if(termscan == 0) {
@@ -369,7 +472,7 @@ int ParseLineToColumns_testskip(char *line, char **cols, int maxcols, int Nskipc
     i++;
   }
   if(i < maxcols) {
-    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+    vt_error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
   return 0;
 }
@@ -392,7 +495,7 @@ int ParseLineToColumnsDelimString_testskip(char *line, char **cols, int maxcols,
     i++;
   }
   if(i < maxcols) {
-    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+    vt_error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
   return 0;
 }
@@ -415,7 +518,7 @@ int ParseLineToColumnsDelimChar_testskip(char *line, char **cols, int maxcols, i
     i++;
   }
   if(i < maxcols) {
-    error2(ERR_INPUTMISSINGCOLUMN,"Input List");
+    vt_error2(ERR_INPUTMISSINGCOLUMN,"Input List");
   }
   return 0;
 }
@@ -496,11 +599,11 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
   
   if(!p->NDataFromLightCurve) {
     if((p->DataFromLightCurve = (_DataFromLightCurve *) malloc(sizeof(_DataFromLightCurve))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   else {
     if((p->DataFromLightCurve = (_DataFromLightCurve *) realloc(p->DataFromLightCurve, (p->NDataFromLightCurve + 1)*sizeof(_DataFromLightCurve))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   
   d = &(p->DataFromLightCurve[p->NDataFromLightCurve]);
@@ -529,14 +632,14 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
     Nmalloc = 1;
 
   if((d->incolumns = (int *) malloc(Nmalloc*sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if((d->incolumn_names = (char **) malloc(Nmalloc*sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < Nmalloc; i++) {
     if((d->incolumn_names[i] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 
   if(disjointcolumns < 0) {
@@ -672,16 +775,16 @@ void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthrea
   if(p->readimagestring) {
     if((p->stringid_idx = (int **) malloc(Nthread * sizeof(int *))) == NULL ||
        (p->stringid = (char ***) malloc(Nthread * sizeof(char **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if((p->t = (double **) malloc(Nthread * sizeof(double *))) == NULL ||
      (p->mag = (double **) malloc(Nthread * sizeof(double *))) == NULL ||
      (p->sig = (double **) malloc(Nthread * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 #ifdef _USEBINARY_LC
   if(p->binarylcinput) {
     if((p->binlc = (binarylightcurve *) malloc(Nthread * sizeof(binarylightcurve))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < Nthread; i++) {
       p->binlc[i].memsize_lc_header = 0;
       p->binlc[i].memsize_lc_columns = 0;
@@ -696,122 +799,122 @@ void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthrea
       case VARTOOLS_TYPE_DOUBLE:
 	dblptr = (double ***) d->dataptr;
 	if(((*dblptr) = (double **) malloc(Nthread * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
 	dblptr = (double ***) d->dataptr;
 	if(((*dblptr) = (double **) malloc(Nthread * sizeof(double *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_STRING:
 	stringptr = (char ****) d->dataptr;
 	if(((*stringptr) = (char ***) malloc(Nthread * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_INT:
 	intptr = (int ***) d->dataptr;
 	if(((*intptr) = (int **) malloc(Nthread * sizeof(int *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_SHORT:
 	shortptr = (short ***) d->dataptr;
 	if(((*shortptr) = (short **) malloc(Nthread * sizeof(short *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	floatptr = (float ***) d->dataptr;
 	if(((*floatptr) = (float **) malloc(Nthread * sizeof(float *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_LONG:
 	longptr = (long ***) d->dataptr;
 	if(((*longptr) = (long **) malloc(Nthread * sizeof(long *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CHAR:
 	charptr = (char ***) d->dataptr;
 	if(((*charptr) = (char **) malloc(Nthread * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else if(Nc > 0) {
       switch(d->datatype) {
       case VARTOOLS_TYPE_DOUBLE:
 	dbl2ptr = (double ****) d->dataptr;
 	if(((*dbl2ptr) = (double ***) malloc(Nthread * sizeof(double **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j<Nthread; j++) {
 	  if((((*dbl2ptr)[j]) = (double **) malloc(Nc * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
 	dbl2ptr = (double ****) d->dataptr;
 	if(((*dbl2ptr) = (double ***) malloc(Nthread * sizeof(double **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j<Nthread; j++) {
 	  if((((*dbl2ptr)[j]) = (double **) malloc(Nc * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_STRING:
 	string2ptr = (char *****) d->dataptr;
 	if(((*string2ptr) = (char ****) malloc(Nthread * sizeof(char ***))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*string2ptr)[j]) = (char ***) malloc(Nc * sizeof(char **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_INT:
 	int2ptr = (int ****) d->dataptr;
 	if(((*int2ptr) = (int ***) malloc(Nthread * sizeof(int **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*int2ptr)[j]) = (int **) malloc(Nc * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_SHORT:
 	short2ptr = (short ****) d->dataptr;
 	if(((*short2ptr) = (short ***) malloc(Nthread * sizeof(short **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*short2ptr)[j]) = (short **) malloc(Nc * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	float2ptr = (float ****) d->dataptr;
 	if(((*float2ptr) = (float ***) malloc(Nthread * sizeof(float **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*float2ptr)[j]) = (float **) malloc(Nc * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_LONG:
 	long2ptr = (long ****) d->dataptr;
 	if(((*long2ptr) = (long ***) malloc(Nthread * sizeof(long **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*long2ptr)[j]) = (long **) malloc(Nc * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       case VARTOOLS_TYPE_CHAR:
 	char2ptr = (char ****) d->dataptr;
 	if(((*char2ptr) = (char ***) malloc(Nthread * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < Nthread; j++) {
 	  if((((*char2ptr)[j]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 	
       }
     } else {
@@ -819,45 +922,45 @@ void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthrea
       case VARTOOLS_TYPE_DOUBLE:
 	dbl2ptr = (double ****) d->dataptr;
 	if(((*dbl2ptr) = (double ***) malloc(Nthread * sizeof(double **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
 	dbl2ptr = (double ****) d->dataptr;
 	if(((*dbl2ptr) = (double ***) malloc(Nthread * sizeof(double **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_STRING:
 	string2ptr = (char *****) d->dataptr;
 	if(((*string2ptr) = (char ****) malloc(Nthread * sizeof(char ***))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_INT:
 	int2ptr = (int ****) d->dataptr;
 	if(((*int2ptr) = (int ***) malloc(Nthread * sizeof(int **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_SHORT:
 	short2ptr = (short ****) d->dataptr;
 	if(((*short2ptr) = (short ***) malloc(Nthread * sizeof(short **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_FLOAT:
 	float2ptr = (float ****) d->dataptr;
 	if(((*float2ptr) = (float ***) malloc(Nthread * sizeof(float **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_LONG:
 	long2ptr = (long ****) d->dataptr;
 	if(((*long2ptr) = (long ***) malloc(Nthread * sizeof(long **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       case VARTOOLS_TYPE_CHAR:
 	char2ptr = (char ****) d->dataptr;
 	if(((*char2ptr) = (char ***) malloc(Nthread * sizeof(char **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 	
       }
     }
@@ -909,7 +1012,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
       s = p->sizesinglelc[threadid];
       if(p->readimagestring) {
 	if((p->stringid_idx[threadid] = (int *) malloc(s * sizeof(int))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(j=0; j < s; j++)
 	  p->stringid_idx[threadid][j] = 0;
       }
@@ -921,57 +1024,57 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    dblptr = (double ***) d->dataptr;
 	    if(((*dblptr)[threadid] = (double *) malloc(s * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*dblptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
 	    dblptr = (double ***) d->dataptr;
 	    if(((*dblptr)[threadid] = (double *) malloc(s * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*dblptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    stringptr = (char ****) d->dataptr;
 	    if(((*stringptr)[threadid] = (char **) malloc(s * sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*stringptr)[threadid][j] = (char *) malloc(d->maxstringlength)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      (*stringptr)[threadid][j][0] = '\0';
 	    }
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    intptr = (int ***) d->dataptr;
 	    if(((*intptr)[threadid] = (int *) malloc(s * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*intptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    shortptr = (short ***) d->dataptr;
 	    if(((*shortptr)[threadid] = (short *) malloc(s * sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*shortptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    floatptr = (float ***) d->dataptr;
 	    if(((*floatptr)[threadid] = (float *) malloc(s * sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*floatptr)[threadid][j] = 0.;
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    longptr = (long ***) d->dataptr;
 	    if(((*longptr)[threadid] = (long *) malloc(s * sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*longptr)[threadid][j] = 0;
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    charptr = (char ***) d->dataptr;
 	    if(((*charptr)[threadid] = (char *) malloc(s * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) (*charptr)[threadid][j] = 0;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(Nc > 0) {
 	  switch(d->datatype) {
@@ -979,7 +1082,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    dbl2ptr = (double ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc(s * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
@@ -987,7 +1090,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    dbl2ptr = (double ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc(s * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
@@ -995,10 +1098,10 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    string2ptr = (char *****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*string2ptr)[threadid][j] = (char **) malloc(s * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	    }
@@ -1007,7 +1110,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    int2ptr = (int ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*int2ptr)[threadid][j] = (int *) malloc(s * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*int2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
@@ -1015,7 +1118,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    short2ptr = (short ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*short2ptr)[threadid][j] = (short *) malloc(s * sizeof(short))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*short2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
@@ -1023,7 +1126,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    float2ptr = (float ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*float2ptr)[threadid][j] = (float *) malloc(s * sizeof(float))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*float2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
@@ -1031,7 +1134,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    long2ptr = (long ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*long2ptr)[threadid][j] = (long *) malloc(s * sizeof(long))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*long2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
@@ -1039,45 +1142,45 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	    char2ptr = (char ****) d->dataptr;
 	    for(j=0; j < Nc; j++) {
 	      if(((*char2ptr)[threadid][j] = (char *) malloc(s)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < s; k++) (*char2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    dbl2ptr = (double ****) d->dataptr;
 	    if(((*dbl2ptr)[threadid] = (double **) malloc(s * sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
 	    dbl2ptr = (double ****) d->dataptr;
 	    if(((*dbl2ptr)[threadid] = (double **) malloc(s * sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    string2ptr = (char *****) d->dataptr;
 	    if(((*string2ptr)[threadid] = (char ***) malloc(s * sizeof(char **))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*string2ptr)[threadid][j] = (char **) malloc((-Nc) * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	    }
@@ -1085,55 +1188,55 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  case VARTOOLS_TYPE_INT:
 	    int2ptr = (int ****) d->dataptr;
 	    if(((*int2ptr)[threadid] = (int **) malloc(s * sizeof(int *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*int2ptr)[threadid][j] = (int *) malloc((-Nc) * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*int2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    short2ptr = (short ****) d->dataptr;
 	    if(((*short2ptr)[threadid] = (short **) malloc(s * sizeof(short *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*short2ptr)[threadid][j] = (short *) malloc((-Nc) * sizeof(short))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*short2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    float2ptr = (float ****) d->dataptr;
 	    if(((*float2ptr)[threadid] = (float **) malloc(s * sizeof(float *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*float2ptr)[threadid][j] = (float *) malloc((-Nc) * sizeof(float))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*float2ptr)[threadid][j][k] = 0.;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    long2ptr = (long ****) d->dataptr;
 	    if(((*long2ptr)[threadid] = (long **) malloc(s * sizeof(long *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*long2ptr)[threadid][j] = (long *) malloc((-Nc) * sizeof(long))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*long2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    char2ptr = (char ****) d->dataptr;
 	    if(((*char2ptr)[threadid] = (char **) malloc(s * sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=0; j < s; j++) {
 	      if(((*char2ptr)[threadid][j] = (char *) malloc((-Nc) * sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(k=0; k < -Nc; k++) (*char2ptr)[threadid][j][k] = 0;
 	    }
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -1145,7 +1248,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
     s = p->sizesinglelc[threadid];
     if(p->readimagestring) {
       if((p->stringid_idx[threadid] = (int *) realloc(p->stringid_idx[threadid], s * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(k=oldsizesinglelc; k < s; k++) p->stringid_idx[threadid][k] = 0;
     }
     for(i=0; i < p->NDataFromLightCurve; i++) {
@@ -1156,57 +1259,57 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	case VARTOOLS_TYPE_DOUBLE:
 	  dblptr = (double ***) d->dataptr;
 	  if(((*dblptr)[threadid] = (double *) realloc((*dblptr)[threadid], s * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*dblptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
 	  dblptr = (double ***) d->dataptr;
 	  if(((*dblptr)[threadid] = (double *) realloc((*dblptr)[threadid], s * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*dblptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  stringptr = (char ****) d->dataptr;
 	  if(((*stringptr)[threadid] = (char **) realloc((*stringptr)[threadid], s * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*stringptr)[threadid][j] = (char *) malloc(d->maxstringlength)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    (*stringptr)[threadid][j][0] = '\0';
 	  }
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  intptr = (int ***) d->dataptr;
 	  if(((*intptr)[threadid] = (int *) realloc((*intptr)[threadid], s * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*intptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  shortptr = (short ***) d->dataptr;
 	  if(((*shortptr)[threadid] = (short *) realloc((*shortptr)[threadid], s * sizeof(short))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*shortptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  floatptr = (float ***) d->dataptr;
 	  if(((*floatptr)[threadid] = (float *) realloc((*floatptr)[threadid], s * sizeof(float))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*floatptr)[threadid][k] = 0.;
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  longptr = (long ***) d->dataptr;
 	  if(((*longptr)[threadid] = (long *) realloc((*longptr)[threadid], s * sizeof(long))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*longptr)[threadid][k] = 0;
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  charptr = (char ***) d->dataptr;
 	  if(((*charptr)[threadid] = (char *) realloc((*charptr)[threadid], s * sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(k=oldsizesinglelc; k < s; k++) (*charptr)[threadid][k] = 0;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if (Nc > 0) {
 	switch(d->datatype) {
@@ -1214,7 +1317,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  dbl2ptr = (double ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) realloc((*dbl2ptr)[threadid][j], s * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
@@ -1222,7 +1325,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  dbl2ptr = (double ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) realloc((*dbl2ptr)[threadid][j], s * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
@@ -1230,10 +1333,10 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  string2ptr = (char *****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*string2ptr)[threadid][j] = (char **) realloc((*string2ptr)[threadid][j], s * sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	      for(k=oldsizesinglelc; k < s; k++) {
 		if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		(*string2ptr)[threadid][j][k][0] = '\0';
 	      }
 	  }
@@ -1242,7 +1345,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  int2ptr = (int ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*int2ptr)[threadid][j] = (int *) realloc((*int2ptr)[threadid][j], s * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*int2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
@@ -1250,7 +1353,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  short2ptr = (short ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*short2ptr)[threadid][j] = (short *) realloc((*short2ptr)[threadid][j], s * sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*short2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
@@ -1258,7 +1361,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  float2ptr = (float ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*float2ptr)[threadid][j] = (float *) realloc((*float2ptr)[threadid][j], s * sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*float2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
@@ -1266,7 +1369,7 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  long2ptr = (long ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*long2ptr)[threadid][j] = (long *) realloc((*long2ptr)[threadid][j], s * sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*long2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
@@ -1274,45 +1377,45 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	  char2ptr = (char ****) d->dataptr;
 	  for(j=0; j < Nc; j++) {
 	    if(((*char2ptr)[threadid][j] = (char *) realloc((*char2ptr)[threadid][j], s)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=oldsizesinglelc; k < s; k++) (*char2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
 	switch(d->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	  dbl2ptr = (double ****) d->dataptr;
 	  if(((*dbl2ptr)[threadid] = (double **) realloc((*dbl2ptr)[threadid], s * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
 	  dbl2ptr = (double ****) d->dataptr;
 	  if(((*dbl2ptr)[threadid] = (double **) realloc((*dbl2ptr)[threadid], s * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*dbl2ptr)[threadid][j] = (double *) malloc((-Nc) * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*dbl2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  string2ptr = (char *****) d->dataptr;
 	  if(((*string2ptr)[threadid] = (char ***) realloc((*string2ptr)[threadid], s * sizeof(char **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*string2ptr)[threadid][j] = (char **) malloc((-Nc)*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < (-Nc); k++) {
 	      if(((*string2ptr)[threadid][j][k] = (char *) malloc(d->maxstringlength)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      (*string2ptr)[threadid][j][k][0] = '\0';
 	    }
 	  }
@@ -1320,55 +1423,55 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
 	case VARTOOLS_TYPE_INT:
 	  int2ptr = (int ****) d->dataptr;
 	  if(((*int2ptr)[threadid] = (int **) realloc((*int2ptr)[threadid], s * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*int2ptr)[threadid][j] = (int *) malloc((-Nc) * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*int2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  short2ptr = (short ****) d->dataptr;
 	  if(((*short2ptr)[threadid] = (short **) realloc((*short2ptr)[threadid], s * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*short2ptr)[threadid][j] = (short *) malloc((-Nc) * sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*short2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  float2ptr = (float ****) d->dataptr;
 	  if(((*float2ptr)[threadid] = (float **) realloc((*float2ptr)[threadid], s * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*float2ptr)[threadid][j] = (float *) malloc((-Nc) * sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*float2ptr)[threadid][j][k] = 0.;
 	  }
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  long2ptr = (long ****) d->dataptr;
 	  if(((*long2ptr)[threadid] = (long **) realloc((*long2ptr)[threadid], s * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*long2ptr)[threadid][j] = (long *) malloc((-Nc) * sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*long2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  char2ptr = (char ****) d->dataptr;
 	  if(((*char2ptr)[threadid] = (char **) realloc((*char2ptr)[threadid], s * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=oldsizesinglelc; j < s; j++) {
 	    if(((*char2ptr)[threadid][j] = (char *) malloc((-Nc) * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < -Nc; k++) (*char2ptr)[threadid][j][k] = 0;
 	  }
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     }
@@ -1436,7 +1539,7 @@ void DoChangeVariable(ProgramData *p, _Changevariable *c, int threadid)
     mysortstringint(p->NJD[threadid], MAXIDSTRINGLENGTH, p->stringid[threadid], p->stringid_idx[threadid]);
     break;
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
 }
 
@@ -1608,7 +1711,7 @@ void get_fitslc_header_columns(fitsfile *infile,
 	    fits_get_colnum(infile, 0, d->incolumn_header_names[0],
 			    &(d->incolumns[u]), &status);
 	    if(status == COL_NOT_FOUND)
-	      error2(ERR_MISSING_FITSLC_HEADERNAME,
+	      vt_error2(ERR_MISSING_FITSLC_HEADERNAME,
 		     d->incolumn_header_names[u]);
 	    if(d->variable != NULL) {
 	      if(d->variable == p->tvar)
@@ -1654,7 +1757,7 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combine
 
   lc_in_name_length = strlen(lcnameptr);
   if((execcommand = (char *) malloc((size_execcommand+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   i = 0; i2 = 0;
 
   /* Parse the command string, substituting the input file name as needed */
@@ -1665,7 +1768,7 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combine
 	  if(i >= (size_execcommand)) {
 	    size_execcommand *= 2;
 	    if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  execcommand[i] = p->lc_open_exec_command_str[i2];
 	  i++;
@@ -1682,7 +1785,7 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combine
 		while((i + lc_in_name_length) >= (size_execcommand))
 		  size_execcommand *= 2;
 		if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      sprintf(&execcommand[i],"%s",lcnameptr);
 	      i = strlen(execcommand);
@@ -1693,14 +1796,14 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combine
 	      if(i >= (size_execcommand)) {
 		size_execcommand *= 2;
 		if((execcommand = (char *) realloc(execcommand, (size_execcommand+1))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      execcommand[i] = '%';
 	      i++;
 	      execcommand[i] = '\0';
 	    }
 	  else
-	    error(ERR_INVALIDEXECCOMMANDSTRFORMAT);
+	    vt_error(ERR_INVALIDEXECCOMMANDSTRFORMAT);
 	}
     }
     
@@ -1709,10 +1812,10 @@ FILE *ExecLCOpenCommand(ProgramData *p, Command *c, int lc, int lc2, int combine
 
   if((return_pipe = popen(execcommand,"r")) == NULL) {
     if(p->skipmissing) {
-      error2_noexit(ERR_CANNOTOPEN,execcommand);
+      vt_error2_noexit(ERR_CANNOTOPEN,execcommand);
     }
     else
-      error2(ERR_CANNOTOPEN,execcommand);
+      vt_error2(ERR_CANNOTOPEN,execcommand);
   }
   return return_pipe;
 }
@@ -1781,11 +1884,11 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
   if((fits_open_file(&infile,lcnameptr,READONLY,&status)))
     {
       if(p->skipmissing) {
-	error2_noexit(ERR_CANNOTOPEN,lcnameptr);
+	vt_error2_noexit(ERR_CANNOTOPEN,lcnameptr);
 	return(ERR_CANNOTOPEN);
       }
       else
-	error2(ERR_CANNOTOPEN,lcnameptr);
+	vt_error2(ERR_CANNOTOPEN,lcnameptr);
     }
   if(fits_get_hdu_num(infile, &hdunum) == 1)
     {
@@ -1796,20 +1899,20 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
   
   if(hdutype == IMAGE_HDU) {
     if(p->skipmissing) {
-      error2_noexit(ERR_IMAGEHDU,lcnameptr);
+      vt_error2_noexit(ERR_IMAGEHDU,lcnameptr);
       return(ERR_IMAGEHDU);
     }
     else
-      error2(ERR_IMAGEHDU,lcnameptr);
+      vt_error2(ERR_IMAGEHDU,lcnameptr);
   }
 
   fits_get_num_rows(infile, &nrows, &status);
   fits_get_num_cols(infile, &ncols, &status);
 
   if((nullarray = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((nullarraystore = (char *) calloc(nrows, sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(p->lc_getcolumnsfromheader) {
     if(p->lc_getcolumnsfromheader_notyetset) {
@@ -1885,7 +1988,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	fits_read_colnull(infile, TBYTE, d->incolumns[0], 1, 1, nrows, &((*charptr)[lc2][Ninit]), nullarray, &anynul,&status);
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       if(anynul) {
 	anynulallcolumns = 1;
@@ -1895,7 +1998,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
       }
       if(status) {
 	fits_report_error(stderr, status);
-	error(ERR_FITSERROR);
+	vt_error(ERR_FITSERROR);
       }
     } else if (Nc > 0) {
       for(u=0; u < Nc; u++) {
@@ -1955,7 +2058,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	  fits_read_colnull(infile, TBYTE, d->incolumns[u], 1, 1, nrows, &((*char2ptr)[lc2][u][Ninit]), nullarray, &anynul,&status);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
 	if(anynul) {
 	  anynulallcolumns = 1;
@@ -1965,7 +2068,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	}
 	if(status) {
 	  fits_report_error(stderr, status);
-	  error(ERR_FITSERROR);
+	  vt_error(ERR_FITSERROR);
 	}
       }
     } else {
@@ -2074,13 +2177,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	  }
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
 	if(anynul)
 	  anynulallcolumns = 1;
 	if(status) {
 	  fits_report_error(stderr, status);
-	  error(ERR_FITSERROR);
+	  vt_error(ERR_FITSERROR);
 	}
       }
     }
@@ -2089,7 +2192,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
   fits_close_file(infile, &status);
   if(status) {
     fits_report_error(stderr, status);
-    error(ERR_FITSERROR);
+    vt_error(ERR_FITSERROR);
   }
 
 #ifdef PARALLEL
@@ -2149,7 +2252,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		  (*charptr)[lc2][j+Ninit] = (*charptr)[lc2][i+Ninit];
 		  break;
 		default:
-		  error(ERR_BADTYPE);
+		  vt_error(ERR_BADTYPE);
 		}
 	      }
 	      else if(Nc > 0) {
@@ -2194,7 +2297,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		    (*char2ptr)[lc2][u][j+Ninit] = (*char2ptr)[lc2][u][i+Ninit];
 		    break;
 		  default:
-		  error(ERR_BADTYPE);
+		  vt_error(ERR_BADTYPE);
 		  }
 		}
 	      } else {
@@ -2239,7 +2342,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		    (*char2ptr)[lc2][j+Ninit][u] = (*char2ptr)[lc2][i+Ninit][u];
 		    break;
 		  default:
-		  error(ERR_BADTYPE);
+		  vt_error(ERR_BADTYPE);
 		  }
 		}
 	      }
@@ -2275,7 +2378,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	if(d->multilcinputlistvar >= 0) {
 	  Nc = d->Ncolumns;
 	  if(Nc != 0)
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    dblptr = (double ***) d->dataptr;
@@ -2326,13 +2429,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	      break;
 	    }
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(d->expression != NULL) {
 	  if(d->scanformat != NULL) {
 	    Nc = d->Ncolumns;
 	    if(Nc != 0)
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	    switch(d->datatype) {
 	    case VARTOOLS_TYPE_DOUBLE:
 	      for(i=Ninit; i < p->NJD[lc2]; i++) {
@@ -2370,13 +2473,13 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	  else {
 	    Nc = d->Ncolumns;
 	    if(Nc != 0)
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	    switch(d->datatype) {
 	    case VARTOOLS_TYPE_DOUBLE:
 	      for(i=Ninit; i < p->NJD[lc2]; i++) {
@@ -2409,7 +2512,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -2483,7 +2586,7 @@ void get_binarylc_header_columns(int num_columns,
 	      }
 	    }
 	    if(i >= num_columns) {
-	      error2(ERR_MISSING_BINARYLC_HEADERNAME,d->incolumn_header_names[u]);
+	      vt_error2(ERR_MISSING_BINARYLC_HEADERNAME,d->incolumn_header_names[u]);
 	    }
 	  }
 	}
@@ -2528,14 +2631,14 @@ int read_binarylightcurve_header(FILE *f, int *num_apertures, int *num_columns,
   if(!(*memsize_lc_header)) {
     *memsize_lc_header = min_headersize;
     if(((*lc_header) = (char ***) malloc((*memsize_lc_header)*sizeof(char **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(indx = 0; indx < (*memsize_lc_header); indx++) {
       if(((*lc_header)[indx] = (char **) malloc(3*sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(((*lc_header)[indx][0] = (char *) malloc(MAXLEN)) == NULL ||
 	 ((*lc_header)[indx][1] = (char *) malloc(MAXLEN)) == NULL ||
 	 ((*lc_header)[indx][2] = (char *) malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -2557,20 +2660,20 @@ int read_binarylightcurve_header(FILE *f, int *num_apertures, int *num_columns,
 	if(!(*memsize_lc_columns)) {
 	  if(((*lc_column_names) = (char **) malloc((*num_columns)*sizeof(char *))) == NULL ||
 	     ((*lc_column_format) = (BinLC_OutputFormat *) malloc((*num_columns)*sizeof(BinLC_OutputFormat))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(indx=0; indx < (*num_columns); indx++) {
 	    if(((*lc_column_names)[indx] = (char *) malloc(MAXIDSTRINGLENGTH)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  (*memsize_lc_columns) = (*num_columns);
 	}
 	else {
 	  if(((*lc_column_names) = (char **) realloc((*lc_column_names), (*num_columns)*sizeof(char *))) == NULL ||
 	     ((*lc_column_format) = (BinLC_OutputFormat *) realloc((*lc_column_names), (*num_columns)*sizeof(BinLC_OutputFormat))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(indx=(*memsize_lc_columns); indx < (*num_columns); indx++) {
 	    if(((*lc_column_names)[indx] = (char *) malloc(MAXIDSTRINGLENGTH)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  (*memsize_lc_columns) = (*num_columns);
 	}
@@ -2584,27 +2687,27 @@ int read_binarylightcurve_header(FILE *f, int *num_apertures, int *num_columns,
       if((*hdr_size) > 0) {
 	if(!(*memsize_lc_header)) {
 	  if(((*lc_header) = (char ***) malloc((*hdr_size)*sizeof(char **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(indx = 0; indx < (*hdr_size); indx++) {
 	    if(((*lc_header)[indx] = (char **) malloc(3*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if(((*lc_header)[indx][0] = (char *) malloc(MAXLEN)) == NULL ||
 	       ((*lc_header)[indx][1] = (char *) malloc(MAXLEN)) == NULL ||
 	       ((*lc_header)[indx][2] = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  *memsize_lc_header = *hdr_size;
 	}
 	else if((*hdr_size) > (*memsize_lc_header)){
 	  if(((*lc_header) = (char ***) realloc((*lc_header), (*hdr_size)*sizeof(char **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(indx = (*memsize_lc_header); indx < (*hdr_size); indx++) {
 	    if(((*lc_header)[indx] = (char **) malloc(3*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if(((*lc_header)[indx][0] = (char *) malloc(MAXLEN)) == NULL ||
 	       ((*lc_header)[indx][1] = (char *) malloc(MAXLEN)) == NULL ||
 	       ((*lc_header)[indx][2] = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  *memsize_lc_header = *hdr_size;
 	}
@@ -2616,7 +2719,7 @@ int read_binarylightcurve_header(FILE *f, int *num_apertures, int *num_columns,
 	    col_ind<(*num_columns)) {
       kwsize=strlen(keyword);
       if(kwsize >= MAXIDSTRINGLENGTH) {
-	error(ERR_BINARYLC_KEYWORDTOOLONG);
+	vt_error(ERR_BINARYLC_KEYWORDTOOLONG);
       }
       strcpy((*lc_column_names)[col_ind], keyword);
       if(parse_format_string(value, &((*lc_column_format)[col_ind]), NULL)) {
@@ -2679,10 +2782,10 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
 	out_long = (long) (*((double *) source));
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
-	error(ERR_BADTYPE_BINARYLC);
+	vt_error(ERR_BADTYPE_BINARYLC);
 	break;
       case VARTOOLS_TYPE_STRING:
-	error(ERR_BADTYPE_BINARYLC);
+	vt_error(ERR_BADTYPE_BINARYLC);
 	break;
       case VARTOOLS_TYPE_INT:
 	out_long = (long) (*((int *) source));
@@ -2700,7 +2803,7 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
 	out_long = (long) (*((char *) source));
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       push_signed_int(dest, fmt->numbits, out_long);
     }
@@ -2710,10 +2813,10 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
 	out_long = (unsigned long) (*((double *) source));
 	break;
       case VARTOOLS_TYPE_CONVERTJD:
-	error(ERR_BADTYPE_BINARYLC);
+	vt_error(ERR_BADTYPE_BINARYLC);
 	break;
       case VARTOOLS_TYPE_STRING:
-	error(ERR_BADTYPE_BINARYLC);
+	vt_error(ERR_BADTYPE_BINARYLC);
 	break;
       case VARTOOLS_TYPE_INT:
 	out_long = (unsigned long) (*((int *) source));
@@ -2731,7 +2834,7 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
 	out_long = (unsigned long) (*((char *) source));
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       push_unsigned_int(dest, fmt->numbits, (unsigned long) out_long);      
     }
@@ -2742,10 +2845,10 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
       out_double = (double) (*((double *) source));
       break;
     case VARTOOLS_TYPE_CONVERTJD:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_INT:
       out_double = (double) (*((int *) source));
@@ -2763,7 +2866,7 @@ void push_binary_lc_value(char *dest, BinLC_OutputFormat *fmt,
       out_double = (double) (*((char *) source));
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     if(fmt->tp == PACKED_FLOAT) {
       pack_float(dest, fmt->numbits, fmt->precision,
@@ -2794,10 +2897,10 @@ void pop_binary_lc_value(char *source, BinLC_OutputFormat *fmt,
       *((double *) dest) = (double) inp_long;
       break;
     case VARTOOLS_TYPE_CONVERTJD:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_INT:
       *((int *) dest) = (int) inp_long;
@@ -2834,10 +2937,10 @@ void pop_binary_lc_value(char *source, BinLC_OutputFormat *fmt,
       *((double *) dest) = inp_double;
       break;
     case VARTOOLS_TYPE_CONVERTJD:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_STRING:
-      error(ERR_BADTYPE_BINARYLC);
+      vt_error(ERR_BADTYPE_BINARYLC);
       break;
     case VARTOOLS_TYPE_INT:
       *((int *) dest) = (int) inp_double;
@@ -2866,6 +2969,8 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   int status, hdunum, ncols, hdutype, anynulallcolumns;
   long nrows;
   int j, jold, k, i, l, N, oldsizesinglelc, anynul;
+  int popened = 0;
+  const char *popened_prog = NULL;
   char *nullarray, *nullarraystore;
   char **tmpstring;
   char tmpchar;
@@ -2905,18 +3010,31 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   if(p->use_lc_open_exec_command) {
     infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
+    popened = 1;
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
+  else if(IsCompressedAsciiFilename(lcnameptr)) {
+    infile = OpenCompressedAsciiFile(lcnameptr, &popened_prog);
+    if(infile == NULL) {
+      if(p->skipmissing) {
+	vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	return(ERR_FILENOTFOUND);
+      }
+      else
+	vt_error2(ERR_FILENOTFOUND,lcnameptr);
+    }
+    popened = 1;
+  }
   else
     {
       if((infile = fopen(lcnameptr,"r")) == NULL) {
 	if(p->skipmissing) {
-	  error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	  vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
 	  return(ERR_FILENOTFOUND);
 	}
 	else
-	  error2(ERR_FILENOTFOUND,lcnameptr);
+	  vt_error2(ERR_FILENOTFOUND,lcnameptr);
       }
     }
   
@@ -2933,14 +3051,14 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 				  &(p->binlc[threadid].lc_column_format),
 				  &(p->binlc[threadid].memsize_lc_columns)) <= 0) {
     if(p->skipmissing) {
-      error2_noexit(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
+      vt_error2_noexit(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
       return(ERR_BINARYLIGHTCURVE_INVALIDFORMAT);
     }
     else
-      error2(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
+      vt_error2(ERR_BINARYLIGHTCURVE_INVALIDFORMAT,lcnameptr);
   }
   if((rec = (char *) malloc(p->binlc[threadid].lc_record_size)) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(p->lc_getcolumnsfromheader) {
     get_binarylc_header_columns(p->binlc[threadid].num_columns,
@@ -2954,7 +3072,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   /* Read in the light curve data */
   for(rec_ind=0; rec_ind < p->binlc[threadid].num_pts; rec_ind++) {
     if(fread(rec, p->binlc[threadid].lc_record_size, 1, infile)!=1) {
-      error2(ERR_BINARYLIGHTCURVE_MISSINGDATA,p->lcnames[lc]);
+      vt_error2(ERR_BINARYLIGHTCURVE_MISSINGDATA,p->lcnames[lc]);
     }
     col_ind = 0;
     for(j=0; j < p->NDataFromLightCurve; j++) {
@@ -2972,10 +3090,10 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 			      d->datatype);
 	  break;
 	case VARTOOLS_TYPE_CONVERTJD:
-	  error(ERR_BADTYPE_BINARYLC);
+	  vt_error(ERR_BADTYPE_BINARYLC);
 	  break;
 	case VARTOOLS_TYPE_STRING:
-	  error(ERR_BADTYPE_BINARYLC);
+	  vt_error(ERR_BADTYPE_BINARYLC);
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  intptr = (int ***) d->dataptr;
@@ -3013,7 +3131,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 			      d->datatype);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if (Nc > 0) {
 	for(u=0; u < Nc; u++) {
@@ -3026,10 +3144,10 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
  				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
-	    error(ERR_BADTYPE_BINARYLC);
+	    vt_error(ERR_BADTYPE_BINARYLC);
 	    break;
 	  case VARTOOLS_TYPE_STRING:
-	    error(ERR_BADTYPE_BINARYLC);
+	    vt_error(ERR_BADTYPE_BINARYLC);
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    int2ptr = (int ****) d->dataptr;
@@ -3067,7 +3185,7 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
  				d->datatype);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else {
@@ -3081,10 +3199,10 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 				d->datatype);
 	    break;
 	  case VARTOOLS_TYPE_CONVERTJD:
-	    error(ERR_BADTYPE_BINARYLC);
+	    vt_error(ERR_BADTYPE_BINARYLC);
 	    break;
 	  case VARTOOLS_TYPE_STRING:
-	    error(ERR_BADTYPE_BINARYLC);
+	    vt_error(ERR_BADTYPE_BINARYLC);
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    int2ptr = (int ****) d->dataptr;
@@ -3122,15 +3240,15 @@ int ReadBinaryLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 				d->datatype);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
     }
   }
   free(rec);
-  if(p->use_lc_open_exec_command) {
-    pclose(infile);
+  if(popened) {
+    ClosePopenedFile(infile, lcnameptr, popened_prog);
   }
   else if(infile != stdin)
     fclose(infile);
@@ -3164,6 +3282,8 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
   long ****long2ptr;
   char *lcnameptr;
   _CombineLCInfo *pclci;
+  int popened = 0;
+  const char *popened_prog = NULL;
 
   size_t line_size = MAXLEN;
 
@@ -3187,47 +3307,58 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 #ifdef USECFITSIO
 
   if(!(p->readfromstdinflag && p->fileflag)) {
-    /* Check if the end of the file is .fits */
-    /* If it is, then assume the input is a binary fits table */
-    j = strlen(lcnameptr);
-    i = j - 5;
-    if(i >= 0) {
-      if(!strcmp(&(lcnameptr[i]),".fits")) {
-	p->is_inputlc_fits[lc] = 1;
-	return ReadFitsLightCurve(p, c, lc, threadid, combinelcfilenum);
-      }
+    /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+       compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+    if(IsFitsFilename(lcnameptr)) {
+      p->is_inputlc_fits[lc] = 1;
+      return ReadFitsLightCurve(p, c, lc, threadid, combinelcfilenum);
     }
   }
 
 #endif
 
-  line = malloc(line_size);
-
   if(p->use_lc_open_exec_command) {
     infile = ExecLCOpenCommand(p, c, lc, threadid, combinelcfilenum);
     if(infile == NULL) return(ERR_FILENOTFOUND);
+    popened = 1;
   }
   else if(p->readfromstdinflag == 1 && p->fileflag == 1)
     infile = stdin;
+  else if(IsCompressedAsciiFilename(lcnameptr)) {
+    /* Auto-decompress non-FITS .gz/.Z/.bz2 inputs by piping through
+       gzip -dc / bzip2 -dc. */
+    infile = OpenCompressedAsciiFile(lcnameptr, &popened_prog);
+    if(infile == NULL) {
+      if(p->skipmissing) {
+	vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	return(ERR_FILENOTFOUND);
+      }
+      else
+	vt_error2(ERR_FILENOTFOUND,lcnameptr);
+    }
+    popened = 1;
+  }
   else
     {
       if((infile = fopen(lcnameptr,"r")) == NULL) {
 	if(p->skipmissing) {
-	  error2_noexit(ERR_FILENOTFOUND,lcnameptr);
+	  vt_error2_noexit(ERR_FILENOTFOUND,lcnameptr);
 	  return(ERR_FILENOTFOUND);
 	}
 	else
-	  error2(ERR_FILENOTFOUND,lcnameptr);
+	  vt_error2(ERR_FILENOTFOUND,lcnameptr);
       }
     }
+
+  line = malloc(line_size);
 
   colmax = p->maxinputlccolumn;
   if(colmax > 0) {
     if((incols = (char **) malloc(colmax * sizeof(char *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < colmax; i++) {
       if((incols[i] = (char *) malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
   
@@ -3323,7 +3454,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	      sscanf(incols[k],d->scanformat,&((*charptr)[threadid][N]));
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(Nc > 0) {
 	  for(u = 0; u < Nc; u++) {
@@ -3383,7 +3514,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 		sscanf(incols[k],d->scanformat,&((*char2ptr)[threadid][u][N]));
 	      break;
 	    default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 	    }
 	  }
 	} else {
@@ -3444,7 +3575,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 		sscanf(incols[k],d->scanformat,&((*char2ptr)[threadid][N][u]));
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -3464,8 +3595,8 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
       for(i=Ninit;i<N;i++)
 	p->stringid_idx[threadid][i] = i;
     }
-  if(p->use_lc_open_exec_command)
-    pclose(infile);
+  if(popened)
+    ClosePopenedFile(infile, lcnameptr, popened_prog);
   else if(infile != stdin)
     fclose(infile);
 
@@ -3477,7 +3608,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	if(d->multilcinputlistvar >= 0) {
 	  Nc = d->Ncolumns;
 	  if(Nc != 0)
-	    error(ERR_CODEERROR);
+	    vt_error(ERR_CODEERROR);
 	  switch(d->datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    dblptr = (double ***) d->dataptr;
@@ -3528,13 +3659,13 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	      break;
 	    }
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(d->expression != NULL) {
 	  if(d->scanformat != NULL) {
 	    Nc = d->Ncolumns;
 	    if(Nc != 0)
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	    switch(d->datatype) {
 	    case VARTOOLS_TYPE_DOUBLE:
 	      for(i=Ninit; i < p->NJD[threadid]; i++) {
@@ -3572,13 +3703,13 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	  else {
 	    Nc = d->Ncolumns;
 	    if(Nc != 0)
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	    switch(d->datatype) {
 	    case VARTOOLS_TYPE_DOUBLE:
 	      for(i=Ninit; i < p->NJD[threadid]; i++) {
@@ -3611,7 +3742,7 @@ int ReadSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid, int c
 	      }
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -3633,7 +3764,7 @@ int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid
 {
   int retval;
   int i;
-  
+
   sprintf(p->lcnames[lc],"%s",p->combinelcinfo->combinelcnames[lc][0]);
   for(i = 0; i < p->combinelcinfo->Ncombinelcs[lc]; i++) {
     retval = ReadSingleLightCurve(p, c, lc, threadid, i);
@@ -3641,6 +3772,68 @@ int ReadCombineSingleLightCurve(ProgramData *p, Command *c, int lc, int threadid
       return(retval);
   }
   return 0;
+}
+
+void EvaluateInputLCExpressions(ProgramData *p, int lc, int threadid, int Ninit)
+{
+  /* Evaluate any -inputlcformat col=0 init expressions against the LC data
+   * currently sitting in the per-thread arrays.  Mirrors the inline loops
+   * in ReadSingleLightCurve / ReadBinaryLightCurve (parselc.c:2374, 3603)
+   * so that the in-process library entry point (vartools_process_lc) can
+   * also fire init expressions on the directly-injected LC arrays.  The
+   * multilcinputlistvar branch is intentionally omitted — that path applies
+   * only to -l combinelc list-file input, which library mode doesn't use.
+   */
+  int i, j, Nc;
+  _DataFromLightCurve *d;
+  double ***dblptr;
+  float ***floatptr;
+  int ***intptr;
+  short ***shortptr;
+  long ***longptr;
+
+  for(j = 0; j < p->NDataFromLightCurve; j++) {
+    d = &(p->DataFromLightCurve[j]);
+    if(d->incolumns[0] > 0) continue;
+    if(d->multilcinputlistvar >= 0) continue;
+    if(d->expression == NULL || d->scanformat == NULL) continue;
+    Nc = d->Ncolumns;
+    if(Nc != 0) vt_error(ERR_CODEERROR);
+    switch(d->datatype) {
+    case VARTOOLS_TYPE_DOUBLE:
+      dblptr = (double ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*dblptr)[threadid][i] =
+          EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_FLOAT:
+      floatptr = (float ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*floatptr)[threadid][i] =
+          (float) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_INT:
+      intptr = (int ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*intptr)[threadid][i] =
+          (int) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_SHORT:
+      shortptr = (short ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*shortptr)[threadid][i] =
+          (short) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    case VARTOOLS_TYPE_LONG:
+      longptr = (long ***) d->dataptr;
+      for(i = Ninit; i < p->NJD[threadid]; i++)
+        (*longptr)[threadid][i] =
+          (long) EvaluateExpression(lc, threadid, i, d->expression);
+      break;
+    default:
+      vt_error(ERR_BADTYPE);
+    }
+  }
 }
 
 int ReadAllLightCurves(ProgramData *p, Command *c)
@@ -3661,18 +3854,14 @@ int ReadAllLightCurves(ProgramData *p, Command *c)
 	continue;
       }
 
-      /* Check if the end of the file is .fits */
-      /* If it is, then assume the input is a binary fits table */
-      j = strlen(p->lcnames[lc]);
-      i = j - 5;
-      if(i >= 0) {
-	if(!strcmp(&(p->lcnames[lc][i]),".fits")) {
-	  p->is_inputlc_fits[lc] = 1;
-	  if(ReadFitsLightCurve(p, c, lc, lc, 0)) {
-	    isempty++;
-	  }
-	  continue;
+      /* Dispatch to the FITS reader for .fits and the cfitsio-recognised
+         compressed variants (.fits.gz, .fits.fz, .fits.Z, .fits.bz2). */
+      if(IsFitsFilename(p->lcnames[lc])) {
+	p->is_inputlc_fits[lc] = 1;
+	if(ReadFitsLightCurve(p, c, lc, lc, 0)) {
+	  isempty++;
 	}
+	continue;
       }
 #endif
 
@@ -3746,7 +3935,7 @@ void MoveLCData(ProgramData *p, Command *c, int isrc, int idest) {
 	(*charptr)[idest] = (*charptr)[isrc];
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else if(Nc > 0) {
       switch(d->datatype) {
@@ -3783,7 +3972,7 @@ void MoveLCData(ProgramData *p, Command *c, int isrc, int idest) {
 	(*char2ptr)[idest] = (*char2ptr)[isrc];
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 	
       }
     } else {
@@ -3821,7 +4010,7 @@ void MoveLCData(ProgramData *p, Command *c, int isrc, int idest) {
 	(*char2ptr)[idest] = (*char2ptr)[isrc];
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
 	
       }
     }

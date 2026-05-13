@@ -251,7 +251,7 @@ type median_##type (int n, type *data) \
   if(n == 1) \
     return(data[0]); \
   if((data2 = (type *) malloc(n * sizeof(type))) == NULL) \
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   memcpy(data2,data,n*sizeof(type)); \
   if(n % 2 == 0) { \
     temp = quickselect_##type ((n/2),n,data2); \
@@ -281,7 +281,7 @@ double median_nanrej (int n, double *data)
     return(data[0]);
   }
   if((data2 = (double *) malloc(n * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i = 0, k=0; i < n; i++) {
     if(!isnan(data[i])) {
       data2[k] = data[i];
@@ -355,7 +355,7 @@ type median_weight_##type (int n, type *data, double *err)	\
     return(data[0]); \
   if((data2 = (type *) malloc(n * sizeof(type))) == NULL || \
      (weight = (double *) malloc(n * sizeof(double))) == NULL)	\
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   memcpy(data2,data,n*sizeof(type)); \
   wsum = 0.0; \
   for(i=0;i<n;i++){ \
@@ -395,7 +395,7 @@ type median_weight_nocopy_##type (int n, type *data, double *err)	\
   if(n == 1) \
     return(data[0]); \
   if((weight = (double *) malloc(n * sizeof(double))) == NULL)	\
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   wsum = 0.0; \
   for(i=0;i<n;i++){ \
      if(err[i] > 0) {weight[i]=1./err[i]/err[i];} \
@@ -433,7 +433,7 @@ double medmeddev_nanrej (int n, double *data)
   if(n == 1)
     return (double) 0.0;
   if((data2 = (double *) malloc(n * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i = 0, k = 0; i < n; i++) {
     if(!isnan(data[i])) {
       data2[k] = data[i];
@@ -462,7 +462,7 @@ type medmeddev_##type (int n, type *data) \
   if(n == 1) \
     return (type) 0.0;					  \
   if((data2 = (type *) malloc(n * sizeof(type))) == NULL) \
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   memcpy(data2,data,n*sizeof(type)); \
   medval1 = median_nocopy_##type (n,data2); \
   for(i=0;i<n;i++) { \
@@ -652,7 +652,7 @@ type percentile_##type (int n, type *data, double pct) \
     return(data[0]);  \
   \
   if((data2 = (type *) malloc(n * sizeof(type))) == NULL) \
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   memcpy(data2,data,n*sizeof(type)); \
   \
   \
@@ -782,7 +782,7 @@ type percentile_weight_##type (int n, type *data, double *err, double pct) \
   \
   if((data2 = (type *) malloc(n * sizeof(type))) == NULL || \
      (weight = (double *) malloc(n * sizeof(double))) == NULL) \
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   memcpy(data2,data,n*sizeof(type)); \
   \
   wsum = 0.0; \
@@ -835,7 +835,7 @@ type percentile_weight_nocopy_##type (int n, type *data, double *err, double pct
     return(data[0]);  \
   \
   if((weight = (double *) malloc(n * sizeof(double))) == NULL) \
-    error(ERR_MEMALLOC); \
+    vt_error(ERR_MEMALLOC); \
   \
   wsum = 0.0; \
   for(i=0; i < n; i++) { \
@@ -953,11 +953,11 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
     return;
   }
   if((tmpdata = (double *) malloc(p->NJD[threadindex]*sizeof(double))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   for(i = 0, k=0; i < s->Nvar; i++) {
     if(s->vars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
-      error(ERR_BADVARIABLETYPE_STATSCOMMAND);
+      vt_error(ERR_BADVARIABLETYPE_STATSCOMMAND);
     }
     if(!s->usemask) {
       for(j=0; j < p->NJD[threadindex]; j++) {
@@ -1035,7 +1035,7 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 	s->statsout[threadindex][k] = getsum(Ntouse,tmpdata);
 	break;
       default:
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     }
   }
@@ -1045,9 +1045,17 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 
 int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *s)
 {
-  int i, j, k, i1, i2, Nvar, Nstat, lentmp, stattype, Npct = 0;
+  int i, j, k, m, i1, i2, Nvar, Nstat, lentmp, stattype, Npct = 0;
   double pctval;
   char *tmpstring;
+  /* Side table of the user-typed statistic names ("mean", "stddev",
+     "pct10", ...), in the order they appeared.  Used after each
+     parse to flag duplicate entries with a clear error message --
+     left to vartools' downstream column-registration step, the
+     duplicate would surface only as a cryptic
+     "Unspecified vartools error: STATS_<var>_<STATNAME>_<n>" when
+     the second copy collides with the first column name. */
+  char **stat_names_seen = NULL;
   i = *iret;
   if(i >= argc)
     return 1;
@@ -1063,7 +1071,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
     j++;
   }
   if((s->varnames = (char **) malloc(Nvar * sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   i1 = 0;
   i2 = 0;
   for(k = 0; k < Nvar; k++) {
@@ -1071,7 +1079,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
       i2++;
     }
     if((s->varnames[k] = (char *) malloc((i2 - i1 + 1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=i1; j < i2; j++) {
       s->varnames[k][j-i1] = argv[i][j];
     }
@@ -1082,7 +1090,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
 
   s->Nvar = Nvar;
   if((s->vars = (_Variable **) malloc(Nvar * sizeof(_Variable *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   i++;
   if(i >= argc) {
@@ -1090,7 +1098,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
   }
 
   if((tmpstring = (char *) malloc(256 * sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   lentmp = 256;
 
   Nstat = 1;
@@ -1101,7 +1109,9 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
     j++;
   }
   if((s->statstocalc = (int *) malloc(Nstat * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
+  if((stat_names_seen = (char **) malloc(Nstat * sizeof(char *))) == NULL)
+    vt_error(ERR_MEMALLOC);
   i1 = 0;
   i2 = 0;
   for(k = 0; k < Nstat; k++) {
@@ -1112,12 +1122,23 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
     if((i2 - i1 + 1) > lentmp) {
       lentmp *= 2;
       if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     for(j=i1; j < i2; j++) {
       tmpstring[j-i1] = argv[i][j];
     }
     tmpstring[j-i1] = '\0';
+
+    /* Reject duplicate statistic names early.  Catches both plain
+       repeats ("stddev,...,stddev") and pct/wpct repeats with the
+       same percentile value ("pct10,...,pct10"). */
+    for(m = 0; m < k; m++) {
+      if(!strcmp(stat_names_seen[m], tmpstring))
+	vt_error2(ERR_DUPLICATESTATSTAT, tmpstring);
+    }
+    if((stat_names_seen[k] = (char *) malloc(strlen(tmpstring)+1)) == NULL)
+      vt_error(ERR_MEMALLOC);
+    sprintf(stat_names_seen[k], "%s", tmpstring);
 
     if(!strcmp(tmpstring,"mean")) {
       s->statstocalc[k] = VARTOOLS_STATSTYPE_MEAN;
@@ -1179,7 +1200,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
       s->statstocalc[k] = VARTOOLS_STATSTYPE_SUM;
     }
     else {
-      error2(ERR_INVALIDSTATISTIC,tmpstring);
+      vt_error2(ERR_INVALIDSTATISTIC,tmpstring);
     }
 
     i1 = i2+1;
@@ -1195,7 +1216,7 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
       }
       s->usemask = 1;
       if((s->maskvarname = (char *) malloc(strlen(argv[i])+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(s->maskvarname,"%s",argv[i]);
     }
     else
@@ -1209,7 +1230,10 @@ int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *
 
   s->Nstatstot = s->Nvar * s->Nstats;
 
-  free(tmpstring);	
+  free(tmpstring);
+  for(k = 0; k < Nstat; k++)
+    free(stat_names_seen[k]);
+  free(stat_names_seen);
 
   *iret = i;
   return 0;

@@ -124,13 +124,13 @@ userparams is a dummy variable
 	 (Bvector = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (v = (double **) malloc(Nlinvary * sizeof(double *))) == NULL ||
 	 (w = (double *) malloc(Nlinvary * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<N;i++)
 	if((Amatrix[i] = (double *) malloc(Nlinvary * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       for(i=0;i<Nlinvary;i++)
 	if((v[i] = (double *) malloc(Nlinvary * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 
       /* Fill out the fitting design matrix */
       for(i=0;i<N;i++)
@@ -304,15 +304,15 @@ void fitsoftened_transit(int N, double *t, double *mag, double *sig, double *P, 
      (Design_Matrix = (double **) malloc(N * sizeof(double *))) == NULL ||
      (varylin_coeffs = (int *) malloc(Nlin_coeff * sizeof(int))) == NULL ||
      (lin_coeffs = (double *) malloc(Nlin_coeff * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(j=0;j<ma;j++)
     if((covar[j] = (double *) malloc(ma * sizeof(double))) == NULL ||
        (alpha_[j] = (double *) malloc(ma * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
   for(i=0;i<N;i++)
     if((Design_Matrix[i] = (double *) malloc(Nlin_coeff * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
   alamda = -1.;
   a_[0] = *T0;
@@ -420,14 +420,14 @@ void fitsoftened_transit(int N, double *t, double *mag, double *sig, double *P, 
   if((atry = (double *) malloc(ma * sizeof(double))) == NULL ||
      (beta = (double *) malloc(ma * sizeof(double))) == NULL ||
      (da = (double *) malloc(ma * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(mfit=0,k=0;k<ma;k++)
     if(ia[k]) mfit++;
   if((oneda = (double **) malloc(mfit * sizeof(double *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(k=0;k<mfit;k++)
     if((oneda[k] = (double *) malloc(sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   mrqmin(t, mag, sig, N, a_, ia, ma, covar, alpha_, &chisq, &alamda, funcs, Nlin_coeff,Design_Matrix,lin_coeffs,varylin_coeffs,mfit,&ochisq_,atry,beta,da,oneda,NULL);
 #else
   mrqmin(t, mag, sig, N, a_, ia, ma, covar, alpha_, &chisq, &alamda, funcs, Nlin_coeff,Design_Matrix,lin_coeffs,varylin_coeffs,NULL);
@@ -498,12 +498,12 @@ void fitsoftened_transit(int N, double *t, double *mag, double *sig, double *P, 
   if(correctlc || omodel)
     {
       if((delmag = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       softened_transit_(N, t, delmag, *P, *T0, *eta, *cval, *delta, *mconst, Nlin_coeff,lin_coeffs,Design_Matrix);
       if(omodel)
 	{
 	  if((outfile = fopen(modelname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,modelname);
+	    vt_error2(ERR_CANNOTWRITE,modelname);
 	  fprintf(outfile,"#Time Mag ModelMag eMag Phase\n");
 	  for(j=0;j<N;j++)
 	    if(!isnan(mag[j]))

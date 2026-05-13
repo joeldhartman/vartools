@@ -114,13 +114,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->dblterms[threadid] == NULL)
 	{
 	  if((s->dblterms[threadid] = (double **) malloc(s->Ndblterms[threadid] * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) malloc(p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -132,7 +132,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) malloc(p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -141,7 +141,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) realloc(s->dblterms[threadid][i],p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -154,10 +154,10 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	  if(p->NJD[threadid] > 0)
 	    {
 	      if((s->sterms[threadid] = (char **) malloc(p->NJD[threadid] * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<p->NJD[threadid];j++)
 		if((s->sterms[threadid][j] = (char *) malloc(s->Nsterms[threadid])) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  s->sizesvecs[threadid] = p->NJD[threadid];
 	}
@@ -166,11 +166,11 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	  if(p->NJD[threadid] > s->sizesvecs[threadid])
 	    {
 	      if((s->sterms[threadid] = (char **) realloc(s->sterms[threadid],p->NJD[threadid] * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=s->sizesvecs[threadid];j<p->NJD[threadid];j++)
 		{
 		  if((s->sterms[threadid][j] = (char *) malloc(s->Nsterms[threadid])) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  s->sizesvecs[threadid] = p->NJD[threadid];
@@ -181,13 +181,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->iterms[threadid] == NULL)
 	{
 	  if((s->iterms[threadid] = (int **) malloc(s->Niterms[threadid] * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -199,7 +199,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -208,7 +208,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) realloc(s->iterms[threadid][i],p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -219,13 +219,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->lterms[threadid] == NULL)
 	{
 	  if((s->lterms[threadid] = (long **) malloc(s->Nlterms[threadid] * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) malloc(p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -237,7 +237,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) malloc(p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -246,7 +246,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) realloc(s->lterms[threadid][i],p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -257,13 +257,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->shterms[threadid] == NULL)
 	{
 	  if((s->shterms[threadid] = (short **) malloc(s->Nshterms[threadid] * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) malloc(p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -275,7 +275,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) malloc(p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -284,7 +284,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) realloc(s->shterms[threadid][i],p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -295,13 +295,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->fterms[threadid] == NULL)
 	{
 	  if((s->fterms[threadid] = (float **) malloc(s->Nfterms[threadid] * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) malloc(p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -313,7 +313,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) malloc(p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -322,7 +322,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) realloc(s->fterms[threadid][i],p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -333,13 +333,13 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
       if(s->cterms[threadid] == NULL)
 	{
 	  if((s->cterms[threadid] = (char **) malloc(s->Ncterms[threadid] * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) malloc(p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -351,7 +351,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) malloc(p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -360,7 +360,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) realloc(s->cterms[threadid][i],p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -374,14 +374,14 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	  if(p->NJD[threadid] > 0)
 	    {
 	      if((s->stringid_idx[threadid] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      s->sizestringid_idxvecs[threadid] = p->NJD[threadid];
 	    }
 	}
       else if(p->NJD[threadid] > s->sizestringid_idxvecs[threadid])
 	{
 	  if((s->stringid_idx[threadid] = (int *) realloc(s->stringid_idx[threadid], p->NJD[threadid] * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  s->sizestringid_idxvecs[threadid] = p->NJD[threadid];
 	}
     }
@@ -427,7 +427,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if(Nc > 0) {
 	for(u=0; u < Nc; u++) {
@@ -465,7 +465,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else {
@@ -504,7 +504,7 @@ void RestrictTimes_StoreTime(_RestrictTimes *c, ProgramData *p, int threadid, in
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -572,7 +572,7 @@ void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, in
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if(Nc > 0) {
 	for(u=0; u < Nc; u++) {
@@ -612,7 +612,7 @@ void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, in
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else {
@@ -667,7 +667,7 @@ void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, in
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -687,16 +687,16 @@ void RestoreTimes(ProgramData *p, _RestoreTimes *RestoreTimes, int sthreadid, in
 void RestrictTimes_ParseExpr(int *iret, int argc, char **argv, ProgramData *p, _RestrictTimes *RestrictTimes, char min_or_max){
   if(!min_or_max) {
     if((RestrictTimes->minJDexpr = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if((RestrictTimes->minJDexprstring = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(RestrictTimes->minJDexprstring,"%s",argv[*iret]);
   }
   else {
     if((RestrictTimes->maxJDexpr = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if((RestrictTimes->maxJDexprstring = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(RestrictTimes->maxJDexprstring,"%s",argv[*iret]);
   }
 }
@@ -710,19 +710,19 @@ void RestrictTimes_readJDlist(char *filename, double **JDlist, int *Nlist) {
   int N = 0;
   line = malloc(line_size);
   if((*JDlist = (double *) malloc(sizeJDlist * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if(!strcmp(filename,"-")) {
     infile = stdin;
   }
   else if((infile = fopen(filename,"r")) == NULL) {
-    error2(ERR_FILENOTFOUND,filename);
+    vt_error2(ERR_FILENOTFOUND,filename);
   }
   while(gnu_getline(&line,&line_size,infile) >= 0) {
     if(line[0] != '#') {
       if(N >= sizeJDlist) {
 	sizeJDlist *= 2;
 	if((*JDlist = (double *) realloc((*JDlist),sizeJDlist * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       sscanf(line,"%lf",&((*JDlist)[N]));
       N++;
@@ -744,22 +744,22 @@ void RestrictTimes_readimagelist(char *filename, char ***imagelist, int **imagel
   int N = 0, i;
   line = malloc(line_size);
   if((*imagelist = (char **) malloc(sizeJDlist * sizeof(char *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if(!strcmp(filename,"-")) {
     infile = stdin;
   }
   else if((infile = fopen(filename,"r")) == NULL) {
-    error2(ERR_FILENOTFOUND,filename);
+    vt_error2(ERR_FILENOTFOUND,filename);
   }
   while(gnu_getline(&line,&line_size,infile) >= 0) {
     if(line[0] != '#') {
       if(N >= sizeJDlist) {
 	sizeJDlist *= 2;
 	if((*imagelist = (char **) realloc((*imagelist),sizeJDlist * sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       if(((*imagelist)[N] = (char *) malloc(MAXIDSTRINGLENGTH * sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sscanf(line,"%s ",((*imagelist)[N]));
       N++;
     }
@@ -768,7 +768,7 @@ void RestrictTimes_readimagelist(char *filename, char ***imagelist, int **imagel
     fclose(infile);
   if(N > 0) {
     if(((*imagelist_indx) = (int *) malloc(N * sizeof(int))) == NULL) 
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N; i++)
       (*imagelist_indx)[i] = i;
     mysortstringint(N, MAXIDSTRINGLENGTH, *imagelist, *imagelist_indx);
@@ -907,7 +907,7 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
     if(N <= 0)
       return;
     if((good = (int *) malloc(N * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N; i++) {
       while((k < Nlist ? (strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]]) > 0) : 0))
 	k++;
@@ -925,7 +925,7 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
     if(N <= 0)
       return;
     if((good = (int *) malloc(N * sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < N; i++) {
       while((k < Nlist ? (strcmp(stringID[stringID_indx[i]],imagelist[imagelist_indx[k]]) > 0) : 0))
 	k++;
@@ -956,13 +956,20 @@ void RestrictTimes_imagelist_apply(int N, char **stringID, int *stringID_indx,
     free(good);
 }
 
-void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, 
-			      int threadindex, int lcindex, 
+void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c,
+			      int threadindex, int lcindex,
 			      int markrestrict,
 			      _Variable *markvar, int noinitmark) {
   int i, j, Ntest, test;
   double testdbl;
   double *markvardat = NULL;
+  /* Open a fresh memoisation scope for this -restricttimes
+     invocation -- j-independent subtrees in restrictexpr (e.g.
+     ``(flag & 61) == 0`` once flag is set, or ``mean(mag, mask)``
+     used for outlier rejection) are computed once and reused across
+     the per-point loop. */
+  void BumpMemoGeneration(void);
+  BumpMemoGeneration();
   if(markrestrict) {
     markvardat = (*((double ***) markvar->dataptr))[lcindex];
     Ntest = p->NJD[threadindex];

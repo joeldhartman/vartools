@@ -121,13 +121,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->dblterms[threadid] == NULL)
 	{
 	  if((s->dblterms[threadid] = (double **) malloc(s->Ndblterms[threadid] * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) malloc(p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -139,7 +139,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) malloc(p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -148,7 +148,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Ndblterms[threadid];i++)
 		{
 		  if((s->dblterms[threadid][i] = (double *) realloc(s->dblterms[threadid][i],p->NJD[threadid] * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -161,10 +161,10 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	  if(p->NJD[threadid] > 0)
 	    {
 	      if((s->sterms[threadid] = (char **) malloc(p->NJD[threadid] * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0;j<p->NJD[threadid];j++)
 		if((s->sterms[threadid][j] = (char *) malloc(s->Nsterms[threadid])) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	    }
 	  s->sizesvecs[threadid] = p->NJD[threadid];
 	}
@@ -173,11 +173,11 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	  if(p->NJD[threadid] > s->sizesvecs[threadid])
 	    {
 	      if((s->sterms[threadid] = (char **) realloc(s->sterms[threadid],p->NJD[threadid] * sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=s->sizesvecs[threadid];j<p->NJD[threadid];j++)
 		{
 		  if((s->sterms[threadid][j] = (char *) malloc(s->Nsterms[threadid])) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	    }
 	  s->sizesvecs[threadid] = p->NJD[threadid];
@@ -188,13 +188,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->iterms[threadid] == NULL)
 	{
 	  if((s->iterms[threadid] = (int **) malloc(s->Niterms[threadid] * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -206,7 +206,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -215,7 +215,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Niterms[threadid];i++)
 		{
 		  if((s->iterms[threadid][i] = (int *) realloc(s->iterms[threadid][i],p->NJD[threadid] * sizeof(int))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -226,13 +226,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->lterms[threadid] == NULL)
 	{
 	  if((s->lterms[threadid] = (long **) malloc(s->Nlterms[threadid] * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) malloc(p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -244,7 +244,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) malloc(p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -253,7 +253,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nlterms[threadid];i++)
 		{
 		  if((s->lterms[threadid][i] = (long *) realloc(s->lterms[threadid][i],p->NJD[threadid] * sizeof(long))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -264,13 +264,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->shterms[threadid] == NULL)
 	{
 	  if((s->shterms[threadid] = (short **) malloc(s->Nshterms[threadid] * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) malloc(p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -282,7 +282,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) malloc(p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -291,7 +291,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nshterms[threadid];i++)
 		{
 		  if((s->shterms[threadid][i] = (short *) realloc(s->shterms[threadid][i],p->NJD[threadid] * sizeof(short))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -302,13 +302,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->fterms[threadid] == NULL)
 	{
 	  if((s->fterms[threadid] = (float **) malloc(s->Nfterms[threadid] * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) malloc(p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -320,7 +320,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) malloc(p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -329,7 +329,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Nfterms[threadid];i++)
 		{
 		  if((s->fterms[threadid][i] = (float *) realloc(s->fterms[threadid][i],p->NJD[threadid] * sizeof(float))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -340,13 +340,13 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
       if(s->cterms[threadid] == NULL)
 	{
 	  if((s->cterms[threadid] = (char **) malloc(s->Ncterms[threadid] * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(p->NJD[threadid] > 0)
 	    {
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) malloc(p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -358,7 +358,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) malloc(p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -367,7 +367,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	      for(i=0;i<s->Ncterms[threadid];i++)
 		{
 		  if((s->cterms[threadid][i] = (char *) realloc(s->cterms[threadid][i],p->NJD[threadid] * sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		}
 	      s->sizevecs[threadid] = p->NJD[threadid];
 	    }
@@ -381,14 +381,14 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	  if(p->NJD[threadid] > 0)
 	    {
 	      if((s->stringid_idx[threadid] = (int *) malloc(p->NJD[threadid] * sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      s->sizestringid_idxvecs[threadid] = p->NJD[threadid];
 	    }
 	}
       else if(p->NJD[threadid] > s->sizestringid_idxvecs[threadid])
 	{
 	  if((s->stringid_idx[threadid] = (int *) realloc(s->stringid_idx[threadid], p->NJD[threadid] * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  s->sizestringid_idxvecs[threadid] = p->NJD[threadid];
 	}
     }
@@ -437,7 +437,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	  ichar++;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if(Nc > 0) {
 	for(u=0; u < Nc; u++) {
@@ -477,7 +477,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else {
@@ -532,7 +532,7 @@ void dosavelc(ProgramData *p, _Savelc *s, int threadid, int lcid)
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -595,7 +595,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(Nc > 0) {
 	  for(u=0; u < Nc; u++) {
@@ -635,7 +635,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	      ichar++;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	} else {
@@ -690,7 +690,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	      ichar++;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -784,7 +784,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	    ichar++;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else if(Nc > 0) {
 	  for(u=0; u < Nc; u++) {
@@ -856,7 +856,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	      ichar++;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	} else {
@@ -943,7 +943,7 @@ void dorestorelc(ProgramData *p, _Savelc *s, _Restorelc *r, int sthreadid, int r
 	      ichar++;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}

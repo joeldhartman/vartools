@@ -34,6 +34,8 @@ from .manipulation import (
     rescalesig,
     ensemblerescalesig,
     stats,
+    harmonicfilter,
+    fourierfilter,
     Killharm,
     linfit,
     Injectharm,
@@ -77,13 +79,29 @@ from .misc import (
     addfitskeyword,
     converttime,
     R,
+    python,
     match,
     o,
     ifcmd,
+    elifcmd,
+    elsecmd,
+    ficmd,
     binlc,
     columnsuffix,
     Raw,
     UserCommand,
+)
+
+# Typed wrappers for USERLIB extension commands
+from .userlibs import (
+    fastchi2,
+    ftuneven,
+    hatpiflag,
+    jktebop,
+    macula,
+    magadd,
+    splinedetrend,
+    stitch,
 )
 
 __all__ = [
@@ -94,7 +112,8 @@ __all__ = [
     "GetLSAmpThresh", "Phase",
     # manipulation
     "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm",
-    "rescalesig", "ensemblerescalesig", "stats", "Killharm", "linfit",
+    "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
+    "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",
     "savelc", "restorelc", "difffluxtomag", "fluxtomag", "changeerror",
     "changevariable", "copylc", "medianfilter", "expr", "print_cols",
@@ -103,8 +122,12 @@ __all__ = [
     "TFA", "TFA_SR", "SYSREM", "MandelAgolTransit", "SoftenedTransit",
     "Starspot", "microlens", "nonlinfit", "addnoise", "findblends",
     # misc
-    "addfitskeyword", "converttime", "R", "match", "o", "ifcmd",
+    "addfitskeyword", "converttime", "R", "python", "match", "o",
+    "ifcmd", "elifcmd", "elsecmd", "ficmd",
     "binlc", "columnsuffix", "Raw",
     # user extensions
     "UserCommand",
+    # typed USERLIB wrappers
+    "fastchi2", "ftuneven", "hatpiflag", "jktebop", "macula",
+    "magadd", "splinedetrend", "stitch",
 ]

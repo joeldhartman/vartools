@@ -131,8 +131,14 @@ class TestStdinStructure:
         assert len(received_stdin) == 1
         assert received_stdin[0] is not None
         assert isinstance(received_stdin[0], str)
-        # Should contain the numeric data
-        assert "10.0" in received_stdin[0] or "10." in received_stdin[0]
+        # Should contain the numeric data: parse one line and check it
+        # has three whitespace-separated numeric tokens.  This is robust
+        # to changes in the ASCII spill format (%.10f vs %.17g vs ...).
+        first_line = received_stdin[0].splitlines()[0]
+        toks = first_line.split()
+        assert len(toks) == 3
+        for tok in toks:
+            float(tok)  # raises if non-numeric
 
     def test_no_input_lc_file_created(self, simple_lc, tmp_path):
         """run() must not write an input.lc temp file."""
@@ -224,12 +230,12 @@ class TestStdinFunctional:
         """Smoke test: run with stdin, check RMS_0 is a finite float."""
         pipe = vt.Pipeline([cmd.rms()])
         result = pipe.run(simple_lc)
-        assert "RMS_0" in result.stats.index
-        assert math.isfinite(float(result.stats["RMS_0"]))
+        assert "RMS_0" in result.vars.index
+        assert math.isfinite(float(result.vars["RMS_0"]))
 
     @needs_binary
     def test_stdin_produces_same_stats_as_file_mode(self):
-        """stdin and file-based runs on the same LC must yield identical stats."""
+        """stdin and file-based runs on the same LC must yield identical var."""
         lc = vt.LightCurve.from_file(EXAMPLE_LC)
         pipe = vt.Pipeline([cmd.rms()])
 
@@ -247,11 +253,11 @@ class TestStdinFunctional:
         finally:
             os.unlink(tmp_path)
 
-        for key in result_stdin.stats.index:
+        for key in result_stdin.vars.index:
             if key == "Name":
                 continue
-            v_stdin = float(result_stdin.stats[key])
-            v_file = float(result_file.stats[key])
+            v_stdin = float(result_stdin.vars[key])
+            v_file = float(result_file.vars[key])
             assert abs(v_stdin - v_file) < 1e-9, (
                 f"{key}: stdin={v_stdin} vs file={v_file}"
             )
@@ -264,8 +270,8 @@ class TestStdinFunctional:
             cmd.LS(0.5, 5.0, 1e-3, npeaks=1),
         ])
         result = pipe.run(sinusoidal_lc)
-        assert "LS_Period_1_1" in result.stats.index
-        assert math.isfinite(float(result.stats["LS_Period_1_1"]))
+        assert "LS_Period_1_1" in result.vars.index
+        assert math.isfinite(float(result.vars["LS_Period_1_1"]))
 
     @needs_binary
     def test_stdin_with_extra_columns(self):
@@ -296,7 +302,7 @@ class TestStdinFunctional:
         assert "-inputlcformat" in cmd_list, (
             "-inputlcformat should be present for non-default column layout"
         )
-        assert math.isfinite(float(result.stats["RMS_0"]))
+        assert math.isfinite(float(result.vars["RMS_0"]))
 
     @needs_binary
     def test_stdin_with_capture_lc(self, simple_lc):
@@ -333,8 +339,8 @@ class TestStdinFunctional:
 
     @needs_binary
     def test_stdin_name_is_replaced(self, simple_lc):
-        """result.stats['Name'] should be the LightCurve's name, not 'stdin'."""
+        """result.vars['Name'] should be the LightCurve's name, not 'stdin'."""
         pipe = vt.Pipeline([cmd.rms()])
         result = pipe.run(simple_lc)
-        assert result.stats["Name"] == "testlc"
-        assert result.stats["Name"] != "stdin"
+        assert result.vars["Name"] == "testlc"
+        assert result.vars["Name"] != "stdin"

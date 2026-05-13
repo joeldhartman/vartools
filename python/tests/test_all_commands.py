@@ -142,19 +142,21 @@ class TestCLIArgsPeriodicity:
         assert "expr" in args and "tspan/200" in args
 
     def test_bls_minimal(self):
-        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1)._to_cli_args()
+        # nfreq= required when density_mode=False ("optimal" is
+        # density-mode-only per vartools).
+        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, nfreq=1000)._to_cli_args()
         assert args[0] == "-BLS"
 
     def test_bls_fittrap(self):
-        args = cmd.BLS(0.5, 10.0, fittrap=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, fittrap=True, nfreq=1000)._to_cli_args()
         assert "fittrap" in args
 
     def test_bls_correct_lc(self):
-        args = cmd.BLS(0.5, 10.0, correct_lc=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, correct_lc=True, nfreq=1000)._to_cli_args()
         assert "1" in args  # correctlc token
 
     def test_bls_save_periodogram(self):
-        c = cmd.BLS(0.5, 10.0, save_periodogram=True)
+        c = cmd.BLS(0.5, 10.0, save_periodogram=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "1" in args
@@ -264,7 +266,44 @@ class TestCLIArgsPeriodicity:
     def test_wwz_auto(self):
         args = cmd.wwz()._to_cli_args()
         assert args[0] == "-wwz"
-        assert "auto" in args
+        # The bare keyword ``auto`` must NOT be wrapped in ``var auto``;
+        # vartools treats ``auto`` as a literal CLI option in -wwz.
+        assert "var" not in args
+        # maxfreq / tau0 / tau1 / dtau default to "auto" — emit literal.
+        for key in ("maxfreq", "tau0", "tau1", "dtau"):
+            i = args.index(key)
+            assert args[i + 1] == "auto", \
+                f"Expected '{key} auto', got '{args[i]} {args[i+1]}'"
+        # freqsamp does NOT accept "auto" in vartools — it must be a
+        # positive number.  Default is the Foster 1996 value 0.25.
+        i = args.index("freqsamp")
+        assert args[i + 1] == "0.25"
+
+    def test_wwz_auto_explicit_string(self):
+        # Passing "auto" explicitly must behave the same as the default.
+        args = cmd.wwz(maxfreq="auto", tau0="auto",
+                       tau1="auto", dtau="auto")._to_cli_args()
+        assert "var" not in args
+        for key in ("maxfreq", "tau0", "tau1", "dtau"):
+            i = args.index(key)
+            assert args[i + 1] == "auto"
+
+    def test_wwz_freqsamp_rejects_auto_silently(self):
+        # ``freqsamp="auto"`` is a user error — vartools rejects it at
+        # runtime ("freqsamp must be > 0").  The wrapper must NOT emit
+        # the literal "auto" keyword for freqsamp; if the user really
+        # passes the string, it's their problem and we route through
+        # _varexpr (which produces ``var auto``) — but the default path
+        # uses the numeric value so the common case stays clean.
+        args = cmd.wwz(freqsamp=0.1)._to_cli_args()
+        i = args.index("freqsamp")
+        assert args[i + 1] == "0.1"
+
+    def test_wwz_var_name_still_uses_var_keyword(self):
+        # A bare identifier other than "auto" should still emit ``var <name>``.
+        args = cmd.wwz(maxfreq="myvar")._to_cli_args()
+        i = args.index("maxfreq")
+        assert args[i + 1] == "var" and args[i + 2] == "myvar"
 
     def test_wwz_explicit(self):
         args = cmd.wwz(maxfreq=10.0, freqsamp=0.01, tau0=0.0,
@@ -381,19 +420,22 @@ class TestCLIArgsPeriodicity:
     # ------- BLS extensions (Batch 3a) -------
 
     def test_bls_minper_var(self):
-        args = cmd.BLS("minperiodvar", 10.0)._to_cli_args()
+        args = cmd.BLS("minperiodvar", 10.0, nfreq=1000)._to_cli_args()
         assert "var" in args and "minperiodvar" in args
 
     def test_bls_rmin_var(self):
-        args = cmd.BLS(0.5, 10.0, rmin="bls_rmin_var")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, rmin="bls_rmin_var",
+                       nfreq=1000)._to_cli_args()
         assert "var" in args and "bls_rmin_var" in args
 
     def test_bls_nbins_var(self):
-        args = cmd.BLS(0.5, 10.0, nbins="nbinvar")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, nbins="nbinvar",
+                       nfreq=1000)._to_cli_args()
         assert "var" in args and "nbinvar" in args
 
     def test_bls_qmin_qmax(self):
-        args = cmd.BLS(0.5, 10.0, qmin=0.01, qmax=0.1)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, qmin=0.01, qmax=0.1,
+                       nfreq=1000)._to_cli_args()
         assert "q" in args and "0.01" in args and "0.1" in args
 
     def test_bls_density_mode(self):
@@ -421,39 +463,45 @@ class TestCLIArgsPeriodicity:
         assert "df" in args and "0.001" in args
 
     def test_bls_extraparams(self):
-        args = cmd.BLS(0.5, 10.0, extraparams=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, extraparams=True,
+                       nfreq=1000)._to_cli_args()
         assert "extraparams" in args
 
     def test_bls_nobinnedrms(self):
-        args = cmd.BLS(0.5, 10.0, nobinnedrms=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, nobinnedrms=True,
+                       nfreq=1000)._to_cli_args()
         assert "nobinnedrms" in args
 
     def test_bls_save_phcurve(self):
-        c = cmd.BLS(0.5, 10.0, save_phcurve=True)
+        c = cmd.BLS(0.5, 10.0, save_phcurve=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "ophcurve" in args
 
     def test_bls_save_jdcurve(self):
-        c = cmd.BLS(0.5, 10.0, save_jdcurve=True)
+        c = cmd.BLS(0.5, 10.0, save_jdcurve=True, nfreq=1000)
         c._outdir = "/tmp"
         args = c._to_cli_args()
         assert "ojdcurve" in args
 
     def test_bls_freq_grid_steplogP(self):
-        args = cmd.BLS(0.5, 10.0, freq_grid="steplogP")._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, freq_grid="steplogP",
+                       nfreq=1000)._to_cli_args()
         assert "steplogP" in args
 
     def test_bls_adjust_qmin(self):
-        args = cmd.BLS(0.5, 10.0, adjust_qmin=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, adjust_qmin=True,
+                       nfreq=1000)._to_cli_args()
         assert "adjust-qmin-by-mindt" in args
 
     def test_bls_reduce_nbins(self):
-        args = cmd.BLS(0.5, 10.0, adjust_qmin=True, reduce_nbins=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, adjust_qmin=True, reduce_nbins=True,
+                       nfreq=1000)._to_cli_args()
         assert "reduce-nbins" in args
 
     def test_bls_reportharmonics(self):
-        args = cmd.BLS(0.5, 10.0, reportharmonics=True)._to_cli_args()
+        args = cmd.BLS(0.5, 10.0, reportharmonics=True,
+                       nfreq=1000)._to_cli_args()
         assert "reportharmonics" in args
 
     # ------- BLSFixPer q mode (Batch 3b) -------
@@ -611,6 +659,47 @@ class TestCLIArgsManipulation:
         args = cmd.Injectharm(period="rand 0.5 5.0", amplitude=0.1)._to_cli_args()
         assert "rand" in args
 
+    def test_injectharm_phase_rand_keyword(self):
+        # phase="rand" → phaserand (CLI keyword, not phaseexpr).
+        args = cmd.Injectharm(period=2.5, amplitude=0.05,
+                              phase="rand")._to_cli_args()
+        assert "phaserand" in args
+        assert "phasefix" not in args
+
+    def test_injectharm_amp_keyword(self):
+        # amplitude="rand" → amprand keyword.
+        args = cmd.Injectharm(period=2.5, amplitude="rand",
+                              phase=0.0)._to_cli_args()
+        assert "amprand" in args
+        assert "ampfix" not in args
+
+    def test_injectharm_per_harmonic_relative(self):
+        # Per-harmonic relative amps/phases produce
+        # `ampfix R amprel phasefix phi phaserel` blocks.
+        args = cmd.Injectharm(
+            period=0.514333, amplitude=0.1, phase="rand", nharm=4,
+            harmonic_amps_rel=[0.47, 0.36, 0.24],
+            harmonic_phases_rel=[0.61, 0.26, -0.07],
+        )._to_cli_args()
+        # Fundamental: ampfix 0.1 + phaserand
+        assert args.count("phaserand") == 1
+        # 3 overtones, each contributes one ampfix+amprel and one phasefix+phaserel
+        assert args.count("amprel") == 3
+        assert args.count("phaserel") == 3
+
+    def test_injectharm_per_harmonic_length_validation(self):
+        # nharm-1 must equal len(harmonic_amps_rel).
+        with pytest.raises(ValueError, match="harmonic_amps_rel"):
+            cmd.Injectharm(period=1.0, amplitude=0.1, nharm=4,
+                           harmonic_amps_rel=[1, 2],
+                           harmonic_phases_rel=[1, 2])
+
+    def test_injectharm_per_harmonic_paired(self):
+        # Both lists must be supplied together.
+        with pytest.raises(ValueError, match="must be supplied"):
+            cmd.Injectharm(period=1.0, amplitude=0.1, nharm=2,
+                           harmonic_amps_rel=[0.5])
+
     def test_injecttransit_basic(self):
         args = cmd.Injecttransit(
             period=3.0, Rp=0.1, Mp=1.0, phase=0.0,
@@ -701,10 +790,37 @@ class TestCLIArgsManipulation:
         args = cmd.expr("mag=mag-0.01")._to_cli_args()
         assert args[0] == "-expr"
 
-    def test_expr_outputcolumns(self):
-        args = cmd.expr("flux=10^((mag-10)/(-2.5))",
-                        outputcolumns="flux")._to_cli_args()
-        assert "outputcolumns" in args
+    def test_expr_outputcolumn_emits_keyword(self):
+        # outputcolumn=True with a non-LC vartype emits the bare
+        # "outputcolumn" CLI keyword (vartools' -expr accepts it after
+        # the var=expression argument when listvar/scalar/const was given).
+        args = cmd.expr("avg=mean(mag)", vartype="listvar",
+                        outputcolumn=True)._to_cli_args()
+        assert args == ["-expr", "listvar", "avg=mean(mag)", "outputcolumn"]
+
+    def test_expr_outputcolumn_requires_vartype(self):
+        # outputcolumn=True without vartype is rejected at construction.
+        # The default per-observation LC type would yield one value per
+        # observation, not a single column.
+        with pytest.raises(ValueError, match="outputcolumn=True requires"):
+            cmd.expr("flux=10^((mag-10)/(-2.5))", outputcolumn=True)
+
+    def test_expr_listvar(self):
+        args = cmd.expr("avg=mean(mag)", vartype="listvar")._to_cli_args()
+        assert args == ["-expr", "listvar", "avg=mean(mag)"]
+
+    def test_expr_const(self):
+        args = cmd.expr("pi=3.14159", vartype="const")._to_cli_args()
+        assert args == ["-expr", "const", "pi=3.14159"]
+
+    def test_expr_scalar(self):
+        args = cmd.expr("x=mag[0]", vartype="scalar")._to_cli_args()
+        assert args == ["-expr", "scalar", "x=mag[0]"]
+
+    def test_expr_invalid_vartype(self):
+        import pytest
+        with pytest.raises(ValueError):
+            cmd.expr("x=1", vartype="invalid")
 
     def test_print_cols_basic(self):
         args = cmd.print_cols("t,mag,err")._to_cli_args()
@@ -878,11 +994,42 @@ class TestCLIArgsManipulation:
         assert args[idx+1] == "3"
 
     def test_resample_file_mode_list(self):
-        args = cmd.resample(method="linear", file_times="list column 2")._to_cli_args()
+        # Bare list mode — emits `file list` only.
+        args = cmd.resample(method="linear", file_times="list")._to_cli_args()
         assert "file" in args
         idx = args.index("file")
         assert args[idx+1] == "list"
-        assert args[idx+2] == "column"
+        # No listcolumn / tcolumn when neither kwarg is set.
+        assert "listcolumn" not in args
+        assert "tcolumn" not in args
+
+    def test_resample_file_mode_list_kwargs(self):
+        # New: list_column / t_column kwargs map to listcolumn / tcolumn.
+        args = cmd.resample(method="linear", file_times="list",
+                             list_column=2, t_column=1)._to_cli_args()
+        assert "listcolumn" in args
+        idx = args.index("listcolumn")
+        assert args[idx+1] == "2"
+        assert "tcolumn" in args
+        idx = args.index("tcolumn")
+        assert args[idx+1] == "1"
+
+    def test_resample_file_mode_list_inline_legacy(self):
+        # Legacy: extra tokens inside file_times still pass through.
+        args = cmd.resample(
+            method="linear",
+            file_times="list listcolumn 1 tcolumn 1",
+        )._to_cli_args()
+        s = " ".join(args)
+        assert "file list listcolumn 1 tcolumn 1" in s
+
+    def test_resample_t_column_alias_for_file_column(self):
+        # In path mode, t_column emits the `column` keyword (was `file_column`).
+        args = cmd.resample(method="linear",
+                             file_times="/path/to/times.txt",
+                             t_column=4)._to_cli_args()
+        assert "column" in args
+        assert args[args.index("column")+1] == "4"
 
     def test_resample_gaps(self):
         args = cmd.resample(method="linear", gaps="fix")._to_cli_args()
@@ -922,6 +1069,24 @@ class TestCLIArgsFitting:
                           10.0)._to_cli_args()
         assert args[0] == "-TFA_SR"
 
+    def test_tfa_sr_xycol_after_pixelsep(self):
+        """``xycol`` is an optional keyword that must follow the positional
+        ``pixelsep`` argument; emitting it before ``pixelsep`` made vartools
+        treat the pixelsep value as the next positional argument and fail
+        with "Invalid command or option".
+        """
+        args = cmd.TFA_SR("/tmp/trends.txt", "/tmp/dates.txt", 25.0,
+                          xycol=(2, 3))._to_cli_args()
+        # pixelsep must appear before "xycol" in the token list.
+        idx_xycol = args.index("xycol")
+        idx_pixelsep = args.index("25.0")
+        assert idx_pixelsep < idx_xycol, (
+            f"pixelsep (25.0 at {idx_pixelsep}) must precede xycol "
+            f"(at {idx_xycol}); got {args}"
+        )
+        # And xycol's two integer args must come immediately after.
+        assert args[idx_xycol:idx_xycol + 3] == ["xycol", "2", "3"]
+
     # ------- TFA_SR decorr and signal_period (P2 batch) -------
 
     def test_tfa_sr_decorr(self):
@@ -938,7 +1103,9 @@ class TestCLIArgsFitting:
                            signal_period=1.23)._to_cli_args()
         assert "period" in args
         idx = args.index("period")
-        assert args[idx+1] == "1.23"
+        # The CLI requires "fix <val>" for a fixed numeric signal period.
+        assert args[idx+1] == "fix"
+        assert args[idx+2] == "1.23"
 
     def test_tfa_sr_signal_period_harm(self):
         args = cmd.TFA_SR("trends.txt", "dates.txt", 1.0,
@@ -951,6 +1118,39 @@ class TestCLIArgsFitting:
     def test_sysrem_basic(self):
         args = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._to_cli_args()
         assert args[0] == "-SYSREM"
+
+    def test_sysrem_save_trends_false(self):
+        """save_trends=False emits the bare ``"0"`` flag — no literal
+        "otrends" token, which the CLI grammar does not accept.
+        """
+        args = cmd.SYSREM(2, 1, "/tmp/airmass.txt",
+                          save_trends=False)._to_cli_args()
+        assert "otrends" not in args
+        # The "0" flag for trends sits immediately before useweights.
+        assert args[-2] == "0"
+
+    def test_sysrem_save_trends_path(self):
+        """save_trends="path" emits ``"1" <path>``, treating the path as a
+        single file (the CLI writes one global trend file, not a dir).
+        """
+        args = cmd.SYSREM(2, 1, "/tmp/airmass.txt",
+                          save_trends="/tmp/trends.txt")._to_cli_args()
+        assert "otrends" not in args
+        assert "/tmp/trends.txt" in args
+        i = args.index("/tmp/trends.txt")
+        # Trends path is preceded by the "1" emit-flag.
+        assert args[i - 1] == "1"
+
+    def test_sysrem_save_trends_marked_file_in_specs(self):
+        """The ``trends`` entry in ``_output_file_specs`` must declare
+        ``mode="file"`` so the pipeline runner does not ``os.makedirs`` the
+        user-supplied trend-output path.
+        """
+        specs = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._output_file_specs()
+        assert "trends" in specs
+        # 3-tuple form with the "file" mode marker.
+        assert len(specs["trends"]) == 3
+        assert specs["trends"][2] == "file"
 
     def test_mandel_agol_basic(self):
         args = cmd.MandelAgolTransit(P0=3.0, T00=1.0)._to_cli_args()
@@ -1316,6 +1516,146 @@ class TestCLIArgsMisc:
         args = cmd.R("x <- 1", process_all_lcs=True)._to_cli_args()
         assert "process_all_lcs" in args
 
+    # ----- cmd.python — CLI-token emission -----
+    #
+    # The wrapper mirrors -R surface; the new bits to lock down are:
+    #   * the CLI marker is `-python` (not `-R`),
+    #   * `skipfail` (Python-only) instead of `verbose` (R-only),
+    #   * `init` + `continueprocess` are mutually exclusive,
+    #   * `inprocess=True` raises NotImplementedError until Stage 2,
+    #   * the order of tokens matches what vartools' parser expects
+    #     (command, [continueprocess], [init], [vars | invars+outvars],
+    #      [outputcolumns], [process_all_lcs], [skipfail]).
+
+    def test_python_inline(self):
+        args = cmd.python("b = numpy.var(mag)")._to_cli_args()
+        assert args[0] == "-python"
+        assert args[1] == "b = numpy.var(mag)"
+
+    def test_python_fromfile(self):
+        args = cmd.python("/tmp/x.py", fromfile=True)._to_cli_args()
+        assert "fromfile" in args and "/tmp/x.py" in args
+        # `fromfile` precedes the path — match the CLI grammar.
+        idx = args.index("fromfile")
+        assert args[idx + 1] == "/tmp/x.py"
+
+    def test_python_vars(self):
+        args = cmd.python("mag = mag * 2", vars="t,mag,err")._to_cli_args()
+        assert "vars" in args
+        idx = args.index("vars")
+        assert args[idx + 1] == "t,mag,err"
+        # When `vars` is given, neither invars nor outvars is emitted.
+        assert "invars" not in args
+        assert "outvars" not in args
+
+    def test_python_invars_outvars(self):
+        args = cmd.python("b = numpy.var(mag)",
+                          invars="mag", outvars="b")._to_cli_args()
+        assert "invars" in args and "outvars" in args
+        i = args.index("invars")
+        assert args[i + 1] == "mag"
+        o = args.index("outvars")
+        assert args[o + 1] == "b"
+
+    def test_python_init_inline(self):
+        args = cmd.python("y = f(mag)",
+                          init="def f(x): return x.mean()")._to_cli_args()
+        assert "init" in args
+        i = args.index("init")
+        # init precedes the inline init body; no `file` keyword.
+        assert "file" not in args
+        assert args[i + 1] == "def f(x): return x.mean()"
+
+    def test_python_init_fromfile(self):
+        args = cmd.python("y = f(mag)",
+                          init="/tmp/init.py",
+                          init_fromfile=True)._to_cli_args()
+        # init followed by `file`, then the path.
+        idx = args.index("init")
+        assert args[idx + 1] == "file"
+        assert args[idx + 2] == "/tmp/init.py"
+
+    def test_python_outputcolumns(self):
+        args = cmd.python("b = numpy.var(mag)", outvars="b",
+                          outputcolumns="b")._to_cli_args()
+        assert "outputcolumns" in args
+        i = args.index("outputcolumns")
+        assert args[i + 1] == "b"
+
+    def test_python_process_all_lcs(self):
+        args = cmd.python("x = 1", process_all_lcs=True)._to_cli_args()
+        assert "process_all_lcs" in args
+        # No leading hyphen — it's a flag, not a CLI option of its own.
+        assert "-process_all_lcs" not in args
+
+    def test_python_skipfail(self):
+        args = cmd.python("x = 1", skipfail=True)._to_cli_args()
+        assert "skipfail" in args
+
+    def test_python_skipfail_default_false(self):
+        args = cmd.python("x = 1")._to_cli_args()
+        assert "skipfail" not in args
+
+    def test_python_continueprocess(self):
+        args = cmd.python("y = f(mag)",
+                          continueprocess=1,
+                          invars="mag", outvars="y")._to_cli_args()
+        assert "continueprocess" in args
+        i = args.index("continueprocess")
+        assert args[i + 1] == "1"
+
+    def test_python_init_and_continueprocess_conflict(self):
+        # vartools rejects the combination — the wrapper should pre-empt
+        # at construction time so users get a clear Python-side error.
+        with pytest.raises(ValueError, match="continueprocess"):
+            cmd.python("y = f(mag)",
+                       init="def f(x): return x.mean()",
+                       continueprocess=1)
+
+    def test_python_inprocess_constructs_without_error(self):
+        # Stage-2 path: inprocess=True now constructs cleanly.  Validates
+        # that the kwarg lives on the instance and that the C-side
+        # callback shim got registered as a side effect (we don't
+        # exercise execution here — that's covered in
+        # TestPythonInprocessIntegration below).
+        c = cmd.python("b = 0.0", outvars="b", outputcolumns="b",
+                       inprocess=True)
+        assert c.inprocess is True
+        # Tokens are identical to the subprocess form — vartools sees the
+        # same -python command; the callback hook diverts dispatch
+        # internally based on whether it's been registered.
+        args = c._to_cli_args()
+        assert args[0] == "-python"
+
+    def test_python_namespace_kwarg_accepted(self):
+        # namespace= is meaningful only for inprocess=True.  Setting it
+        # alongside the default subprocess path is allowed (it's
+        # silently ignored — construction does NOT raise).
+        c = cmd.python("x = 1", namespace={"foo": 42})
+        assert c.namespace == {"foo": 42}
+        # Tokens are unaffected.
+        args = c._to_cli_args()
+        assert args[0] == "-python"
+
+    def test_python_token_order(self):
+        # Sanity-check the relative order: command then continueprocess
+        # then init then vars/invars+outvars then outputcolumns then
+        # process_all_lcs then skipfail.  vartools' grammar is positional.
+        args = cmd.python("y = f(mag)",
+                          init="def f(x): return x.mean()",
+                          invars="mag", outvars="y",
+                          outputcolumns="y",
+                          process_all_lcs=True,
+                          skipfail=True)._to_cli_args()
+        # Find each token's index and assert ascending order.
+        order = ["-python", "y = f(mag)", "init",
+                 "invars", "outvars", "outputcolumns",
+                 "process_all_lcs", "skipfail"]
+        positions = [args.index(tok) for tok in order]
+        assert positions == sorted(positions), (
+            f"unexpected token ordering: {list(zip(order, positions))}"
+        )
+
     def test_match_basic(self):
         args = cmd.match("/tmp/cat.txt", matchcolumn="t:1",
                           addcolumns="ra:2,dec:3")._to_cli_args()
@@ -1462,28 +1802,28 @@ class TestEndToEndPipelines:
             cmd.chi2(),
             cmd.alarm(),
         ]).run(lc)
-        assert "RMS_0" in result.stats.index
-        assert any("Chi2" in k or "chi2" in k for k in result.stats.index)
-        assert any("Alarm" in k or "alarm" in k for k in result.stats.index)
+        assert "RMS_0" in result.vars.index
+        assert any("Chi2" in k or "chi2" in k for k in result.vars.index)
+        assert any("Alarm" in k or "alarm" in k for k in result.vars.index)
 
     def test_stats_multiple_variables(self):
         lc = make_lc()
         result = vt.Pipeline([
             cmd.stats(["mag", "err"], "mean,median,stddev"),
         ]).run(lc)
-        assert any("mean" in k.lower() for k in result.stats.index)
+        assert any("mean" in k.lower() for k in result.vars.index)
 
     def test_stats_MAD(self):
         lc = make_lc()
         result = vt.Pipeline([cmd.stats("mag", "MAD")]).run(lc)
-        assert any("MAD" in k for k in result.stats.index)
+        assert any("MAD" in k for k in result.vars.index)
 
     def test_rmsbin(self):
         lc = make_lc()
         result = vt.Pipeline([
             cmd.rmsbin(2, [0.5, 1.0]),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # autocorrelation file capture
@@ -1511,6 +1851,33 @@ class TestEndToEndPipelines:
         for acf in acfs:
             assert len(acf) > 0
 
+    def test_linfit_model_capture_default_filename(self):
+        """linfit save_model captures the model file at the default
+        ``<lcbase>.linfit.model`` location."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.linfit(function="a*t+b", paramlist="a,b", save_model=True),
+        ]).run(lc)
+        assert "linfit_model_0" in result.files
+        assert len(result.files["linfit_model_0"]) > 0
+
+    def test_linfit_model_capture_custom_nameformat(self):
+        """When ``model_nameformat`` is set, vartools writes the model
+        file under the user's format string instead of the default
+        ``.linfit.model`` suffix.  Pyvartools must honour that
+        substitution when capturing the file (this used to silently
+        fail, leaving result.files empty for the model)."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.linfit(function="a*t+b", paramlist="a,b",
+                        model_nameformat="%s.baldump",
+                        save_model=True),
+        ]).run(lc)
+        assert "linfit_model_0" in result.files, \
+            "linfit save_model with model_nameformat='%s.baldump' " \
+            "must still populate result.files['linfit_model_0']"
+        assert len(result.files["linfit_model_0"]) > 0
+
     # -----------------------------------------------------------------------
     # Period search
     # -----------------------------------------------------------------------
@@ -1522,8 +1889,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("ls"),
             cmd.LS(0.5, 5.0, 1e-3),
         ]).run(lc)
-        assert "LS_Period_1_ls" in result.stats.index
-        best = float(result.stats["LS_Period_1_ls"])
+        assert "LS_Period_1_ls" in result.vars.index
+        best = float(result.vars["LS_Period_1_ls"])
         assert abs(best - 2.3) < 0.05, f"Expected ~2.3, got {best}"
 
     def test_aov_period_search(self):
@@ -1532,14 +1899,14 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("aov"),
             cmd.aov(0.5, 5.0, 0.1, finetune=2),
         ]).run(lc)
-        assert any("Period" in k for k in result.stats.index)
+        assert any("Period" in k for k in result.vars.index)
 
     def test_aov_harm_period_search(self):
         lc = make_lc(period=1.8)
         result = vt.Pipeline([
             cmd.aov_harm(3, 0.5, 5.0, 0.1, finetune=2),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_ls_save_periodogram(self):
         lc = make_lc(period=2.3)
@@ -1555,7 +1922,7 @@ class TestEndToEndPipelines:
         result = vt.Pipeline([
             cmd.LS(0.5, 5.0, 1e-3, noGLS=True),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Phase-folding
@@ -1567,7 +1934,7 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("s"),
             cmd.LS(0.5, 5.0, 1e-3),
         ]).run(lc)
-        best = float(result.stats["LS_Period_1_s"])
+        best = float(result.vars["LS_Period_1_s"])
         result2 = vt.Pipeline([
             cmd.Phase(period=best),
         ]).run(lc, capture_lc=True)
@@ -1588,7 +1955,7 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("ls"),
             cmd.LS(0.5, 5.0, 5e-4),
         ]).run(lc)
-        best = float(result.stats["LS_Period_1_ls"])
+        best = float(result.vars["LS_Period_1_ls"])
         assert abs(best - 2.5) < 0.05, f"Expected ~2.5, got {best}"
 
     def test_injectharm_killharm_rms(self):
@@ -1605,8 +1972,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("after"),
             cmd.rms(),
         ]).run(lc)
-        rms_before = float(result_before.stats["RMS_before"])
-        rms_after = float(result_after.stats["RMS_after"])
+        rms_before = float(result_before.vars["RMS_before"])
+        rms_after = float(result_after.vars["RMS_after"])
         assert rms_after < rms_before, "Killharm should reduce RMS"
 
     # -----------------------------------------------------------------------
@@ -1634,9 +2001,9 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("r3"),
             cmd.rms(),
         ]).run(lc)
-        n1 = float(result.stats["Npoints_r1"])
-        n2 = float(result.stats["Npoints_r2"])
-        n3 = float(result.stats["Npoints_r3"])
+        n1 = float(result.vars["Npoints_r1"])
+        n2 = float(result.vars["Npoints_r2"])
+        n3 = float(result.vars["Npoints_r3"])
         assert n2 < n1
         assert n3 == n1
 
@@ -1651,8 +2018,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("restored"),
             cmd.rms(),
         ]).run(lc)
-        n_clipped = float(result.stats["Npoints_clipped"])
-        n_restored = float(result.stats["Npoints_restored"])
+        n_clipped = float(result.vars["Npoints_clipped"])
+        n_restored = float(result.vars["Npoints_restored"])
         assert n_restored == 300
 
     def test_sortlc_reverse(self):
@@ -1670,9 +2037,9 @@ class TestEndToEndPipelines:
             cmd.expr("mag=mag-0.5"),
             cmd.stats("mag", "mean"),
         ]).run(lc)
-        mean_key = next(k for k in result.stats.index
+        mean_key = next(k for k in result.vars.index
                         if "mean" in k.lower() and "mag" in k.lower())
-        new_mean = float(result.stats[mean_key])
+        new_mean = float(result.vars[mean_key])
         assert abs(new_mean - (orig_mean - 0.5)) < 1e-4
 
     def test_clip_non_iterative(self):
@@ -1681,7 +2048,7 @@ class TestEndToEndPipelines:
             cmd.clip(sigclip=3.0, iterative=False),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_clip_niter(self):
         lc = make_lc(n=200)
@@ -1689,7 +2056,7 @@ class TestEndToEndPipelines:
             cmd.clip(sigclip=3.0, niter=2),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_medianfilter(self):
         lc = make_lc(n=200)
@@ -1697,7 +2064,7 @@ class TestEndToEndPipelines:
             cmd.medianfilter(time=0.5),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Noise injection
@@ -1714,8 +2081,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("after"),
             cmd.rms(),
         ]).run(lc)
-        rms_before = float(result_before.stats["RMS_before"])
-        rms_after = float(result_after.stats["RMS_after"])
+        rms_before = float(result_before.vars["RMS_before"])
+        rms_after = float(result_after.vars["RMS_after"])
         assert rms_after > rms_before
 
     def test_addnoise_squareexp(self):
@@ -1725,7 +2092,7 @@ class TestEndToEndPipelines:
                          sig_white=0.001, rho=1.0, sig_red=0.01),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # Time conversion
@@ -1761,7 +2128,7 @@ class TestEndToEndPipelines:
             cmd.binlc(binsize=0.5, method="median"),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_binlc_weightedaverage(self):
         lc = make_lc(n=300)
@@ -1769,7 +2136,7 @@ class TestEndToEndPipelines:
             cmd.binlc(binsize=0.5, method="weightedaverage"),
             cmd.rms(),
         ]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     # -----------------------------------------------------------------------
     # columnsuffix in complex pipelines
@@ -1784,8 +2151,8 @@ class TestEndToEndPipelines:
             cmd.columnsuffix("b"),
             cmd.rms(),
         ]).run(lc)
-        assert "RMS_a" in result.stats.index
-        assert "RMS_b" in result.stats.index
+        assert "RMS_a" in result.vars.index
+        assert "RMS_b" in result.vars.index
 
     # -----------------------------------------------------------------------
     # LC name in stats
@@ -1795,7 +2162,7 @@ class TestEndToEndPipelines:
         lc = vt.LightCurve.from_arrays(
             *make_lc()._df.values.T, name="my_star")
         result = vt.Pipeline([cmd.rms()]).run(lc)
-        assert result.stats["Name"] == "my_star"
+        assert result.vars["Name"] == "my_star"
 
     # -----------------------------------------------------------------------
     # Batch runs
@@ -1807,21 +2174,21 @@ class TestEndToEndPipelines:
             cmd.rms(),
             cmd.stats("mag", "mean,stddev"),
         ]).run_batch(lcs)
-        assert len(result.stats) == 4
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 4
+        assert "RMS_0" in result.vars.columns
 
     def test_batch_names(self):
         lcs = [make_lc() for i in range(3)]
         for i, lc in enumerate(lcs):
             lc._df  # just access; name already set in make_lc
         result = vt.Pipeline([cmd.rms()]).run_batch(lcs)
-        assert "Name" in result.stats.columns
+        assert "Name" in result.vars.columns
 
     def test_batch_nthreads(self):
         lcs = [make_lc(period=1.0 + i * 0.3) for i in range(4)]
         result = vt.Pipeline([cmd.rms()]).run_batch(lcs, nthreads=2)
-        assert len(result.stats) == 4
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 4
+        assert "RMS_0" in result.vars.columns
 
     # -----------------------------------------------------------------------
     # Capture LC
@@ -1863,10 +2230,10 @@ class TestDiskFilePipeline:
         result_disk = vt.Pipeline([cmd.rms()]).run_file(lc_file)
         result_mem  = vt.Pipeline([cmd.rms()]).run(lc)
 
-        assert result_disk.stats is not None
-        assert "RMS_0" in result_disk.stats.index
-        assert abs(float(result_disk.stats["RMS_0"]) -
-                   float(result_mem.stats["RMS_0"])) < 1e-6
+        assert result_disk.vars is not None
+        assert "RMS_0" in result_disk.vars.index
+        assert abs(float(result_disk.vars["RMS_0"]) -
+                   float(result_mem.vars["RMS_0"])) < 1e-6
 
     def test_run_file_name_from_stem(self, tmp_path):
         """Name in stats comes from the file stem, not a temp-file path."""
@@ -1875,7 +2242,7 @@ class TestDiskFilePipeline:
         self._write_lc(str(lc_file), lc)
 
         result = vt.Pipeline([cmd.rms()]).run_file(lc_file)
-        assert result.stats["Name"] == "mystar"
+        assert result.vars["Name"] == "mystar"
 
     def test_run_file_capture_lc(self, tmp_path):
         """capture_lc=True returns the modified LC when using run_file."""
@@ -1896,15 +2263,15 @@ class TestDiskFilePipeline:
         self._write_lc(str(lc_file), lc)
 
         result = vt.Pipeline([cmd.rms()]).run_file(str(lc_file))
-        assert "RMS_0" in result.stats.index
+        assert "RMS_0" in result.vars.index
 
     def test_run_file_example_lc(self):
         """run_file() works on the real EXAMPLES/2 file shipped with vartools."""
         if not os.path.isfile(EXAMPLE_LC):
             pytest.skip("EXAMPLES/2 not found")
         result = vt.Pipeline([cmd.rms()]).run_file(EXAMPLE_LC)
-        assert result.stats is not None
-        assert "RMS_0" in result.stats.index
+        assert result.vars is not None
+        assert "RMS_0" in result.vars.index
 
     def test_run_filelist_list_of_paths(self, tmp_path):
         """run_filelist() with a list of paths processes all LCs."""
@@ -1916,9 +2283,9 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths)
-        assert result.stats is not None
-        assert len(result.stats) == 3
-        assert "RMS_0" in result.stats.columns
+        assert result.vars is not None
+        assert len(result.vars) == 3
+        assert "RMS_0" in result.vars.columns
 
     def test_run_filelist_names_from_stems(self, tmp_path):
         """Name column is populated from file stems."""
@@ -1930,7 +2297,7 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths)
-        assert list(result.stats["Name"]) == ["alpha", "beta"]
+        assert list(result.vars["Name"]) == ["alpha", "beta"]
 
     def test_run_filelist_existing_list_file(self, tmp_path):
         """run_filelist() with a path to an existing list file."""
@@ -1945,7 +2312,7 @@ class TestDiskFilePipeline:
         list_file.write_text("\n".join(lc_files) + "\n")
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(list_file)
-        assert len(result.stats) == 3
+        assert len(result.vars) == 3
 
     def test_run_filelist_nthreads(self, tmp_path):
         """run_filelist() with nthreads > 1 still returns correct results."""
@@ -1957,7 +2324,7 @@ class TestDiskFilePipeline:
             paths.append(p)
 
         result = vt.Pipeline([cmd.rms()]).run_filelist(paths, nthreads=2)
-        assert len(result.stats) == 4
+        assert len(result.vars) == 4
 
     def test_run_filelist_pipeline(self, tmp_path):
         """run_filelist() works with a multi-command pipeline."""
@@ -1972,8 +2339,8 @@ class TestDiskFilePipeline:
             cmd.clip(sigclip=5.0),
             cmd.rms(),
         ]).run_filelist(paths)
-        assert len(result.stats) == 3
-        assert "RMS_1" in result.stats.columns
+        assert len(result.vars) == 3
+        assert "RMS_1" in result.vars.columns
 
 
 # ===========================================================================
@@ -2087,12 +2454,37 @@ class TestOutputAPICLI:
         assert "0" in args
 
     def test_sysrem_save_trends_path(self):
-        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends")
+        # save_trends is a single-file output (CLI grammar emits ``"1" path``,
+        # not the literal token "otrends" — that bug was fixed in fitting.py).
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends.txt")
         c._outdir = "/tmp"
         args = c._to_cli_args()
-        assert "otrends" in args
-        idx = args.index("otrends")
-        assert args[idx + 1] == "/data/trends"
+        assert "otrends" not in args
+        assert "/data/trends.txt" in args
+        i = args.index("/data/trends.txt")
+        # The path is preceded by the "1" emit-flag.
+        assert args[i - 1] == "1"
+
+    def test_sysrem_trends_outpath_recorded(self):
+        # _to_cli_args must record the chosen output path on the command
+        # so the global-file capture in pipeline.py can read it back.
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends="/data/trends.txt")
+        c._outdir = "/tmp"
+        c._to_cli_args()
+        assert getattr(c, "_trends_outpath", None) == "/data/trends.txt"
+
+    def test_sysrem_trends_outpath_default(self):
+        # save_trends=True (no path) → wrapper picks <outdir>/sysrem.trends.
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends=True)
+        c._outdir = "/tmp/cmd_0"
+        c._to_cli_args()
+        assert c._trends_outpath == "/tmp/cmd_0/sysrem.trends"
+
+    def test_sysrem_trends_outpath_none_when_not_saving(self):
+        c = cmd.SYSREM(1, 1, "airmass.txt", save_trends=False)
+        c._outdir = "/tmp"
+        c._to_cli_args()
+        assert c._trends_outpath is None
 
     def test_findblends_save_matches_path(self):
         c = cmd.findblends(matchrad=10.0, save_matches="/data/matches")
@@ -2202,6 +2594,53 @@ class TestOutputAPIEndToEnd:
         assert "autocorrelation_result_0" not in result.files
 
 
+class TestRunBatchOutputValidation:
+    """Pipeline.run_batch and LightCurveBatch.run reject cmd.o configurations
+    that are single-LC-only (outname= without outdir=).  This replaces the
+    earlier silent subprocess fallback / mid-run RuntimeError."""
+
+    def _three_lcs(self):
+        return [make_lc() for _ in range(3)]
+
+    def test_run_batch_rejects_outname_without_outdir(self, tmp_path):
+        pipe = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outname=str(tmp_path / "out.lc")),
+        ])
+        with pytest.raises(ValueError, match="single-LC mode"):
+            pipe.run_batch(self._three_lcs())
+
+    def test_lightcurvebatch_rejects_outname_without_outdir(self, tmp_path):
+        with pytest.raises(ValueError, match="single-LC mode"):
+            (vt.LightCurveBatch(self._three_lcs())
+             .clip(sigclip=5.0)
+             .o(outname=str(tmp_path / "out.lc"))
+             .run())
+
+    def test_run_batch_accepts_outname_plus_outdir(self, tmp_path):
+        # Both set: validation lets it through; today's CLI builder uses
+        # outdir for batch and the second cmd.o keyword (nameformat) gives
+        # each LC a distinct filename.
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        result = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outname=str(tmp_path / "x"),
+                  outdir=str(outdir),
+                  nameformat="%s.txt"),
+        ]).run_batch(self._three_lcs())
+        assert len(result.vars) == 3
+
+    def test_run_batch_accepts_outdir_only(self, tmp_path):
+        outdir = tmp_path / "out"
+        outdir.mkdir()
+        result = vt.Pipeline([
+            cmd.clip(sigclip=5.0),
+            cmd.o(outdir=str(outdir)),
+        ]).run_batch(self._three_lcs())
+        assert len(result.vars) == 3
+
+
 # ===========================================================================
 # Per-LC parameter tests
 # ===========================================================================
@@ -2233,6 +2672,30 @@ class TestPerLC:
         from pyvartools import PerLC
         with pytest.raises(ValueError):
             PerLC(np.ones((2, 3)))
+
+    def test_perlc_strings_preserved(self):
+        """PerLC(['a', 'b', 'c']) preserves strings (polymorphism)."""
+        from pyvartools import PerLC
+        p = PerLC(["alpha", "beta", "gamma"])
+        assert len(p) == 3
+        assert p[0] == "alpha"
+        assert p[1] == "beta"
+        assert isinstance(p[2], str)
+
+    def test_perlc_ints_stay_ints(self):
+        """PerLC(int list) preserves int type, no float coercion."""
+        from pyvartools import PerLC
+        p = PerLC([7, 99, -3])
+        assert isinstance(p[0], int) and not isinstance(p[0], bool)
+        assert p[1] == 99
+
+    def test_perlc_numeric_round_trip(self):
+        """Existing numeric callers still see floats (no behaviour change)."""
+        from pyvartools import PerLC
+        p = PerLC([0.1, 0.2, 0.15])
+        assert p[0] == pytest.approx(0.1)
+        # Float input → float output, even though no explicit cast happens.
+        assert isinstance(p[1], float)
 
     def test_perlc_repr(self):
         from pyvartools import PerLC
@@ -2316,14 +2779,17 @@ class TestPerLC:
         pipe = vt.Pipeline([cmd.LS(0.1, 10.0, 0.001)])
         col_assignments = {(0, "minp"): 2, (0, "maxp"): 3}
         subs = pipe._build_perlc_subs(col_assignments)
-        # Each attr is substituted with a unique variable name (bare identifier)
-        assert subs[0]["minp"] == "_perlc_0_minp"
-        assert subs[0]["maxp"] == "_perlc_0_maxp"
+        # Each attr is substituted with an ``"expr <varname>"`` string.  The
+        # "expr" form is portable across every command's value-spec parser
+        # (some commands — notably ``-BLSFixPer`` on its period slot — do
+        # not accept the bare ``"var NAME"`` form).
+        assert subs[0]["minp"] == "expr _perlc_0_minp"
+        assert subs[0]["maxp"] == "expr _perlc_0_maxp"
 
     def test_build_perlc_inlistvars(self):
         pipe = vt.Pipeline([cmd.LS(0.1, 10.0, 0.001)])
         col_assignments = {(0, "minp"): 2, (0, "maxp"): 3}
-        ivars = pipe._build_perlc_inlistvars(col_assignments)
+        ivars = pipe._build_cmdattr_perlc_vars(col_assignments)
         assert ivars["_perlc_0_minp"] == 2
         assert ivars["_perlc_0_maxp"] == 3
 
@@ -2369,16 +2835,19 @@ _VAR_PARAMS = [
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "maxp"),
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "subsample"),
     (lambda: cmd.aov_harm(2, 0.1, 10.0, 0.001, 2), "finetune"),
-    # BLS — rmin/rmax branch (default when qmin=qmax=None)
-    (lambda: cmd.BLS(0.1, 10.0), "minper"),
-    (lambda: cmd.BLS(0.1, 10.0), "maxper"),
-    (lambda: cmd.BLS(0.1, 10.0), "rmin"),
-    (lambda: cmd.BLS(0.1, 10.0), "rmax"),
-    (lambda: cmd.BLS(0.1, 10.0), "nbins"),
-    (lambda: cmd.BLS(0.1, 10.0), "subsample"),   # emitted in "optimal" branch
+    # BLS — rmin/rmax branch.  In r/q mode the user must supply nfreq=
+    # or df=; the "optimal" frequency grid is density-mode-only.
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "minper"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "maxper"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "rmin"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "rmax"),
+    (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "nbins"),
+    (lambda: cmd.BLS(0.1, 10.0, density_mode=True, stellar_density=1.0,
+                     min_exp_dur_frac=0.5, max_exp_dur_frac=1.5),
+        "subsample"),                            # "optimal" branch
     # BLS — qmin/qmax branch
-    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5), "qmin"),
-    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5), "qmax"),
+    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5, nfreq=1000), "qmin"),
+    (lambda: cmd.BLS(0.1, 10.0, qmin=0.02, qmax=0.5, nfreq=1000), "qmax"),
     # BLS — nfreq branch
     (lambda: cmd.BLS(0.1, 10.0, nfreq=1000), "nfreq"),
     # BLS — df branch
@@ -2422,8 +2891,8 @@ class TestPerLCEndToEnd:
         result = vt.Pipeline([
             cmd.LS(minp=minps, maxp=maxps, subsample=0.001, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "LS_Period_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "LS_Period_1_0" in result.vars.columns
 
     def test_perlc_explicit_wrapper(self):
         """Explicit PerLC([...]) wrapper works identically to numpy array."""
@@ -2434,7 +2903,7 @@ class TestPerLCEndToEnd:
             cmd.LS(minp=PerLC([0.1, 0.5]), maxp=10.0,
                    subsample=0.001, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
+        assert len(result.vars) == 2
 
     def test_perlc_run_filelist_paths(self):
         """run_filelist with a list of paths + per-LC array works."""
@@ -2443,7 +2912,7 @@ class TestPerLCEndToEnd:
             cmd.LS(minp=np.array([0.1, 0.5]), maxp=10.0,
                    subsample=0.001, npeaks=1)
         ]).run_filelist(paths)
-        assert len(result.stats) == 2
+        assert len(result.vars) == 2
 
     def test_perlc_aov_batch(self):
         """Per-LC minp values are correctly passed to aov for each LC."""
@@ -2453,8 +2922,8 @@ class TestPerLCEndToEnd:
             cmd.aov(minp=np.array([0.1, 0.5]), maxp=10.0,
                     subsample=0.001, finetune=2, npeaks=1)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "AOV_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "AOV_1_0" in result.vars.columns
 
     def test_perlc_bls_batch(self):
         """Per-LC minper/maxper values are correctly passed to BLS for each LC."""
@@ -2464,8 +2933,8 @@ class TestPerLCEndToEnd:
             cmd.BLS(minper=np.array([0.1, 0.5]), maxper=np.array([5.0, 10.0]),
                     rmin=0.01, rmax=0.5, nbins=200, npeaks=1, nfreq=5000)
         ]).run_batch(lcs)
-        assert len(result.stats) == 2
-        assert "BLS_Period_1_0" in result.stats.columns
+        assert len(result.vars) == 2
+        assert "BLS_Period_1_0" in result.vars.columns
 
 
 # ===========================================================================
@@ -2596,6 +3065,23 @@ class TestLoadUserlib:
         with patch("pyvartools.userlib._fetch_userlib_text", return_value=""):
             Cls = vt.load_userlib("/path/stitch.so", name="stitch")
         assert Cls.__doc__  # non-empty fallback
+
+    def test_load_userlib_preserves_symlink_basename(self, tmp_path):
+        """``load_userlib`` must not follow symlinks: libtool's dlopen
+        looks up ``<libbasename>_Initialize`` against the path passed to
+        ``-L``, and that lookup fails when the path's basename has the
+        versioned suffix (``stitch.so.0.0.0``).
+        """
+        from unittest.mock import patch
+        target = tmp_path / "stitch.so.0.0.0"
+        target.touch()
+        link = tmp_path / "stitch.so"
+        link.symlink_to(target.name)
+        with patch("pyvartools.userlib._fetch_userlib_text", return_value=""):
+            Cls = vt.load_userlib(str(link))
+        inst = Cls("mag err mask lcnum median")
+        assert inst._lib_path.endswith("stitch.so"), inst._lib_path
+        assert not inst._lib_path.endswith(".so.0.0.0"), inst._lib_path
 
 
 class TestDiscoverUserlibs:
@@ -2772,14 +3258,36 @@ class TestRunCombinelcs:
         idx = captured.index("lcnumvar")
         assert captured[idx + 1] == "lcnum"
 
-    def test_combinelcs_perlc_raises(self):
-        """PerLC attributes raise ValueError."""
+    def test_combinelcs_perlc_length_mismatch_raises(self):
+        """PerLC length must match the number of groups (M5)."""
         from pyvartools import PerLC
+        pipe = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.2, 0.3]), maxp=10.0, subsample=1e-3)
+        ])
+        with pytest.raises(ValueError, match="3 values but the batch has 2"):
+            pipe.run_combinelcs(
+                [["/tmp/a.lc", "/tmp/b.lc"], ["/tmp/c.lc", "/tmp/d.lc"]]
+            )
+
+    def test_combinelcs_perlc_emits_inlistvars(self, tmp_path):
+        """PerLC params produce -inlistvars and var/expr substitutions (M5)."""
+        from pyvartools import PerLC
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        groups = [
+            [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")],
+            [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")],
+        ]
         pipe = vt.Pipeline([
             cmd.LS(minp=PerLC([0.1, 0.2]), maxp=10.0, subsample=1e-3)
         ])
-        with pytest.raises(ValueError, match="PerLC"):
-            pipe.run_combinelcs([["/tmp/a.lc", "/tmp/b.lc"]])
+        captured, _ = self._capture_cmd(pipe, groups)
+        # The PerLC param is wired as a per-star variable via -inlistvars.
+        assert "-inlistvars" in captured
+        idx = captured.index("-inlistvars")
+        assert "_perlc_0_minp" in captured[idx + 1]
+        # And the LS command emits the variable through `expr`.
+        assert "_perlc_0_minp" in " ".join(captured)
 
     def test_combinelcs_randseed_in_cmd(self, tmp_path):
         (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
@@ -2799,6 +3307,155 @@ class TestRunCombinelcs:
         captured, result = self._capture_cmd(pipe, groups, delimiter=" ")
         assert "combinelcs" in captured
 
+    def test_combinelcs_lcnumvar_default(self, tmp_path):
+        """run_combinelcs() emits 'lcnumvar lcnum' by default (M4)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+    def test_combinelcs_lcnumvar_none_opts_out(self, tmp_path):
+        """Passing lcnumvar=None suppresses the lcnumvar qualifier (M4)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups, lcnumvar=None)
+        assert "combinelcs" in captured
+        assert "lcnumvar" not in captured
+
+    def test_combinelcs_capture_lc_overrides_lcnumvar_none(self, tmp_path):
+        """capture_lc=True forces lcnumvar='lcnum' even with explicit None (M6)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        groups = [[str(tmp_path / "a.lc")]]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, groups,
+                                         capture_lc=True, lcnumvar=None)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+
+class TestRunCombinelc:
+    """Unit tests for the singular Pipeline.run_combinelc() (M2)."""
+
+    def _capture_cmd(self, pipe, files, **kwargs):
+        from unittest.mock import patch
+        captured = []
+
+        def mock_execute(cmd_list, **kw):
+            captured.extend(cmd_list)
+            return ("Name = a\nRMS_0 = 0.01\n", "")
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch("pyvartools.pipeline.parse_oneline_output",
+                       return_value=pd.DataFrame([{"Name": "a", "RMS_0": 0.01}])):
+                result = pipe.run_combinelc(files, **kwargs)
+        return captured, result
+
+    def test_run_combinelc_emits_combinelcs(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        files = [str(tmp_path / "a.lc"), str(tmp_path / "b.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, files)
+        assert "combinelcs" in captured
+
+    def test_run_combinelc_default_lcnumvar(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        files = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, files)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+    def test_run_combinelc_returns_single_result(self, tmp_path):
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        files = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        _, result = self._capture_cmd(pipe, files)
+        assert isinstance(result, vt.Result)
+        # Result.vars is always a Series, not a DataFrame
+        assert isinstance(result.vars, pd.Series)
+
+    def test_run_combinelc_empty_raises(self):
+        pipe = vt.Pipeline([cmd.rms()])
+        with pytest.raises(ValueError, match="at least one file"):
+            pipe.run_combinelc([])
+
+
+class TestRunFilelistCombinelcs:
+    """Unit tests for the combinelcs=True flag on run_filelist (M3)."""
+
+    def _capture_cmd(self, pipe, lc_paths, **kwargs):
+        from unittest.mock import patch
+        captured = []
+
+        def mock_execute(cmd_list, **kw):
+            captured.extend(cmd_list)
+            return ("Name = a\nRMS_0 = 0.01\n", "")
+
+        with patch.object(pipe, "_execute", side_effect=mock_execute):
+            with patch("pyvartools.pipeline.parse_oneline_output",
+                       return_value=pd.DataFrame([{"Name": "a", "RMS_0": 0.01}])):
+                result = pipe.run_filelist(lc_paths, **kwargs)
+        return captured, result
+
+    def test_filelist_combinelcs_emits_keywords(self, tmp_path):
+        """combinelcs=True appends 'combinelcs lcnumvar lcnum' to -l."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        (tmp_path / "b.lc").write_text("1.0 10.1 0.01\n")
+        # User supplies one comma-joined line per group.
+        lc_paths = [f"{tmp_path / 'a.lc'},{tmp_path / 'b.lc'}"]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True)
+        assert "combinelcs" in captured
+        cidx = captured.index("combinelcs")
+        assert captured[cidx + 1] == "lcnumvar"
+        assert captured[cidx + 2] == "lcnum"
+
+    def test_filelist_combinelcs_lcnumvar_none(self, tmp_path):
+        """combinelcs=True with lcnumvar=None emits combinelcs but not lcnumvar."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True,
+                                         lcnumvar=None)
+        assert "combinelcs" in captured
+        assert "lcnumvar" not in captured
+
+    def test_filelist_combinelcs_capture_lc_overrides_lcnumvar_none(self, tmp_path):
+        """capture_lc=True forces lcnumvar='lcnum' on run_filelist too (M6)."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths, combinelcs=True,
+                                         capture_lc=True, lcnumvar=None)
+        assert "lcnumvar" in captured
+        idx = captured.index("lcnumvar")
+        assert captured[idx + 1] == "lcnum"
+
+    def test_filelist_combinelcs_false_no_keyword(self, tmp_path):
+        """combinelcs=False (default) does not emit combinelcs."""
+        (tmp_path / "a.lc").write_text("1.0 10.0 0.01\n")
+        lc_paths = [str(tmp_path / "a.lc")]
+        pipe = vt.Pipeline([cmd.rms()])
+        captured, _ = self._capture_cmd(pipe, lc_paths)
+        assert "combinelcs" not in captured
+
+    def test_filelist_combinelcs_perlc_raises(self):
+        """combinelcs=True with PerLC params raises ValueError."""
+        from pyvartools import PerLC
+        pipe = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.2]), maxp=10.0, subsample=1e-3)
+        ])
+        with pytest.raises(ValueError, match="combinelcs=True"):
+            pipe.run_filelist(["/tmp/a.lc,/tmp/b.lc", "/tmp/c.lc,/tmp/d.lc"],
+                              combinelcs=True)
+
 
 @pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
 class TestRunCombinelcsIntegration:
@@ -2806,8 +3463,63 @@ class TestRunCombinelcsIntegration:
     def test_run_combinelcs_basic(self):
         groups = [[EXAMPLE_LC, EXAMPLE_LC]]
         result = vt.Pipeline([cmd.rms()]).run_combinelcs(groups)
-        assert len(result.stats) == 1
-        assert "RMS_0" in result.stats.columns
+        assert len(result.vars) == 1
+        assert "RMS_0" in result.vars.columns
+
+    def test_run_combinelc_basic(self):
+        """Singular run_combinelc returns a single Result."""
+        result = vt.Pipeline([cmd.rms()]).run_combinelc([EXAMPLE_LC, EXAMPLE_LC])
+        assert isinstance(result, vt.Result)
+        assert "RMS_0" in result.vars.index
+
+    def test_run_filelist_combinelcs(self, tmp_path):
+        """run_filelist(combinelcs=True) accepts comma-joined paths."""
+        # Build a list file with one comma-joined line.
+        list_file = tmp_path / "groups.txt"
+        list_file.write_text(f"{EXAMPLE_LC},{EXAMPLE_LC}\n")
+        result = vt.Pipeline([cmd.rms()]).run_filelist(
+            str(list_file), combinelcs=True
+        )
+        assert len(result.vars) == 1
+        assert "RMS_0" in result.vars.columns
+
+    def test_run_combinelcs_perlc(self):
+        """PerLC values flow through to vartools, one per group (M5)."""
+        from pyvartools import PerLC
+        groups = [[EXAMPLE_LC, EXAMPLE_LC], [EXAMPLE_LC, EXAMPLE_LC]]
+        result = vt.Pipeline([
+            cmd.LS(minp=PerLC([0.1, 0.5]), maxp=10.0,
+                   subsample=0.001, npeaks=1)
+        ]).run_combinelcs(groups)
+        assert len(result.vars) == 2
+        assert "LS_Period_1_0" in result.vars.columns
+
+    def test_run_combinelcs_capture_lc_has_lcnum(self):
+        """capture_lc=True returns an LC with the lcnum column populated (M6)."""
+        groups = [[EXAMPLE_LC, EXAMPLE_LC]]
+        batch = vt.Pipeline([cmd.rms()]).run_combinelcs(groups, capture_lc=True)
+        assert batch.lcs[0] is not None
+        assert "lcnum" in batch.lcs[0]._df.columns
+        # Two source files → lcnum should take values 0 and 1.
+        assert sorted(batch.lcs[0]._df["lcnum"].unique().tolist()) == [0, 1]
+
+    def test_run_combinelc_capture_lc_has_lcnum(self):
+        """Singular form: capture_lc=True returns one LC with lcnum (M6)."""
+        result = vt.Pipeline([cmd.rms()]).run_combinelc(
+            [EXAMPLE_LC, EXAMPLE_LC], capture_lc=True
+        )
+        assert result.lc is not None
+        assert "lcnum" in result.lc._df.columns
+
+    def test_run_combinelcs_capture_lc_overrides_none(self):
+        """capture_lc=True forces lcnumvar='lcnum' even if the user passed None (M6)."""
+        groups = [[EXAMPLE_LC, EXAMPLE_LC]]
+        batch = vt.Pipeline([cmd.rms()]).run_combinelcs(
+            groups, capture_lc=True, lcnumvar=None
+        )
+        # The captured LC must still carry the lcnum column despite the opt-out.
+        assert batch.lcs[0] is not None
+        assert "lcnum" in batch.lcs[0]._df.columns
 
 
 class TestPipelineUserCommandSubprocessFallback:
@@ -2836,3 +3548,303 @@ class TestPipelineUserCommandSubprocessFallback:
             Stitch = vt.load_userlib("/path/stitch.so", name="stitch")
         pipe = vt.Pipeline([Stitch("mag err mask lcnum median")])
         assert pipe._has_user_commands() is True
+
+
+# ===========================================================================
+# Integration: cmd.python (mirrors the CLI `-python` examples)
+# ===========================================================================
+#
+# These tests run vartools as a subprocess and exercise the `-python`
+# command end-to-end.  They are gated on `_HAVE_BINARY` so the suite
+# still passes on machines where vartools is not installed; they will
+# additionally fail if vartools was built *without* Python support
+# (`./configure --without-python`), which is appropriate — there's no
+# wrapper-side patch that can reach a vartools that can't run -python.
+
+@pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
+class TestPythonIntegration:
+    """End-to-end coverage of cmd.python in subprocess mode.
+
+    The reference CLI examples in ``docs/cli/python-r.md`` are reproduced
+    here as a Python pipeline, asserting that the documented output
+    column names and (where stable) values appear.
+    """
+
+    # Build an absolute-path list from the canonical EXAMPLES/{1..10} set.
+    # The shipped EXAMPLES/lc_list uses relative paths (`EXAMPLES/1`, …)
+    # which assume the test is run from the vartools source root.  Using
+    # explicit absolute paths keeps these tests location-independent.
+    LC_LIST = [os.path.join(EXAMPLES_DIR, str(i)) for i in range(1, 11)]
+
+    def test_python_inline_var_reduction(self):
+        """Mirror CLI Example 1: b = numpy.var(mag)."""
+        batch = (vt.Pipeline()
+                 .python("b = numpy.var(mag)",
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+        # Documented value for EXAMPLES/2 is 0.001342… — no need to be
+        # bit-exact, but a sanity tolerance catches gross marshalling bugs.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_0"].iloc[0]
+        assert abs(ex2 - 0.0013420988) < 1e-7
+
+    def test_python_init_inline(self):
+        """init code defines a helper function used in the main code."""
+        batch = (vt.Pipeline()
+                 .python("b = mean_minus_zero(mag)",
+                         init="def mean_minus_zero(x): return float(numpy.mean(x))",
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_init_fromfile(self, tmp_path):
+        """init_fromfile reads helper definitions from a .py file."""
+        init_file = tmp_path / "init.py"
+        init_file.write_text("def avg(x): return float(numpy.mean(x))\n")
+        batch = (vt.Pipeline()
+                 .python("b = avg(mag)",
+                         init=str(init_file), init_fromfile=True,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_fromfile(self, tmp_path):
+        """fromfile reads the main code body from a .py file."""
+        cmd_file = tmp_path / "cmd.py"
+        cmd_file.write_text("b = float(numpy.std(mag))\n")
+        batch = (vt.Pipeline()
+                 .python(str(cmd_file), fromfile=True,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+
+    def test_python_vars_combined(self):
+        """`vars` shorthand passes the same names IN and OUT, used here
+        to round-trip an LC vector (mag in, mag out)."""
+        # vartools' grammar makes `vars` exclusive of `invars`/`outvars`,
+        # so the wrapper emits `vars mag` and the user code may both
+        # read and reassign mag.  -rms before/after demonstrates the
+        # round-trip succeeded.
+        batch = (vt.Pipeline()
+                 .rms()
+                 .python("mag = mag - numpy.mean(mag)", vars="mag")
+                 .rms()
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        # After de-meaning, Mean_Mag_2 should be ~0; RMS unchanged.
+        for v in batch.vars["Mean_Mag_2"]:
+            assert abs(v) < 1e-10
+        for pre, post in zip(batch.vars["RMS_0"], batch.vars["RMS_2"]):
+            assert abs(pre - post) < 1e-10
+
+    def test_python_process_all_lcs(self):
+        """Mirror CLI Example 2-style usage: a single call processes
+        the whole batch.  invars arrive as lists of arrays."""
+        code = (
+            "b = []\n"
+            "for arr in mag: b.append(float(numpy.var(arr)))\n"
+        )
+        batch = (vt.Pipeline()
+                 .python(code,
+                         invars="mag", outvars="b", outputcolumns="b",
+                         process_all_lcs=True)
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        assert "PYTHON_b_0" in batch.vars.columns
+        # Same answer as Example 1 (per-LC variance) — round-trip check.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_0"].iloc[0]
+        assert abs(ex2 - 0.0013420988) < 1e-7
+
+    def test_python_continueprocess(self):
+        """The 2nd -python(continueprocess=1) sees module-level state
+        from the 1st by sharing the same Python subprocess.
+
+        Each -python call's body runs inside a generated wrapper
+        function, so plain assignments are local — to share across
+        calls we must declare ``global``.  This is the canonical use
+        of ``continueprocess`` (re-using imports / cached state /
+        helper objects without paying the init cost twice).
+        """
+        batch = (vt.Pipeline()
+                 .python("global _shared_mult\n_shared_mult = 1000.0",
+                         invars="mag", outvars="mag")
+                 .python("global _shared_mult\n"
+                         "b = _shared_mult * float(numpy.var(mag))",
+                         continueprocess=1,
+                         invars="mag", outvars="b", outputcolumns="b")
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        # PYTHON_b_1 = 1000 × variance.  EXAMPLES/2 has variance
+        # 0.001342 → expected ~1.342 within whitespace-format tolerance.
+        ex2 = batch.vars[batch.vars["Name"] == "2"]["PYTHON_b_1"].iloc[0]
+        assert abs(ex2 - 1.3420988) < 1e-3
+
+    def test_python_modifies_lc_vector(self):
+        """Code that subtracts the mean of mag should leave RMS unchanged
+        but Mean_Mag near zero.  Confirms the LC-vector round-trip."""
+        batch = (vt.Pipeline()
+                 .rms()
+                 .python("mag = mag - numpy.mean(mag)", vars="mag")
+                 .rms()
+                 ).run_filelist(self.LC_LIST,
+                                perpoint_columns={"t": 1, "mag": 2, "err": 3})
+        # After de-meaning, Mean_Mag should be ~0.
+        for v in batch.vars["Mean_Mag_2"]:
+            assert abs(v) < 1e-10
+        # RMS should be unchanged (de-meaning is a constant shift).
+        for pre, post in zip(batch.vars["RMS_0"], batch.vars["RMS_2"]):
+            assert abs(pre - post) < 1e-10
+
+
+# ===========================================================================
+# Integration: cmd.python(inprocess=True) — Stage 2 callback hook
+# ===========================================================================
+#
+# Library mode is required for the callback hook to fire.  Each test
+# constructs a single-LC pipeline and runs it via Pipeline.run(lc) so
+# pyvartools can take the in-process library path; the wrapper pre-checks
+# that subprocess-mode-forcing factors are absent.
+
+@pytest.mark.skipif(not _HAVE_BINARY, reason="vartools not installed")
+class TestPythonInprocessIntegration:
+    """End-to-end coverage of cmd.python(inprocess=True)."""
+
+    def test_inprocess_basic_var(self):
+        """Inprocess path returns the same variance as the subprocess path."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r_sub = vt.Pipeline().python(
+            "b = float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=False).run(lc)
+        r_in = vt.Pipeline().python(
+            "b = float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True).run(lc)
+        assert abs(r_sub.vars["PYTHON_b_0"] - r_in.vars["PYTHON_b_0"]) < 1e-12
+
+    def test_inprocess_sees_main_namespace(self):
+        """User code in the inprocess body can reference globals defined
+        by the calling host script — this is the entire point of the
+        callback hook."""
+        import sys
+        # Inject a sentinel into __main__ that the user code resolves.
+        sys.modules["__main__"]._VT_TEST_K = 100.0
+        try:
+            lc = vt.LightCurve.from_file(EXAMPLE_LC)
+            r = vt.Pipeline().python(
+                "b = _VT_TEST_K + float(numpy.var(mag))",
+                invars="mag", outvars="b", outputcolumns="b",
+                inprocess=True).run(lc)
+            assert 99.9 < r.vars["PYTHON_b_0"] < 100.1
+        finally:
+            del sys.modules["__main__"]._VT_TEST_K
+
+    def test_inprocess_custom_namespace(self):
+        """A custom namespace= dict isolates user code from __main__."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        sandbox = {"my_factor": 3.0}
+        r = vt.Pipeline().python(
+            "b = my_factor * float(numpy.var(mag))",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True, namespace=sandbox).run(lc)
+        # 3.0 × 0.001342 ≈ 0.004026.
+        assert abs(r.vars["PYTHON_b_0"] - 0.004026) < 1e-4
+
+    def test_inprocess_lc_vector_mutation(self):
+        """Mutating an LC vector inside inprocess code is reflected in
+        downstream commands (Mean_Mag → 0 after subtracting mean)."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r = (vt.Pipeline()
+             .rms()
+             .python("mag = mag - numpy.mean(mag)",
+                     vars="mag", inprocess=True)
+             .rms()
+             ).run(lc)
+        assert abs(r.vars["Mean_Mag_2"]) < 1e-10
+        assert abs(r.vars["RMS_0"] - r.vars["RMS_2"]) < 1e-10
+
+    def test_inprocess_init_runs_once(self):
+        """init code runs exactly once before per-LC bodies — a function
+        defined in init is then callable from the main body."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        r = vt.Pipeline().python(
+            "b = compute_metric(mag)",
+            init="def compute_metric(arr): return float(numpy.std(arr) * 2)",
+            invars="mag", outvars="b", outputcolumns="b",
+            inprocess=True).run(lc)
+        # std(EXAMPLES/2) * 2 ≈ 2 × 0.0366 ≈ 0.0732.
+        assert 0.07 < r.vars["PYTHON_b_0"] < 0.08
+
+    def test_inprocess_refused_for_run_filelist(self):
+        """run_filelist() must hard-error rather than silently fall
+        back to subprocess (which would defeat the inprocess intent)."""
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_filelist([EXAMPLE_LC],
+                            perpoint_columns={"t": 1, "mag": 2, "err": 3})
+
+    def test_inprocess_refused_for_run_batch(self):
+        """run_batch() also rejects inprocess=True."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_batch([lc])
+
+    def test_inprocess_refused_for_run_combinelcs(self):
+        """run_combinelcs() also rejects inprocess=True."""
+        with pytest.raises(RuntimeError, match="inprocess=True"):
+            (vt.Pipeline()
+             .python("b = 0.0", outvars="b", outputcolumns="b",
+                     inprocess=True)
+             ).run_combinelcs([[EXAMPLE_LC, EXAMPLE_LC]])
+
+    def test_inprocess_refused_when_no_marshalled_vars(self):
+        """``cmd.python(inprocess=True)`` with no invars/outvars/vars
+        rejects at construction time -- vartools' parser would set
+        processallvariables=1 in that case, which the in-process
+        callback explicitly does not support and which would otherwise
+        fall through to a subprocess fork (unsafe inside a Python host
+        process; segfaults during process_lc)."""
+        with pytest.raises(ValueError, match="inprocess=True"):
+            cmd.python("x = 1", inprocess=True)
+
+    def test_inprocess_refused_with_process_all_lcs(self):
+        """``cmd.python(inprocess=True, process_all_lcs=True)`` -- the
+        process_all_lcs path uses RunPythonCommand_all_lcs which has
+        no in-process branch, so the call would fall through to the
+        unsafe subprocess fork."""
+        with pytest.raises(ValueError, match="process_all_lcs=True"):
+            cmd.python("x = 1", invars="mag",
+                       inprocess=True, process_all_lcs=True)
+
+    def test_inprocess_refused_with_continueprocess(self):
+        """``cmd.python(inprocess=True, continueprocess=N)`` -- the
+        in-process callback gate explicitly rejects iscontinueprocess
+        (runpython.c:2640)."""
+        with pytest.raises(ValueError, match="continueprocess"):
+            cmd.python("x = 1", invars="mag",
+                       inprocess=True, continueprocess=0)
+
+    def test_inprocess_with_save_periodogram_runs_in_library_mode(self):
+        """save_*=True is now library-compatible, so combining it with
+        cmd.python(inprocess=True) (with proper invars/outvars) runs
+        end-to-end without forcing subprocess.  This used to be blocked
+        by a conservative obstacle list as a workaround for the
+        no-invars segfault, which is now caught at ctor time."""
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = (vt.Pipeline()
+                  .LS(0.1, 10.0, 0.1, save_periodogram=True)
+                  .python("b = float(numpy.var(mag))",
+                          invars="mag", outvars="b", outputcolumns="b",
+                          inprocess=True)
+                  ).run(lc)
+        assert "PYTHON_b_1" in result.vars.index
+        assert "LS_periodogram_0" in result.files

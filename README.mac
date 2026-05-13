@@ -1,0 +1,160 @@
+VARTOOLS — macOS Installation Notes
+====================================
+
+This file covers macOS-specific installation details.  The main ``README``
+covers platform-independent material (dependencies, general ``configure``
+options, ``pyvartools``, etc.); read it first.
+
+VARTOOLS builds and runs on modern macOS (tested on Apple Silicon and Intel).
+A known macOS-specific issue with unnamed POSIX semaphores is worked around
+at compile time, so parallel processing via ``-parallel`` works correctly.
+
+The instructions below assume `Homebrew <https://brew.sh>`_ as the package
+manager.  Homebrew installs to different prefixes depending on the CPU:
+
+* Intel Macs: ``/usr/local``
+* Apple Silicon (M1/M2/M3/M4): ``/opt/homebrew``
+
+The commands below use ``$(brew --prefix)`` to stay architecture-agnostic.
+
+
+1. Prerequisites
+----------------
+
+1.1 Xcode Command Line Tools
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Apple's ``clang`` satisfies the C-compiler requirement.  Install the Command
+Line Tools (bundled with Xcode, or installable standalone)::
+
+    xcode-select --install
+
+This provides ``clang``, ``make``, ``ld``, and the macOS system headers.
+
+1.2 Homebrew packages
+~~~~~~~~~~~~~~~~~~~~~
+
+macOS's default ``libtool`` is Apple's library-archive tool — **not** the
+GNU libtool that autotools expects.  Homebrew installs GNU libtool under
+the name ``glibtool`` / ``glibtoolize`` to avoid the conflict.  This only
+matters if you run ``./autogen.sh``; the pre-generated ``configure`` in
+the release tarball works with Apple's tools.
+
+macOS also does not ship a Fortran compiler, and the embedded Python and R
+commands require their respective development libraries.  Install
+everything required plus all optional dependencies::
+
+    brew update
+    brew install \
+        gcc               `# brings gfortran` \
+        libtool           `# GNU libtool, installed as glibtool` \
+        autoconf automake `# only needed for ./autogen.sh` \
+        cfitsio \
+        gsl \
+        python@3          `# or use system Python 3` \
+        numpy \
+        r
+
+``pthread`` is part of libSystem on macOS — no extra install is needed,
+and ``configure``'s ``-lpthread`` check succeeds automatically.
+
+1.3 CSPICE (not in Homebrew)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Build CSPICE from source.  Pick the matching distribution from
+`NAIF's download page <https://naif.jpl.nasa.gov/pub/naif/toolkit/C/>`_:
+
+* Intel Macs: ``PC_MacOSX_GCC_64bit``
+* Apple Silicon: ``MacM1_OSX_clang_64bit``
+
+For Apple Silicon::
+
+    mkdir -p ~/src && cd ~/src
+    curl -O https://naif.jpl.nasa.gov/pub/naif/toolkit//C/MacM1_OSX_clang_64bit/packages/cspice.tar.Z
+    gunzip cspice.tar.Z
+    tar -xf cspice.tar
+    cd cspice
+    sh makeall.csh       # ("csh" script but plain sh works fine)
+
+This produces ``~/src/cspice/lib/cspice.a`` and ``~/src/cspice/include/``,
+which you'll point ``configure`` at with ``--with-cspice=~/src/cspice``.
+
+
+2. Build and install
+--------------------
+
+The key difference from Linux is that Homebrew-installed libraries are in
+``$(brew --prefix)`` (i.e. ``/opt/homebrew`` on Apple Silicon, ``/usr/local``
+on Intel), which is not always on the default compiler / linker search
+path.  Pass the paths explicitly with ``CPPFLAGS`` / ``LDFLAGS``::
+
+    HOMEBREW_PREFIX=$(brew --prefix)
+    ./configure \
+        --prefix=$HOME/.local \
+        --with-cspice=$HOME/src/cspice \
+        CPPFLAGS="-I${HOMEBREW_PREFIX}/include" \
+        LDFLAGS="-L${HOMEBREW_PREFIX}/lib" \
+        FC=gfortran F77=gfortran
+    make
+    make install
+
+**FC / F77 note.**  Homebrew's ``gcc`` package provides ``gfortran``, but
+the system's default ``F77`` environment variable may point at something
+else (or be unset).  Always pass ``F77=gfortran FC=gfortran`` explicitly
+on macOS unless you're sure of the autodetection.
+
+**Apple Silicon note.**  If you see linker errors about incompatible
+architectures (``building for macOS-x86_64 but attempting to link with
+file built for macOS-arm64``), you probably have a mix of Intel and ARM
+Homebrew installations.  ``brew doctor`` will flag this.
+
+Verify the installation::
+
+    $HOME/.local/bin/vartools -help
+
+
+3. pyvartools (Python wrapper)
+------------------------------
+
+Use the same Python interpreter that ``configure`` detected at build time
+(otherwise the ``-python`` command inside ``vartools`` won't be able to
+``import`` the packages you install).  The safest approach is a conda or
+virtual environment::
+
+    cd python
+    pip install -e .
+
+See the main ``README`` for details.
+
+
+4. Typical problems
+-------------------
+
+* **``configure`` can't find ``libcfitsio`` / ``libgsl``** — you're missing
+  the ``CPPFLAGS`` / ``LDFLAGS`` overrides pointing at your Homebrew prefix.
+  See the example ``configure`` invocation above.
+
+* **``ld: library not found for -lgfortran``** — the system default Fortran
+  library path isn't set.  With Homebrew's ``gcc``, ``gfortran`` lives in
+  ``$(brew --prefix)/lib/gcc/current``.  Pass ``F77=gfortran FC=gfortran``
+  and make sure ``LDFLAGS`` includes ``-L$(brew --prefix)/lib``.
+
+* **``configure``'s ``autoreconf`` step fails with ``libtoolize: command not
+  found``** — you're running ``./autogen.sh`` on macOS.  Use ``glibtoolize``
+  instead, which is what Homebrew's GNU libtool installs as.  Either alias
+  it in your shell (``alias libtoolize=glibtoolize``) or edit the autogen
+  script to call ``glibtoolize`` directly.
+
+* **``configure`` silently skips the ``-python`` command** — ``python3``
+  on your ``PATH`` doesn't match the one the configure script probed, or
+  the NumPy headers aren't installed for it.  Check which interpreter
+  ``configure`` found by examining the output.  Homebrew's ``python@3`` is
+  safest for this because ``brew install numpy`` sets it up correctly.
+
+* **``-parallel N`` produced errors on older macOS** — this was fixed in
+  VARTOOLS 1.51 (the code now uses named semaphores on macOS since ``sem_init``
+  is unsupported).  Upgrade to 1.51 or newer.
+
+* **Runtime error ``image not found`` for a Homebrew library** — after
+  upgrading Homebrew, library versions may have changed.  Rebuild
+  (``make clean && make``) after significant Homebrew upgrades.

@@ -193,7 +193,12 @@ def load_userlib(
                 super().__init__(
                     f"{variables} {errors} {masks} {lcnum} {method}")
     """
-    resolved = Path(lib_path).resolve()
+    # Use absolute() rather than resolve() so symlink names like "stitch.so"
+    # are preserved.  vartools' libtool dlopen needs the basename without a
+    # version suffix (e.g. ".so.0.0.0") for symbol lookup to find
+    # `<libbasename>_Initialize`, so following the symlink to the underlying
+    # versioned filename breaks the load.
+    resolved = Path(lib_path).absolute()
     if name is None:
         name = resolved.name.split(".")[0]
     if cls_name is None:

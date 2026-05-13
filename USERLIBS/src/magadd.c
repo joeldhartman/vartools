@@ -138,6 +138,18 @@ void magadd_ShowHelp(FILE *outfile)
   fprintf(outfile,"Add a constant to magnitudes of a light curve. If \"fix\" is given then the constant specified on the command line will be added for all light curves. If \"list\" is given, the constant will be read-in from the input-list file for each star, use the \"column\" keyword to optionally specify the column number to read from the input list. If \"fixcolumn\" is given then the constant will be taken from a previously computed output statistic. If \"expr\" is given then the constant will be determined by evaluating an analytic expression.\n\n");
 }
 
+void magadd_ShowExample(FILE *outfile)
+/* Output an example for this command */
+{
+  fprintf(outfile,
+          "\nvartools -L USERLIBS/src/.libs/magadd.so \\\n"
+          "\t-i EXAMPLES/2 -oneline \\\n"
+          "\t-rms \\\n"
+          "\t-magadd fix 0.5 \\\n"
+          "\t-rms\n\n"
+          "Add the constant 0.5 to every magnitude of EXAMPLES/2 using the -magadd extension. The two -rms calls before and after -magadd show that the mean magnitude shifts by 0.5 mag while the RMS is unchanged. The Magadd_addval_1 output column records the offset that was applied.\n");
+}
+
 void magadd_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)
 /* This function runs the command on a light curve.  
 

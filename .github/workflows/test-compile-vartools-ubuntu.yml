@@ -16,9 +16,68 @@ jobs:
         run: sudo apt-get install gfortran
       - name: Install CFITSIO
         run: sudo apt-get install libcfitsio-dev
+      - name: Install GSL
+        run: sudo apt-get install libgsl-dev
       - name: Install R dev libraries
         run: sudo apt-get install r-base-dev
+      # Set up Python BEFORE ./configure: vartools's configure looks
+      # for ${PYTHON}-config and tries to import numpy to locate the
+      # headers (configure.ac:201-260).  Without dev headers + numpy
+      # available at configure time, libvartoolspipeline.so builds
+      # without _HAVE_PYTHON, which breaks `-python` everywhere.  The
+      # same Python is used by setup-python, the embedded interpreter,
+      # and the pytest runner -- avoids ABI mismatch on the embedded
+      # Python.so.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python build deps (visible at configure time)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy
       - name: Configure VARTOOLS
-        run: ./configure
+        # The AX_PYTHON_DEFAULT macro defaults Python support OFF;
+        # need --enable-python=PATH to turn it on (m4/ax_python_embed.m4
+        # AX_PYTHON_ENABLE).  The plain `--enable-python` form would
+        # search only /usr/bin, missing setup-python's
+        # /opt/hostedtoolcache install -- so pass the explicit path.
+        #
+        # Also pass --with-pythonconfig=$(which python3-config)
+        # explicitly: setup-python ships `python3-config` but not the
+        # bare `python-config`, so the default check for
+        # `${PYTHON}-config` (configure.ac:212) fails.  Without
+        # python-config, PYTHON_CSPEC is unset and the subsequent
+        # AC_CHECK_HEADER for numpy/arrayobject.h fails because its
+        # prologue `#include "Python.h"` can't find Python.h.
+        run: |
+          ./configure \
+            --enable-python=$(which python) \
+            --with-pythonconfig=$(which python3-config)
       - name: make VARTOOLS
         run: make
+      - name: Install VARTOOLS
+        run: sudo make install
+      - name: Install Python test deps
+        run: python -m pip install pytest pytest-cov pandas astropy
+      - name: Install pyvartools
+        # No sudo: `make install-python` runs `pip install .` and we
+        # want it in setup-python's site-packages (not the system
+        # python3 -- sudo strips PATH and would resolve a different
+        # pip).
+        run: make install-python
+      # `make install-python` runs `pip install .` from the srcdir's
+      # python/ subtree.  libvartoolspipeline.so lives at
+      # $prefix/share/vartools/USERLIBS/.  pyvartools' find_library()
+      # search includes the binary's RPATH and ldconfig, but libtool
+      # can strip the build-tree RPATH at install time and USERLIBSDIR
+      # isn't in the default ldconfig path on a fresh Ubuntu image.
+      # Set VARTOOLS_LIBRARY explicitly so the runtime-config branch
+      # of find_library() picks it up.
+      - name: Run pyvartools tests
+        env:
+          VARTOOLS_LIBRARY: /usr/local/share/vartools/USERLIBS/libvartoolspipeline.so
+        run: |
+          ls -la /usr/local/share/vartools/USERLIBS/ || true
+          cd python
+          python -m pytest tests/ -q --tb=line --maxfail=10

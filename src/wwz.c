@@ -260,18 +260,18 @@ void WriteFitsImage_WWZ(char *outname, double f0, double df, int Nf,
   extensions[5] = ya[2];
 
   if (fits_create_file(&fptr, outname, &status)) {
-    error2(ERR_CANNOTWRITE,outname);
+    vt_error2(ERR_CANNOTWRITE,outname);
   }
   
   for(k=0; k < Nextension; k++) {
 
     if(!k) {
       if ( fits_create_img(fptr, bitpix, naxis, naxes, &status)) {
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
       }
     } else {
       if ( fits_insert_img(fptr, bitpix, naxis, naxes, &status)) {
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
       }
     }
   
@@ -279,7 +279,7 @@ void WriteFitsImage_WWZ(char *outname, double f0, double df, int Nf,
     nelements = naxes[0] * naxes[1];
 
     if( fits_write_img(fptr, TDOUBLE, fpixel, nelements, extensions[k], &status) )
-      error2(ERR_CANNOTWRITE,outname);
+      vt_error2(ERR_CANNOTWRITE,outname);
   
     tmp = 2;
     fits_update_key(fptr, TLONG, "WCSAXES", &tmp, "", &status);
@@ -345,7 +345,7 @@ void WriteFitsImage_WWZ(char *outname, double f0, double df, int Nf,
   }
 
   if (fits_close_file(fptr, &status)) {
-    error2(ERR_CANNOTWRITE,outname);
+    vt_error2(ERR_CANNOTWRITE,outname);
   }
 
   return;
@@ -362,7 +362,7 @@ void WriteAsciiData_WWZ(char *outfullfilename, double f0, double df, int Nf,
   double f, tau;
 
   if((outfile = fopen(outfullfilename,"w")) == NULL)
-    error2(ERR_CANNOTWRITE,outfullfilename);
+    vt_error2(ERR_CANNOTWRITE,outfullfilename);
 
   fprintf(outfile,"# Time_Shift   Frequency   WWZ   WWA   Neff   Constant_Coeff   Cosine_Coeff  Sine_Coeff\n");
   fprintf(outfile,"# [1]          [2]         [3]   [4]   [5]    [6]              [7]           [8]\n");
@@ -393,7 +393,7 @@ void WriteAsciiDataMax_WWZ(char *outmaxfilename, double tau0, double dtau,
   double tau;
   
   if((outfile = fopen(outmaxfilename,"w")) == NULL)
-    error2(ERR_CANNOTWRITE,outmaxfilename);
+    vt_error2(ERR_CANNOTWRITE,outmaxfilename);
   
   fprintf(outfile,"# Time_Shift   WWZ   Frequency   Power   Amplitude   Local_Average   Neff\n");
   fprintf(outfile,"# [1]          [2]   [3]         [4]     [5]         [6]             [7]\n");
@@ -448,7 +448,7 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
   } else {
     if((t_mask = (double *) malloc(p->NJD[threadid]*sizeof(double))) == NULL ||
        (mag_mask = (double *) malloc(p->NJD[threadid]*sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     NJD = 0;
     for(i=0; i < p->NJD[threadid]; i++) {
       if(!isnan(p->mag[threadid][i]) && EvaluateVariable_Double(lcid, threadid, i, c->maskvar) > VARTOOLS_MASK_TINY) {
@@ -480,9 +480,9 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
   }
       
 
-  cterm = c->cterm;
-  maxfreq = c->maxfreq;
-  FreqSampFact = c->freq_sample_factor;
+  cterm = VT_EVAL_DOUBLE(c, cterm, lcid, threadid);
+  maxfreq = VT_EVAL_DOUBLE(c, maxfreq, lcid, threadid);
+  FreqSampFact = VT_EVAL_DOUBLE(c, freq_sample_factor, lcid, threadid);
   T = (t[NJD-1] - t[0]);
   
 
@@ -507,17 +507,17 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
   f0 = df;
 
   if(!c->auto_tau0) {
-    tau0 = c->tau0;
+    tau0 = VT_EVAL_DOUBLE(c, tau0, lcid, threadid);
   } else {
     tau0 = t[0];
   }
   if(!c->auto_tau1) {
-    tau1 = c->tau1;
+    tau1 = VT_EVAL_DOUBLE(c, tau1, lcid, threadid);
   } else {
     tau1 = t[NJD - 1];
   }
   if(!c->auto_dtau) {
-    dtau = c->dtau;
+    dtau = VT_EVAL_DOUBLE(c, dtau, lcid, threadid);
   } else {
     if(delmin <= 0.0) {
       if(t[1] != t[0])
@@ -588,10 +588,10 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
        (WWZ_out = (double *) malloc(Nterms*sizeof(double))) == NULL ||
        (WWA_out = (double *) malloc(Nterms*sizeof(double))) == NULL ||
        (neff_out = (double *) malloc(Nterms*sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(i=0; i < 3; i++) {
       if((ya[i] = (double *) malloc(Nterms*sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   }
 
@@ -601,7 +601,7 @@ void DoWWZ(ProgramData *p, _WWZ *c, int threadid, int lcid) {
      (mamp_out = (double *) malloc(Ntau*sizeof(double))) == NULL ||
      (mcon_out = (double *) malloc(Ntau*sizeof(double))) == NULL ||
      (mneff_out = (double *) malloc(Ntau*sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* Run the transform */
   WWZA(t, mag, NJD, cterm, f0, df, Nf, tau0, dtau, Ntau, savefull, ya, WWZ_out,
@@ -708,20 +708,20 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       if(!strcmp(argv[i],"auto")) {
 	c->maxfreq = -1.;
       } else {
-	c->maxfreq = atof(argv[i]);
-	if(c->maxfreq <= 0.0)
-	  error2(ERR_INVALID_PARAMETERVALUE,"-wwz, maxfreq must be > 0");
+	VT_PARSE_DOUBLE_CS(cs, c, maxfreq, argv, i);
+	if(c->maxfreq_source == VARTOOLS_SOURCE_FIXED && c->maxfreq <= 0.0)
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, maxfreq must be > 0");
       }
-  } else {*iret = i; return 1;} 
+  } else {*iret = i; return 1;}
 
   i++;
   if(i >= argc) {*iret = i; return 1;}
   if(!strcmp(argv[i],"freqsamp")) {
     i++;
     if(i >= argc) {*iret = i; return 1;}
-    c->freq_sample_factor = atof(argv[i]);
-    if(c->freq_sample_factor <= 0) {
-      error2(ERR_INVALID_PARAMETERVALUE,"-wwz, freqsamp must be > 0");
+    VT_PARSE_DOUBLE_CS(cs, c, freq_sample_factor, argv, i);
+    if(c->freq_sample_factor_source == VARTOOLS_SOURCE_FIXED && c->freq_sample_factor <= 0) {
+      vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, freqsamp must be > 0");
     }
   } else {*iret = i; return 1;}
   
@@ -734,7 +734,7 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       c->auto_tau0 = 1;
     } else {
       c->auto_tau0 = 0;
-      c->tau0 = atof(argv[i]);
+      VT_PARSE_DOUBLE_CS(cs, c, tau0, argv, i);
     }
   } else {*iret = i; return 1;}
 
@@ -747,10 +747,11 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       c->auto_tau1 = 1;
     } else {
       c->auto_tau1 = 0;
-      c->tau1 = atof(argv[i]);
-      if(!c->auto_tau0) {
+      VT_PARSE_DOUBLE_CS(cs, c, tau1, argv, i);
+      if(c->tau1_source == VARTOOLS_SOURCE_FIXED && !c->auto_tau0 &&
+	 c->tau0_source == VARTOOLS_SOURCE_FIXED) {
 	if(c->tau1 <= c->tau0) {
-	  error2(ERR_INVALID_PARAMETERVALUE,"-wwz, tau0 must be < tau1");
+	  vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, tau0 must be < tau1");
 	}
       }
     }
@@ -765,9 +766,9 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       c->auto_dtau = 1;
     } else {
       c->auto_dtau = 0;
-      c->dtau = atof(argv[i]);
-      if(c->dtau <= 0) {
-	error2(ERR_INVALID_PARAMETERVALUE,"-wwz, dtau must be > 0");
+      VT_PARSE_DOUBLE_CS(cs, c, dtau, argv, i);
+      if(c->dtau_source == VARTOOLS_SOURCE_FIXED && c->dtau <= 0) {
+	vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, dtau must be > 0");
       }
     }
   } else {*iret = i; return 1;}
@@ -777,13 +778,13 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
     if(!strcmp(argv[i],"c")) {
       i++;
       if(i >= argc) {*iret = i; return 1;}
-      c->cterm = atof(argv[i]);
-      if(c->cterm <= 0) {
-	error2(ERR_INVALID_PARAMETERVALUE,"-wwz, c must be > 0");
+      VT_PARSE_DOUBLE_CS(cs, c, cterm, argv, i);
+      if(c->cterm_source == VARTOOLS_SOURCE_FIXED && c->cterm <= 0) {
+	vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, c must be > 0");
       }
     } else
       i--;
-  } else 
+  } else
     i--;
 
 
@@ -794,11 +795,11 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->outfulltransform_dir = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->outfulltransform_dir,"%s",argv[i]);
       
       if((c->outfulltransform_format = (char *) malloc(1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       c->outfulltransform_format[0] = '\0';
       
       /* Check if the user gave the "fits" keyword */
@@ -826,7 +827,7 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       
       if(c->outfulltransform_usefits && 
 	 c->outfulltransform_usepm3d) {
-	error2(ERR_INVALID_PARAMETERVALUE,"-wwz, cannot use both fits and pm3d keywords");
+	vt_error2(ERR_INVALID_PARAMETERVALUE,"-wwz, cannot use both fits and pm3d keywords");
       }
 
       /* Check if the user gave the "format" keyword */
@@ -858,11 +859,11 @@ int ParseWWZCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->outmaxtransform_dir = (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->outmaxtransform_dir,"%s",argv[i]);
       
       if((c->outmaxtransform_format = (char *) malloc(1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       c->outmaxtransform_format[0] = '\0';
       
       /* Check if the user gave the "format" keyword */

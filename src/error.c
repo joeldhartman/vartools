@@ -19,21 +19,57 @@
 #include "programdata.h"
 #include "functions.h"
 #include <setjmp.h>
+#include <stdarg.h>
 
 /* Current pipeline ProgramData context for library mode.  Set by
    vartools_error_set_pipeline_context(); NULL in normal subprocess mode.
    When non-NULL, error() and error2() longjmp instead of exit(). */
 static ProgramData *_g_pipeline_p = NULL;
 
-void vartools_error_set_pipeline_context(ProgramData *p) {
-  _g_pipeline_p = p;
+/* Last error message captured while running under the pipeline API.  Filled
+   in by vt_error()/vt_error2() before the longjmp.  Callers of the library
+   API can retrieve it via vartools_last_error_message() to distinguish one
+   failure class from another. */
+#define VARTOOLS_LAST_ERRMSG_BUFSIZE 1024
+static char _vartools_last_errmsg[VARTOOLS_LAST_ERRMSG_BUFSIZE] = "";
+
+const char *vartools_last_error_message(void) {
+  return _vartools_last_errmsg;
 }
 
-void error(int errflag)
+void vartools_clear_last_error_message(void) {
+  _vartools_last_errmsg[0] = '\0';
+}
+
+/* Record a formatted message into the last-error buffer. */
+static void _vartools_record_errmsg(const char *fmt, ...)
 {
-  /* In library (pipeline) mode, longjmp back to the handler instead of
-     calling exit(), which would kill the host process. */
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(_vartools_last_errmsg,
+            VARTOOLS_LAST_ERRMSG_BUFSIZE, fmt, ap);
+  va_end(ap);
+}
+
+void vartools_error_set_pipeline_context(ProgramData *p) {
+  _g_pipeline_p = p;
+  if (p != NULL) {
+    _vartools_last_errmsg[0] = '\0';
+  }
+}
+
+/* Forward declaration: written out at end of this file. */
+static const char *_vartools_errcode_message(int errflag);
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
+void vt_error(int errflag)
+{
+  /* In library (pipeline) mode, record the message and longjmp back to the
+     handler instead of calling exit(), which would kill the host process. */
   if (_g_pipeline_p != NULL) {
+    _vartools_record_errmsg("%s", _vartools_errcode_message(errflag));
     _g_pipeline_p->exit_code = errflag ? errflag : 1;
     longjmp(_g_pipeline_p->exit_jmp, 1);
   }
@@ -268,7 +304,7 @@ void error(int errflag)
     }
 }
 
-void error2_noexit(int errflag, char *s)
+void vt_error2_noexit(int errflag, char *s)
 {
   switch(errflag)
     {
@@ -293,11 +329,17 @@ void error2_noexit(int errflag, char *s)
     }
 }
 
-void error2(int errflag, char *s)
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noreturn))
+#endif
+void vt_error2(int errflag, char *s)
 {
-  /* In library (pipeline) mode, longjmp back to the handler instead of
-     calling exit(), which would kill the host process. */
+  /* In library (pipeline) mode, record the message and longjmp back to the
+     handler instead of calling exit(), which would kill the host process. */
   if (_g_pipeline_p != NULL) {
+    _vartools_record_errmsg("%s: %s",
+                            _vartools_errcode_message(errflag),
+                            s ? s : "");
     _g_pipeline_p->exit_code = errflag ? errflag : 1;
     longjmp(_g_pipeline_p->exit_jmp, 1);
   }
@@ -380,6 +422,9 @@ void error2(int errflag, char *s)
     case ERR_INVALIDSTATISTIC:
       fprintf(stderr,"Error: Invalid statistic name \"%s\" given to the -stats command or as an option to the -nonlinfit command.\n", s);
       exit(ERR_INVALIDSTATISTIC);
+    case ERR_DUPLICATESTATSTAT:
+      fprintf(stderr,"Error: the statistic \"%s\" is listed more than once in a call to -stats; each statistic should be listed only once.\n", s);
+      exit(ERR_DUPLICATESTATSTAT);
     case ERR_RESERVEDVARIABLENAME:
       fprintf(stderr,"Error: the variable name \"%s\" is reserved, and  cannot be used with the -inlistvars option.\n", s);
       exit(ERR_RESERVEDVARIABLENAME);
@@ -491,4 +536,52 @@ void error2(int errflag, char *s)
       fprintf(stderr,"Error - Unspecified Error\n");
       exit(999);
     }
+}
+
+
+/* Return the static error-message text for a given integer error code.
+   Used by the library-mode error recorder so the host can retrieve the
+   message after a longjmp.  The returned pointer is valid for the lifetime
+   of the process (string-literal storage). */
+static const char *_vartools_errcode_message(int errflag)
+{
+  switch (errflag) {
+  case 0:                              return "ok";
+  case ERR_USAGE:                      return "No commands issued";
+  case ERR_FILENOTFOUND:               return "File not found";
+  case ERR_MEMALLOC:                   return "Memory allocation error";
+  case ERR_WRONGITER:                  return "The clipping iteration flag must be 0 or 1";
+  case ERR_WRONGORDER:                 return "The order for all decorrelation terms must be greater than 0";
+  case ERR_KILLHARM_NOAOV:             return "Cannot use 'aov' for the killharm/phase period: no prior aov or aov_harm command in this pipeline";
+  case ERR_KILLHARM_NOLS:              return "Cannot use 'ls' for the killharm/phase period: no prior -LS command in this pipeline";
+  case ERR_KILLHARM_NOBOTH:            return "Cannot use both 'aov' and 'ls' for killharm periods: need prior aov/aov_harm AND -LS commands in this pipeline";
+  case ERR_KILLHARM_NOBLS:             return "Cannot use 'bls' for the phase/period: no prior -BLS command in this pipeline";
+  case ERR_KILLHARM_NOBLSFIXPER:       return "Cannot use 'blsfixper' for the phase/period: no prior -BLSFixPer command in this pipeline";
+  case ERR_KILLHARM_WRONGNPER:         return "The number of periods for killharm must be greater than 0";
+  case ERR_READFORMAT:                 return "coljd, colmag, and colsig must be distinct and greater than zero";
+  case ERR_NEEDLIST:                   return "One of the commands requires an input list";
+  case ERR_INVALIDGLOBALDECORR:        return "The global_files for decorrelation must all have the same length";
+  case ERR_CODEERROR:                  return "Internal code error — please report this as a bug";
+  case ERR_NOTENOUGHSTARS_ERS:         return "Not enough stars for ensemble sigma rescaling";
+  case ERR_SINGULARMATRIX:             return "Singular matrix in gaussj";
+  case ERR_TOOMANYAMOEBAITERATIONS:    return "Too many iterations in amoeba";
+  case ERR_BLSNBMAX:                   return "BLS nbins must be < 2000";
+  case ERR_BLSFMINTOOSMALL:            return "BLS minimum frequency is less than 1/T";
+  case ERR_BLSNOFREQ:                  return "Not enough BLS frequencies survived clipping";
+  case ERR_SYSREMUSEWEIGHTS:           return "SYSREM useweights must be 0, 1, or 2";
+  case ERR_UNSORTEDLIGHTCURVE:         return "One of the light curves is not sorted in time";
+  case ERR_BINSIZEZERO:                return "binlc nbins is less than 1";
+  case ERR_BADTYPE:                    return "Internal bad column type — please report as a bug";
+  case ERR_NOSTRINGIDCOLUMN:           return "-matchstringid requires the stringid column to be specified";
+  case ERR_KILLHARM_NOINJECTHARM:      return "Cannot use 'injectharm' for the killharm period: no prior -Injectharm command in this pipeline";
+  case ERR_KILLHARM_NEGATIVEPERIOD:    return "Fixed periods for killharm must be > 0";
+  case ERR_INVALIDOUTPUTFORMAT:        return "Invalid output format string";
+  case ERR_FITSERROR:                  return "FITS read error";
+  case ERR_EQUALTIMES:                 return "Light curves cannot contain points with identical time measurements";
+  case ERR_UTCINPUT_FITS:              return "UTC input is not supported for binary FITS light curves";
+  case ERR_NO_EPHEM_FILE:              return "Missing solar-system ephemeris file for BJD / UTC/TDB conversion";
+  case ERR_NO_LEAPSEC_FILE:            return "Missing leap-second file for UTC/TDB conversion";
+  case ERR_DUPLICATESTATSTAT:          return "Duplicate statistic name in -stats; each statistic should be listed only once";
+  default:                             return "Unspecified vartools error";
+  }
 }

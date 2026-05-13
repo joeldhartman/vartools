@@ -111,9 +111,52 @@ def test_lightcurve_from_arrays_partial():
     assert list(lc2._df.columns) == ["airmass"]
 
 
+def test_lightcurve_from_files_combines_with_lcnum(tmp_path):
+    """from_files() reads multiple files and stamps an lcnum column (M7)."""
+    # Each file has 5 rows; from_files should concat to 10 rows with
+    # lcnum 0 for the first half, 1 for the second.
+    a = tmp_path / "a.lc"
+    b = tmp_path / "b.lc"
+    a.write_text("\n".join(f"{1.0 + i*0.1} 10.{i} 0.01" for i in range(5)) + "\n")
+    b.write_text("\n".join(f"{2.0 + i*0.1} 11.{i} 0.01" for i in range(5)) + "\n")
+    lc = vt.LightCurve.from_files([str(a), str(b)])
+    assert len(lc._df) == 10
+    assert "lcnum" in lc._df.columns
+    # Default sort=True puts a-rows (t=1.0–1.4) first, b-rows (2.0–2.4) second.
+    assert lc._df["t"].is_monotonic_increasing
+    assert lc._df.loc[lc._df["t"] < 1.5, "lcnum"].eq(0).all()
+    assert lc._df.loc[lc._df["t"] >= 2.0, "lcnum"].eq(1).all()
+
+
+def test_lightcurve_from_files_no_sort(tmp_path):
+    """sort=False preserves file order, lcnum reflects file position."""
+    a = tmp_path / "a.lc"
+    b = tmp_path / "b.lc"
+    # b comes first in time but appears second in the input list.
+    a.write_text("3.0 10.0 0.01\n4.0 10.1 0.01\n")
+    b.write_text("1.0 11.0 0.01\n2.0 11.1 0.01\n")
+    lc = vt.LightCurve.from_files([str(a), str(b)], sort=False)
+    # Without sorting, the file-order lcnum sequence is 0,0,1,1.
+    assert lc._df["lcnum"].tolist() == [0, 0, 1, 1]
+
+
+def test_lightcurve_from_files_empty_raises():
+    with pytest.raises(ValueError, match="at least one path"):
+        vt.LightCurve.from_files([])
+
+
+def test_lightcurve_from_files_custom_col_name(tmp_path):
+    """lcnum_col kwarg renames the integer source-file column."""
+    a = tmp_path / "a.lc"
+    a.write_text("1.0 10.0 0.01\n")
+    lc = vt.LightCurve.from_files([str(a), str(a)], lcnum_col="seg")
+    assert "seg" in lc._df.columns
+    assert "lcnum" not in lc._df.columns
+
+
 def test_lightcurve_roundtrip_tempfile(tmp_path):
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
-    path = lc.to_tempfile(dir=str(tmp_path))
+    path = lc._to_tempfile(dir=str(tmp_path))
     lc2 = vt.LightCurve.from_file(path)
     np.testing.assert_allclose(lc.t, lc2.t, rtol=1e-8)
     np.testing.assert_allclose(lc.mag, lc2.mag, rtol=1e-8)
@@ -132,6 +175,72 @@ def test_lightcurve_to_arrays():
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
     t, mag, err = lc.to_arrays()
     assert len(t) == len(lc)
+
+
+def test_lightcurve_cols_and_getitem():
+    lc = vt.LightCurve.from_arrays(
+        t=[1.0, 2.0, 3.0],
+        mag=[10.0, 11.0, 12.0],
+        err=[0.01, 0.02, 0.03],
+        aux={"tmp": [100.0, 200.0, 300.0]},
+        name="lc1",
+    )
+    assert lc.cols == ["t", "mag", "err", "tmp"]
+    assert "tmp" in lc
+    assert "missing" not in lc
+
+    tmp = lc["tmp"]
+    assert isinstance(tmp, np.ndarray)
+    np.testing.assert_array_equal(tmp, [100.0, 200.0, 300.0])
+
+    np.testing.assert_array_equal(lc["t"], lc.t)
+
+    with pytest.raises(KeyError, match="not in LightCurve"):
+        _ = lc["missing"]
+    with pytest.raises(TypeError, match="column names"):
+        _ = lc[0]
+
+
+def test_lightcurvebatch_getitem_by_name():
+    lcs = [
+        vt.LightCurve.from_arrays(t=[1.0, 2.0], mag=[10.0, 11.0],
+                                  err=[0.01, 0.02], name=f"lc{i}")
+        for i in range(3)
+    ]
+    batch = vt.LightCurveBatch(lcs)
+
+    assert batch[0] is lcs[0]
+    assert batch["lc1"] is lcs[1]
+    assert "lc2" in batch
+    assert "missing" not in batch
+    assert lcs[0] in batch
+
+    with pytest.raises(KeyError, match="No LightCurve in batch"):
+        _ = batch["missing"]
+
+
+def test_lightcurvelist_indexing():
+    lcs = [
+        vt.LightCurve.from_arrays(t=[1.0, 2.0], mag=[10.0, 11.0],
+                                  err=[0.01, 0.02], name=f"lc{i}")
+        for i in range(3)
+    ]
+    # Mix in a None placeholder to mirror real cmd.o(capture=True) output
+    # where some LCs may be missing from disk.
+    lcl = vt.LightCurveList([lcs[0], None, lcs[2]])
+
+    assert isinstance(lcl, list)             # plain list slicing/iter works
+    assert len(lcl) == 3
+    assert lcl[0] is lcs[0]
+    assert lcl[1] is None
+    assert lcl["lc0"] is lcs[0]
+    assert lcl["lc2"] is lcs[2]
+    assert "lc0" in lcl
+    assert "lc1" not in lcl                  # placeholder skipped
+    assert "missing" not in lcl
+
+    with pytest.raises(KeyError, match="lc0"):  # lists Available names
+        _ = lcl["missing"]
 
 
 # ---------------------------------------------------------------------------
@@ -184,9 +293,9 @@ def test_pipeline_run_single_lc():
     lc = vt.LightCurve.from_file(EXAMPLE_LC)
     pipe = vt.Pipeline([_RMSCommand()])
     result = pipe.run(lc)
-    assert isinstance(result.stats, pd.Series)
-    assert "Weighted_RMS" in result.stats.index or any(
-        "rms" in c.lower() or "RMS" in c for c in result.stats.index
+    assert isinstance(result.vars, pd.Series)
+    assert "Weighted_RMS" in result.vars.index or any(
+        "rms" in c.lower() or "RMS" in c for c in result.vars.index
     )
 
 
@@ -194,8 +303,8 @@ def test_pipeline_run_batch():
     lcs = [vt.LightCurve.from_file(EXAMPLE_LC) for _ in range(3)]
     pipe = vt.Pipeline([_RMSCommand()])
     result = pipe.run_batch(lcs)
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 def test_pipeline_bad_command_raises():
@@ -245,6 +354,107 @@ def test_run_batch_capture_lc_names_preserved():
     assert result.lcs[1].name == "beta"
 
 
+# ---------------------------------------------------------------------------
+# Spill-file basenames in run_batch (Step A of library-mode roadmap)
+# ---------------------------------------------------------------------------
+
+class TestSpillBasename:
+    """Pure-Python unit tests for ``_spill_basename`` — no binary needed."""
+
+    def test_uses_lc_name(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "alpha"
+        used: set = set()
+        assert _spill_basename(lc, 0, used) == "alpha"
+        assert "alpha" in used
+
+    def test_falls_back_when_name_blank(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = ""
+        assert _spill_basename(lc, 7, set()) == "lc_000007"
+
+    def test_strips_directory_components(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "data/sub/lc7"
+        # The basename component is "lc7" — directories cannot escape tmpdir.
+        assert _spill_basename(lc, 0, set()) == "lc7"
+
+    def test_sanitises_unsafe_chars(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "my LC #1?v2"
+        # Non-[A-Za-z0-9._-] chars become "_".
+        assert _spill_basename(lc, 0, set()) == "my_LC__1_v2"
+
+    def test_disambiguates_collisions(self):
+        from pyvartools.pipeline import _spill_basename
+        lc1 = _make_lc(); lc1.name = "x"
+        lc2 = _make_lc(); lc2.name = "x"
+        lc3 = _make_lc(); lc3.name = "x"
+        used: set = set()
+        assert _spill_basename(lc1, 0, used) == "x"
+        assert _spill_basename(lc2, 1, used) == "x_1"
+        assert _spill_basename(lc3, 2, used) == "x_2"
+
+    def test_empty_after_sanitisation_falls_back(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        # Name reduces to "" after basename-then-sanitise (slashes-only).
+        # os.path.basename("//") on Linux returns "", so the fallback fires.
+        lc.name = "//"
+        out = _spill_basename(lc, 5, set())
+        assert out == "lc_000005"
+
+    def test_extension_preserved_when_in_name(self):
+        from pyvartools.pipeline import _spill_basename
+        lc = _make_lc()
+        lc.name = "data.txt"
+        # ``.`` is allowed in the sanitised set, so an extension survives
+        # verbatim.  Vartools' -o writer echoes the input basename, so
+        # this lets the user round-trip ``"foo.csv" -> "foo.csv"``.
+        assert _spill_basename(lc, 0, set()) == "data.txt"
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_outdir_uses_lc_name(tmp_path):
+    """End-to-end: ``-o outdir`` produces files named after each lc.name."""
+    lcs = [_make_lc() for _ in range(3)]
+    lcs[0].name = "alpha"
+    lcs[1].name = "beta"
+    lcs[2].name = "gamma"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    vt.Pipeline([vt.commands.clip(sigclip=5.0),
+                 vt.commands.o(outdir=str(outdir))]).run_batch(lcs)
+    written = sorted(p.name for p in outdir.iterdir())
+    assert written == ["alpha", "beta", "gamma"]
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_outdir_disambiguates_duplicate_names(tmp_path):
+    """Two LCs with the same name don't clobber each other."""
+    lc1 = _make_lc(period=1.5); lc1.name = "dup"
+    lc2 = _make_lc(period=2.5); lc2.name = "dup"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    vt.Pipeline([vt.commands.clip(sigclip=5.0),
+                 vt.commands.o(outdir=str(outdir))]).run_batch([lc1, lc2])
+    written = sorted(p.name for p in outdir.iterdir())
+    assert written == ["dup", "dup_1"]
+    # Both files non-empty (not zero-length truncations from a clobber).
+    for fname in written:
+        assert (outdir / fname).stat().st_size > 0
+
+
 def test_run_filelist_capture_lc(tmp_path):
     lcs = [_make_lc(period=1.5 + i * 0.3) for i in range(3)]
     paths = []
@@ -278,7 +488,7 @@ def test_run_batch_raise_on_error_false():
     assert not result.ok
     assert result.error is not None
     assert isinstance(result.error, vt.RunError)
-    assert result.stats.empty
+    assert result.vars.empty
 
 
 def test_run_batch_ok_true_on_success():
@@ -321,11 +531,17 @@ def test_lightcurve_from_fits_roundtrip(tmp_path):
     fpath = tmp_path / "star.fits"
     fits.HDUList([fits.PrimaryHDU(), hdu]).writeto(str(fpath))
 
-    lc = vt.LightCurve.from_file(fpath)   # auto-detect .fits
+    # FITS column names must be explicit (no defaults).
+    lc = vt.LightCurve.from_file(fpath, t_col="BJD", mag_col="Mag",
+                                  err_col="Err")
     assert len(lc) == 50
     np.testing.assert_allclose(lc.t,   t,   atol=1e-8)
     np.testing.assert_allclose(lc.mag, mag, atol=1e-8)
     np.testing.assert_allclose(lc.err, err, atol=1e-8)
+    # Original FITS column names also accessible.
+    assert "BJD" in lc._df.columns
+    assert "Mag" in lc._df.columns
+    assert "Err" in lc._df.columns
 
 
 def test_lightcurve_from_fits_custom_cols(tmp_path):
@@ -414,6 +630,127 @@ def test_inputlcformat_from_spec_dict_fits_names():
     assert fmt == "t:BJD_TDB,mag:MAG,err:ERR"
 
 
+def test_inputlcformat_from_spec_lccolumn_string_type():
+    """PerPointColumn lets the user attach a non-default type (e.g. ``"string"``)
+    to a column, which is required for things like the fiphot string flag
+    consumed by -hatpiflag.
+    """
+    fmt = _inputlcformat_from_spec({
+        "t": 1, "mag": 2, "err": 3,
+        "fiphot_flag": vt.PerPointColumn(col=4, type="string"),
+    })
+    assert fmt == "t:1,mag:2,err:3,fiphot_flag:4:string"
+
+
+def test_inputlcformat_from_spec_lccolumn_utc_with_format():
+    """PerPointColumn(type="utc", format=...) emits the format string as the
+    fourth ``:``-separated field, matching vartools' own grammar.
+    """
+    fmt = _inputlcformat_from_spec({
+        "t": vt.PerPointColumn(col=1, type="utc", format="%Y-%M-%DT%h:%m:%s"),
+        "mag": 2, "err": 3,
+    })
+    assert fmt == "t:1:utc:%Y-%M-%DT%h:%m:%s,mag:2,err:3"
+
+
+def test_inputlcformat_from_spec_lccolumn_default_type():
+    """PerPointColumn with the default type emits ``name:col:double`` so the
+    format string is unambiguous, not silently dropped.
+    """
+    fmt = _inputlcformat_from_spec({"airmass": vt.PerPointColumn(col=4)})
+    # default type field is preserved so callers see what gets emitted.
+    assert fmt == "airmass:4:double"
+
+
+def test_inputlcformat_from_spec_mixed_lccolumn_and_int():
+    """Bare ints/strings still work alongside PerPointColumn instances."""
+    fmt = _inputlcformat_from_spec({
+        "t": 1,
+        "mag": 2,
+        "err": 3,
+        "x": "XIC",                                 # FITS column name
+        "fiphot_flag": vt.PerPointColumn(col=4, type="string"),
+    })
+    assert fmt == ("t:1,mag:2,err:3,x:XIC,"
+                   "fiphot_flag:4:string")
+
+
+# ---------------------------------------------------------------------------
+# -inlistvars helpers (unit tests)
+# ---------------------------------------------------------------------------
+
+from pyvartools.pipeline import _perlc_vars_from_spec
+
+
+def test_inlistvars_int_shorthand():
+    spec = _perlc_vars_from_spec({"minp": 2, "maxp": 3})
+    assert spec == "minp:2,maxp:3"
+
+
+def test_inlistvars_listvar_default_type():
+    spec = _perlc_vars_from_spec({"minp": vt.PerLCColumn(col=2)})
+    # The default-type field is preserved so the emitted token is unambiguous.
+    assert spec == "minp:2:double"
+
+
+def test_inlistvars_listvar_string_type():
+    spec = _perlc_vars_from_spec({"name": vt.PerLCColumn(col=1, type="string")})
+    assert spec == "name:1:string"
+
+
+def test_inlistvars_listvar_init():
+    """PerLCColumn(col=0, init=...) creates a per-star variable from an
+    expression (no list column) and emits the init expression as the
+    fourth ``:``-separated field.
+    """
+    spec = _perlc_vars_from_spec(
+        {"seq": vt.PerLCColumn(col=0, type="int", init="NF")}
+    )
+    assert spec == "seq:0:int:NF"
+
+
+def test_inlistvars_combinelc_keyword_emitted():
+    """PerLCColumn(combinelc=True) inserts the literal ``combinelc`` token
+    between the column number and the type, so vartools knows the
+    column carries one comma-joined value per combined file (used by
+    ``-l ... combinelcs`` mode).
+    """
+    spec = _perlc_vars_from_spec(
+        {"trendlist": vt.PerLCColumn(col=2, type="string", combinelc=True)}
+    )
+    assert spec == "trendlist:2:combinelc:string"
+
+
+def test_inlistvars_combinelc_default_type():
+    """combinelc=True with the default ``"double"`` type still emits
+    the type field (so the keyword position is unambiguous).
+    """
+    spec = _perlc_vars_from_spec(
+        {"x": vt.PerLCColumn(col=2, combinelc=True)}
+    )
+    assert spec == "x:2:combinelc:double"
+
+
+def test_inlistvars_combinelc_init():
+    """combinelc=True composes with the init field, with combinelc
+    appearing immediately after the column number — same order as the
+    CLI grammar.
+    """
+    spec = _perlc_vars_from_spec(
+        {"v": vt.PerLCColumn(col=0, type="int", init="NF", combinelc=True)}
+    )
+    assert spec == "v:0:combinelc:int:NF"
+
+
+def test_inlistvars_mixed_combinelc_and_int_shorthand():
+    """Bare ints continue to work alongside combinelc-qualified ListVars."""
+    spec = _perlc_vars_from_spec({
+        "minp": 2,
+        "trendlist": vt.PerLCColumn(col=3, type="string", combinelc=True),
+    })
+    assert spec == "minp:2,trendlist:3:combinelc:string"
+
+
 # ---------------------------------------------------------------------------
 # -inputlcformat integration tests (require binary)
 # ---------------------------------------------------------------------------
@@ -432,9 +769,9 @@ def test_run_with_extra_columns():
     lc = _make_lc_with_aux()
     assert "airmass" in lc._df.columns
     result = vt.Pipeline([vt.commands.rms()]).run(lc)
-    assert isinstance(result.stats, pd.Series)
-    assert "Weighted_RMS" in result.stats.index or any(
-        "rms" in c.lower() or "RMS" in c for c in result.stats.index
+    assert isinstance(result.vars, pd.Series)
+    assert "Weighted_RMS" in result.vars.index or any(
+        "rms" in c.lower() or "RMS" in c for c in result.vars.index
     )
 
 
@@ -442,8 +779,8 @@ def test_run_batch_with_extra_columns():
     """run_batch() auto-discovers extra columns from the first LC."""
     lcs = [_make_lc_with_aux(period=1.5 + i * 0.5) for i in range(3)]
     result = vt.Pipeline([vt.commands.rms()]).run_batch(lcs)
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 def test_run_file_with_columns_list(tmp_path):
@@ -453,9 +790,9 @@ def test_run_file_with_columns_list(tmp_path):
     lc._df.to_csv(str(p), sep=" ", header=False, index=False, float_format="%.10f")
 
     result = vt.Pipeline([vt.commands.rms()]).run_file(
-        p, columns=["t", "mag", "err", "airmass"]
+        p, perpoint_columns=["t", "mag", "err", "airmass"]
     )
-    assert isinstance(result.stats, pd.Series)
+    assert isinstance(result.vars, pd.Series)
 
 
 def test_run_file_with_columns_dict(tmp_path):
@@ -465,9 +802,9 @@ def test_run_file_with_columns_dict(tmp_path):
     lc._df.to_csv(str(p), sep=" ", header=False, index=False, float_format="%.10f")
 
     result = vt.Pipeline([vt.commands.rms()]).run_file(
-        p, columns={"t": 1, "mag": 2, "err": 3, "airmass": 4}
+        p, perpoint_columns={"t": 1, "mag": 2, "err": 3, "airmass": 4}
     )
-    assert isinstance(result.stats, pd.Series)
+    assert isinstance(result.vars, pd.Series)
 
 
 def test_run_filelist_with_columns(tmp_path):
@@ -480,10 +817,10 @@ def test_run_filelist_with_columns(tmp_path):
         paths.append(p)
 
     result = vt.Pipeline([vt.commands.rms()]).run_filelist(
-        paths, columns=["t", "mag", "err", "airmass"]
+        paths, perpoint_columns=["t", "mag", "err", "airmass"]
     )
-    assert isinstance(result.stats, pd.DataFrame)
-    assert len(result.stats) == 3
+    assert isinstance(result.vars, pd.DataFrame)
+    assert len(result.vars) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +829,7 @@ def test_run_filelist_with_columns(tmp_path):
 
 def test_o_requires_filename_or_capture():
     """cmd.o() without arguments should raise ValueError."""
-    with pytest.raises(ValueError, match="requires either"):
+    with pytest.raises(ValueError, match="requires outname"):
         vt.commands.o()
 
 
@@ -522,11 +859,11 @@ def test_o_capture_single_custom_key():
 
 
 def test_o_capture_single_with_explicit_filename(tmp_path):
-    """capture=True with an explicit filename writes to disk AND captures."""
+    """capture=True with an explicit outname writes to disk AND captures."""
     out_file = str(tmp_path / "output.lc")
     lc = _make_lc()
     pipe = vt.Pipeline([
-        vt.commands.o(filename=out_file, capture=True),
+        vt.commands.o(outname=out_file, capture=True),
     ])
     result = pipe.run(lc)
     # File written to disk
@@ -572,3 +909,170 @@ def test_o_multiple_captures_different_keys():
     assert "final" in result.files
     assert isinstance(result.files["after_clip"], vt.LightCurve)
     assert isinstance(result.files["final"], vt.LightCurve)
+
+
+# ---------------------------------------------------------------------------
+# FITS-header round-trip via LightCurve.fitsheader (.from_file / .to_file).
+# ---------------------------------------------------------------------------
+
+FITS_LC = os.path.join(EXAMPLES_DIR, "10.fits")
+
+
+def test_fitsheader_captured_on_read():
+    """Reading a FITS light curve populates `fitsheader` with a Header."""
+    from astropy.io import fits
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    assert isinstance(lc.fitsheader, fits.Header)
+
+
+def test_fitsheader_filters_structural_on_read():
+    """Structural keywords (TTYPE, TFORM, NAXIS, TFIELDS…) are removed."""
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    for structural in ("TFIELDS", "NAXIS1", "NAXIS2",
+                       "TTYPE1", "TFORM1", "TTYPE2", "TUNIT1",
+                       "XTENSION", "SIMPLE", "BITPIX"):
+        assert structural not in lc.fitsheader, (
+            f"{structural} leaked into preserved header"
+        )
+
+
+def test_fitsheader_ascii_source_is_none():
+    """Reading an ASCII light curve leaves fitsheader = None."""
+    lc = vt.LightCurve.from_file(EXAMPLE_LC)
+    assert lc.fitsheader is None
+
+
+def test_fitsheader_roundtrip(tmp_path):
+    """Round-trip of observational keywords + COMMENT + HISTORY."""
+    from astropy.io import fits
+    lc = vt.LightCurve.from_file(FITS_LC, t_col="time",
+                                 mag_col="mag", err_col="err")
+    lc.fitsheader["TELESCOP"] = "HATPI"
+    lc.fitsheader["OBJECT"]   = "V1234 Cyg"
+    lc.fitsheader["EPOCH"]    = (2000.0, "J2000")
+    lc.fitsheader.add_comment("round-trip COMMENT")
+    lc.fitsheader.add_history("round-trip HISTORY")
+
+    out = str(tmp_path / "out.fits")
+    lc.to_file(out)
+
+    lc2 = vt.LightCurve.from_file(out, t_col="t",
+                                  mag_col="mag", err_col="err")
+    assert lc2.fitsheader["TELESCOP"] == "HATPI"
+    assert lc2.fitsheader["OBJECT"]   == "V1234 Cyg"
+    assert float(lc2.fitsheader["EPOCH"]) == 2000.0
+    comments = [str(c.value) for c in lc2.fitsheader.cards
+                if c.keyword == "COMMENT"]
+    histories = [str(c.value) for c in lc2.fitsheader.cards
+                 if c.keyword == "HISTORY"]
+    assert any("round-trip COMMENT" in c for c in comments)
+    assert any("round-trip HISTORY" in h for h in histories)
+
+
+def test_fitsheader_none_passthrough_to_fits(tmp_path):
+    """A LightCurve with fitsheader=None still writes to FITS correctly."""
+    from astropy.io import fits
+    t = np.linspace(0, 10, 50)
+    lc = vt.LightCurve.from_arrays(t, np.sin(t), np.full(50, 0.01))
+    assert lc.fitsheader is None
+    out = str(tmp_path / "blank.fits")
+    lc.to_file(out)
+    with fits.open(out) as hdul:
+        # No observational keywords injected; only the astropy default
+        # primary-HDU structure keywords.
+        keys = list(hdul[0].header.keys())
+        assert all(k in {"SIMPLE", "BITPIX", "NAXIS", "EXTEND", ""}
+                   for k in keys), f"unexpected primary header keys: {keys}"
+        # Data wrote correctly on the extension.
+        assert hdul[1].header["TFIELDS"] == 3
+        assert hdul[1].header["NAXIS2"] == 50
+
+
+def test_fitsheader_structural_keys_in_user_header_dropped_on_write(tmp_path):
+    """If the user attaches a Header that includes structural keys,
+    those are silently dropped on write (they'd otherwise collide with
+    astropy's auto-generated structure)."""
+    from astropy.io import fits
+    t = np.linspace(0, 10, 50)
+    lc = vt.LightCurve.from_arrays(t, np.sin(t), np.full(50, 0.01))
+    hdr = fits.Header()
+    hdr["TELESCOP"] = "HATPI"
+    hdr["TFIELDS"]  = 99           # structural — should be dropped
+    hdr["TTYPE1"]   = "should_not_be_preserved"
+    hdr["NAXIS2"]   = 999           # structural — should be dropped
+    lc.fitsheader = hdr
+
+    out = str(tmp_path / "out.fits")
+    lc.to_file(out)
+    with fits.open(out) as hdul:
+        assert hdul[0].header.get("TELESCOP") == "HATPI"
+        # The structural leaks must not appear in either HDU's header
+        # with the user's bogus values:
+        assert "TTYPE1" not in hdul[0].header
+        assert hdul[1].header["TFIELDS"] == 3      # astropy's real value
+        assert hdul[1].header["NAXIS2"] == 50
+
+
+# ---------------------------------------------------------------------------
+# cmd.o(capture=True) with nameformat / columnformat keywords
+# ---------------------------------------------------------------------------
+# When the subprocess capture path applies, the collector must mirror
+# vartools' nameformat substitution (otherwise the captured file is not
+# found) and must respect columnformat (otherwise the wrong column names
+# come back).  Regression for issue surfaced 2026-05-06.
+
+def test_apply_nameformat_substitutions():
+    from pyvartools.pipeline import _apply_nameformat
+    # %s -> full basename
+    assert _apply_nameformat("%s.txt", "lc1.dat", 0) == "lc1.dat.txt"
+    # %b -> basename minus extension
+    assert _apply_nameformat("%b.csv", "lc1.dat", 0) == "lc1.csv"
+    assert _apply_nameformat("%b", "noext", 0) == "noext"
+    # %d -> 1-indexed LC number
+    assert _apply_nameformat("%d", "x", 4) == "5"
+    # %0Nd -> zero-padded
+    assert _apply_nameformat("file_%05d.lc", "x", 7) == "file_00008.lc"
+    # %% -> literal %
+    assert _apply_nameformat("%%s%s", "a", 0) == "%sa"
+    # combined
+    assert _apply_nameformat("%s_%05d.txt", "lc7", 9) == "lc7_00010.txt"
+
+
+@pytest.mark.skipif(
+    not os.path.isfile(vt.get_binary()) if hasattr(vt, "get_binary") else True,
+    reason="vartools binary not available",
+)
+def test_run_batch_o_capture_with_nameformat_and_columnformat(tmp_path):
+    """run_batch + cmd.o(outdir=..., outname=..., nameformat=...,
+    columnformat=..., capture=True) populates result.files[key] with
+    the user-declared columns.  Regression: the subprocess capture path
+    used to look for files at <outdir>/<input-basename> instead of
+    applying the nameformat substitution, and didn't honor columnformat
+    for the read-back column names."""
+    lcs = [_make_lc() for _ in range(3)]
+    for i, lc in enumerate(lcs):
+        lc.name = f"lc{i}"
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+    # outname=str(tmp_path / "x") forces subprocess (both outname and
+    # outdir set is not library-batch-compatible).
+    result = vt.Pipeline([
+        vt.commands.clip(sigclip=5.0),
+        vt.commands.expr("tmp=t+2*mag"),
+        vt.commands.o(outname=str(tmp_path / "x"),
+                      outdir=str(outdir),
+                      nameformat="%s.txt",
+                      columnformat="tmp,mag",
+                      capture=True, key="cap"),
+    ]).run_batch(lcs)
+    assert "cap" in result.files
+    captured = result.files["cap"]
+    assert len(captured) == 3
+    for i, c in enumerate(captured):
+        assert c is not None, f"capture {i} is None"
+        assert list(c._df.columns) == ["tmp", "mag"], (
+            f"unexpected columns: {list(c._df.columns)}"
+        )
+        assert len(c._df) > 0

@@ -23,14 +23,14 @@ _CopyLC * CreateCopyLCCommand(ProgramData *p, char *argv, int cnum)
 {
   _CopyLC *ret;
   if((ret = (_CopyLC *) malloc(sizeof(_CopyLC))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((ret->s = (_Savelc *) malloc(sizeof(_Savelc))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   if((ret->SaveListData = (_SaveListData *) malloc(sizeof(_SaveListData))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   ret->Ncopies = atoi(argv);
   if(ret->Ncopies <= 0) {
-    error2(ERR_INVALID_PARAMETERVALUE,"-copylc, Ncopies must be > 0");
+    vt_error2(ERR_INVALID_PARAMETERVALUE,"-copylc, Ncopies must be > 0");
   }
   ret->cnum = cnum;
   ret->copycommand_index = p->Ncopycommands;
@@ -38,13 +38,13 @@ _CopyLC * CreateCopyLCCommand(ProgramData *p, char *argv, int cnum)
   if(!p->Ncopycommands) {
     if((p->Ncopies = (int *) malloc(sizeof(int))) == NULL ||
        (p->copy_cnum = (int *) malloc(sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->Ncopiestotal = 1;
   }
   else {
     if((p->Ncopies = (int *) realloc(p->Ncopies, (p->Ncopycommands+1)*sizeof(int))) == NULL ||
        (p->copy_cnum = (int *) realloc(p->copy_cnum, (p->Ncopycommands+1)*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   p->Ncopies[p->Ncopycommands] = ret->Ncopies;
   p->copy_cnum[p->Ncopycommands] = cnum;
@@ -83,7 +83,7 @@ void SetupLCCopies(ProgramData *p, Command *c)
      (p->is_lc_ready = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
      (p->copy_origlc_index = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
      (p->start_cnum = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   while(j < p->Nlcs) {
     p->is_lc_ready[j] = 1;
     p->copycommand_index[j] = -1;
@@ -94,7 +94,7 @@ void SetupLCCopies(ProgramData *p, Command *c)
   }
   for(i=0; i < p->Ncopycommands; i++) {
     if((c[p->copy_cnum[i]].CopyLC->lcid_tothreadid = (int *) malloc(p->Nlcs*sizeof(int))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=0; j < p->Nlcs; j++) {
       c[p->copy_cnum[i]].CopyLC->lcid_tothreadid[j] = -1;
     }

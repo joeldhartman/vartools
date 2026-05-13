@@ -30,7 +30,7 @@ lc = vt.LightCurve.from_file("EXAMPLES/2")
 
 # Run a Lomb-Scargle periodogram
 result = vt.Pipeline([cmd.LS(0.1, 10.0, 1e-3)]).run(lc)
-best_period = float(result.stats["LS_Period_1_0"])
+best_period = float(result.vars["LS_Period_1_0"])
 print(f"Best period: {best_period:.4f} d")
 
 # Chain commands
@@ -47,7 +47,7 @@ clipped_lc = result.lc
 # Batch processing from memory
 lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 6)]
 batch = vt.Pipeline([cmd.rms()]).run_batch(lcs, nthreads=4)
-print(batch.stats)  # one row per LC
+print(batch.var)  # one row per LC
 
 # Batch processing directly from disk (no Python I/O)
 batch = vt.Pipeline([cmd.rms()]).run_filelist("mylist.txt", nthreads=4)
@@ -105,7 +105,7 @@ All run methods accept these global vartools options:
 
 Processes groups of files with vartools `-l … combinelcs`.  Each group is
 combined into a single in-memory light curve and produces one row in
-`result.stats`.  This is the natural entry point for multi-telescope stitching
+`result.vars`.  This is the natural entry point for multi-telescope stitching
 workflows (e.g. with a `-stitch` user command).
 
 ```python
@@ -115,7 +115,7 @@ groups = [
     ["tel1/star002.lc", "tel2/star002.lc"],
 ]
 result = vt.Pipeline([cmd.rms()]).run_combinelcs(groups)
-print(result.stats)   # one row per group
+print(result.vars)   # one row per group
 
 # Track which file each observation came from
 result = vt.Pipeline([cmd.rms()]).run_combinelcs(groups, lcnumvar="lcnum")

@@ -68,15 +68,15 @@ void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr)
   if(!c->N_setparam_expr) {
     if((c->setparam_EvalExprStrings = (char **) malloc(sizeof(char *))) == NULL ||
        (c->setparam_EvalExpressions = (_Expression ***) malloc(sizeof(_Expression **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     if((c->setparam_EvalExprStrings = (char **) realloc(c->setparam_EvalExprStrings, (c->N_setparam_expr + 1)*sizeof(char *))) == NULL ||
        (c->setparam_EvalExpressions = (_Expression ***) realloc(c->setparam_EvalExpressions, (c->N_setparam_expr + 1)*sizeof(_Expression **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   c->setparam_EvalExpressions[c->N_setparam_expr] = exprptr;
   if((c->setparam_EvalExprStrings[c->N_setparam_expr] = malloc(strlen(exprstr)+1)) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->setparam_EvalExprStrings[c->N_setparam_expr],"%s",exprstr);
   c->N_setparam_expr += 1;
 }
@@ -88,16 +88,16 @@ void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varp
        (c->prior_var_vectortypes = (char *) malloc(sizeof(char))) == NULL ||
        (c->prior_var_names = (char **) malloc(sizeof(char *))) == NULL ||
        (c->prior_vars = (_Variable ***) malloc(sizeof(_Variable **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     if((c->prior_var_datatypes = (char *) realloc(c->prior_var_datatypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
        (c->prior_var_vectortypes = (char *) realloc(c->prior_var_vectortypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
        (c->prior_var_names = (char **) realloc(c->prior_var_names, (c->N_prior_vars + 1)*sizeof(char *))) == NULL ||
        (c->prior_vars = (_Variable ***) realloc(c->prior_vars, (c->N_prior_vars + 1)*sizeof(_Variable **))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if((c->prior_var_names[c->N_prior_vars] = (char *) malloc((strlen(varname)+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->prior_var_names[c->N_prior_vars],"%s",varname);
   c->prior_var_vectortypes[c->N_prior_vars] = vectortype;
   c->prior_var_datatypes[c->N_prior_vars] = datatype;
@@ -173,7 +173,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	     (p->is_inputlc_fits = (int *) malloc(p->Nlcs * sizeof(int))) == NULL ||
 	     (p->fits_header_adds = (_vartools_outlcfits_header_additions *) malloc(p->Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL ||
 	     (p->skipfaillc = (int *) malloc(p->Nlcs * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<p->Nlcs;j++)
 	    {
 	      p->is_inputlc_fits[j] = 0;
@@ -182,7 +182,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      p->fits_header_adds[j].hdrterms = NULL;
 	      p->skipfaillc[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  i++;
 	  if(i < argc)
@@ -310,9 +310,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			{
 			  i++;
 			  if(i >= argc)
-			    help(iterm,i);
+			    listcommands(argv[iterm],p);
 			  if((p->combinelcinfo->lcnumvarname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-			    error(ERR_MEMALLOC);
+			    vt_error(ERR_MEMALLOC);
 			  sprintf(p->combinelcinfo->lcnumvarname,"%s",argv[i]);
 			  p->combinelcinfo->lcnumvar = CreateVariable(p, 
 								      p->combinelcinfo->lcnumvarname,
@@ -389,7 +389,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(i < argc)
 		{
 		  if((p->lc_open_exec_command_str = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  sprintf(p->lc_open_exec_command_str,"%s",argv[i]);
 		}
 	      else
@@ -421,13 +421,51 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       else if(!strcmp(argv[i],"-expr"))
 	{
 	  iterm = i;
-	  increaseNcommands(p,&c);
-	  c[cn].cnum = CNUM_EXPRESSION;
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
-	  c[cn].ExpressionCommand = CreateExpressionCommand(p,argv[i]);
-	  cn++;
+	  if(!strcmp(argv[i],"listvar")) {
+	    increaseNcommands(p,&c);
+	    c[cn].cnum = CNUM_EXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    c[cn].ExpressionCommand = CreateExpressionCommandWithType(p, argv[i], VARTOOLS_VECTORTYPE_INLIST);
+	    cn++;
+	  }
+	  else if(!strcmp(argv[i],"scalar")) {
+	    increaseNcommands(p,&c);
+	    c[cn].cnum = CNUM_EXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    c[cn].ExpressionCommand = CreateExpressionCommandWithType(p, argv[i], VARTOOLS_VECTORTYPE_SCALAR);
+	    cn++;
+	  }
+	  else if(!strcmp(argv[i],"const")) {
+	    increaseNcommands(p,&c);
+	    c[cn].cnum = CNUM_EXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    c[cn].ExpressionCommand = CreateExpressionCommandWithType(p, argv[i], VARTOOLS_VECTORTYPE_CONSTANT);
+	    cn++;
+	  }
+	  else {
+	    increaseNcommands(p,&c);
+	    c[cn].cnum = CNUM_EXPRESSION;
+	    c[cn].ExpressionCommand = CreateExpressionCommand(p, argv[i]);
+	    cn++;
+	  }
+	  /* Optional "outputcolumn" keyword.  Only valid for listvar /
+	     scalar / const (where the LHS holds a single value per LC);
+	     for the default per-observation LC vectortype an output
+	     column would be ill-defined, so we reject it at parse time. */
+	  if(i+1 < argc && !strcmp(argv[i+1],"outputcolumn")) {
+	    if(c[cn-1].ExpressionCommand->lhs_vectortype_override < 0) {
+	      vt_error2(ERR_INVALIDARGUMENTTOEXPR,
+			"outputcolumn (only valid when 'listvar', 'scalar', or 'const' is given)");
+	    }
+	    c[cn-1].ExpressionCommand->outputcolumn = 1;
+	    i++;
+	  }
 	}
 
       /* -findblends matchrad [\"radec\"] [\"xycol\" colx coly] <\"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>> [\"starlist\" starlistfile] [\"zeromag\" zeromagval] [\"nofluxconvert\"] [\"Nharm\" Nharm] [\"omatches\" outputmatchfile] */
@@ -437,7 +475,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_FINDBLENDS;
 	  if((c[cn].FindBlends = (_FindBlends *) malloc(sizeof(_FindBlends))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  /* Set the default values */
 	  increaselinkedcols(p, &(c[cn].FindBlends->linkedcolumn_varname), "1", cn);
 	  c[cn].FindBlends->zeromag = 25.0;
@@ -624,17 +662,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_DIFFFLUXTOMAG;
 	  if((c[cn].DiffFluxtomag = (_DiffFluxtomag *) malloc(sizeof(_DiffFluxtomag))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  
 	  i++;
 	  if(i < argc)
-	    c[cn].DiffFluxtomag->mag_constant1 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].DiffFluxtomag, mag_constant1, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
-	  
+
 	  i++;
 	  if(i < argc)
-	    c[cn].DiffFluxtomag->offset = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].DiffFluxtomag, offset, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  k = 0;
@@ -662,17 +700,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_FLUXTOMAG;
 	  if((c[cn].Fluxtomag = (_Fluxtomag *) malloc(sizeof(_Fluxtomag))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  
 	  i++;
 	  if(i < argc)
-	    c[cn].Fluxtomag->mag_constant1 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, mag_constant1, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
-	  
+
 	  i++;
 	  if(i < argc)
-	    c[cn].Fluxtomag->offset = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, offset, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  cn++;
@@ -685,7 +723,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CLIP;
 	  if((c[cn].Clip = (_Clip *) malloc(sizeof(_Clip))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  c[cn].Clip->niter = 0;
 	  c[cn].Clip->usemedian = 0;
@@ -694,31 +732,40 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 
 	  i++;
 	  if(i < argc)
-	    c[cn].Clip->sigclip = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Clip, sigclip, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
-	  
+
 	  i++;
 	  if(i < argc)
 	    {
-	      c[cn].Clip->iter = atoi(argv[i]);
-	      if(c[cn].Clip->iter != 0 && c[cn].Clip->iter != 1)
-		error(ERR_WRONGITER);
+	      VT_PARSE_INT(c[cn].Clip, iter, argv, i);
+	      if(c[cn].Clip->iter_source == VARTOOLS_SOURCE_FIXED &&
+		 c[cn].Clip->iter != 0 && c[cn].Clip->iter != 1)
+		vt_error(ERR_WRONGITER);
 	    }
 	  else
 	    listcommands(argv[iterm],p);
-	  
+
 	  i++;
 	  if(i < argc) {
 	    if(!strcmp(argv[i],"niter")) {
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
-	      c[cn].Clip->niter = atoi(argv[i]);
-	    } else
+	      VT_PARSE_INT(c[cn].Clip, niter, argv, i);
+	    } else {
+	      c[cn].Clip->niter_source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].Clip->niter_var = NULL;
+	      c[cn].Clip->niter_expr = NULL;
 	      i--;
+	    }
 	  }
-	  else
+	  else {
+	    c[cn].Clip->niter_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Clip->niter_var = NULL;
+	    c[cn].Clip->niter_expr = NULL;
 	    i--;
+	  }
 	  
 	  i++;
 	  if(i < argc) {
@@ -739,7 +786,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].Clip->clipvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].Clip->clipvarname,"%s",argv[i]);
 
 	      i++;
@@ -768,7 +815,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_RESCALESIG;
 	  if((c[cn].Rescalesig = (_Rescalesig *) malloc(sizeof(_Rescalesig))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Rescalesig->usemask = 0;
 	  c[cn].Rescalesig->maskvar = NULL;
 	  i++;
@@ -794,7 +841,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  p->readallflag = 1;
 	  c[cn].cnum = CNUM_ENSEMBLERESCALESIG;
 	  if((c[cn].Ensemblerescalesig = (_Ensemblerescalesig *) malloc(sizeof(_Ensemblerescalesig))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].Ensemblerescalesig->erssigclip = atof(argv[i]);
@@ -825,7 +872,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_DECORR;
 	  p->decorrflag = 1;
 	  if((c[cn].Decorr = (_Decorr *) malloc(sizeof(_Decorr))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].Decorr->correctlc = atoi(argv[i]);
@@ -848,10 +895,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  if((c[cn].Decorr->global_file_names = (char **) malloc(c[cn].Decorr->N_globalterms * sizeof(char *))) == NULL ||
 	     (c[cn].Decorr->globalfile_order = (int *) malloc(c[cn].Decorr->N_globalterms * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<c[cn].Decorr->N_globalterms;j++)
 	    if((c[cn].Decorr->global_file_names[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  for(j=0;j<c[cn].Decorr->N_globalterms;j++)
 	    {
 	      i++;
@@ -865,7 +912,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		listcommands(argv[iterm],p);
 	      if(c[cn].Decorr->globalfile_order[j] <= 0)
-		error(ERR_WRONGORDER);
+		vt_error(ERR_WRONGORDER);
 	    }
 	  i++;
 	  if(i < argc)
@@ -874,11 +921,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  if((c[cn].Decorr->lc_order = (int *) malloc(c[cn].Decorr->N_lcterms * sizeof(int))) == NULL ||
 	     (c[cn].Decorr->lc_columns = (int *) malloc(c[cn].Decorr->N_lcterms * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  
 	  if(c[cn].Decorr->N_lcterms > 0) {
 	    if((c[cn].Decorr->lcdecorr_terms_in = (double ***) malloc(c[cn].Decorr->N_lcterms * sizeof(double **))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  
 	  for(j=0;j<c[cn].Decorr->N_lcterms;j++)
@@ -894,7 +941,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		listcommands(argv[iterm],p);
 	      if(c[cn].Decorr->lc_order[j] <= 0)
-		error(ERR_WRONGORDER);
+		vt_error(ERR_WRONGORDER);
 	    }
 	  c[cn].Decorr->N_decorrterms = c[cn].Decorr->N_globalterms + c[cn].Decorr->N_lcterms;
 	  if(c[cn].Decorr->zeropointterm)
@@ -904,7 +951,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  k = 0;
 	  if(c[cn].Decorr->N_decorrterms > 0)
 	    if((c[cn].Decorr->order = (int *) malloc(c[cn].Decorr->N_decorrterms * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  for(j=0;j<c[cn].Decorr->N_globalterms;j++)
 	    {
 	      c[cn].Decorr->order[k] = c[cn].Decorr->globalfile_order[j];
@@ -957,14 +1004,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_DFTCLEAN;
 	  if((c[cn].Dftclean = (_Dftclean *) malloc(sizeof(_Dftclean))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  i++;
 	  if(i < argc)
-	    c[cn].Dftclean->nbeam = atoi(argv[i]);
+	    VT_PARSE_INT(c[cn].Dftclean, nbeam, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  c[cn].Dftclean->maxfreq = -1.;
+	  VT_INIT_PARAM(c[cn].Dftclean, maxfreq);
 	  c[cn].Dftclean->outdspec = 0;
 	  c[cn].Dftclean->finddirtypeaks = 0;
 	  c[cn].Dftclean->Npeaks_dirty = 0;
@@ -983,7 +1031,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		{
 		  i++;
 		  if(i < argc)
-		    c[cn].Dftclean->maxfreq = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Dftclean, maxfreq, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -1026,6 +1074,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		  c[cn].Dftclean->clip_dirty = 5.0;
+		  VT_INIT_PARAM(c[cn].Dftclean, clip_dirty);
 		  c[cn].Dftclean->clipiter_dirty = 1;
 		  i++;
 		  if(i < argc)
@@ -1033,8 +1082,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		      if(!strncmp(argv[i],"clip",4) && strlen(argv[i]) == 4)
 			{
 			  i++;
-			  if(i < argc) 
-			    c[cn].Dftclean->clip_dirty = atof(argv[i]);
+			  if(i < argc)
+			    VT_PARSE_DOUBLE(c[cn].Dftclean, clip_dirty, argv, i);
 			  else
 			    listcommands(argv[iterm],p);
 			  i++;
@@ -1082,14 +1131,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Dftclean->runclean = 1;
 		  i++;
 		  if(i < argc)
-		    {
-		      c[cn].Dftclean->gain = atof(argv[i]);
-		    }
+		    VT_PARSE_DOUBLE(c[cn].Dftclean, gain, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Dftclean->SNlimit = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Dftclean, SNlimit, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
@@ -1144,6 +1191,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			  c[cn].Dftclean->clip_clean = 5.0;
+			  VT_INIT_PARAM(c[cn].Dftclean, clip_clean);
 			  c[cn].Dftclean->clipiter_clean = 1;
 			  i++;
 			  if(i < argc)
@@ -1151,8 +1199,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      if(!strncmp(argv[i],"clip",4) && strlen(argv[i]) == 4)
 				{
 				  i++;
-				  if(i < argc) 
-				    c[cn].Dftclean->clip_clean = atof(argv[i]);
+				  if(i < argc)
+				    VT_PARSE_DOUBLE(c[cn].Dftclean, clip_clean, argv, i);
 				  else
 				    listcommands(argv[iterm],p);
 				  i++;
@@ -1224,7 +1272,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CHI2_NOBIN;
 	  if((c[cn].Chi2_NoBin = (_Chi2_NoBin *) malloc(sizeof(_Chi2_NoBin))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Chi2_NoBin->usemask = 0;
 	  c[cn].Chi2_NoBin->maskvar = NULL;
 	  i++;
@@ -1249,7 +1297,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CHI2_BIN;
 	  if((c[cn].Chi2_Bin = (_Chi2_Bin *) malloc(sizeof(_Chi2_Bin))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].Chi2_Bin->Nbin = atoi(argv[i]);
@@ -1257,7 +1305,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 
 	  if((c[cn].Chi2_Bin->bintimes = (double *) malloc(c[cn].Chi2_Bin->Nbin * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<c[cn].Chi2_Bin->Nbin;j++)
 	    {
 	      i++;
@@ -1290,7 +1338,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CHANGEERROR;
 	  if((c[cn].Changeerror = (_Changeerror *) malloc(sizeof(_Changeerror))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Changeerror->usemask = 0;
 	  c[cn].Changeerror->maskvar = NULL;
 	  i++;
@@ -1315,7 +1363,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CHANGEVARIABLE;
 	  if((c[cn].Changevariable = (_Changevariable *) malloc(sizeof(_Changevariable))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -1347,7 +1395,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_RESTORELC;
 	  if((c[cn].Restorelc = (_Restorelc *) malloc(sizeof(_Restorelc))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -1367,7 +1415,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Restorelc->saveindex = l;
 		}
 	      else
-		error2(ERR_MISSINGSAVELC,argv[i]);
+		vt_error2(ERR_MISSINGSAVELC,argv[i]);
 	    }
 	  else
 	    listcommands(argv[iterm],p);
@@ -1390,14 +1438,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    l++;
 		  }
 		  if((c[cn].Restorelc->restorevarnames = (char **) malloc(c[cn].Restorelc->Nrestorevars * sizeof(char *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  l = 0; m = 0;
 		  for(k = 0; k < c[cn].Restorelc->Nrestorevars; k++) {
 		    while(argv[i][l] != '\0' && argv[i][l] != ',') {
 		      l++;
 		    }
 		    if((c[cn].Restorelc->restorevarnames[k] = (char *) malloc((l - m + 1)*sizeof(char))) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		    for(ll=m; ll < l; ll++) {
 		      c[cn].Restorelc->restorevarnames[k][ll-m] = argv[i][ll];
 		    }
@@ -1406,7 +1454,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    l = l+1;
 		  }
 		  if((c[cn].Restorelc->restorevars = (_Variable **) malloc(c[cn].Restorelc->Nrestorevars*sizeof(_Variable *))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		} else
 		  listcommands(argv[iterm],p);
 	      } else {
@@ -1426,11 +1474,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_SAVELC;
 	  if((c[cn].Savelc = (_Savelc *) malloc(sizeof(_Savelc))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  cn++;
 	}
 
-      /* -harmonicfilter <"full" |
+      /* -fourierfilter <"full" |
                           "highpass"
                              <"minfreq" <"fix" value | 
                                          "list" [\"column\" col] | 
@@ -1462,17 +1510,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
                         ["filterexpr" expr] ["fullspec"] ["forcefft"]
                         ["ofourier" outdir ["nameformat" format]] */
 
-      else if(!strcmp(argv[i],"-harmonicfilter"))
+      else if(!strcmp(argv[i],"-fourierfilter"))
 	{
 	  iterm = i;
 	  increaseNcommands(p,&c);
 	  c[cn].require_sort = 1;
 	  c[cn].require_distinct = 1;
-	  c[cn].cnum = CNUM_HARMONICFILTER;
-	  if((c[cn].HarmonicFilter = (_HarmonicFilter *) malloc(sizeof(_HarmonicFilter))) == NULL)
-	    error(ERR_MEMALLOC);
+	  c[cn].cnum = CNUM_FOURIERFILTER;
+	  if((c[cn].FourierFilter = (_FourierFilter *) malloc(sizeof(_FourierFilter))) == NULL)
+	    vt_error(ERR_MEMALLOC);
 	  i++;
-	  if(ParseHarmonicFilterCommand(&i, argc, argv, p, c[cn].HarmonicFilter, cn))
+	  if(ParseFourierFilterCommand(&i, argc, argv, p, c[cn].FourierFilter, cn))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
@@ -1486,7 +1534,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 0;
 	  c[cn].cnum = CNUM_PRINT;
 	  if((c[cn].PrintCommand = (_PrintCommand *) malloc(sizeof(_PrintCommand))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -1505,7 +1553,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	     (c[cn].PrintCommand->vars = (_Variable **) malloc(c[cn].PrintCommand->Nvars*sizeof(_Variable *))) == NULL ||
 	     (c[cn].PrintCommand->dataptr = (void **) malloc(c[cn].PrintCommand->Nvars*sizeof(void *))) == NULL ||
 	     (c[cn].PrintCommand->colindx = (int *) malloc(c[cn].PrintCommand->Nvars*sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  k = 0;
 	  m = 0;
 	  for(l = 0; l < c[cn].PrintCommand->Nvars; l++) {
@@ -1514,7 +1562,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      k++;
 	    }
 	    if((c[cn].PrintCommand->varnames[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(j=m; j < k; j++) {
 	      c[cn].PrintCommand->varnames[l][j-m] = argv[i][j];
 	    }
@@ -1539,9 +1587,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		l++;
 	      }
 	      if(m != c[cn].PrintCommand->Nvars)
-		error(ERR_PRINTNUMVARSNOTMATCH);
+		vt_error(ERR_PRINTNUMVARSNOTMATCH);
 	      if((c[cn].PrintCommand->colnames = (char **) malloc(c[cn].PrintCommand->Nvars*sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 
 	      k = 0;
 	      m = 0;
@@ -1550,7 +1598,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  k++;
 		}
 		if((c[cn].PrintCommand->colnames[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		for(j=m; j < k; j++) {
 		  c[cn].PrintCommand->colnames[l][j-m] = argv[i][j];
 		}
@@ -1580,9 +1628,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		l++;
 	      }
 	      if(m != c[cn].PrintCommand->Nvars)
-		error(ERR_PRINTNUMVARSNOTMATCH);
+		vt_error(ERR_PRINTNUMVARSNOTMATCH);
 	      if((c[cn].PrintCommand->formatstrings = (char **) malloc(c[cn].PrintCommand->Nvars*sizeof(char *))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 
 	      k = 0;
 	      m = 0;
@@ -1591,7 +1639,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  k++;
 		}
 		if((c[cn].PrintCommand->formatstrings[l] = (char *) malloc((k - m + 1)*sizeof(char))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		for(j=m; j < k; j++) {
 		  c[cn].PrintCommand->formatstrings[l][j-m] = argv[i][j];
 		}
@@ -1646,7 +1694,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_RESAMPLE;
 	  if((c[cn].Resample = (_Resample *) malloc(sizeof(_Resample))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(ParseResampleCommand(&i, argc, argv, p, c[cn].Resample, cn))
 	    listcommands(argv[iterm],p);
@@ -1672,7 +1720,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_RESTRICTTIMES;
 	  if((c[cn].RestrictTimes = (_RestrictTimes *) malloc(sizeof(_RestrictTimes))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].RestrictTimes->exclude = 0;
 	  c[cn].RestrictTimes->saveexcludedpoints = 0;
 	  i++;
@@ -1827,7 +1875,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
 	    if((c[cn].RestrictTimes->restrictexprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sprintf(c[cn].RestrictTimes->restrictexprstring,"%s",argv[i]);
 	  }
 	  else
@@ -1843,7 +1891,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].RestrictTimes->markvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].RestrictTimes->markvarname,"%s",argv[i]);
 
 	      i++;
@@ -1870,7 +1918,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	increaseNcommands(p,&c);
 	c[cn].cnum = CNUM_RESTORETIMES;
 	  if((c[cn].RestoreTimes = (_RestoreTimes *) malloc(sizeof(_RestoreTimes))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -1884,7 +1932,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    m++;
 		  if(m == c[cn].RestoreTimes->restrictnum) {
 		    if(c[l].RestrictTimes->markrestrict) {
-		      error(ERR_RESTORETIMES_MARKRESTRICT);
+		      vt_error(ERR_RESTORETIMES_MARKRESTRICT);
 		    }
 		    c[cn].RestoreTimes->RestrictTimes = c[l].RestrictTimes;
 		    c[l].RestrictTimes->saveexcludedpoints = 1;
@@ -1892,7 +1940,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  }
 		}
 	      if(l >= cn)
-		error2(ERR_MISSINGRESTRICTTIMES,argv[i]);
+		vt_error2(ERR_MISSINGRESTRICTTIMES,argv[i]);
 	    }
 	  else
 	    listcommands(argv[iterm],p);	      
@@ -1906,7 +1954,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_RMS_NOBIN;
 	  if((c[cn].RMS_NoBin = (_RMS_NoBin *) malloc(sizeof(_RMS_NoBin))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].RMS_NoBin->usemask = 0;
 	  c[cn].RMS_NoBin->maskvar = NULL;
 	  i++;
@@ -1932,14 +1980,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_RMS_BIN;
 	  if((c[cn].RMS_Bin = (_RMS_Bin *) malloc(sizeof(_RMS_Bin))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].RMS_Bin->Nbin = atoi(argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
 	  if((c[cn].RMS_Bin->bintimes = (double *) malloc(c[cn].RMS_Bin->Nbin * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<c[cn].RMS_Bin->Nbin;j++)
 	    {
 	      i++;
@@ -1974,7 +2022,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_sort = 1;
 	  c[cn].require_distinct = 1;
 	  if((c[cn].Jstet = (_Jstet *) malloc(sizeof(_Jstet))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].Jstet->Jstet_time = atof(argv[i]);
@@ -2010,7 +2058,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_ADDFITSKEYWORD;
 	  if((c[cn].AddFitsKeyword = (_AddFitsKeyword *) malloc(sizeof(_AddFitsKeyword))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  
 	  c[cn].AddFitsKeyword->comment_string = NULL;
 	  c[cn].AddFitsKeyword->string_fixval = NULL;
@@ -2022,7 +2070,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i >= argc) listcommands(argv[iterm],p);
 	  if((c[cn].AddFitsKeyword->keyname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  sprintf(c[cn].AddFitsKeyword->keyname,"%s", argv[i]);
 	  i++;
 	  if(i < argc) {
@@ -2069,11 +2117,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      break;
 	    case VARTOOLS_TYPE_STRING:
 	      if((c[cn].AddFitsKeyword->string_fixval = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].AddFitsKeyword->string_fixval,"%s",argv[i]);
 	      break;
 	    default:
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	      break;
 	    }
 	  }
@@ -2095,7 +2143,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddFitsKeyword->keyval_var), (c[cn].AddFitsKeyword->combinelckeyword ? VARTOOLS_VECTORTYPE_LC : VARTOOLS_VECTORTYPE_INLIST), VARTOOLS_TYPE_STRING);
 	      break;
 	    default:
-	      error(ERR_CODEERROR);
+	      vt_error(ERR_CODEERROR);
 	      break;
 	    }
 	  } else {
@@ -2107,7 +2155,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].AddFitsKeyword->comment_string = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].AddFitsKeyword->comment_string,"%s",argv[i]);
 	    }
 	    else
@@ -2149,7 +2197,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_ADDNOISE;
 	  if((c[cn].AddNoise = (_AddNoise *) malloc(sizeof(_AddNoise))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  i++;
 	  if(i >= argc) listcommands(argv[iterm],p);
@@ -2171,6 +2219,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->sig_w_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2236,6 +2298,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->rho_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->rho_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->rho_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->rho_r_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->rho_r_type = PERTYPE_SPECIFIED;
@@ -2290,6 +2366,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->sig_r_type = PERTYPE_SPECIFIED;
@@ -2342,6 +2432,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->sig_w_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2396,6 +2500,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->bintime_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->bintime_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->bintime_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->bintime_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->bintime_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2461,6 +2579,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->nu_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->nu_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->nu_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->nu_r_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->nu_r_type = PERTYPE_SPECIFIED;
@@ -2514,6 +2646,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->rho_r_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->rho_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->rho_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->rho_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->rho_r_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2569,6 +2715,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->sig_r_type = PERTYPE_SPECIFIED;
@@ -2621,6 +2781,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->sig_w_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2675,6 +2849,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].AddNoise->bintime_fix = atof(argv[i]);
 			    else
 			      listcommands(argv[iterm],p);
+			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->bintime_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->bintime_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->bintime_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->bintime_expr));
 			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
@@ -2741,6 +2929,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->gammaval_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->gammaval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->gammaval_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->gammaval_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->gammaval_type = PERTYPE_SPECIFIED;
@@ -2795,6 +2997,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_r_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_r_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->sig_r_type = PERTYPE_SPECIFIED;
@@ -2848,6 +3064,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    else
 			      listcommands(argv[iterm],p);
 			  }
+			else if(!strcmp(argv[i],"var"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_VAR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  }
+			else if(!strcmp(argv[i],"expr"))
+			  {
+			    c[cn].AddNoise->sig_w_type = PERTYPE_EXPR;
+			    i++;
+			    if(i >= argc) listcommands(argv[iterm],p);
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].AddNoise->sig_w_expr));
+			  }
 			else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			  {
 			    c[cn].AddNoise->sig_w_type = PERTYPE_SPECIFIED;
@@ -2900,7 +3130,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_ALARM;
 	  if((c[cn].Alarm = (_Alarm *) malloc(sizeof(_Alarm))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Alarm->usemask = 0;
 	  c[cn].Alarm->maskvar = NULL;
 	  i++;
@@ -2927,7 +3157,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_AOV;
 	  if((c[cn].Aov = (_Aov *) malloc(sizeof(_Aov))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -3150,7 +3380,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOAOV);
+			    vt_error(ERR_KILLHARM_NOAOV);
 			  else
 			    c[cn].Aov->fixperiodSNR_lastaovindex = m;
 			}
@@ -3165,7 +3395,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0 || m == cn)
-			    error(ERR_KILLHARM_NOLS);
+			    vt_error(ERR_KILLHARM_NOLS);
 			  else
 			    c[cn].Aov->fixperiodSNR_lastaovindex = m;
 			}
@@ -3180,7 +3410,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOINJECTHARM);
+			    vt_error(ERR_KILLHARM_NOINJECTHARM);
 			  else
 			    c[cn].Aov->fixperiodSNR_lastaovindex = m;
 			}
@@ -3261,7 +3491,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_HARMAOV;
 	  if((c[cn].AovHarm = (_AovHarm *) malloc(sizeof(_AovHarm))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  i++;
 	  if(i >= argc)
@@ -3458,7 +3688,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOAOV);
+			    vt_error(ERR_KILLHARM_NOAOV);
 			  else
 			    c[cn].AovHarm->fixperiodSNR_lastaovindex = m;
 			}
@@ -3473,7 +3703,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0 || m == cn)
-			    error(ERR_KILLHARM_NOLS);
+			    vt_error(ERR_KILLHARM_NOLS);
 			  else
 			    c[cn].AovHarm->fixperiodSNR_lastaovindex = m;
 			}
@@ -3488,7 +3718,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOINJECTHARM);
+			    vt_error(ERR_KILLHARM_NOINJECTHARM);
 			  else
 			    c[cn].AovHarm->fixperiodSNR_lastaovindex = m;
 			}
@@ -3568,20 +3798,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_sort = 1;
 	  c[cn].cnum = CNUM_AUTOCORR;
 	  if((c[cn].Autocorr = (_Autocorr *) malloc(sizeof(_Autocorr))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
-	    c[cn].Autocorr->start = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Autocorr, start, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Autocorr->stop = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Autocorr, stop, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Autocorr->step = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Autocorr, step, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
@@ -3632,7 +3862,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_CONVERTTIME;
 	  if((c[cn].ConvertTime = (_ConvertTime *) malloc(sizeof(_ConvertTime))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -4385,7 +4615,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	       c[cn].ConvertTime->outputtimetype == TIMETYPE_BJD ||
 	       c[cn].ConvertTime->inputtimetype == TIMETYPE_HJD ||
 	       c[cn].ConvertTime->outputtimetype == TIMETYPE_HJD)
-	      error(ERR_CONVERTTIME_NORADEC);
+	      vt_error(ERR_CONVERTTIME_NORADEC);
 	  }
 	  
 #endif
@@ -4400,9 +4630,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_LINFIT;
 	  if((c[cn].Linfit = (_Linfit *) malloc(sizeof(_Linfit))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
-	  if(ParseLinfitCommand(&i, argc, argv, p, c[cn].Linfit))
+	  if(ParseLinfitCommand(&i, argc, argv, p, c[cn].Linfit, &c[cn]))
 	    listcommands(argv[iterm],p);
 	  cn++;
 	}
@@ -4414,9 +4644,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_NONLINFIT;
 	  if((c[cn].Nonlinfit = (_Nonlinfit *) malloc(sizeof(_Nonlinfit))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
-	  if(ParseNonlinfitCommand(&i, argc, argv, p, c[cn].Nonlinfit))
+	  if(ParseNonlinfitCommand(&i, argc, argv, p, c[cn].Nonlinfit, &c[cn]))
 	    listcommands(argv[iterm],p);
 	  if(c[cn].Nonlinfit->use_covar) {
 	    c[cn].require_sort = 1;
@@ -4448,7 +4678,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_LS;
 	  if((c[cn].Ls = (_Ls *) malloc(sizeof(_Ls))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 
 	  i++;
 	  if(i >= argc)
@@ -4615,7 +4845,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOAOV);
+			    vt_error(ERR_KILLHARM_NOAOV);
 			  else
 			    c[cn].Ls->fixperiodSNR_lastaovindex = m;
 			}
@@ -4630,7 +4860,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0 || m == cn)
-			    error(ERR_KILLHARM_NOLS);
+			    vt_error(ERR_KILLHARM_NOLS);
 			  else
 			    c[cn].Ls->fixperiodSNR_lastaovindex = m;
 			}
@@ -4645,7 +4875,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				m = l;
 			    }
 			  if(m < 0)
-			    error(ERR_KILLHARM_NOINJECTHARM);
+			    vt_error(ERR_KILLHARM_NOINJECTHARM);
 			  else
 			    c[cn].Ls->fixperiodSNR_lastaovindex = m;
 			}
@@ -4749,7 +4979,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_GETLSAMPTHRESH;
 	  if((c[cn].GetLSAmpThresh = (_GetLSAmpThresh *) malloc(sizeof(_GetLSAmpThresh))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].GetLSAmpThresh->line_size = MAXLEN;
 	  c[cn].GetLSAmpThresh->line = malloc(c[cn].GetLSAmpThresh->line_size);
 	  i++;
@@ -4766,7 +4996,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].GetLSAmpThresh->lastlsindex = m;
 		}
@@ -4830,7 +5060,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  if((c[cn].GetLSAmpThresh->listfile = fopen(c[cn].GetLSAmpThresh->listfilename,"r")) == NULL)
 		    {
-		      error2(ERR_FILENOTFOUND,c[cn].GetLSAmpThresh->listfilename);
+		      vt_error2(ERR_FILENOTFOUND,c[cn].GetLSAmpThresh->listfilename);
 		    }
 		}
 	      else
@@ -4858,7 +5088,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_OUTPUTLCS;
 	  if((c[cn].Outputlcs = (_Outputlcs *) malloc(sizeof(_Outputlcs))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    sprintf(c[cn].Outputlcs->outdir,"%s",argv[i]);
@@ -4872,6 +5102,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->printfformats = NULL;
 	  c[cn].Outputlcs->varnames = NULL;
 	  c[cn].Outputlcs->outfits = 0;
+	  c[cn].Outputlcs->outgzip = 0;
+	  c[cn].Outputlcs->outbzip2 = 0;
 	  c[cn].Outputlcs->copyheaderfrominput = 0;
 	  c[cn].Outputlcs->logcommandline = 0;
 	  c[cn].Outputlcs->noclobber = 0;
@@ -4880,6 +5112,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Outputlcs->descriptions = NULL;
 	  c[cn].Outputlcs->namefrominlist = 0;
 	  c[cn].Outputlcs->inputlistoutnames = NULL;
+	  c[cn].Outputlcs->usechangesuffix = 0;
+	  c[cn].Outputlcs->changesuffix_remove[0] = '\0';
+	  c[cn].Outputlcs->changesuffix_add[0] = '\0';
+	  c[cn].Outputlcs->allcols = 0;
+	  c[cn].Outputlcs->allcols_nvars_snapshot = 0; /* filled in later by
+	    CompileAllExpressions once we can observe which variables are
+	    defined at the point where this -o command runs in the sequence. */
+	  c[cn].Outputlcs->force_outdir_mode = 0;
+	  c[cn].Outputlcs->capture_to_buffer = 0;
+	  c[cn].Outputlcs->capture_skip_file = 0;
+	  c[cn].Outputlcs->capture_id[0]     = '\0';
 	  i++;
 	  if(i < argc)
 	    {
@@ -4925,6 +5168,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 					    0, cn, 0, 0, NULL, k,
 					    "OUTPUTLCS_OUTFILENAME");
 		}
+	      else if(!strcmp(argv[i],"changesuffix"))
+		{
+		  c[cn].Outputlcs->usechangesuffix = 1;
+		  i++;
+		  if(i < argc)
+		    sprintf(c[cn].Outputlcs->changesuffix_remove,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		  i++;
+		  if(i < argc)
+		    sprintf(c[cn].Outputlcs->changesuffix_add,"%s",argv[i]);
+		  else
+		    listcommands(argv[iterm],p);
+		}
 	      else
 		i--;
 	    }
@@ -4943,6 +5200,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  }
 		  else
 		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"allcols"))
+		{
+		  /* Defer column-list construction until CompileAllExpressions,
+		     once every variable has been registered. */
+		  c[cn].Outputlcs->allcols = 1;
+		  c[cn].Outputlcs->usecolumnformat = 1;
 		}
 	      else
 		i--;
@@ -5017,6 +5281,71 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"gzip"))
+		{
+		  c[cn].Outputlcs->outgzip = 1;
+		  c[cn].Outputlcs->outbzip2 = 0;
+		}
+	      else if(!strcmp(argv[i],"bzip2"))
+		{
+		  c[cn].Outputlcs->outbzip2 = 1;
+		  c[cn].Outputlcs->outgzip = 0;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"forceoutdirmode"))
+		{
+		  c[cn].Outputlcs->force_outdir_mode = 1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"capture"))
+		{
+		  /* "-o <id> capture": the first -o arg (parsed into
+		     ->outdir above) is actually the in-memory slot key, not
+		     a filesystem path; copy it into ->capture_id and skip
+		     the file write. */
+		  c[cn].Outputlcs->capture_to_buffer = 1;
+		  c[cn].Outputlcs->capture_skip_file = 1;
+		  strncpy(c[cn].Outputlcs->capture_id,
+			  c[cn].Outputlcs->outdir, MAXLEN - 1);
+		  c[cn].Outputlcs->capture_id[MAXLEN - 1] = '\0';
+		}
+	      else if(!strcmp(argv[i],"capture_id"))
+		{
+		  /* "-o <path> [...] capture_id <id>": write the file as
+		     normal AND snapshot the post-write LC state into the
+		     in-memory slot keyed by <id>. */
+		  c[cn].Outputlcs->capture_to_buffer = 1;
+		  c[cn].Outputlcs->capture_skip_file = 0;
+		  i++;
+		  if(i < argc) {
+		    strncpy(c[cn].Outputlcs->capture_id, argv[i], MAXLEN - 1);
+		    c[cn].Outputlcs->capture_id[MAXLEN - 1] = '\0';
+		  }
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
 	  cn++;
 	}
 
@@ -5027,7 +5356,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_INJECTHARM;
 	  if((c[cn].Injectharm = (_Injectharm *) malloc(sizeof(_Injectharm))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -5062,17 +5391,35 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else if(!strcmp(argv[i],"var"))
+		{
+		  c[cn].Injectharm->pertype = PERTYPE_VAR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injectharm->fixperiod_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"expr"))
+		{
+		  c[cn].Injectharm->pertype = PERTYPE_EXPR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injectharm->fixperiod_expr));
+		  else
+		    listcommands(argv[iterm],p);
+		}
 	      else if(!strncmp(argv[i],"rand",4) && strlen(argv[i]) == 4)
 		{
 		  c[cn].Injectharm->pertype = PERTYPE_UNIFORMRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->minp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, minp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->maxp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, maxp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5081,12 +5428,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injectharm->pertype = PERTYPE_LOGRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->minp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, minp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->maxp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, maxp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5095,12 +5442,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injectharm->pertype = PERTYPE_UNIFORMRANDFREQ;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->minf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, minf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->maxf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, maxf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5109,12 +5456,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injectharm->pertype = PERTYPE_LOGRANDFREQ;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->minf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, minf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injectharm->maxf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injectharm, maxf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5131,14 +5478,28 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if((c[cn].Injectharm->harm_amptype = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
 	     (c[cn].Injectharm->harm_amprel = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
 	     (c[cn].Injectharm->harm_ampfix = (double *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double))) == NULL ||
+	     (c[cn].Injectharm->harm_ampfix_source = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
+	     (c[cn].Injectharm->harm_ampfix_var = (_Variable **) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(_Variable *))) == NULL ||
+	     (c[cn].Injectharm->harm_ampfix_expr = (_Expression **) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(_Expression *))) == NULL ||
 	     (c[cn].Injectharm->harm_ampspec = (double ***) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double **))) == NULL ||
 	     (c[cn].Injectharm->harm_minamp = (double *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double))) == NULL ||
 	     (c[cn].Injectharm->harm_maxamp = (double *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double))) == NULL ||
 	     (c[cn].Injectharm->harm_phasetype = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
 	     (c[cn].Injectharm->harm_phaserel = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
 	     (c[cn].Injectharm->harm_phasefix = (double *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double))) == NULL ||
+	     (c[cn].Injectharm->harm_phasefix_source = (int *) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(int))) == NULL ||
+	     (c[cn].Injectharm->harm_phasefix_var = (_Variable **) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(_Variable *))) == NULL ||
+	     (c[cn].Injectharm->harm_phasefix_expr = (_Expression **) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(_Expression *))) == NULL ||
 	     (c[cn].Injectharm->harm_phasespec = (double ***) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
+	  for(l=0; l <= c[cn].Injectharm->Nharm; l++) {
+	    c[cn].Injectharm->harm_ampfix_source[l] = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Injectharm->harm_ampfix_var[l] = NULL;
+	    c[cn].Injectharm->harm_ampfix_expr[l] = NULL;
+	    c[cn].Injectharm->harm_phasefix_source[l] = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Injectharm->harm_phasefix_var[l] = NULL;
+	    c[cn].Injectharm->harm_phasefix_expr[l] = NULL;
+	  }
 	  for(l=0; l <= c[cn].Injectharm->Nharm; l++)
 	    {
 	      i++;
@@ -5174,6 +5535,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    c[cn].Injectharm->harm_ampfix[l] = atof(argv[i]);
 		  else
 		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"ampvar"))
+		{
+		  c[cn].Injectharm->harm_amptype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->harm_ampfix_source[l] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injectharm->harm_ampfix_var[l]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		}
+	      else if(!strcmp(argv[i],"ampexpr"))
+		{
+		  c[cn].Injectharm->harm_amptype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->harm_ampfix_source[l] = VARTOOLS_SOURCE_EVALEXPRESSION;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injectharm->harm_ampfix_expr[l]));
 		}
 	      else if(!strncmp(argv[i],"amprand",7) && strlen(argv[i]) == 7)
 		{
@@ -5255,6 +5632,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else if(!strcmp(argv[i],"phasevar"))
+		{
+		  c[cn].Injectharm->harm_phasetype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->harm_phasefix_source[l] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injectharm->harm_phasefix_var[l]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		}
+	      else if(!strcmp(argv[i],"phaseexpr"))
+		{
+		  c[cn].Injectharm->harm_phasetype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->harm_phasefix_source[l] = VARTOOLS_SOURCE_EVALEXPRESSION;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injectharm->harm_phasefix_expr[l]));
+		}
 	      else if(!strncmp(argv[i],"phaserand",9) && strlen(argv[i]) == 9)
 		{
 		  c[cn].Injectharm->harm_phasetype[l] = PERTYPE_UNIFORMRAND;
@@ -5293,8 +5686,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		 (c[cn].Injectharm->subharm_phasetype = (int *) malloc((c[cn].Injectharm->Nsubharm) * sizeof(int))) == NULL ||
 		 (c[cn].Injectharm->subharm_phaserel = (int *) malloc((c[cn].Injectharm->Nsubharm) * sizeof(int))) == NULL ||
 		 (c[cn].Injectharm->subharm_phasefix = (double *) malloc((c[cn].Injectharm->Nsubharm) * sizeof(double))) == NULL ||
+		 (c[cn].Injectharm->subharm_ampfix_source = (int *) malloc((c[cn].Injectharm->Nsubharm) * sizeof(int))) == NULL ||
+		 (c[cn].Injectharm->subharm_ampfix_var = (_Variable **) malloc((c[cn].Injectharm->Nsubharm) * sizeof(_Variable *))) == NULL ||
+		 (c[cn].Injectharm->subharm_ampfix_expr = (_Expression **) malloc((c[cn].Injectharm->Nsubharm) * sizeof(_Expression *))) == NULL ||
+		 (c[cn].Injectharm->subharm_phasefix_source = (int *) malloc((c[cn].Injectharm->Nsubharm) * sizeof(int))) == NULL ||
+		 (c[cn].Injectharm->subharm_phasefix_var = (_Variable **) malloc((c[cn].Injectharm->Nsubharm) * sizeof(_Variable *))) == NULL ||
+		 (c[cn].Injectharm->subharm_phasefix_expr = (_Expression **) malloc((c[cn].Injectharm->Nsubharm) * sizeof(_Expression *))) == NULL ||
 		 (c[cn].Injectharm->subharm_phasespec = (double ***) malloc((c[cn].Injectharm->Nharm + 1) * sizeof(double **))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
+	      for(l=0; l < c[cn].Injectharm->Nsubharm; l++) {
+		c[cn].Injectharm->subharm_ampfix_source[l] = VARTOOLS_SOURCE_FIXED;
+		c[cn].Injectharm->subharm_ampfix_var[l] = NULL;
+		c[cn].Injectharm->subharm_ampfix_expr[l] = NULL;
+		c[cn].Injectharm->subharm_phasefix_source[l] = VARTOOLS_SOURCE_FIXED;
+		c[cn].Injectharm->subharm_phasefix_var[l] = NULL;
+		c[cn].Injectharm->subharm_phasefix_expr[l] = NULL;
+	      }
 	    }
 	  for(l=0; l < c[cn].Injectharm->Nsubharm; l++)
 	    {
@@ -5331,6 +5738,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    c[cn].Injectharm->subharm_ampfix[l] = atof(argv[i]);
 		  else
 		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"ampvar"))
+		{
+		  c[cn].Injectharm->subharm_amptype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->subharm_ampfix_source[l] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injectharm->subharm_ampfix_var[l]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		}
+	      else if(!strcmp(argv[i],"ampexpr"))
+		{
+		  c[cn].Injectharm->subharm_amptype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->subharm_ampfix_source[l] = VARTOOLS_SOURCE_EVALEXPRESSION;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injectharm->subharm_ampfix_expr[l]));
 		}
 	      else if(!strncmp(argv[i],"amprand",7) && strlen(argv[i]) == 7)
 		{
@@ -5409,6 +5832,22 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else if(!strcmp(argv[i],"phasevar"))
+		{
+		  c[cn].Injectharm->subharm_phasetype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->subharm_phasefix_source[l] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injectharm->subharm_phasefix_var[l]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		}
+	      else if(!strcmp(argv[i],"phaseexpr"))
+		{
+		  c[cn].Injectharm->subharm_phasetype[l] = PERTYPE_FIX;
+		  c[cn].Injectharm->subharm_phasefix_source[l] = VARTOOLS_SOURCE_EVALEXPRESSION;
+		  i++;
+		  if(i >= argc) listcommands(argv[iterm],p);
+		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injectharm->subharm_phasefix_expr[l]));
+		}
 	      else if(!strncmp(argv[i],"phaserand",9) && strlen(argv[i]) == 9)
 		{
 		  c[cn].Injectharm->subharm_phasetype[l] = PERTYPE_UNIFORMRAND;
@@ -5452,7 +5891,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_INJECTTRANSIT;
 	  if((c[cn].Injecttransit = (_Injecttransit *) malloc(sizeof(_Injecttransit))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -5490,12 +5929,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_UNIFORMRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5504,12 +5943,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_LOGRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5517,21 +5956,29 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		{
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_EXPR;
 		  i++;
-		  if(i >= argc) 
+		  if(i >= argc)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_PERIOD]));
+		}
+	      else if(!strcmp(argv[i],"Pvar"))
+		{
+		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_VAR;
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_PERIOD]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
 		}
 	      else if(!strncmp(argv[i],"randfreq",8) && strlen(argv[i]) == 8)
 		{
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_UNIFORMRANDFREQ;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5540,12 +5987,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_PERIOD] = PERTYPE_LOGRANDFREQ;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxf = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxf, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5591,12 +6038,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_RP] = PERTYPE_UNIFORMRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minRp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minRp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxRp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxRp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5605,12 +6052,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_RP] = PERTYPE_LOGRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minRp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minRp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxRp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxRp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5622,6 +6069,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_RP]));
 		}
+	      else if(!strcmp(argv[i],"Rpvar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_RP] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_RP]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -5664,12 +6119,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_MP] = PERTYPE_UNIFORMRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minMp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minMp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxMp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxMp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5678,12 +6133,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Injecttransit->paramtype[INJECTTR_IDX_MP] = PERTYPE_LOGRAND;
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->minMp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, minMp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].Injecttransit->maxMp = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Injecttransit, maxMp, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -5695,6 +6150,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_MP]));
 		}
+	      else if(!strcmp(argv[i],"Mpvar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_MP] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_MP]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -5742,6 +6205,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_PHASE]));
 		}
+	      else if(!strcmp(argv[i],"phasevar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_PHASE] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_PHASE]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -5789,6 +6260,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_SINI]));
 		}
+	      else if(!strcmp(argv[i],"sinivar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_SINI] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_SINI]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -5842,6 +6321,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    listcommands(argv[iterm],p);
 			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_E]));
 			}
+		      else if(!strcmp(argv[i],"evar"))
+		        {
+		          c[cn].Injecttransit->paramtype[INJECTTR_IDX_E] = PERTYPE_VAR;
+		          i++;
+		          if(i >= argc)
+		            listcommands(argv[iterm],p);
+		          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_E]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		        }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -5889,6 +6376,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    listcommands(argv[iterm],p);
 			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_OMEGA]));
 			}
+		      else if(!strcmp(argv[i],"ovar"))
+		        {
+		          c[cn].Injecttransit->paramtype[INJECTTR_IDX_OMEGA] = PERTYPE_VAR;
+		          i++;
+		          if(i >= argc)
+		            listcommands(argv[iterm],p);
+		          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_OMEGA]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		        }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -5941,6 +6436,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    listcommands(argv[iterm],p);
 			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_H]));
 			}
+		      else if(!strcmp(argv[i],"hvar"))
+		        {
+		          c[cn].Injecttransit->paramtype[INJECTTR_IDX_H] = PERTYPE_VAR;
+		          i++;
+		          if(i >= argc)
+		            listcommands(argv[iterm],p);
+		          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_H]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		        }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -5988,6 +6491,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    listcommands(argv[iterm],p);
 			  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_K]));
 			}
+		      else if(!strcmp(argv[i],"kvar"))
+		        {
+		          c[cn].Injecttransit->paramtype[INJECTTR_IDX_K] = PERTYPE_VAR;
+		          i++;
+		          if(i >= argc)
+		            listcommands(argv[iterm],p);
+		          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_K]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		        }
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -6039,6 +6550,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_MSTAR]));
 		}
+	      else if(!strcmp(argv[i],"Mstarvar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_MSTAR] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_MSTAR]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -6084,6 +6603,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_RSTAR]));
 		}
+	      else if(!strcmp(argv[i],"Rstarvar"))
+	        {
+	          c[cn].Injecttransit->paramtype[INJECTTR_IDX_RSTAR] = PERTYPE_VAR;
+	          i++;
+	          if(i >= argc)
+	            listcommands(argv[iterm],p);
+	          parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_RSTAR]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	        }
 	      else
 		listcommands(argv[iterm],p);
 	    }
@@ -6152,9 +6679,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    {
 		      c[cn].Injecttransit->paramtype[INJECTTR_IDX_LD + j] = PERTYPE_EXPR;
 		      i++;
-		      if(i >= argc) 
+		      if(i >= argc)
 			listcommands(argv[iterm],p);
 		      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramexpr[INJECTTR_IDX_LD + j]));
+		    }
+		}
+	      else if(!strcmp(argv[i],"ldvar"))
+		{
+		  for(j=0;j<c[cn].Injecttransit->Nld;j++)
+		    {
+		      c[cn].Injecttransit->paramtype[INJECTTR_IDX_LD + j] = PERTYPE_VAR;
+		      i++;
+		      if(i >= argc)
+			listcommands(argv[iterm],p);
+		      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Injecttransit->paramvar[INJECTTR_IDX_LD + j]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
 		    }
 		}
 	      else
@@ -6241,14 +6779,26 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -Killharm <\"aov\" | \"ls\" | \"both\" | \"injectharm\" | \"fix\" Nper per1 ... perN | \"list\" Nper [\"column\" col1]> Nharm Nsubharm omodel [modeloutdir] [\"fitonly\"] [\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"] [\"clip\" val]*/
-      else if(!strncmp(argv[i],"-Killharm",9) && strlen(argv[i]) == 9)
+      /* -harmonicfilter <\"aov\" | \"ls\" | \"both\" | \"injectharm\" | \"fix\" Nper per1 ... perN | \"list\" Nper [\"column\" col1]> Nharm Nsubharm omodel [modeloutdir] [\"fitonly\"] [\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"] [\"clip\" val]
+         (-Killharm is accepted as a synonym for -harmonicfilter; the output
+         column prefix follows the invoking token.) */
+      else if((!strncmp(argv[i],"-Killharm",9) && strlen(argv[i]) == 9)
+              || (!strcmp(argv[i],"-harmonicfilter")))
 	{
 	  iterm = i;
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_KILLHARM;
 	  if((c[cn].Killharm = (_Killharm *) malloc(sizeof(_Killharm))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
+	  /* Record the invoking token so output columns and the model-file
+	     suffix follow it. */
+	  if(!strcmp(argv[i],"-harmonicfilter")) {
+	    snprintf(c[cn].Killharm->column_prefix,
+	             sizeof(c[cn].Killharm->column_prefix), "HarmonicFilter");
+	  } else {
+	    snprintf(c[cn].Killharm->column_prefix,
+	             sizeof(c[cn].Killharm->column_prefix), "Killharm");
+	  }
 	  i++;
 	  if(i < argc)
 	    {
@@ -6264,7 +6814,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOAOV);
+		    vt_error(ERR_KILLHARM_NOAOV);
 		  else
 		    c[cn].Killharm->lastaovindex = m;
 		}
@@ -6280,7 +6830,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].Killharm->lastlsindex = m;
 		}
@@ -6296,7 +6846,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBOTH);
+		    vt_error(ERR_KILLHARM_NOBOTH);
 		  else
 		    c[cn].Killharm->lastaovindex = m;
 		  m = -1;
@@ -6307,7 +6857,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBOTH);
+		    vt_error(ERR_KILLHARM_NOBOTH);
 		  else
 		    c[cn].Killharm->lastlsindex = m;
 		}
@@ -6323,7 +6873,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOINJECTHARM);
+		    vt_error(ERR_KILLHARM_NOINJECTHARM);
 		  else
 		    c[cn].Killharm->lastaovindex = m;
 		}
@@ -6336,18 +6886,39 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		  if(c[cn].Killharm->Nper <= 0)
-		    error(ERR_KILLHARM_WRONGNPER);
-		  if((c[cn].Killharm->fixedperiods = (double *) malloc(c[cn].Killharm->Nper * sizeof(double))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_KILLHARM_WRONGNPER);
+		  if((c[cn].Killharm->fixedperiods = (double *) malloc(c[cn].Killharm->Nper * sizeof(double))) == NULL ||
+		     (c[cn].Killharm->fixedperiods_source = (int *) malloc(c[cn].Killharm->Nper * sizeof(int))) == NULL ||
+		     (c[cn].Killharm->fixedperiods_var = (_Variable **) malloc(c[cn].Killharm->Nper * sizeof(_Variable *))) == NULL ||
+		     (c[cn].Killharm->fixedperiods_expr = (_Expression **) malloc(c[cn].Killharm->Nper * sizeof(_Expression *))) == NULL)
+		    vt_error(ERR_MEMALLOC);
 		  for(j=0;j<c[cn].Killharm->Nper;j++)
 		    {
 		      i++;
-		      if(i < argc)
-			c[cn].Killharm->fixedperiods[j] = atof(argv[i]);
-		      else
+		      if(i >= argc)
 			listcommands(argv[iterm],p);
-		      if(c[cn].Killharm->fixedperiods[j] <= 0)
-			error(ERR_KILLHARM_NEGATIVEPERIOD);
+		      if(!strcmp(argv[i],"var")) {
+			c[cn].Killharm->fixedperiods_source[j] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+			c[cn].Killharm->fixedperiods_var[j] = NULL;
+			c[cn].Killharm->fixedperiods_expr[j] = NULL;
+			i++;
+			if(i >= argc) listcommands(argv[iterm],p);
+			parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Killharm->fixedperiods_var[j]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		      } else if(!strcmp(argv[i],"expr")) {
+			c[cn].Killharm->fixedperiods_source[j] = VARTOOLS_SOURCE_EVALEXPRESSION;
+			c[cn].Killharm->fixedperiods_var[j] = NULL;
+			c[cn].Killharm->fixedperiods_expr[j] = NULL;
+			i++;
+			if(i >= argc) listcommands(argv[iterm],p);
+			parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Killharm->fixedperiods_expr[j]));
+		      } else {
+			c[cn].Killharm->fixedperiods_source[j] = VARTOOLS_SOURCE_FIXED;
+			c[cn].Killharm->fixedperiods_var[j] = NULL;
+			c[cn].Killharm->fixedperiods_expr[j] = NULL;
+			c[cn].Killharm->fixedperiods[j] = atof(argv[i]);
+			if(c[cn].Killharm->fixedperiods[j] <= 0)
+			  vt_error(ERR_KILLHARM_NEGATIVEPERIOD);
+		      }
 		    }
 		}
 	      else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
@@ -6359,7 +6930,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		  if(c[cn].Killharm->Nper <= 0)
-		    error(ERR_KILLHARM_WRONGNPER);
+		    vt_error(ERR_KILLHARM_WRONGNPER);
 		  k = 0;
 		  i++;
 		  if(i < argc)
@@ -6410,7 +6981,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		sprintf(c[cn].Killharm->modeloutdir,"%s",argv[i]);
 	      else
 		listcommands(argv[iterm],p);
-	      sprintf(c[cn].Killharm->modelsuffix,".killharm.model");
+	      /* Suffix follows the invoking token (.killharm.model when
+	         invoked as -Killharm, .harmonicfilter.model otherwise). */
+	      if(!strcmp(c[cn].Killharm->column_prefix, "HarmonicFilter")) {
+	        sprintf(c[cn].Killharm->modelsuffix,".harmonicfilter.model");
+	      } else {
+	        sprintf(c[cn].Killharm->modelsuffix,".killharm.model");
+	      }
 	    }
 	  i++;
 	  if(i < argc)
@@ -6462,13 +7039,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 
 	  c[cn].Killharm->clip = -1.;
+	  VT_INIT_PARAM(c[cn].Killharm, clip);
 	  i++;
 	  if(i < argc) {
 	    if(!strcmp(argv[i],"clip")) {
 	      i++;
 	      if(i >= argc)
 		listcommands(argv[iterm],p);
-	      c[cn].Killharm->clip = atof(argv[i]);
+	      VT_PARSE_DOUBLE(c[cn].Killharm, clip, argv, i);
 	    } else {
 	      i--;
 	    }
@@ -6485,7 +7063,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_STARSPOT;
 	  if((c[cn].Starspot = (_Starspot *) malloc(sizeof(_Starspot))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -6500,7 +7078,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOAOV);
+		    vt_error(ERR_KILLHARM_NOAOV);
 		  else
 		    c[cn].Starspot->lastaovindex = m;
 		}
@@ -6515,7 +7093,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].Starspot->lastlsindex = m;
 		}
@@ -6550,6 +7128,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else if(!strcmp(argv[i],"var"))
+		{
+		  c[cn].Starspot->pertype = PERTYPE_VAR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Starspot->fixedperiod_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"expr"))
+		{
+		  c[cn].Starspot->pertype = PERTYPE_EXPR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Starspot->fixedperiod_expr));
+		  else
+		    listcommands(argv[iterm],p);
+		}
 	      else if(!strncmp(argv[i],"fixcolumn",9) && strlen(argv[i]) == 9)
 		{
 		  c[cn].Starspot->pertype = PERTYPE_FIXCOLUMN;
@@ -6566,37 +7162,37 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->a0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, a0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->b0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, b0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->alpha0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, alpha0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->inclination0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, inclination0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->chi0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, chi0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->psi00 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, psi00, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].Starspot->mconst0 = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].Starspot, mconst0, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
@@ -6668,7 +7264,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_STATS;
 	  if((c[cn].Stats = (_Stats *) malloc(sizeof(_Stats))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -6685,7 +7281,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_FFT;
 	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_FFT))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].FFT->isforward = 1;
 	  i++;
 	  if(i >= argc)
@@ -6702,7 +7298,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_FFT;
 	  if((c[cn].FFT = (_FFT *) malloc(sizeof(_FFT))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].FFT->isforward = 0;
 	  i++;
 	  if(i >= argc)
@@ -6722,7 +7318,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_BLS;
 	  if((c[cn].Bls = (_Bls *) malloc(sizeof(_Bls))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -6987,7 +7583,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else if(!strcmp(argv[i],"optimal")) {
 	    c[cn].Bls->isdf_specified = 2;
 	    if(c[cn].Bls->rflag != 2) {
-	      error(ERR_BLS_OPTIMAL_MUSTUSEDENSITY);
+	      vt_error(ERR_BLS_OPTIMAL_MUSTUSEDENSITY);
 	    }
 	    i++;
 	    if(i >= argc)
@@ -7271,7 +7867,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_FIXPERBLS;
 	  if((c[cn].BlsFixPer = (_BlsFixPer *) malloc(sizeof(_BlsFixPer))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -7286,7 +7882,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOAOV);
+		    vt_error(ERR_KILLHARM_NOAOV);
 		  else
 		    c[cn].BlsFixPer->lastaovindex = m;
 		}
@@ -7301,7 +7897,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].BlsFixPer->lastlsindex = m;
 		}
@@ -7461,7 +8057,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_BLSFIXDURTC;
 	  if((c[cn].BlsFixDurTc = (_BlsFixDurTc *) malloc(sizeof(_BlsFixDurTc))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -7476,6 +8072,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
 	    c[cn].BlsFixDurTc->fixdur = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].BlsFixDurTc->durtype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixdur_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].BlsFixDurTc->durtype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixdur_expr));
 	  }
 	  else if(!strcmp(argv[i],"fixcolumn")) {
 	    c[cn].BlsFixDurTc->durtype = PERTYPE_FIXCOLUMN;
@@ -7521,6 +8131,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      listcommands(argv[iterm],p);
 	    c[cn].BlsFixDurTc->fixTC = atof(argv[i]);
 	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].BlsFixDurTc->TCtype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixTC_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].BlsFixDurTc->TCtype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixTC_expr));
+	  }
 	  else if(!strcmp(argv[i],"fixcolumn")) {
 	    c[cn].BlsFixDurTc->TCtype = PERTYPE_FIXCOLUMN;
 	    i++;
@@ -7564,6 +8188,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		if(i >= argc)
 		  listcommands(argv[iterm],p);
 		c[cn].BlsFixDurTc->fixdepthval = atof(argv[i]);
+	      }
+	      else if(!strcmp(argv[i],"var")) {
+		c[cn].BlsFixDurTc->depthtype = PERTYPE_VAR;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixdepthval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      }
+	      else if(!strcmp(argv[i],"expr")) {
+		c[cn].BlsFixDurTc->depthtype = PERTYPE_EXPR;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->fixdepthval_expr));
 	      }
 	      else if(!strcmp(argv[i],"fixcolumn")) {
 		c[cn].BlsFixDurTc->depthtype = PERTYPE_FIXCOLUMN;
@@ -7609,6 +8247,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		      listcommands(argv[iterm],p);
 		    c[cn].BlsFixDurTc->qgressval = atof(argv[i]);
 		  }
+		  else if(!strcmp(argv[i],"var")) {
+		    c[cn].BlsFixDurTc->qgresstype = PERTYPE_VAR;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->qgressval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].BlsFixDurTc->qgresstype = PERTYPE_EXPR;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->qgressval_expr));
+		  }
 		  else if(!strcmp(argv[i],"fixcolumn")) {
 		    c[cn].BlsFixDurTc->qgresstype = PERTYPE_FIXCOLUMN;
 		    i++;
@@ -7649,24 +8301,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 
 	  i++;
 	  if(i < argc)
-	    c[cn].BlsFixDurTc->minper = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].BlsFixDurTc, minper, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].BlsFixDurTc->maxper = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].BlsFixDurTc, maxper, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
 	  if(i < argc)
-	    c[cn].BlsFixDurTc->nf = atoi(argv[i]);
+	    VT_PARSE_INT(c[cn].BlsFixDurTc, nf, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 #ifndef PARALLEL
-	  if((c[cn].BlsFixDurTc->p = (double *) malloc((c[cn].BlsFixDurTc->nf+1)*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	  c[cn].BlsFixDurTc->p = NULL;
+	  c[cn].BlsFixDurTc->size_p = 0;
 #endif
-	  c[cn].BlsFixDurTc->df = ((1./c[cn].BlsFixDurTc->minper) - (1./c[cn].BlsFixDurTc->maxper)) / (c[cn].BlsFixDurTc->nf - 1);
+	  /* df is pre-computed only when all three of minper, maxper, nf are fixed;
+	     otherwise it is recomputed per-LC at runtime. */
+	  if(c[cn].BlsFixDurTc->minper_source == VARTOOLS_SOURCE_FIXED &&
+	     c[cn].BlsFixDurTc->maxper_source == VARTOOLS_SOURCE_FIXED &&
+	     c[cn].BlsFixDurTc->nf_source == VARTOOLS_SOURCE_FIXED)
+	    c[cn].BlsFixDurTc->df = ((1./c[cn].BlsFixDurTc->minper) - (1./c[cn].BlsFixDurTc->maxper)) / (c[cn].BlsFixDurTc->nf - 1);
+	  else
+	    c[cn].BlsFixDurTc->df = 0.;
 	  i++;
 	  if(i < argc)
 	    c[cn].BlsFixDurTc->timezone = atof(argv[i]);
@@ -7799,7 +8458,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_FIXPERBLS;
 	  if((c[cn].BlsFixPer = (_BlsFixPer *) malloc(sizeof(_BlsFixPer))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    {
@@ -7814,7 +8473,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOAOV);
+		    vt_error(ERR_KILLHARM_NOAOV);
 		  else
 		    c[cn].BlsFixPer->lastaovindex = m;
 		}
@@ -7829,7 +8488,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].BlsFixPer->lastlsindex = m;
 		}
@@ -7957,7 +8616,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  c[cn].cnum = CNUM_BLSFIXPERDURTC;
 	  if((c[cn].BlsFixPerDurTc = (_BlsFixPerDurTc *) malloc(sizeof(_BlsFixPerDurTc))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -7972,6 +8631,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
 	    c[cn].BlsFixPerDurTc->fixper = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixper_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixper_expr));
 	  }
 	  else if(!strcmp(argv[i],"fixcolumn")) {
 	    c[cn].BlsFixPerDurTc->pertype = PERTYPE_FIXCOLUMN;
@@ -8017,6 +8690,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      listcommands(argv[iterm],p);
 	    c[cn].BlsFixPerDurTc->fixdur = atof(argv[i]);
 	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixdur_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixdur_expr));
+	  }
 	  else if(!strcmp(argv[i],"fixcolumn")) {
 	    c[cn].BlsFixPerDurTc->durtype = PERTYPE_FIXCOLUMN;
 	    i++;
@@ -8060,6 +8747,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
 	    c[cn].BlsFixPerDurTc->fixTC = atof(argv[i]);
+	  }
+	  else if(!strcmp(argv[i],"var")) {
+	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixTC_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  }
+	  else if(!strcmp(argv[i],"expr")) {
+	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc)
+	      listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixTC_expr));
 	  }
 	  else if(!strcmp(argv[i],"fixcolumn")) {
 	    c[cn].BlsFixPerDurTc->TCtype = PERTYPE_FIXCOLUMN;
@@ -8105,6 +8806,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  listcommands(argv[iterm],p);
 		c[cn].BlsFixPerDurTc->fixdepthval = atof(argv[i]);
 	      }
+	      else if(!strcmp(argv[i],"var")) {
+		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_VAR;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixdepthval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      }
+	      else if(!strcmp(argv[i],"expr")) {
+		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_EXPR;
+		i++;
+		if(i >= argc)
+		  listcommands(argv[iterm],p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->fixdepthval_expr));
+	      }
 	      else if(!strcmp(argv[i],"fixcolumn")) {
 		c[cn].BlsFixPerDurTc->depthtype = PERTYPE_FIXCOLUMN;
 		i++;
@@ -8148,6 +8863,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    if(i >= argc)
 		      listcommands(argv[iterm],p);
 		    c[cn].BlsFixPerDurTc->qgressval = atof(argv[i]);
+		  }
+		  else if(!strcmp(argv[i],"var")) {
+		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_VAR;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->qgressval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  }
+		  else if(!strcmp(argv[i],"expr")) {
+		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_EXPR;
+		    i++;
+		    if(i >= argc)
+		      listcommands(argv[iterm],p);
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].BlsFixPerDurTc->qgressval_expr));
 		  }
 		  else if(!strcmp(argv[i],"fixcolumn")) {
 		    c[cn].BlsFixPerDurTc->qgresstype = PERTYPE_FIXCOLUMN;
@@ -8301,7 +9030,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_SOFTENEDTRANSIT;
 	  if((c[cn].SoftenedTransit = (_SoftenedTransit *) malloc(sizeof(_SoftenedTransit))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 
@@ -8319,7 +9048,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBLS);
+		    vt_error(ERR_KILLHARM_NOBLS);
 		  else
 		    c[cn].SoftenedTransit->lastblsindex = m;
 		}
@@ -8336,7 +9065,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBLSFIXPER);
+		    vt_error(ERR_KILLHARM_NOBLSFIXPER);
 		  else
 		    c[cn].SoftenedTransit->lastblsfixperindex = m;
 		}
@@ -8439,7 +9168,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    m = l;
 			}
 		      if(m < 0)
-			error(ERR_KILLHARM_NOAOV);
+			vt_error(ERR_KILLHARM_NOAOV);
 		      else
 			c[cn].SoftenedTransit->lastaovindex = m;
 		    }
@@ -8454,7 +9183,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    m = l;
 			}
 		      if(m < 0)
-			error(ERR_KILLHARM_NOLS);
+			vt_error(ERR_KILLHARM_NOLS);
 		      else
 			c[cn].SoftenedTransit->lastlsindex = m;
 		    }
@@ -8469,7 +9198,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			    m = l;
 			}
 		      if(m < 0)
-			error(ERR_KILLHARM_NOBLS);
+			vt_error(ERR_KILLHARM_NOBLS);
 		      else
 			c[cn].SoftenedTransit->lastlsindex = m;
 		    }
@@ -8528,7 +9257,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_MANDELAGOLTRANSIT;
 	  if((c[cn].MandelAgolTransit = (_MandelAgolTransit *) malloc(sizeof(_MandelAgolTransit))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, P0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, T00);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, r0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, a0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, inc0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, bimpact0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, sin_i0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, e0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, omega0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, mconst0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, K0);
+	  VT_INIT_PARAM(c[cn].MandelAgolTransit, gamma0);
+	  for(j=0;j<4;j++) {
+	    c[cn].MandelAgolTransit->ldcoeffs0_source[j] = VARTOOLS_SOURCE_FIXED;
+	    c[cn].MandelAgolTransit->ldcoeffs0_var[j] = NULL;
+	    c[cn].MandelAgolTransit->ldcoeffs0_expr[j] = NULL;
+	  }
 	  c[cn].MandelAgolTransit->refititer = 1;
 	  i++;
 	  if(i < argc)
@@ -8545,7 +9291,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBLS);
+		    vt_error(ERR_KILLHARM_NOBLS);
 		  else
 		    c[cn].MandelAgolTransit->lastblsindex = m;
 		}
@@ -8561,7 +9307,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBLSFIXPER);
+		    vt_error(ERR_KILLHARM_NOBLSFIXPER);
 		  else
 		    c[cn].MandelAgolTransit->lastblsfixperindex = m;
 		}
@@ -8569,20 +9315,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		{
 		  c[cn].MandelAgolTransit->frombls = 0;
 		  c[cn].MandelAgolTransit->fromblsfixper = 0;
-		  c[cn].MandelAgolTransit->P0 = atof(argv[i]);
+		  VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, P0, argv, i);
 		  i++;
 		  if(i < argc)
-		    c[cn].MandelAgolTransit->T00 = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, T00, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].MandelAgolTransit->r0 = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, r0, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].MandelAgolTransit->a0 = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, a0, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
@@ -8592,7 +9338,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			{
 			  i++;
 			  if(i < argc) {
-			    c[cn].MandelAgolTransit->inc0 = atof(argv[i]);
+			    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, inc0, argv, i);
 			    c[cn].MandelAgolTransit->inputinclterm = 0;
 			  }
 			  else
@@ -8602,7 +9348,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			{
 			  i++;
 			  if(i < argc) {
-			    c[cn].MandelAgolTransit->bimpact0 = atof(argv[i]);
+			    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, bimpact0, argv, i);
 			    c[cn].MandelAgolTransit->inputinclterm = 1;
 			  }
 			  else
@@ -8615,17 +9361,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].MandelAgolTransit->e0 = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, e0, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		  i++;
-		  if(i < argc)
-		    c[cn].MandelAgolTransit->omega0 = atof(argv[i])*M_PI/180.;
-		  else
+		  if(i < argc) {
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, omega0, argv, i);
+		    /* omega0 is stored in radians; convert fixed degree input */
+		    if(c[cn].MandelAgolTransit->omega0_source == VARTOOLS_SOURCE_FIXED)
+		      c[cn].MandelAgolTransit->omega0 *= M_PI/180.;
+		  } else
 		    listcommands(argv[iterm],p);
 		  i++;
 		  if(i < argc)
-		    c[cn].MandelAgolTransit->mconst0 = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, mconst0, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -8648,34 +9397,30 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else
 		listcommands(argv[iterm],p);
 	    }
-	  i++;
-	  if(i < argc)
-	    c[cn].MandelAgolTransit->ldcoeffs0[0] = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
-	  i++;
-	  if(i < argc)
-	    c[cn].MandelAgolTransit->ldcoeffs0[1] = atof(argv[i]);
-	  else
-	    listcommands(argv[iterm],p);
-	  if(c[cn].MandelAgolTransit->type == 1)
-	    {
-	      i++;
-	      if(i < argc)
-		c[cn].MandelAgolTransit->ldcoeffs0[2] = atof(argv[i]);
-	      else
-		listcommands(argv[iterm],p);
-	      i++;
-	      if(i < argc)
-		c[cn].MandelAgolTransit->ldcoeffs0[3] = atof(argv[i]);
-	      else
-		listcommands(argv[iterm],p);
-	    }
-	  else
-	    {
-	      c[cn].MandelAgolTransit->ldcoeffs0[2] = 0.;
-	      c[cn].MandelAgolTransit->ldcoeffs0[3] = 0.;
-	    }
+	  for(j=0;j<c[cn].MandelAgolTransit->nldcoeff;j++) {
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"var")) {
+		c[cn].MandelAgolTransit->ldcoeffs0_source[j] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MandelAgolTransit->ldcoeffs0_var[j]), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      } else if(!strcmp(argv[i],"expr")) {
+		c[cn].MandelAgolTransit->ldcoeffs0_source[j] = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MandelAgolTransit->ldcoeffs0_expr[j]));
+	      } else {
+		c[cn].MandelAgolTransit->ldcoeffs0_source[j] = VARTOOLS_SOURCE_FIXED;
+		c[cn].MandelAgolTransit->ldcoeffs0[j] = atof(argv[i]);
+	      }
+	    } else
+	      listcommands(argv[iterm],p);
+	  }
+	  if(c[cn].MandelAgolTransit->type != 1) {
+	    c[cn].MandelAgolTransit->ldcoeffs0[2] = 0.;
+	    c[cn].MandelAgolTransit->ldcoeffs0[3] = 0.;
+	  }
 	  i++;
 	  if(i < argc)
 	    c[cn].MandelAgolTransit->fitephem = atoi(argv[i]);
@@ -8758,12 +9503,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		listcommands(argv[iterm],p);
 	      i++;
 	      if(i < argc)
-		c[cn].MandelAgolTransit->K0 = atof(argv[i]);
+		VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, K0, argv, i);
 	      else
 		listcommands(argv[iterm],p);
 	      i++;
 	      if(i < argc)
-		c[cn].MandelAgolTransit->gamma0 = atof(argv[i]);
+		VT_PARSE_DOUBLE(c[cn].MandelAgolTransit, gamma0, argv, i);
 	      else
 		listcommands(argv[iterm],p);
 	      i++;
@@ -8803,7 +9548,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].MandelAgolTransit->modelvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].MandelAgolTransit->modelvarname,"%s",argv[i]);
 	    } else
 	      i--;
@@ -8873,7 +9618,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_MICROLENS;
 	  if((c[cn].MicroLens = (_MicroLens *) malloc(sizeof(_MicroLens))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  /* Set the initial values */
 	  c[cn].MicroLens->f0_source = PERTYPE_AUTOFIND;
 	  c[cn].MicroLens->f1_source = PERTYPE_AUTOFIND;
@@ -8910,6 +9655,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].MicroLens->f0_source = PERTYPE_FIX;
 			      c[cn].MicroLens->f00_fix = atof(argv[i]);
 			    }
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].MicroLens->f0_source = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MicroLens->f00_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].MicroLens->f0_source = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MicroLens->f00_expr));
 			  else
 			    listcommands(argv[iterm],p);
 			}
@@ -9010,6 +9773,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].MicroLens->f1_source = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MicroLens->f10_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].MicroLens->f1_source = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MicroLens->f10_expr));
+			  else
+			    listcommands(argv[iterm],p);
+			}
 		      else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			{
 			  c[cn].MicroLens->f1_source = PERTYPE_SPECIFIED;
@@ -9104,6 +9885,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].MicroLens->u0_source = PERTYPE_FIX;
 			      c[cn].MicroLens->u00_fix = atof(argv[i]);
 			    }
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].MicroLens->u0_source = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MicroLens->u00_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].MicroLens->u0_source = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MicroLens->u00_expr));
 			  else
 			    listcommands(argv[iterm],p);
 			}
@@ -9204,6 +10003,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].MicroLens->t0_source = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MicroLens->t00_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].MicroLens->t0_source = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MicroLens->t00_expr));
+			  else
+			    listcommands(argv[iterm],p);
+			}
 		      else if(!strncmp(argv[i],"list",4) && strlen(argv[i]) == 4)
 			{
 			  c[cn].MicroLens->t0_source = PERTYPE_SPECIFIED;
@@ -9298,6 +10115,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			      c[cn].MicroLens->tmax_source = PERTYPE_FIX;
 			      c[cn].MicroLens->tmax0_fix = atof(argv[i]);
 			    }
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].MicroLens->tmax_source = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MicroLens->tmax0_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].MicroLens->tmax_source = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MicroLens->tmax0_expr));
 			  else
 			    listcommands(argv[iterm],p);
 			}
@@ -9421,7 +10256,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_SYSREM;
 	  if((c[cn].Sysrem = (_Sysrem *) malloc(sizeof(_Sysrem))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    c[cn].Sysrem->Nsysrem_color = atoi(argv[i]);
@@ -9457,7 +10292,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(c[cn].Sysrem->Nsysrem_total <= 0)
 	    listcommands(argv[iterm],p);
 	  if((c[cn].Sysrem->final_colors = (double **) malloc(c[cn].Sysrem->Nsysrem_total * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    sprintf(c[cn].Sysrem->dates_name,"%s",argv[i]);
@@ -9516,7 +10351,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    listcommands(argv[iterm],p);
 	  if(c[cn].Sysrem->useweights < 0 || c[cn].Sysrem->useweights > 2)
-	    error(ERR_SYSREMUSEWEIGHTS);
+	    vt_error(ERR_SYSREMUSEWEIGHTS);
 	  cn++;
 	}
 
@@ -9527,7 +10362,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_TFA;
 	  if((c[cn].TFA = (_TFA *) malloc(sizeof(_TFA))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    sprintf(c[cn].TFA->trend_list_name,"%s",argv[i]);
@@ -9718,7 +10553,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].TFA->fitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].TFA->fitmaskvarname,"%s",argv[i]);
 	      c[cn].TFA->usefitmask = 1;
 	    } else
@@ -9733,7 +10568,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].TFA->outputfitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].TFA->outputfitmaskvarname,"%s",argv[i]);
 	      c[cn].TFA->outputfitmask = 1;
 	    } else
@@ -9752,7 +10587,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_TFA_SR;
 	  if((c[cn].TFA_SR = (_TFA_SR *) malloc(sizeof(_TFA_SR))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
 	    sprintf(c[cn].TFA_SR->trend_list_name,"%s",argv[i]);
@@ -9830,7 +10665,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    if((c[cn].TFA_SR->lcdecorr_terms_in = (double ***) malloc(c[cn].TFA_SR->decorr_Nlcterms * sizeof(double **))) == NULL ||
 		       (c[cn].TFA_SR->decorr_lc_order = (int *) malloc(c[cn].TFA_SR->decorr_Nlcterms * sizeof(int))) == NULL ||
 		       (c[cn].TFA_SR->decorr_lc_columns = (int *) malloc(c[cn].TFA_SR->decorr_Nlcterms * sizeof(int))) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		  for(j=0;j<c[cn].TFA_SR->decorr_Nlcterms;j++)
 		    {
@@ -9845,7 +10680,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		      else
 			listcommands(argv[iterm],p);
 		      if(c[cn].TFA_SR->decorr_lc_order[j] <= 0)
-			error(ERR_WRONGORDER);
+			vt_error(ERR_WRONGORDER);
 		    }
 		  i++;
 		}
@@ -9961,7 +10796,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOAOV);
+				vt_error(ERR_KILLHARM_NOAOV);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -9976,7 +10811,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOLS);
+				vt_error(ERR_KILLHARM_NOLS);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -9991,7 +10826,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOBLS);
+				vt_error(ERR_KILLHARM_NOBLS);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -10078,7 +10913,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOAOV);
+				vt_error(ERR_KILLHARM_NOAOV);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -10093,7 +10928,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOLS);
+				vt_error(ERR_KILLHARM_NOLS);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -10108,7 +10943,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOBLS);
+				vt_error(ERR_KILLHARM_NOBLS);
 			      else
 				c[cn].TFA_SR->lastindex = m;
 			    }
@@ -10195,7 +11030,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].TFA_SR->fitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].TFA_SR->fitmaskvarname,"%s",argv[i]);
 	      c[cn].TFA_SR->usefitmask = 1;
 	    } else
@@ -10210,7 +11045,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].TFA_SR->outputfitmaskvarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].TFA_SR->outputfitmaskvarname,"%s",argv[i]);
 	      c[cn].TFA_SR->outputfitmask = 1;
 	    } else
@@ -10230,7 +11065,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_sort = 1;
 	  c[cn].cnum = CNUM_BINLC;
 	  if((c[cn].Binlc = (_Binlc *) malloc(sizeof(_Binlc))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Binlc->only_bin_columns = 0;
 	  i++;
 	  if(i < argc)
@@ -10259,7 +11094,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Binlc->binsize_Nbins_flag = 0;
 		  i++;
 		  if(i < argc)
-		    c[cn].Binlc->binsize = atof(argv[i]);
+		    VT_PARSE_DOUBLE(c[cn].Binlc, binsize, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -10268,7 +11103,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  c[cn].Binlc->binsize_Nbins_flag = 1;
 		  i++;
 		  if(i < argc)
-		    c[cn].Binlc->Nbins = atoi(argv[i]);
+		    VT_PARSE_INT(c[cn].Binlc, Nbins, argv, i);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -10287,7 +11122,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(i >= argc)
 	      listcommands(argv[iterm],p);
 	    if((c[cn].Binlc->binvarstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sprintf(c[cn].Binlc->binvarstring,"%s",argv[i]);
 	    if(binlc_parsevarstring(c[cn].Binlc))
 	      listcommands(argv[iterm],p);
@@ -10311,6 +11146,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		    {
 		      c[cn].Binlc->t0fixval = atof(argv[i]);
 		    }
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"var"))
+		{
+		  c[cn].Binlc->T0source = PERTYPE_VAR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Binlc->t0fixval_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
 		  else
 		    listcommands(argv[iterm],p);
 		}
@@ -10352,7 +11196,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 /*		  if((c[cn].Binlc->t0expr = (_Expression *) malloc(sizeof(_Expression))) == NULL)
 		    error(ERR_MEMALLOC);*/
 		  if((c[cn].Binlc->t0exprstring = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-		    error(ERR_MEMALLOC);
+		    vt_error(ERR_MEMALLOC);
 		  sprintf(c[cn].Binlc->t0exprstring,"%s",argv[i]);
 		}
 	    }
@@ -10368,7 +11212,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      c[cn].Binlc->firstbinflag = 1;
 	      i++;
 	      if(i < argc)
-		c[cn].Binlc->firstbin = atof(argv[i]);
+		VT_PARSE_DOUBLE(c[cn].Binlc, firstbin, argv, i);
 	      else
 		listcommands(argv[iterm],p);
 	      i++;
@@ -10434,7 +11278,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_MATCHCOMMAND;
 	  if((c[cn].MatchCommand = (_MatchCommand *) malloc(sizeof(_MatchCommand))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
@@ -10451,10 +11295,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_sort = 1;
 	  c[cn].cnum = CNUM_MEDIANFILTER;
 	  if((c[cn].MedianFilter = (_MedianFilter *) malloc(sizeof(_MedianFilter))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  i++;
 	  if(i < argc)
-	    c[cn].MedianFilter->time = atof(argv[i]);
+	    VT_PARSE_DOUBLE(c[cn].MedianFilter, time, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
 	  c[cn].MedianFilter->usemean=0;
@@ -10497,7 +11341,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_SORTLC;
 	  if((c[cn].SortLC = (_SortLC *) malloc(sizeof(_SortLC))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].SortLC->issortvar = 0;
 	  i++;
 	  if(i < argc) {
@@ -10507,7 +11351,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		listcommands(argv[iterm],p);
 	      c[cn].SortLC->issortvar = 1;
 	      if((c[cn].SortLC->sortvarname = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].SortLC->sortvarname,"%s",argv[i]);
 	    } else
 	      i--;
@@ -10533,7 +11377,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_WWZ;
 	  if((c[cn].WWZ = (_WWZ *) malloc(sizeof(_WWZ))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(ParseWWZCommand(&i, argc, argv, p, c[cn].WWZ, &(c[cn])))
 	    listcommands(argv[iterm],p);
 	  cn++;
@@ -10546,7 +11390,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  increaseNcommands(p,&c);
 	  c[cn].cnum = CNUM_PHASE;
 	  if((c[cn].Phase = (_Phase *) malloc(sizeof(_Phase))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  c[cn].Phase->t0type = PERTYPE_AUTOFIND;
 	  i++;
 	  if(i < argc)
@@ -10562,7 +11406,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOAOV);
+		    vt_error(ERR_KILLHARM_NOAOV);
 		  else
 		    c[cn].Phase->lastaovindex = m;
 		}
@@ -10577,7 +11421,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOLS);
+		    vt_error(ERR_KILLHARM_NOLS);
 		  else
 		    c[cn].Phase->lastlsindex = m;
 		}
@@ -10592,7 +11436,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			m = l;
 		    }
 		  if(m < 0)
-		    error(ERR_KILLHARM_NOBLS);
+		    vt_error(ERR_KILLHARM_NOBLS);
 		  else
 		    c[cn].Phase->lastblsindex = m;
 		}
@@ -10636,6 +11480,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else if(!strcmp(argv[i],"var"))
+		{
+		  c[cn].Phase->pertype = PERTYPE_VAR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Phase->fixperiod_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+		  else
+		    listcommands(argv[iterm],p);
+		}
+	      else if(!strcmp(argv[i],"expr"))
+		{
+		  c[cn].Phase->pertype = PERTYPE_EXPR;
+		  i++;
+		  if(i < argc)
+		    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Phase->fixperiod_expr));
+		  else
+		    listcommands(argv[iterm],p);
+		}
 	      else
 		listcommands(argv[iterm],p);
 	      i++;
@@ -10657,7 +11519,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 				    m = l;
 				}
 			      if(m < 0)
-				error(ERR_KILLHARM_NOBLS);
+				vt_error(ERR_KILLHARM_NOBLS);
 			      else
 				c[cn].Phase->lastblsindex = m;
 			    }
@@ -10707,6 +11569,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 			  else
 			    listcommands(argv[iterm],p);
 			}
+		      else if(!strcmp(argv[i],"var"))
+			{
+			  c[cn].Phase->t0type = PERTYPE_VAR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Phase->fixT0_var), VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+			  else
+			    listcommands(argv[iterm],p);
+			}
+		      else if(!strcmp(argv[i],"expr"))
+			{
+			  c[cn].Phase->t0type = PERTYPE_EXPR;
+			  i++;
+			  if(i < argc)
+			    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Phase->fixT0_expr));
+			  else
+			    listcommands(argv[iterm],p);
+			}
 		      else
 			listcommands(argv[iterm],p);
 		    }
@@ -10728,7 +11608,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm],p);
 	      if((c[cn].Phase->phasevarname = (char *) malloc((strlen(argv[i])+1))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].Phase->phasevarname,"%s",argv[i]);
 	    } else
 	      i--;
@@ -10852,7 +11732,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       else if(!strcmp(argv[i],"-inputlcformat"))
 	{
 	  if(p->readformatused == 1 || p->inputlcformatused == 1) {
-	    error(ERR_TOOMANYREADFORMATINPUTLCFORMAT);
+	    vt_error(ERR_TOOMANYREADFORMATINPUTLCFORMAT);
 	  }
 	  p->inputlcformatused = 1;
 	  iterm = i;
@@ -10917,7 +11797,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
      else if(!strcmp(argv[i],"-inlistvars"))
 	{
 	  if(p->inlistvars == 1) {
-	    error(ERR_TOOMANYINLISTVARS);
+	    vt_error(ERR_TOOMANYINLISTVARS);
 	  }
 	  p->inlistvars = 1;
 	  iterm = i;
@@ -10932,7 +11812,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       else if(!strncmp(argv[i],"-readformat",11) && strlen(argv[i]) == 11)
 	{
 	  if(p->readformatused == 1 || p->inputlcformatused == 1) {
-	    error(ERR_TOOMANYREADFORMATINPUTLCFORMAT);
+	    vt_error(ERR_TOOMANYREADFORMATINPUTLCFORMAT);
 	  }
 	  p->readformatused = 1;
 	  iterm = i;
@@ -10984,11 +11864,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    help(argv[iterm],p);
 
 	  if(p->coljd < 0 || p->colmag < 0 || p->colsig < 0)
-	    error(ERR_READFORMAT);
+	    vt_error(ERR_READFORMAT);
 	  if(p->readimagestring)
 	    {
 	      if(p->colstringid <= 0)
-		error(ERR_READFORMAT);
+		vt_error(ERR_READFORMAT);
 	    }
 
 	}
@@ -11039,7 +11919,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		p->next_command_outcolumn_suffix = NULL;
 	      }
 	      if((p->next_command_outcolumn_suffix = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(p->next_command_outcolumn_suffix,"%s",argv[i]);
 	    }
 	  else
@@ -11057,8 +11937,29 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	{
 	  iterm = i;
 	  i++;
-	  if(i < argc)
+	  if(i < argc) {
 	    p->Nbuffs_free = atoi(argv[i]);
+	    p->Nbuffs_free_user_set = 1;
+	  }
+	  else
+	    help(argv[iterm],p);
+	}
+
+      /* -setlcname <name>: override the "stdin" placeholder set when
+         -i - is in use.  Applied after the full argv has been parsed
+         (we do not yet know whether -i or -l was given when this token
+         is encountered).  Has no effect when reading a real on-disk
+         LC or list. */
+      else if(!strcmp(argv[i],"-setlcname"))
+	{
+	  iterm = i;
+	  i++;
+	  if(i < argc) {
+	    if(p->setlcname != NULL) free(p->setlcname);
+	    p->setlcname = strdup(argv[i]);
+	    if(p->setlcname == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
 	  else
 	    help(argv[iterm],p);
 	}
@@ -11149,6 +12050,34 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  p->oneline=1;
 	}
 
+      /* -startcommandnumber N — offset added to every command's auto-
+	 generated output-column suffix.  Primary use case is pyvartools
+	 chained-command communication. */
+      else if(!strncmp(argv[i],"-startcommandnumber",19) && strlen(argv[i]) == 19)
+	{
+	  iterm = i;
+	  i++;
+	  if(i < argc)
+	    {
+	      p->startcommandnumber = atoi(argv[i]);
+	      if(p->startcommandnumber < 0) {
+		fprintf(stderr,
+			"Error: -startcommandnumber requires a non-negative integer argument.\n");
+		exit(ERR_USAGE);
+	      }
+	    }
+	  else
+	    help(argv[iterm],p);
+	}
+
+      /* -printallscalars — emit VARTOOLS_SCALAR:name = value lines in the
+	 -oneline block for every per-star variable that is not an OUTCOLUMN.
+	 Requires -oneline. */
+      else if(!strncmp(argv[i],"-printallscalars",16) && strlen(argv[i]) == 16)
+	{
+	  p->printallscalars = 1;
+	}
+
 #ifdef PARALLEL
       /* -parallel Nproc */
       else if(!strncmp(argv[i],"-parallel",9) && strlen(argv[i]) == 9)
@@ -11159,7 +12088,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    {
 	      p->Nproc_allow = atoi(argv[i]);
 	      if(p->Nproc_allow <= 0) {
-		error(ERR_NPROC_TOO_SMALL);
+		vt_error(ERR_NPROC_TOO_SMALL);
 	      }
 	    }
 	  else
@@ -11190,7 +12119,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(i < argc)
 	    {
 	      if(load_user_library(argv[i],p,0))
-		error2(ERR_OPEN_LIBRARY,argv[i]);
+		vt_error2(ERR_OPEN_LIBRARY,argv[i]);
 	    }
 	  else
 	    help(argv[iterm],p);
@@ -11204,7 +12133,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(i < argc)
 	    {
 	      if(load_userfunction_library(argv[i],p))
-		error2(ERR_OPEN_LIBRARY,argv[i]);
+		vt_error2(ERR_OPEN_LIBRARY,argv[i]);
 	    }
 	  else
 	    help(argv[iterm],p);
@@ -11258,7 +12187,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
     usage(argv[0]);
 
   if(Ncommands < 1)
-    error(ERR_USAGE);
+    vt_error(ERR_USAGE);
 
   /* Set the default skipchar if the inputlcformat option was not given */
   if(p->Nskipchar == 0 && p->skipchars == NULL) {
@@ -11269,14 +12198,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 
   /* Quit if we're matching on string id but the string id column isn't specified */
   if((p->matchstringid || p->requirestringid) && !p->readimagestring)
-    error(ERR_NOSTRINGIDCOLUMN);
+    vt_error(ERR_NOSTRINGIDCOLUMN);
 
   /* Make sure that -readall flag is not set if there are any -copylc commands */
   if(p->readallflag && p->Ncopycommands > 0)
-    error(ERR_READALL_ANDCOPYLC);
+    vt_error(ERR_READALL_ANDCOPYLC);
 
   if(!p->combinelcs && p->combinelcinfo != NULL)
-    error(ERR_COMBINELCINLISTVARS_NOTINLIST);
+    vt_error(ERR_COMBINELCINLISTVARS_NOTINLIST);
 
   /* If we don't have a list, make sure that there aren't any commands that require a list */
   if(p->fileflag && !p->headeronly && !p->inputlistformat 
@@ -11285,7 +12214,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
       for(j=0;j<Ncommands;j++)
 	{
 	  if(c[j].cnum == CNUM_ENSEMBLERESCALESIG)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 #ifdef _HAVE_GSL
 	  else if(c[j].cnum == CNUM_ADDNOISE)
 	    {
@@ -11293,7 +12222,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		 c[j].AddNoise->sig_r_type == PERTYPE_SPECIFIED ||
 		 c[j].AddNoise->sig_w_type == PERTYPE_SPECIFIED)
 		{
-		  error(ERR_NEEDLIST);
+		  vt_error(ERR_NEEDLIST);
 		}
 	    }
 #endif
@@ -11301,7 +12230,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else if(c[j].cnum == CNUM_USERCOMMAND)
 	    {
 	      if(c[j].UserCommand->Ninlist > 0)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 #endif
 	  else if(c[j].cnum == CNUM_CONVERTTIME)
@@ -11314,32 +12243,32 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  && c[j].ConvertTime->inputradec_source == VARTOOLS_SOURCE_INLIST) ||
 		 (c[j].ConvertTime->useinputppm
 		  && c[j].ConvertTime->inputppm_source == VARTOOLS_SOURCE_INLIST))
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_FINDBLENDS)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 	  else if(c[j].cnum == CNUM_KILLHARM)
 	    { 
 	      if(c[j].Killharm->pertype == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_INJECTHARM)
 	    {
 	      if(c[j].Injectharm->pertype == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	      for(l=0;l<=c[j].Injectharm->Nharm;l++)
 		{
 		  if(c[j].Injectharm->harm_amptype[l] == PERTYPE_SPECIFIED)
-		    error(ERR_NEEDLIST);
+		    vt_error(ERR_NEEDLIST);
 		  if(c[j].Injectharm->harm_phasetype[l] == PERTYPE_SPECIFIED)
-		    error(ERR_NEEDLIST);
+		    vt_error(ERR_NEEDLIST);
 		}
 	      for(l=0;l<c[j].Injectharm->Nsubharm;l++)
 		{
 		  if(c[j].Injectharm->subharm_amptype[l] == PERTYPE_SPECIFIED)
-		    error(ERR_NEEDLIST);
+		    vt_error(ERR_NEEDLIST);
 		  if(c[j].Injectharm->subharm_phasetype[l] == PERTYPE_SPECIFIED)
-		    error(ERR_NEEDLIST);
+		    vt_error(ERR_NEEDLIST);
 		}
 	    }
 	  else if(c[j].cnum == CNUM_INJECTTRANSIT)
@@ -11347,29 +12276,29 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      for(l=0;l<c[j].Injecttransit->Nparam;l++)
 		{
 		  if(c[j].Injecttransit->paramtype[l] == PERTYPE_SPECIFIED)
-		    error(ERR_NEEDLIST);
+		    vt_error(ERR_NEEDLIST);
 		}
 	    }
 	  else if(c[j].cnum == CNUM_STARSPOT)
 	    {
 	      if(c[j].Starspot->pertype == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_PHASE)
 	    {
 	      if(c[j].Phase->pertype == PERTYPE_SPECIFIED || 
 		 c[j].Phase->t0type == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_FIXPERBLS)
 	    {
 	      if(c[j].BlsFixPer->pertype == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_GETLSAMPTHRESH)
 	    {
 	      if(c[j].GetLSAmpThresh->pertype == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_MICROLENS)
 	    {
@@ -11378,19 +12307,75 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		 c[j].MicroLens->u0_source == PERTYPE_SPECIFIED ||
 		 c[j].MicroLens->t0_source == PERTYPE_SPECIFIED ||
 		 c[j].MicroLens->tmax_source == PERTYPE_SPECIFIED)
-		error(ERR_NEEDLIST);
+		vt_error(ERR_NEEDLIST);
 	    }
 	  else if(c[j].cnum == CNUM_DIFFFLUXTOMAG)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 	  else if(c[j].cnum == CNUM_TFA)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 	  else if(c[j].cnum == CNUM_TFA_SR)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 	  else if(c[j].cnum == CNUM_SYSREM)
-	    error(ERR_NEEDLIST);
+	    vt_error(ERR_NEEDLIST);
 	}
       if(p->readallflag)
-	error(ERR_NEEDLIST);
+	vt_error(ERR_NEEDLIST);
+    }
+
+  /* -startcommandnumber support: for any command that does not already have
+     an explicit -columnsuffix, synthesize one from the command's position
+     plus the user-supplied offset.  Done after all commands have been parsed
+     so InitCommands / addcolumn see the correct suffix when they register
+     output columns.  If startcommandnumber is 0 (the default) there is
+     nothing to do — output columns behave exactly as before. */
+  if(p->startcommandnumber > 0)
+    {
+      int _ci;
+      char _buf[32];
+      for(_ci = 0; _ci < p->Ncommands; _ci++) {
+	if(c[_ci].command_outcolumn_suffix == NULL) {
+	  snprintf(_buf, sizeof(_buf), "%d", _ci + p->startcommandnumber);
+	  if((c[_ci].command_outcolumn_suffix =
+	      (char *) malloc((strlen(_buf) + 1) * sizeof(char))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  strcpy(c[_ci].command_outcolumn_suffix, _buf);
+	}
+      }
+    }
+
+  /* -printallscalars requires -oneline for its output to be parseable. */
+  if(p->printallscalars && !p->oneline)
+    {
+      fprintf(stderr,
+	      "Error: -printallscalars requires -oneline output mode.\n");
+      exit(ERR_USAGE);
+    }
+
+  /* Auto-scale the output buffer ring with -parallel.  In parallel mode
+     a thread that finishes a light curve can render its row only if a
+     free buffer is available; otherwise it must drain the full stack
+     itself.  When the ring size is smaller than the number of threads,
+     effective parallelism is capped at the ring size.  To avoid that
+     surprise for users who pass -parallel N > VARTOOLS_DEFAULT_NOUTPUT_BUFFERS
+     and aren't aware of -bufferlines, scale the ring to 2*Nproc_allow
+     by default.  -bufferlines explicitly given by the user always
+     wins. */
+#ifdef PARALLEL
+  if(!p->Nbuffs_free_user_set && p->Nproc_allow > 0)
+    {
+      int _auto = 2 * p->Nproc_allow;
+      if(_auto > p->Nbuffs_free)
+	p->Nbuffs_free = _auto;
+    }
+#endif
+
+  /* -setlcname <name>: only meaningful when -i - was used (single LC
+     read from stdin).  Quietly ignored otherwise.  Overwrites the
+     "stdin" placeholder that -i - puts into lcnames[0] up above. */
+  if(p->setlcname != NULL && p->fileflag && p->readfromstdinflag
+     && p->Nlcs > 0 && p->lcnames != NULL && p->lcnames[0] != NULL)
+    {
+      sprintf(p->lcnames[0], "%s", p->setlcname);
     }
 
   *cptr = c;

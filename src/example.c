@@ -46,7 +46,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\tcomment \"a comment\" \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/ nameformat \"%%s.tmpout.fits\" fits\n\n");
+		    "\t-o EXAMPLES/ nameformat \"%s.tmpout.fits\" fits\n\n");
       printtostring(&s,
 		    "Copy the ASCII text light curve stored in the file EXAMPLES/1 to a fits-format light curve that will be in the file EXAMPLES/1.tmpout.fits. Add a keyword to the primary header. The name of the keyword will be \"TMPKEY\", it will be a string, and will take its value from the input-list variable x (which will evaluate to \"HELLO\" in this case). The comment \"a comment\" will be included in the output header.\n\n");
       commandfound = 1;
@@ -272,9 +272,9 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-changevariable t t \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat \"%%s.phase.txt\" \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat \"%s.phase.txt\" \\\n");
       printtostring(&s,
-		    "\t\tcolumnformat \"t:%%17.9f,mag:%%9.5f,err:%%9.5f,phase:%%9.5f\" \\\n");
+		    "\t\tcolumnformat \"t:%17.9f,mag:%9.5f,err:%9.5f,phase:%9.5f\" \\\n");
       printtostring(&s,
 		    "\t-header\n\n");
       printtostring(&s,
@@ -344,7 +344,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\nvartools -i EXAMPLES/1.UTC -quiet \\\n");
       printtostring(&s,
-		    "\t-readformat 0 inpututc '%%Y-%%M-%%DT%%h:%%m:%%s' 1 2 3 \\\n");
+		    "\t-readformat 0 inpututc '%Y-%M-%DT%h:%m:%s' 1 2 3 \\\n");
       printtostring(&s,
 		    "\t-converttime input jd inputsys-utc \\\n");
       printtostring(&s,
@@ -509,7 +509,7 @@ void example(char *c, ProgramData *p)
 		    "\t\t\'mag=(Npoints_5*(Chi2_6-Chi2_2)<-10000)*mag+\n");
       printtostring(&s,"\t\t    (Npoints_5*(Chi2_6-Chi2_2)>=-10000)*mag2\' \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.cleanharm'\n\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.cleanharm'\n\n");
       printtostring(&s,
 		    "An example of using the vartools analytic expression evaluation command, together with other commands, to fit a sinusoid signal to various light curves and subtract the signal only for cases where the sinusoid shows a significant delta chi2 improvement over the flat model. Here the -LS command is used to find a periodic signal, the first call to -expr copies the light curve magnitudes to a new vector variable mag2, -Killharm fits and subtracts a sinusoid model from mag, -chi2 and -rms are calculated on the residuals (currently stored in mag), and the second call to -expr sets the magnitude to the residuals if there is a significant chi2 improvement (Npoints_5*(Chi2_6-Chi2_2)<-10000), or back to the original magnitudes if the improvement is not significant (>=-10000). Note that the '<' and '>=' will evaluate to 1 (0) when true (false). One could alternatively use an -if, -else, and -fi construct to achieve a similar result.\n");
       printtostring(&s,
@@ -616,6 +616,82 @@ void example(char *c, ProgramData *p)
 		    "\t-o kplr000757076-2009166043257_llc.asc.txt\n\n");
       printtostring(&s,
 		    "Read in the binary fits Q1 Kepler public light curve for KIC 757076 (not included), convert it to flux using a zero-point magnitude of 25.0, and output the result to an ascii text file.\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-fourierfilter",14) && strlen(c) == 14)
+    {
+      printtostring(&s,
+		    "\nExample 1: lowpass filter with a cosine taper (uniform sampling)\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter lowpass maxfreq fix 1.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Apply a lowpass filter with a cutoff at 1.0 cycles/day to the uniformly-sampled light curve EXAMPLES/2.simuniformsample.  The cosine taper with deltafreq=0.1 smooths the band edge over [0.9, 1.1] cyc/day, reducing Gibbs-style ringing in the reconstructed light curve relative to a brick-wall cutoff.  The -rms calls before and after the filter show the input and output RMS — all signal power above 1.0 cyc/day has been removed.\n\n");
+      printtostring(&s,
+		    "\nExample 2: bandpass filter, writing Fourier coefficients (uniform sampling)\n");
+      printtostring(&s,
+		    "---------------------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter bandpass minfreq fix 0.5 maxfreq fix 1.25 \\\n");
+      printtostring(&s,
+		    "\t    ofourier EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Apply a bandpass filter that keeps only frequencies in [0.5, 1.25] cycles/day — a band chosen to enclose the ~0.81 cyc/day injected signal in the example LC.  The \"ofourier EXAMPLES/OUTDIR1\" keyword writes the Fourier cos/sin coefficients to EXAMPLES/OUTDIR1/2.simuniformsample.fouriercoeffs — three columns per frequency bin (f, CosCoeff, SinCoeff).  Useful when you want to inspect the full spectrum or construct a custom filter offline.\n\n");
+      printtostring(&s,
+		    "\nExample 3: analytic Gaussian filter via \"filterexpr\" (uniform sampling)\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simuniformsample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter full filterexpr 'exp(-(f/0.5)^2)' \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Apply an analytic Gaussian filter W(f) = exp(-(f/0.5)^2) to every Fourier coefficient.  The \"full\" filter type means no hard band cut — the entire spectrum is reconstructed, just with each bin multiplied by W(f).  The frequency variable inside the filterexpr is named \"f\" by default and is in cycles/(time-unit-of-t), i.e. cycles/day for this light curve.  Use \"freqvar <name>\" to rename it if \"f\" collides with a variable you already have in scope.\n\n");
+      printtostring(&s,
+		    "\nExample 4: TESS-like sampling — the \"resample\" keyword\n");
+      printtostring(&s,
+		    "-------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simtesssample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter lowpass maxfreq fix 1.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t    resample delmin \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "The same filter as Example 1, but applied to EXAMPLES/2.simtesssample — the same underlying signal as the LC in Examples 1-3, re-sampled at TESS short-cadence (~2 min) over a 27-day single sector with a ~1-day data-downlink gap near the middle.  The \"resample delmin\" keyword tells -fourierfilter to interpolate the LC onto a uniform grid at spacing delmin (the minimum dt found in the LC), run the FFT-based filter on the uniform grid, and interpolate the result back onto the original sample times.  Without \"resample\", -fourierfilter would skip this LC because the data-downlink gap makes the sampling non-uniform.  You can also give \"fix <val>\", \"var <name>\", or \"expr <e>\" in place of \"delmin\" to choose the resample step explicitly.\n\n");
+      printtostring(&s,
+		    "\nExample 5: gap-break for data with significant gaps\n");
+      printtostring(&s,
+		    "----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2.simtesssample -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fourierfilter highpass minfreq fix 2.0 taper cosine deltafreq 0.1 \\\n");
+      printtostring(&s,
+		    "\t    resample delmin gapbreak frac_med_sep 100 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "A highpass filter applied to the same TESS-like LC as Example 4.  \"gapbreak frac_med_sep 100\" splits the light curve at any inter-sample gap larger than 100 * median(dt) — for this LC the only gap that triggers is the ~1-day data-downlink gap near the middle of the sector — and filters each segment independently.  Without gapbreak, linear interpolation across that gap would inject spurious spectral content into the FFT; splitting into segments avoids that.  For highpass (and bandpass) modes all segments are anchored at the overall-LC weighted mean so there are no inter-segment jumps in the output.  \"frac_med_sep\" / \"frac_min_sep\" / \"percentile_sep\" / \"fix\" / \"expr\" mirror the -resample command's \"gaps\" clause.\n\n");
       commandfound = 1;
     }
   if(!strncmp(c,"-GetLSAmpThresh",15) && strlen(c) == 15)
@@ -803,6 +879,38 @@ void example(char *c, ProgramData *p)
 		    "Fit a harmonic series to the RR Lyrae light curve EXAMPLES/M3.V006.lc. We fix the period to 0.514333 days, and we fit 10 harmonics plus the fundamental. We do not fit sub-harmonics. The best-fit model is output to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/M3.V006.lc.killharm.model). We do not subtract the model (the fitonly keyword) and we give relative amplitudes and phases (the amplitudes and phases in this format can be used in the -Injectharm command to inject a harmonic series with the fixed signal shape, but random overall amplitude and phase. See \"vartools -example -Injectharm\").\n");
       commandfound=1;
     }
+  if(!strcmp(c, "-harmonicfilter"))
+    {
+      printtostring(&s,
+		    "\nExample 1:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-LS 0.1 10. 0.1 1 0 \\\n");
+      printtostring(&s,
+		    "\t-rms -chi2 \\\n");
+      printtostring(&s,
+		    "\t-harmonicfilter ls 0 0 0 \\\n");
+      printtostring(&s,
+		    "\t-rms -chi2\n\n");
+      printtostring(&s,
+		    "Search for a periodic signal in the light curve EXAMPLES/2 using the Lomb-Scargle algorithm, and then fit and remove a sinusoid using -harmonicfilter. We include calls to -rms and -chi2 before and after calling -harmonicfilter to show how these statistics change after subtracting the best-fit sinusoid. For the -harmonicfilter command we take the period from the last ls command, we only fit the fundamental (no harmonics or sub-harmonics), and we do not output the best-fit model. (-Killharm is accepted as a synonym for -harmonicfilter and is retained for backward compatibility; the output-column prefix follows the invoking token.)\n\n");
+      printtostring(&s,
+		    "Example 2:\n");
+      printtostring(&s,
+		    "----------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/M3.V006.lc -oneline \\\n");
+      printtostring(&s,
+		    "\t-harmonicfilter fix 1 0.514333 10 0 1 \\\n");
+      printtostring(&s,
+		    "\t\tEXAMPLES/OUTDIR1/ fitonly outRphi\n\n");
+      printtostring(&s,
+		    "Fit a harmonic series to the RR Lyrae light curve EXAMPLES/M3.V006.lc. We fix the period to 0.514333 days, and we fit 10 harmonics plus the fundamental. We do not fit sub-harmonics. The best-fit model is output to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/M3.V006.lc.harmonicfilter.model). We do not subtract the model (the fitonly keyword) and we give relative amplitudes and phases (the amplitudes and phases in this format can be used in the -Injectharm command to inject a harmonic series with the fixed signal shape, but random overall amplitude and phase. See \"vartools -example -Injectharm\").\n");
+      commandfound=1;
+    }
   if(!strcmp(c,"-linfit"))
     {
       printtostring(&s,
@@ -963,11 +1071,11 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-o EXAMPLES/OUTDIR1 \\\n");
       printtostring(&s,
-		    "\t\tnameformat \"file_%%s_%%05d_simout.txt\" \\\n");
+		    "\t\tnameformat \"file_%s_%05d_simout.txt\" \\\n");
       printtostring(&s,
-		    "\t\tcolumnformat \"t:%%11.5f,phase:%%8.5f,mag:%%7.4f,err:%%7.4f\"\n\n");
+		    "\t\tcolumnformat \"t:%11.5f,phase:%8.5f,mag:%7.4f,err:%7.4f\"\n\n");
       printtostring(&s,
-		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %%17.9f, %%9.5f, and %%9.5f respectively.\n");
+		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %17.9f, %9.5f, and %9.5f respectively.\n");
       commandfound=1;
     }
   if(!strncmp(c,"-Phase",6) && strlen(c) == 6)
@@ -1021,7 +1129,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-inlistvars name:1:string,x:2,y:3 -rms \\\n");
       printtostring(&s,
-		    "\t-print name,x,y,RMS_0,mag format %%20s,%%.2f,%%.2f,%%.3f,%%.3f \\\n");
+		    "\t-print name,x,y,RMS_0,mag format %20s,%.2f,%.2f,%.3f,%.3f \\\n");
       printtostring(&s,
 		    "\t-header\n\n");
       printtostring(&s,
@@ -1197,7 +1305,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-restorelc 1 vars mag \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \\\n");
       printtostring(&s,
 		    "\t\tcolumnformat t,mag,mag_arima\n\n");
       printtostring(&s,
@@ -1248,7 +1356,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t-restorelc 1 vars mag \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat '%%s.arimamodel' \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat '%s.arimamodel' \\\n");
       printtostring(&s,
 		    "\t\tcolumnformat t,mag,mag_arima\n\n");
       printtostring(&s,
@@ -1672,7 +1780,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\t0 0.001 100 bin 100 period aov \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat %%s.test_tfa_sr_bin \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat %s.test_tfa_sr_bin \\\n");
       printtostring(&s,
 		    "\t-Killharm aov 5 0 0 \\\n");
       printtostring(&s,
@@ -1710,7 +1818,7 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "\t\t0 0.001 100 bin 100 \\\n");
       printtostring(&s,
-		    "\t-o EXAMPLES/OUTDIR1 nameformat %%s.test_tfa_sr_decorr \\\n");
+		    "\t-o EXAMPLES/OUTDIR1 nameformat %s.test_tfa_sr_decorr \\\n");
       printtostring(&s,
 		    "\t-decorr 1 1 1 0 1 1 2 0 \\\n");
       printtostring(&s,
@@ -1763,9 +1871,9 @@ void example(char *c, ProgramData *p)
 #endif
 
   if(!commandfound)
-    error2(ERR_EXAMPLE_BADCOMMAND,c);
+    vt_error2(ERR_EXAMPLE_BADCOMMAND,c);
   printtostring(&s, "\n");
-  fprintf(stderr,s.s);
+  fprintf(stderr, "%s", s.s);
   if(s.s != NULL)
     free(s.s);
   exit(ERR_USAGE);

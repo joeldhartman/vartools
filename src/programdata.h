@@ -104,6 +104,35 @@ typedef struct {
   int len;
 } _StringBuffer;
 
+/* In-memory snapshot of a light curve at the point an
+   ``-o <id> capture`` command was reached.  Used by the libvartools-
+   pipeline driver so cmd.o(capture=True) can run without disk I/O.
+
+   Each slot holds an independently-malloc'd copy of every
+   VARTOOLS_VECTORTYPE_LC variable's data at capture time, so the
+   variables can mutate freely afterwards without disturbing the
+   snapshot.  String columns get one malloc per row (vartools stores
+   strings as char ***).  Slots are pre-allocated at pipeline init
+   based on a count of CNUM_OUTPUTLCS commands with capture_to_buffer
+   set; the per-snapshot databufs are freed and re-malloc'd at the
+   start of every vartools_process_lc() call so memory does not
+   accumulate across batch iterations. */
+typedef struct _CapturedLC {
+  char  id[256];           /* the user-supplied key */
+  int   filled;            /* 0 until DoOutputLightCurve writes this slot */
+  int   njd;               /* number of points captured */
+  int   n_vars;            /* number of LC variables captured */
+  char **varnames;         /* [n_vars] — pointers into _Variable->varname,
+                              not owned (vartools owns the variable
+                              registry across the whole pipeline run) */
+  int  *datatypes;         /* [n_vars] — VARTOOLS_TYPE_* */
+  void **databufs;         /* [n_vars] — owned malloc'd buffer per var.
+                              For numeric types this is a flat array of
+                              njd elements.  For VARTOOLS_TYPE_STRING this
+                              is a malloc'd char ** of length njd, each
+                              entry a malloc'd C string. */
+} _CapturedLC;
+
 typedef struct {
   int datatype;
   int Ncolumns;
@@ -213,6 +242,13 @@ typedef struct {
   binarylightcurve *binlc;
 #endif
   int readfromstdinflag;
+  /* When non-NULL and -i - is in effect, this string overrides the
+     default "stdin" placeholder for the input light curve's name.  Set
+     by the -setlcname <name> CLI option; applied after argv parsing
+     in parsecommandline.c.  The Python wrapper (Pipeline.run) populates
+     this from LightCurve.name so result.vars["Name"] and any
+     nameformat %s substitutions reflect the user-visible LC name. */
+  char *setlcname;
   int readallflag;
   int listflag;
   int fileflag;
@@ -263,6 +299,16 @@ typedef struct {
   int randseed;
   int numbercolumns;
   int oneline;
+  /* -startcommandnumber N: offset added to every command's auto-generated
+     output-column suffix.  Primary use case: pyvartools chained-command
+     communication, so that re-invoking commands in a continued chain does
+     not collide with prior results injected as scalar variables. */
+  int startcommandnumber;
+  /* -printallscalars: when set, the -oneline output block for each LC is
+     extended with "VARTOOLS_SCALAR:name = value" lines for every user-
+     defined per-star variable (SCALAR / PERSTARDATA / INLIST), enabling
+     round-tripping of scalar state across chained vartools invocations. */
+  int printallscalars;
   int *col_commandstart;
   int *col_commandstop;
   int max_colcommand;
@@ -290,6 +336,10 @@ typedef struct {
   _StringBuffer **free_buffer_stack;
   _StringBuffer **full_buffer_stack;
   int Nbuffs_free;
+  int Nbuffs_free_user_set;  /* set to 1 when -bufferlines was given on
+                                the command line; otherwise the auto-
+                                scaling default kicks in based on the
+                                value of -parallel.  See parsecommandline.c. */
   int Nbuffs_free_stack;
   int Nbuffs_full;
   int free_buffer_stack_alloclen;
@@ -384,6 +434,20 @@ typedef struct {
   int pipeline_mode;
   jmp_buf exit_jmp;
   int exit_code;
+
+  /* In-memory snapshots of LC state captured by ``-o <key> capture``
+     -o invocations (used by libvartoolspipeline so capture=True can run
+     without disk I/O).  ``Ncaptured`` is the number of distinct capture
+     keys in the pipeline — pre-computed from s->c[] at init time so the
+     captured[] array can be allocated once.  ``Ncaptured_filled`` tracks
+     how many slots have been written this run; it is reset to 0 at the
+     start of every vartools_process_lc() call, and the per-slot
+     databufs are freed before being overwritten so the steady-state
+     memory cost is one snapshot per capture point per current LC (no
+     accumulation across batch iterations). */
+  int Ncaptured;
+  int Ncaptured_filled;
+  struct _CapturedLC *captured;
 
 } ProgramData;
 
@@ -515,3 +579,4 @@ typedef struct {
 #define ERR_INVALIDKEYNAMEFORMAT 125
 #define ERR_PRINTNUMVARSNOTMATCH 126
 #define ERR_BLS_OPTIMAL_MUSTUSEDENSITY 127
+#define ERR_DUPLICATESTATSTAT 128

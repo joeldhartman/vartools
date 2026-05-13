@@ -4,8 +4,9 @@ from __future__ import annotations
 from typing import List, Optional, Union
 
 from pyvartools._command import VartoolsCommand
-from ._helpers import (_bool, _flag, _fixperiodsnr_tokens, _norm_save,
-                       _outtoken, _period_spec, _pval, _should_emit, _varexpr)
+from ._helpers import (_auto_or_varexpr, _bool, _flag, _fixperiodsnr_tokens,
+                       _norm_save, _outtoken, _period_spec, _pval,
+                       _should_emit, _varexpr)
 
 
 class LS(VartoolsCommand):
@@ -74,6 +75,32 @@ class LS(VartoolsCommand):
         maskpoints: Optional[str] = None,
         fixperiod_snr: Union[float, int, str, None] = None,
     ) -> None:
+        # Numeric minp/maxp must be positive and ordered.  Variable
+        # references / expressions / numpy arrays / PerLC are accepted
+        # as-is because their values may only be known at run time.
+        from pyvartools.perlc import PerLC
+        import numpy as _np
+        def _numeric(v) -> bool:
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return True
+            if isinstance(v, (_np.integer, _np.floating)):
+                return True
+            return False
+        if _numeric(minp) and minp <= 0:
+            raise ValueError(
+                f"cmd.LS: minp must be > 0 (got {minp!r}); use a positive "
+                f"period bound in days or pass a variable name / "
+                f"expression / PerLC for per-LC search bounds."
+            )
+        if _numeric(maxp) and maxp <= 0:
+            raise ValueError(
+                f"cmd.LS: maxp must be > 0 (got {maxp!r})."
+            )
+        if _numeric(minp) and _numeric(maxp) and minp >= maxp:
+            raise ValueError(
+                f"cmd.LS: minp ({minp}) must be strictly less than "
+                f"maxp ({maxp})."
+            )
         self.minp = minp
         self.maxp = maxp
         self.subsample = subsample
@@ -104,6 +131,10 @@ class LS(VartoolsCommand):
             args += ["bootstrap", str(self.bootstrap)]
         args += _flag("maskpoints", self.maskpoints)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
 
     def _output_file_specs(self):
         return {"periodogram": (".ls", None)}
@@ -180,6 +211,10 @@ class aov(VartoolsCommand):
         args += _flag("maskpoints", self.maskpoints)
         return args
 
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
+
     def _output_file_specs(self):
         return {"periodogram": (".aov", None)}
 
@@ -247,6 +282,10 @@ class aov_harm(VartoolsCommand):
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
         args += _flag("maskpoints", self.maskpoints)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
 
     def _output_file_specs(self):
         return {"periodogram": (".aov_harm", None)}
@@ -391,6 +430,22 @@ class BLS(VartoolsCommand):
         self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
 
+        # vartools' default "optimal" frequency grid only works when
+        # density_mode=True (which uses stellar density to bound the
+        # expected transit duration).  In r/q duration mode, the user
+        # must specify nfreq= or df= explicitly.  Catch the invalid
+        # combination at construction so the error fires before run
+        # time, with a clear message pointing at both fix paths.
+        if not self.density_mode and self.nfreq is None and self.df is None:
+            raise ValueError(
+                "cmd.BLS in r/q duration mode requires an explicit "
+                "frequency grid: pass `nfreq=N` (number of "
+                "frequencies) or `df=...` (frequency step).  The "
+                "default `optimal` spacing is only valid when "
+                "`density_mode=True` (which uses stellar density to "
+                "set the expected transit duration)."
+            )
+
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
         args = ["-BLS"]
@@ -405,12 +460,15 @@ class BLS(VartoolsCommand):
         else:
             args += ["r"] + _varexpr(self.rmin) + _varexpr(self.rmax)
         args += _varexpr(self.minper) + _varexpr(self.maxper)
-        # Frequency specification
+        # Frequency specification.  The valid-combination check fires
+        # at construction time (in __init__), so any reachable state
+        # here is one of: df set, nfreq set, or density_mode + optimal.
         if self.df is not None:
             args += ["df"] + _varexpr(self.df)
         elif self.nfreq is not None:
             args += ["nf"] + _varexpr(self.nfreq)
         else:
+            # density_mode is True by the __init__ guard.
             args += ["optimal"] + _varexpr(self.subsample)
         args += _varexpr(self.nbins)
         args += [str(self.timezone), str(self.npeaks)]
@@ -504,6 +562,10 @@ class BLSFixPer(VartoolsCommand):
         args += _bool("fittrap", self.fittrap)
         args += _flag("maskpoints", self.maskpoints)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
         return {"model": (".blsfixper.model", None)}
@@ -607,7 +669,7 @@ class BLSFixDurTc(VartoolsCommand):
             args += ["fixdepth"] + _period_spec(self.fixdepth)
             if self.qgress is not None:
                 args += ["qgress"] + _period_spec(self.qgress)
-        args += [str(self.minper), str(self.maxper), str(self.nfreq)]
+        args += _varexpr(self.minper) + _varexpr(self.maxper) + _varexpr(self.nfreq)
         args += [str(self.timezone), str(self.npeaks)]
         args += _outtoken(self.save_periodogram, outdir)
         args += _outtoken(self.save_model, outdir)
@@ -794,8 +856,7 @@ class autocorrelation(VartoolsCommand):
         outdir = getattr(self, "_outdir", ".")
         spec = _norm_save(self.save_result)
         actual_outdir = spec.path if spec.path is not None else outdir
-        args = ["-autocorrelation", str(self.start), str(self.stop),
-                str(self.step), actual_outdir]
+        args = ["-autocorrelation"] + _varexpr(self.start) + _varexpr(self.stop) + _varexpr(self.step) + [actual_outdir]
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -871,6 +932,9 @@ class dftclean(VartoolsCommand):
         self.gain = gain
         self.SNlimit = SNlimit
         self.outcbeam = outcbeam
+        # Alias so the capture pipeline (which keys on ``save_<logical_name>``)
+        # picks up the request for the CLEAN beam file.
+        self.save_cbeam = outcbeam
         self.npeaks = npeaks
         self.useampspec = useampspec
         self.verboseout = verboseout
@@ -878,16 +942,16 @@ class dftclean(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-dftclean", str(self.nbeam)]
+        args = ["-dftclean"] + _varexpr(self.nbeam)
         if self.maxfreq is not None:
-            args += ["maxfreq", str(self.maxfreq)]
+            args += ["maxfreq"] + _varexpr(self.maxfreq)
         dspec_spec = _norm_save(self.save_dspec)
         if _should_emit(dspec_spec):
             args += ["outdspec", dspec_spec.path or outdir]
         if self.finddirtypeaks is not None:
             args += ["finddirtypeaks", str(self.finddirtypeaks)]
             if self.finddirtypeaks_clip is not None:
-                args += ["clip", str(self.finddirtypeaks_clip)]
+                args += ["clip"] + _varexpr(self.finddirtypeaks_clip)
                 if self.finddirtypeaks_clipiter is not None:
                     args += [str(self.finddirtypeaks_clipiter)]
         wfunc_spec = _norm_save(self.save_wfunc)
@@ -896,7 +960,7 @@ class dftclean(VartoolsCommand):
         cspec_spec = _norm_save(self.save_cspec)
         cb_spec = _norm_save(self.outcbeam)
         if _should_emit(cspec_spec) or self.npeaks is not None or _should_emit(cb_spec):
-            args += ["clean", str(self.gain), str(self.SNlimit)]
+            args += ["clean"] + _varexpr(self.gain) + _varexpr(self.SNlimit)
             if _should_emit(cb_spec):
                 args += ["outcbeam", cb_spec.path or outdir]
             if _should_emit(cspec_spec):
@@ -923,13 +987,21 @@ class wwz(VartoolsCommand):
     Parameters
     ----------
     maxfreq : float or ``"auto"``
-        Maximum frequency.
+        Maximum frequency in cycles per day.  ``"auto"`` (default) sets
+        it to ``1/(2*delmin)`` where ``delmin`` is the minimum spacing
+        between consecutive light-curve points.
     freqsamp : float
-        Frequency sampling step.
+        Frequency sampling step factor: the actual frequency step is
+        ``freqsamp/T`` where ``T`` is the light-curve time baseline.
+        Default ``0.25`` (Foster 1996 convention).  vartools does not
+        accept ``"auto"`` for this parameter.
     tau0, tau1, dtau : float or ``"auto"``
-        Start, end, and step of the time grid.
+        Start, end, and step of the time grid.  ``"auto"`` for
+        ``tau0`` / ``tau1`` uses the LC's first/last time; ``"auto"``
+        for ``dtau`` uses ``delmin``.
     c : float, optional
-        Decay constant (default 0.0125).
+        Decay constant of the abbreviated Morlet wavelet (default
+        0.0125, i.e. the Foster ``1/(8*pi^2)`` recommendation).
     save_transform : bool
         Write the full WWZ time-frequency map.
     transform_format : str, optional
@@ -948,7 +1020,7 @@ class wwz(VartoolsCommand):
     def __init__(
         self,
         maxfreq="auto",
-        freqsamp: Optional[float] = None,
+        freqsamp: float = 0.25,
         tau0="auto",
         tau1="auto",
         dtau="auto",
@@ -975,13 +1047,17 @@ class wwz(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-wwz",
-                "maxfreq", str(self.maxfreq),
-                "freqsamp", str(self.freqsamp if self.freqsamp is not None else "auto"),
-                "tau0", str(self.tau0),
-                "tau1", str(self.tau1),
-                "dtau", str(self.dtau),
-                "c", str(self.c)]
+        args = ["-wwz"]
+        # maxfreq / tau0 / tau1 / dtau accept the bare keyword ``auto`` as
+        # a literal CLI option (route them through the auto-aware helper
+        # rather than the plain _varexpr).  freqsamp does NOT — vartools
+        # rejects ``freqsamp auto`` with "must be > 0".
+        args += ["maxfreq"] + _auto_or_varexpr(self.maxfreq)
+        args += ["freqsamp"] + _varexpr(self.freqsamp)
+        args += ["tau0"] + _auto_or_varexpr(self.tau0)
+        args += ["tau1"] + _auto_or_varexpr(self.tau1)
+        args += ["dtau"] + _auto_or_varexpr(self.dtau)
+        args += ["c"] + _varexpr(self.c)
         tr_spec = _norm_save(self.save_transform)
         if _should_emit(tr_spec):
             args += ["outfulltransform", tr_spec.path or outdir]
@@ -1055,11 +1131,42 @@ class GetLSAmpThresh(VartoolsCommand):
         args = ["-GetLSAmpThresh"] + _period_spec(self.period)
         args += [str(self.minp), str(self.thresh)]
         if self.mode == "file":
+            if self.listfile is None:
+                raise ValueError(
+                    "GetLSAmpThresh(mode='file') requires the listfile "
+                    "kwarg to point at a vartools signal-list file."
+                )
             args += ["file", str(self.listfile)]
-        else:
+        elif self.mode == "harm":
             args += ["harm", str(self.nharm), str(self.nsubharm)]
+        else:
+            raise ValueError(
+                f"GetLSAmpThresh: mode must be 'harm' or 'file'; "
+                f"got {self.mode!r}"
+            )
         args += _bool("noGLS", self.noGLS)
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        # The -GetLSAmpThresh CLI only accepts "ls" or "list" as its period
+        # source.  Across a chain boundary the prior -LS command does not
+        # survive, so the "ls" keyword must be resolved.  We cannot convert
+        # to a bare number (the CLI rejects that), so we raise a clear error
+        # and point the user at the direct form.
+        if isinstance(self.period, str) and self.period.strip() == "ls":
+            from ._helpers import _most_recent_lookup
+            stats = _most_recent_lookup(prev, ["LS"])
+            if stats is None:
+                raise LookupError(
+                    "GetLSAmpThresh back-reference 'ls' has no prior -LS "
+                    "command in this chain"
+                )
+            raise NotImplementedError(
+                "GetLSAmpThresh with period='ls' is not supported across "
+                "chain boundaries (the CLI only accepts 'ls'/'list' period "
+                "sources).  Call it within a single Pipeline alongside the "
+                "-LS command."
+            )
 
 
 class Phase(VartoolsCommand):
@@ -1101,3 +1208,39 @@ class Phase(VartoolsCommand):
         if self.startphase is not None:
             args += ["startphase", str(self.startphase)]
         return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref, _most_recent_lookup
+
+        # period: resolve "ls"/"aov"/"bls"/"blsfixper"/"injectharm"/"fixcolumn"
+        self.period = _resolve_period_backref(prev, self.period)
+
+        # T0 accepts "bls <phaseTc>" — pull Tc from the prior BLS and add the
+        # phase offset.  Example: "bls 0.5" → bls_Tc - 0.5*bls_Period.
+        if isinstance(self.T0, str):
+            s = self.T0.strip()
+            if s.startswith("bls"):
+                parts = s.split()
+                phase_off = float(parts[1]) if len(parts) > 1 else 0.0
+                stats = _most_recent_lookup(prev, ["BLS"])
+                if stats is None:
+                    raise LookupError(
+                        "Back-reference T0='bls ...' has no prior -BLS "
+                        "command in this chain"
+                    )
+                from ._helpers import _coerce_to_numeric
+                period = _coerce_to_numeric(stats.Period_1)
+                tc = _coerce_to_numeric(stats.Tc_1)
+                # Scalar vs PerLC arithmetic
+                from pyvartools.perlc import PerLC
+                if isinstance(tc, PerLC) or isinstance(period, PerLC):
+                    tc_vals = tc if isinstance(tc, PerLC) else PerLC(
+                        [float(tc)] * len(period))
+                    per_vals = period if isinstance(period, PerLC) else PerLC(
+                        [float(period)] * len(tc_vals))
+                    self.T0 = PerLC([
+                        float(t) - phase_off * float(p)
+                        for t, p in zip(tc_vals, per_vals)
+                    ])
+                else:
+                    self.T0 = float(tc) - phase_off * float(period)

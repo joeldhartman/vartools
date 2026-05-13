@@ -30,6 +30,13 @@
 #define VARTOOLS_VECTORTYPE_OUTCOLUMN 4
 #define VARTOOLS_VECTORTYPE_PERSTARDATA 5
 #define VARTOOLS_VECTORTYPE_ANY 6
+/* INTERNALSCALAR: a scalar variable owned by a specific command for
+   internal bookkeeping (e.g. the frequency variable used by
+   -fourierfilter filterexpr).  Treated like SCALAR for read / write /
+   expression evaluation, but excluded from -printallscalars and from
+   the LightCurve.scalars mapping that pyvartools carries across
+   chained-pipeline segments. */
+#define VARTOOLS_VECTORTYPE_INTERNALSCALAR 7
 
 #define VARTOOLS_OPERANDTYPE_CONSTANT 0
 #define VARTOOLS_OPERANDTYPE_VARIABLE 1
@@ -97,8 +104,29 @@
 #define VARTOOLS_FUNCTIONCALL_RAND 34
 #define VARTOOLS_FUNCTIONCALL_GAUSS 35
 #define VARTOOLS_FUNCTIONCALL_LEN 36
-#define VARTOOLS_FUNCTIONCALL_USERFUNC 37
+/* Base ID for user-defined functions loaded via -F.  Must be strictly
+   greater than every VARTOOLS_FUNCTIONCALL_* built-in ID defined below,
+   otherwise user-function IDs collide with built-in IDs and the dispatch
+   switch in ParseFunctionCall misroutes them.  Leave headroom so that
+   future additions of built-in function IDs don't sneak past without
+   also bumping this value. */
+#define VARTOOLS_FUNCTIONCALL_USERFUNC 100
 #define VARTOOLS_FUNCTIONCALL_ISNAN 38
+#define VARTOOLS_FUNCTIONCALL_VMEAN 39
+#define VARTOOLS_FUNCTIONCALL_VMEDIAN 40
+#define VARTOOLS_FUNCTIONCALL_VSTDDEV 41
+#define VARTOOLS_FUNCTIONCALL_VMAD 42
+#define VARTOOLS_FUNCTIONCALL_VSUM 43
+#define VARTOOLS_FUNCTIONCALL_VMIN 44
+#define VARTOOLS_FUNCTIONCALL_VMAX 45
+#define VARTOOLS_FUNCTIONCALL_VWEIGHTEDMEAN 46
+#define VARTOOLS_FUNCTIONCALL_VWMEDIAN 47
+#define VARTOOLS_FUNCTIONCALL_VMEDDEV 48
+#define VARTOOLS_FUNCTIONCALL_VMEDMEDDEV 49
+#define VARTOOLS_FUNCTIONCALL_VKURTOSIS 50
+#define VARTOOLS_FUNCTIONCALL_VSKEWNESS 51
+#define VARTOOLS_FUNCTIONCALL_VPCT 52
+#define VARTOOLS_FUNCTIONCALL_VWPCT 53
 
 #define VARTOOLS_EXPRESSIONCOMMAND_INDEXTYPE_NOINDEX 0
 #define VARTOOLS_EXPRESSIONCOMMAND_INDEXTYPE_SINGLEINDEX 1
@@ -143,6 +171,14 @@ typedef struct {
   _AnalyticUserFunc *AnalyticUserFunc;
 #endif
   _Expression **arguments;
+  /* Per-LC memoisation: set at parse time (see MarkJIndependence in
+     analytic.c).  When the call's value is invariant under varying
+     jdindex on a fixed LC -- the function is pure and either an
+     aggregate (collapses a vector to a scalar) or a pure-scalar
+     function whose arguments are themselves j-independent -- the
+     evaluator caches the result for reuse within the current
+     expression-evaluation scope (see BumpMemoGeneration). */
+  int is_j_independent;
 } _FunctionCall;
 
 #define _ANALYTIC_HEADER_INCLUDE

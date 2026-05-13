@@ -371,9 +371,9 @@ BLS_Npointsintransit_1_0     =   180
 BLS_Ntransits_1_0            =     4
 BLS_Npointsbeforetransit_1_0 =   142
 BLS_Npointsaftertransit_1_0  =   163
-BLS_Rednoise_1_0             =   0.00147
-BLS_Whitenoise_1_0           =   0.00489
-BLS_SignaltoPinknoise_1_0    =  14.91256
+BLS_Rednoise_1_0             =   0.00148
+BLS_Whitenoise_1_0           =   0.00464
+BLS_SignaltoPinknoise_1_0    =  14.96273
 BLS_Period_invtransit_0      =     1.14590298
 BLS_deltaChi2_invtransit_0   = -3262.95028
 BLS_MeanMag_0                =  10.16740
@@ -426,9 +426,9 @@ BLSFixPer_Npointsintransit_1     =   166
 BLSFixPer_Ntransits_1            =     4
 BLSFixPer_Npointsbeforetransit_1 =   129
 BLSFixPer_Npointsaftertransit_1  =   144
-BLSFixPer_Rednoise_1             =   0.00151
-BLSFixPer_Whitenoise_1           =   0.00489
-BLSFixPer_SignaltoPinknoise_1    =  14.08946
+BLSFixPer_Rednoise_1             =   0.00152
+BLSFixPer_Whitenoise_1           =   0.00464
+BLSFixPer_SignaltoPinknoise_1    =  14.13959
 BLSFixPer_deltaChi2_invtransit_1 = -2934.30109
 BLSFixPer_MeanMag_1              =  10.16740
 Mean_Mag_2                       =  10.16678
@@ -1556,9 +1556,9 @@ BLS_Npointsintransit_1_1     =   179
 BLS_Ntransits_1_1            =    10
 BLS_Npointsbeforetransit_1_1 =   227
 BLS_Npointsaftertransit_1_1  =   186
-BLS_Rednoise_1_1             =   0.00164
-BLS_Whitenoise_1_1           =   0.00490
-BLS_SignaltoPinknoise_1_1    =  14.75185
+BLS_Rednoise_1_1             =   0.00165
+BLS_Whitenoise_1_1           =   0.00465
+BLS_SignaltoPinknoise_1_1    =  14.88667
 BLS_Period_invtransit_1      =     1.25145489
 BLS_deltaChi2_invtransit_1   = -2806.09675
 BLS_MeanMag_1                =  10.16718
@@ -1839,9 +1839,9 @@ BLS_Npointsintransit_1_0     =   146
 BLS_Ntransits_1_0            =     4
 BLS_Npointsbeforetransit_1_0 =   106
 BLS_Npointsaftertransit_1_0  =   120
-BLS_Rednoise_1_0             =   0.00156
-BLS_Whitenoise_1_0           =   0.00490
-BLS_SignaltoPinknoise_1_0    =  12.89679
+BLS_Rednoise_1_0             =   0.00158
+BLS_Whitenoise_1_0           =   0.00465
+BLS_SignaltoPinknoise_1_0    =  12.94447
 BLS_Period_invtransit_0      =     1.14599569
 BLS_deltaChi2_invtransit_0   = -3289.67397
 BLS_MeanMag_0                =  10.16740
@@ -2164,9 +2164,9 @@ BLS_Npointsintransit_1_0     =   146
 BLS_Ntransits_1_0            =     4
 BLS_Npointsbeforetransit_1_0 =   106
 BLS_Npointsaftertransit_1_0  =   120
-BLS_Rednoise_1_0             =   0.00156
-BLS_Whitenoise_1_0           =   0.00490
-BLS_SignaltoPinknoise_1_0    =  12.89679
+BLS_Rednoise_1_0             =   0.00158
+BLS_Whitenoise_1_0           =   0.00465
+BLS_SignaltoPinknoise_1_0    =  12.94447
 BLS_Period_invtransit_0      =     1.14599569
 BLS_deltaChi2_invtransit_0   = -3289.67397
 BLS_MeanMag_0                =  10.16740
@@ -2671,16 +2671,16 @@ EOF
 
 cat > $goodout <<EOF
 #1_Name 2_Nclip_1 3_LS_Period_1_3 4_Log10_LS_Prob_1_3 5_LS_Periodogram_Value_1_3 6_LS_SNR_1_3 7_LS_Period_2_3 8_Log10_LS_Prob_2_3 9_LS_Periodogram_Value_2_3 10_LS_SNR_2_3 11_LS_Period_3_3 12_Log10_LS_Prob_3_3 13_LS_Periodogram_Value_3_3 14_LS_SNR_3_3 15_Period_1_4 16_AOV_1_4 17_AOV_SNR_1_4 18_AOV_NEG_LN_FAP_1_4 19_Nclip_6 20_BLS_Period_1_7 21_BLS_Tc_1_7 22_BLS_SN_1_7 23_BLS_SR_1_7 24_BLS_SDE_1_7 25_BLS_Depth_1_7 26_BLS_Qtran_1_7 27_BLS_i1_1_7 28_BLS_i2_1_7 29_BLS_deltaChi2_1_7 30_BLS_fraconenight_1_7 31_BLS_Npointsintransit_1_7 32_BLS_Ntransits_1_7 33_BLS_Npointsbeforetransit_1_7 34_BLS_Npointsaftertransit_1_7 35_BLS_Rednoise_1_7 36_BLS_Whitenoise_1_7 37_BLS_SignaltoPinknoise_1_7 38_BLS_Period_2_7 39_BLS_Tc_2_7 40_BLS_SN_2_7 41_BLS_SR_2_7 42_BLS_SDE_2_7 43_BLS_Depth_2_7 44_BLS_Qtran_2_7 45_BLS_i1_2_7 46_BLS_i2_2_7 47_BLS_deltaChi2_2_7 48_BLS_fraconenight_2_7 49_BLS_Npointsintransit_2_7 50_BLS_Ntransits_2_7 51_BLS_Npointsbeforetransit_2_7 52_BLS_Npointsaftertransit_2_7 53_BLS_Rednoise_2_7 54_BLS_Whitenoise_2_7 55_BLS_SignaltoPinknoise_2_7 56_BLS_Period_invtransit_7 57_BLS_deltaChi2_invtransit_7 58_BLS_MeanMag_7 59_Mean_Mag_9 60_RMS_9 61_Npoints_9
-EXAMPLES/1     0    77.76775250 -5710.91013    0.99392   38.81513     0.97821072 -5530.60640    0.76156   29.55922     1.01657193 -5490.04096    0.71728   27.79505    34.52470117 46218.43332 3912.55946 7221.76774     0     3.05219780 53725.708054615388  26.66040   0.11243   5.37165   0.35851   0.10000   0.12500   0.22000 -53161091.85017   0.35500   285     4   309   448   0.11815   0.12237   6.02371     1.01277747 53725.829693408894  23.40282   0.09809   4.50317   0.36748   0.10500   0.59500   0.69500 -40461972.19159   0.35470   227     4    63   268   0.10708   0.12692   6.78011    20.00000000 -23119393.58400  10.24430  10.24745   0.15944  3122
-EXAMPLES/10     0     0.96906857  -52.91818    0.06257    9.66926    22.21935786  -50.53617    0.05981    9.19953     6.48064604  -30.84071    0.03729    5.36490    22.24937863  37.60833   8.30015 110.84854     0     0.37312764 53725.443504723371  19.58111   0.00040   3.77173   0.00133   0.10500   0.67000   0.77000 -412.30826   0.13440   404    18   428   397   0.00082   0.00233   5.88202     4.77975095 53727.922276796293  18.26272   0.00041   4.03736   0.00145   0.09000   0.53000   0.61500 -443.36990   0.40628   413     3   567   424   0.00056   0.00233   4.21955     0.99080932 -758.00480  10.87763  10.87781   0.00236  3974
-EXAMPLES/2     0     1.23440877 -4000.59209    0.99619   45.98308     0.55252400 -3750.68873    0.70251   32.20447     0.35510389 -2989.13043    0.24101   10.55229     1.23583047 9274.25316 654.12320 4979.79170     0     4.94437027 53725.45822129061  29.36340   0.02676   6.83057   0.06573   0.10500   0.00500   0.10500 -3122684.45271   0.24901   871     6    26   107   0.01976   0.02549   8.10016     0.54996672 53725.455777945892  17.41964   0.01592   3.48461   0.05536   0.10500   0.46000   0.56000 -1105077.99512   0.20882   340    13   336   354   0.03069   0.03369   6.35792     5.22727867 -2033854.28019  10.11178  10.11802   0.03663  3313
-EXAMPLES/3     2    18.29829471  -27.22364    0.03970   12.17097     1.14786351  -23.40687    0.03457   10.48313     1.05806466  -20.65933    0.03088    9.27350    17.56461059  35.43692  10.52015 103.28794     0    16.40794224 53737.602936245486  34.21975   0.00085   5.49747   0.00246   0.10500   0.70500   0.80500 -3094.85163   0.43976   398     2   165   211   0.00079   0.00483   4.02468     0.94160522 53726.019010685653  30.41691   0.00074   4.31994   0.00264   0.10500   0.84500   0.94500 -2364.56373   0.33407   310     8   360   221   0.00122   0.00485   5.14786    15.40203327 -2404.93187  10.16684  10.16674   0.00486  3415
-EXAMPLES/4     6     0.99383709  -84.73842    0.11774   12.31519     1.16943989  -77.73898    0.10777   11.20711     0.93414718  -73.54166    0.10184   10.54794    34.70790113  92.61914  17.51651 276.74730     0     2.32488927 53726.812966932586  30.95354   0.00093   4.33228   0.00569   0.05000   0.68000   0.72500 -2977.65425   1.00000    61     1    98     8   0.00071   0.00195   7.53922     1.98505107 53725.580855469459  30.25312   0.00092   4.22373   0.00651   0.04000   0.18500   0.22000 -2870.35671   0.99585    50     2   253     8   0.00076   0.00197  10.72951    13.53502538 -934.10617  10.35137  10.35141   0.00204  3221
-EXAMPLES/5     1     7.06979568  -86.77716    0.10039   11.00843     0.87625637  -73.24175    0.08453    9.12747     1.01990495  -51.62791    0.05972    6.18553     8.37612050  71.69357  10.25483 217.96768     0    20.00000000 53745.073920000003  18.12676   0.00064   4.90228   0.00173   0.10000   0.94500   1.04000 -1632.92132   0.43363   698     2   298   583   0.00073   0.00282   3.29460     0.87900978 53725.929868414547  16.45821   0.00056   3.95272   0.00180   0.10000   0.81000   0.90500 -1254.84860   0.20057   432     9   233   439   0.00112   0.00284   4.50717    20.00000000 -2993.85612  10.43932  10.43962   0.00287  3902
-EXAMPLES/6     1    22.21935786  -59.61922    0.07054    9.98686     0.96009571  -58.05122    0.06871    9.70196     0.48987561  -30.86340    0.03740    4.84451    22.85589452  46.00325   9.33718 137.68537     0     0.37298915 53725.448999501263  21.62511   0.00039   3.90357   0.00131   0.10500   0.68500   0.78500 -549.87354   0.15460   394    18   423   393   0.00081   0.00206   6.02355     2.86102607 53727.984878110394  20.09105   0.00040   4.04948   0.00142   0.10500   0.93000   1.03000 -573.18316   0.47471   412     5   392   608   0.00054   0.00205   5.45946     1.92423528 -802.58344  10.52748  10.52761   0.00208  3932
-EXAMPLES/7     1     0.14747089  -12.46647    0.01922    4.80537     0.12327234  -10.31697    0.01649    3.96906     0.68505751   -9.94923    0.01602    3.82622     1.80654114  19.70992   5.85501  52.63608     0     3.63778582 53726.552674147853  34.15570   0.00052   4.92465   0.00409   0.03500   0.36000   0.39000 -916.31144   0.46930   107     3   229    87   0.00082   0.00342   7.08279     0.37591921 53725.362670617018  30.73327   0.00046   3.80264   0.00337   0.01500   0.48000   0.49000 -710.54027   0.35387    66    13    78    64   0.00135   0.00347   5.93376     3.45042962 -1325.03039  10.56951  10.56966   0.00348  3625
-EXAMPLES/8     0     0.93696087  -79.26500    0.09115    9.35161    16.37215842  -77.78479    0.08943    9.16090     1.11896047  -61.96259    0.07120    7.14271    12.29039040 129.90291  17.81185 389.85231     0     3.73236282 53725.425854490481  18.73923   0.00057   4.91213   0.00208   0.10500   0.01500   0.11500 -1101.88000   0.32552   519     5   195   397   0.00095   0.00216   4.79798     0.53079447 53725.602536531653  12.08756   0.00037   2.39737   0.00115   0.10500   0.75500   0.85500 -455.24278   0.24208   425    11   371   452   0.00120   0.00223   3.05435    13.71981339 -2076.09183  10.61132  10.61152   0.00225  3957
-EXAMPLES/9     0     7.06979568  -48.29326    0.05781   11.13720     0.87625637  -42.47599    0.05105    9.73682     0.76430224  -25.04394    0.03107    5.59685     6.97310721  37.95931  10.42873 111.95866     0     7.48568220 53730.095756047165  28.05210   0.00039   5.83543   0.00122   0.08500   0.61500   0.69500 -449.11329   0.37314   481     3   239   397   0.00041   0.00184   4.85572     0.87594502 53725.920663129713  23.60989   0.00033   4.36861   0.00142   0.09500   0.80500   0.89500 -316.76326   0.44009   240     7   241   418   0.00047   0.00184   6.60947     3.40368315 -493.75117  10.73129  10.73139   0.00187  3954
+EXAMPLES/1     0    77.76775250 -5710.91013    0.99392   38.81513     0.97821072 -5530.60640    0.76156   29.55922     1.01657193 -5490.04096    0.71728   27.79505    34.52470117 46218.43332 3912.55946 7221.76774     0     3.05219780 53725.708054615388  26.66040   0.11243   5.37165   0.35851   0.10000   0.12500   0.22000 -53161091.85017   0.35500   285     4   309   448   0.11822   0.11456   6.02552     1.01277747 53725.829693408894  23.40282   0.09809   4.50317   0.36748   0.10500   0.59500   0.69500 -40461972.19159   0.35470   227     4    63   268   0.10708   0.12706   6.78007    20.00000000 -23119393.58400  10.24430  10.24745   0.15944  3122
+EXAMPLES/10     0     0.96906857  -52.91818    0.06257    9.66926    22.21935786  -50.53617    0.05981    9.19953     6.48064604  -30.84071    0.03729    5.36490    22.24937863  37.60833   8.30015 110.84854     0     0.37312764 53725.443504723371  19.58111   0.00040   3.77173   0.00133   0.10500   0.67000   0.77000 -412.30826   0.13440   404    18   428   397   0.00082   0.00236   5.87482     4.77975095 53727.922276796293  18.26272   0.00041   4.03736   0.00145   0.09000   0.53000   0.61500 -443.36990   0.40628   413     3   567   424   0.00056   0.00235   4.21997     0.99080932 -758.00480  10.87763  10.87781   0.00236  3974
+EXAMPLES/2     0     1.23440877 -4000.59209    0.99619   45.98308     0.55252400 -3750.68873    0.70251   32.20447     0.35510389 -2989.13043    0.24101   10.55229     1.23583047 9274.25316 654.12320 4979.79170     0     4.94437027 53725.45822129061  29.36340   0.02676   6.83057   0.06573   0.10500   0.00500   0.10500 -3122684.45271   0.24901   871     6    26   107   0.01978   0.02414   8.09875     0.54996672 53725.455777945892  17.41964   0.01592   3.48461   0.05536   0.10500   0.46000   0.56000 -1105077.99512   0.20882   340    13   336   354   0.03072   0.03234   6.36335     5.22727867 -2033854.28019  10.11178  10.11802   0.03663  3313
+EXAMPLES/3     2    18.29829471  -27.22364    0.03970   12.17097     1.14786351  -23.40687    0.03457   10.48313     1.05806466  -20.65933    0.03088    9.27350    17.56461059  35.43692  10.52015 103.28794     0    16.40794224 53737.602936245486  34.21975   0.00085   5.49747   0.00246   0.10500   0.70500   0.80500 -3094.85163   0.43976   398     2   165   211   0.00080   0.00456   4.03820     0.94160522 53726.019010685653  30.41691   0.00074   4.31994   0.00264   0.10500   0.84500   0.94500 -2364.56373   0.33407   310     8   360   221   0.00124   0.00458   5.18629    15.40203327 -2404.93187  10.16684  10.16674   0.00486  3415
+EXAMPLES/4     6     0.99383709  -84.73842    0.11774   12.31519     1.16943989  -77.73898    0.10777   11.20711     0.93414718  -73.54166    0.10184   10.54794    34.70790113  92.61914  17.51651 276.74730     0     2.32488927 53726.812966932586  30.95354   0.00093   4.33228   0.00569   0.05000   0.68000   0.72500 -2977.65425   1.00000    61     1    98     8   0.00071   0.00201   7.53376     1.98505107 53725.580855469459  30.25312   0.00092   4.22373   0.00651   0.04000   0.18500   0.22000 -2870.35671   0.99585    50     2   253     8   0.00076   0.00202  10.69618    13.53502538 -934.10617  10.35137  10.35141   0.00204  3221
+EXAMPLES/5     1     7.06979568  -86.77716    0.10039   11.00843     0.87625637  -73.24175    0.08453    9.12747     1.01990495  -51.62791    0.05972    6.18553     8.37612050  71.69357  10.25483 217.96768     0    20.00000000 53745.073920000003  18.12676   0.00064   4.90228   0.00173   0.10000   0.94500   1.04000 -1632.92132   0.43363   698     2   298   583   0.00073   0.00276   3.29551     0.87900978 53725.929868414547  16.45821   0.00056   3.95272   0.00180   0.10000   0.81000   0.90500 -1254.84860   0.20057   432     9   233   439   0.00113   0.00278   4.51109    20.00000000 -2993.85612  10.43932  10.43962   0.00287  3902
+EXAMPLES/6     1    22.21935786  -59.61922    0.07054    9.98686     0.96009571  -58.05122    0.06871    9.70196     0.48987561  -30.86340    0.03740    4.84451    22.85589452  46.00325   9.33718 137.68537     0     0.37298915 53725.448999501263  21.62511   0.00039   3.90357   0.00131   0.10500   0.68500   0.78500 -549.87354   0.15460   394    18   423   393   0.00081   0.00204   6.03064     2.86102607 53727.984878110394  20.09105   0.00040   4.04948   0.00142   0.10500   0.93000   1.03000 -573.18316   0.47471   412     5   392   608   0.00054   0.00204   5.46205     1.92423528 -802.58344  10.52748  10.52761   0.00208  3932
+EXAMPLES/7     1     0.14747089  -12.46647    0.01922    4.80537     0.12327234  -10.31697    0.01649    3.96906     0.68505751   -9.94923    0.01602    3.82622     1.80654114  19.70992   5.85501  52.63608     0     3.63778582 53726.552674147853  34.15570   0.00052   4.92465   0.00409   0.03500   0.36000   0.39000 -916.31144   0.46930   107     3   229    87   0.00082   0.00330   7.13566     0.37591921 53725.362670617018  30.73327   0.00046   3.80264   0.00337   0.01500   0.48000   0.49000 -710.54027   0.35387    66    13    78    64   0.00140   0.00331   5.98639     3.45042962 -1325.03039  10.56951  10.56966   0.00348  3625
+EXAMPLES/8     0     0.93696087  -79.26500    0.09115    9.35161    16.37215842  -77.78479    0.08943    9.16090     1.11896047  -61.96259    0.07120    7.14271    12.29039040 129.90291  17.81185 389.85231     0     3.73236282 53725.425854490481  18.73923   0.00057   4.91213   0.00208   0.10500   0.01500   0.11500 -1101.88000   0.32552   519     5   195   397   0.00095   0.00215   4.79817     0.53079447 53725.602536531653  12.08756   0.00037   2.39737   0.00115   0.10500   0.75500   0.85500 -455.24278   0.24208   425    11   371   452   0.00120   0.00219   3.05577    13.71981339 -2076.09183  10.61132  10.61152   0.00225  3957
+EXAMPLES/9     0     7.06979568  -48.29326    0.05781   11.13720     0.87625637  -42.47599    0.05105    9.73682     0.76430224  -25.04394    0.03107    5.59685     6.97310721  37.95931  10.42873 111.95866     0     7.48568220 53730.095756047165  28.05210   0.00039   5.83543   0.00122   0.08500   0.61500   0.69500 -449.11329   0.37314   481     3   239   397   0.00041   0.00184   4.85598     0.87594502 53725.920663129713  23.60989   0.00033   4.36861   0.00142   0.09500   0.80500   0.89500 -316.76326   0.44009   240     7   241   418   0.00047   0.00186   6.59994     3.40368315 -493.75117  10.73129  10.73139   0.00187  3954
 EOF
 
 $VARTOOLS -l EXAMPLES/lc_list -header -numbercolumns \
@@ -2843,9 +2843,9 @@ BLS_Npointsintransit_1_0     =   180
 BLS_Ntransits_1_0            =     4
 BLS_Npointsbeforetransit_1_0 =   142
 BLS_Npointsaftertransit_1_0  =   163
-BLS_Rednoise_1_0             =   0.00147
-BLS_Whitenoise_1_0           =   0.00489
-BLS_SignaltoPinknoise_1_0    =  14.91256
+BLS_Rednoise_1_0             =   0.00148
+BLS_Whitenoise_1_0           =   0.00464
+BLS_SignaltoPinknoise_1_0    =  14.96273
 BLS_Period_invtransit_0      =     1.14590298
 BLS_deltaChi2_invtransit_0   = -3262.95028
 BLS_MeanMag_0                =  10.16740
@@ -2971,9 +2971,9 @@ BLS_Npointsintransit_1_0     =   146
 BLS_Ntransits_1_0            =     4
 BLS_Npointsbeforetransit_1_0 =   106
 BLS_Npointsaftertransit_1_0  =   120
-BLS_Rednoise_1_0             =   0.00156
-BLS_Whitenoise_1_0           =   0.00490
-BLS_SignaltoPinknoise_1_0    =  12.89679
+BLS_Rednoise_1_0             =   0.00158
+BLS_Whitenoise_1_0           =   0.00465
+BLS_SignaltoPinknoise_1_0    =  12.94447
 BLS_Period_invtransit_0      =     1.14599569
 BLS_deltaChi2_invtransit_0   = -3289.67397
 BLS_MeanMag_0                =  10.16740
@@ -3608,3 +3608,600 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+
+
+# var/expr per-LC parameter tests
+
+# Tier 1: -clip with expr sigclip
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -clip expr sigclip" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -clip expr '0.5' 1
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/1  3121
+EXAMPLES/2  3312
+EXAMPLES/3  3417
+EXAMPLES/4  3218
+EXAMPLES/5  3903
+EXAMPLES/6  3931
+EXAMPLES/7  3626
+EXAMPLES/8  3951
+EXAMPLES/9  3954
+EXAMPLES/10  3974
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -clip expr '0.5' 1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 1: -fluxtomag with expr
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -fluxtomag expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -fluxtomag expr '25.0' expr '0.0' -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  22.48727   0.00393   0.00011  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -fluxtomag expr '25.0' expr '0.0' -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 1: -medianfilter with expr
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -medianfilter expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -medianfilter expr '0.1' -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2   0.00015   0.00486   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -medianfilter expr '0.1' -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 1: -Killharm with expr period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -Killharm fix with expr period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -Killharm fix 1 expr '1.234' 1 0 0
+EOF
+
+cat > $goodout <<EOF
+Name                                 = EXAMPLES/2
+Killharm_Mean_Mag_0                  =  10.12232
+Killharm_Period_1_0                  =     1.23400000
+Killharm_Per1_Fundamental_Sincoeff_0 =  -0.04494
+Killharm_Per1_Fundamental_Coscoeff_0 =  -0.02218
+Killharm_Per1_Harm_2_Sincoeff_0      =  -0.00043
+Killharm_Per1_Harm_2_Coscoeff_0      =  -0.00009
+Killharm_Per1_Amplitude_0            =   0.10024
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -Killharm fix 1 expr '1.234' 1 0 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2A: -phase with expr period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -phase expr period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -LS 0.1 10.0 0.1 1 0 -phase expr '1.234' -stats t median
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2     1.23440877 -4000.59209    0.99619   45.98308 0.56012155591449675
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -LS 0.1 10.0 0.1 1 0 -phase expr '1.234' -stats t median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2A: -phase with var from LS
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -phase var LS_Period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -LS 0.1 10.0 0.1 1 0 -phase var LS_Period_1_0 -stats t median
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2     1.23440877 -4000.59209    0.99619   45.98308 0.55819222755547315
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -LS 0.1 10.0 0.1 1 0 -phase var LS_Period_1_0 -stats t median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2B: -Injectharm with expr period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -Injectharm expr period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -Injectharm expr '1.234' 0 ampfix 0.01 phasefix 0.0 0 -rms
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+Injectharm_Period_0            =     1.23400000
+Injectharm_Fundamental_Amp_0   =   0.01000
+Injectharm_Fundamental_Phase_0 =   0.00000
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -Injectharm expr '1.234' 0 ampfix 0.01 phasefix 0.0 0 -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 1: -autocorrelation with expr step
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -autocorrelation expr step" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -autocorrelation 0.001 0.1 expr '0.001' EXAMPLES/OUTDIR1 -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -autocorrelation 0.001 0.1 expr '0.001' EXAMPLES/OUTDIR1 -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 1: -dftclean with expr nbeam
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -dftclean expr nbeam" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -dftclean expr '5'
+EOF
+
+cat > $goodout <<EOF
+Name = EXAMPLES/2
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -dftclean expr '5' \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2C: -addnoise with expr parameters
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -addnoise expr parameters" > /dev/stderr
+
+cat > $testc <<EOF
+gawk '{print \$1, 0., 0.005}' EXAMPLES/1 | \
+./vartools -i - -randseed 1 \
+    -addnoise wavelet gamma expr '0.99' sig_red expr '0.005' sig_white expr '0.005'
+EOF
+
+cat > $goodout <<EOF
+stdin
+EOF
+
+gawk '{print $1, 0., 0.005}' EXAMPLES/1 | \
+$VARTOOLS -i - -randseed 1 \
+    -addnoise wavelet gamma expr '0.99' sig_red expr '0.005' sig_white expr '0.005' \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2C: -binlc with expr nbins
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -binlc expr nbins" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -binlc average nbins expr '100' tcenter -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.12140   0.03592   0.00045    38
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -binlc average nbins expr '100' tcenter -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Tier 2A: -Starspot with expr period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -Starspot expr period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/8 -oneline \
+    -Starspot expr '1.234' 0.001 0.001 0.001 1.0 0.001 0.001 10.6 0 0 0 0 0 0 0 0 0 0
+EOF
+
+cat > $goodout <<EOF
+Name                   = EXAMPLES/8
+Starspot_Period_0      =     1.23400000
+Starspot_a_0           =   0.00100
+Starspot_b_0           =   0.00100
+Starspot_alpha_0       =   0.00100
+Starspot_inclination_0 =   1.00000
+Starspot_chi_0         =   0.00100
+Starspot_psi0_0        =   0.00100
+Starspot_mconst_0      =  10.60000
+Starspot_chi2perdof_0  =   0.00000
+
+EOF
+
+$VARTOOLS -i EXAMPLES/8 -oneline \
+    -Starspot expr '1.234' 0.001 0.001 0.001 1.0 0.001 0.001 10.6 0 0 0 0 0 0 0 0 0 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -expr listvar: per-star variable from first observation
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -expr listvar" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -header \
+    -expr listvar 'first_mag=mag' -expr 'dmag=mag-first_mag' -stats dmag mean
+EOF
+
+cat > $goodout <<EOF
+#Name STATS_dmag_MEAN_2
+EXAMPLES/1 0.1624527226137083
+EXAMPLES/2 -0.0065831270751576364
+EXAMPLES/3 -0.0079565876499850079
+EXAMPLES/4 0.0021855500464824326
+EXAMPLES/5 -0.0011844734819363707
+EXAMPLES/6 0.0012255097889659265
+EXAMPLES/7 0.0014383121897405874
+EXAMPLES/8 0.0055278140005051851
+EXAMPLES/9 -0.00130031360647431
+EXAMPLES/10 0.004256706089582449
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -header \
+    -expr listvar 'first_mag=mag' -expr 'dmag=mag-first_mag' -stats dmag mean \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -expr const: constant variable available across all LCs
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -expr const" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -header \
+    -expr const 'offset=25.0' -expr 'newmag=mag+offset' -rms
+EOF
+
+cat > $goodout <<EOF
+#Name Mean_Mag_2 RMS_2 Expected_RMS_2 Npoints_2
+EXAMPLES/1  10.24745   0.15944   0.00101  3122
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EXAMPLES/3  10.16674   0.00490   0.00104  3417
+EXAMPLES/4  10.35142   0.00209   0.00114  3227
+EXAMPLES/5  10.43962   0.00288   0.00114  3903
+EXAMPLES/6  10.52762   0.00209   0.00121  3933
+EXAMPLES/7  10.56966   0.00349   0.00116  3626
+EXAMPLES/8  10.61152   0.00225   0.00125  3957
+EXAMPLES/9  10.73139   0.00187   0.00133  3954
+EXAMPLES/10  10.87781   0.00236   0.00143  3974
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -header \
+    -expr const 'offset=25.0' -expr 'newmag=mag+offset' -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Aggregate vector functions: mean, stddev, median, mean(expr)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing aggregate vector functions" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -header \
+  -expr listvar 'avg=mean(mag)' -expr listvar 'sd=stddev(mag)' \
+  -expr listvar 'med=median(mag)' -expr listvar 'meansq=mean(mag*mag)' \
+  -expr 'ca=avg' -expr 'cs=sd' -expr 'cm=med' -expr 'cmsq=meansq' \
+  -stats ca,cs,cm,cmsq mean
+EOF
+
+cat > $goodout <<EOF
+#Name STATS_ca_MEAN_8 STATS_cs_MEAN_8 STATS_cm_MEAN_8 STATS_cmsq_MEAN_8
+EXAMPLES/1 10.247452722613708 0.15946976931434603 10.18585 105.03570976391414
+EXAMPLES/2 10.118016872924841 0.036640196913116763 10.1099 102.37560753959855
+EXAMPLES/3 10.166743412350014 0.0048962905656505422 10.16667 103.36269557920772
+EXAMPLES/4 10.351415550046482 0.002091571052204289 10.351430000000001 107.15180826305794
+EXAMPLES/5 10.439615526518065 0.0028808502349334541 10.43952 108.9855806386887
+EXAMPLES/6 10.527615509788966 0.002089873680324577 10.527469999999999 110.83069268841068
+EXAMPLES/7 10.569658312189741 0.0034880950030798533 10.569419999999999 111.717688999893
+EXAMPLES/8 10.611517814000507 0.0022502571019889697 10.611560000000003 112.6043153792274
+EXAMPLES/9 10.731389686393525 0.0018673694762206079 10.731199999999999 115.16272808742018
+EXAMPLES/10 10.877806706089583 0.0023627959129451301 10.877734999999999 118.32668431644719
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -header \
+  -expr listvar 'avg=mean(mag)' -expr listvar 'sd=stddev(mag)' \
+  -expr listvar 'med=median(mag)' -expr listvar 'meansq=mean(mag*mag)' \
+  -expr 'ca=avg' -expr 'cs=sd' -expr 'cm=med' -expr 'cmsq=meansq' \
+  -stats ca,cs,cm,cmsq mean \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -startcommandnumber: shifts output column suffixes by N
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -startcommandnumber shifts suffixes" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -rms -oneline -startcommandnumber 7
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_7     =  10.11802
+RMS_7          =   0.03663
+Expected_RMS_7 =   0.00102
+Npoints_7      =  3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -rms -oneline -startcommandnumber 7 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -startcommandnumber: does not override an explicit -columnsuffix
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -startcommandnumber respects -columnsuffix" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -columnsuffix tag -rms -oneline -startcommandnumber 7
+EOF
+
+cat > $goodout <<EOF
+Name             = EXAMPLES/2
+Mean_Mag_tag     =  10.11802
+RMS_tag          =   0.03663
+Expected_RMS_tag =   0.00102
+Npoints_tag      =  3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -columnsuffix tag -rms -oneline -startcommandnumber 7 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -printallscalars: emits VARTOOLS_SCALAR: lines for user-defined scalars
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -printallscalars emits scalar variables" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr scalar 'myvar=42.5' -rms -oneline -printallscalars
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_1     =  10.11802
+RMS_1          =   0.03663
+Expected_RMS_1 =   0.00102
+Npoints_1      =  3313
+VARTOOLS_SCALAR:myvar = 42.5
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr scalar 'myvar=42.5' -rms -oneline -printallscalars \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -printallscalars: emits a per-LC listvar with the correct value for each LC.
+# Compare rounded to 10 significant figures to avoid last-ULP flakiness.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -printallscalars per-LC listvar values" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -expr listvar 'lvar=mean(mag)' \
+  -rms -oneline -printallscalars
+EOF
+
+# Extract only the VARTOOLS_SCALAR: lvar values and round to 10 sig figs.
+$VARTOOLS -l EXAMPLES/lc_list -expr listvar 'lvar=mean(mag)' \
+  -rms -oneline -printallscalars \
+| gawk '/^VARTOOLS_SCALAR:lvar/ { printf "%.10g\n", $3 }' > $testout
+
+lastcode=$?
+
+cat > $goodout <<EOF
+10.24745272
+10.11801687
+10.16674341
+10.35141555
+10.43961553
+10.52761551
+10.56965831
+10.61151781
+10.73138969
+10.87780671
+EOF
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -printallscalars: error when used without -oneline
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -printallscalars errors without -oneline" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -rms -printallscalars
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -rms -printallscalars > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -printallscalars without -oneline to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "requires -oneline" $testout ; then
+    cat > /dev/stderr <<EOF
+-printallscalars without -oneline did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+rm -f $testc $testout $goodout

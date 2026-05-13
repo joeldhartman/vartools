@@ -97,7 +97,7 @@ void sigclip_copyterms(int i,int j,ProgramData *p,int lc)
 	  (*charptr)[lc][j] = (*charptr)[lc][i];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if(Nc > 0) {
 	for(u=0; u < Nc; u++) {
@@ -136,7 +136,7 @@ void sigclip_copyterms(int i,int j,ProgramData *p,int lc)
 	    (*char2ptr)[lc][u][j] = (*char2ptr)[lc][u][i];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else {
@@ -176,7 +176,7 @@ void sigclip_copyterms(int i,int j,ProgramData *p,int lc)
 	    (*char2ptr)[lc][j][u] = (*char2ptr)[lc][i][u];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -240,12 +240,12 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 	    } else {
 	      if(!sizemagcpy) {
 		if((magcpy = (double *) malloc((*ngood)*sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		sizemagcpy = *ngood;
 	      }
 	      else if(sizemagcpy < (*ngood)) {
 		if((magcpy = (double *) realloc(magcpy, (*ngood)*sizeof(double))) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		sizemagcpy = *ngood;
 	      }
 	      if(markclip) {
@@ -358,12 +358,12 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 		    } else {
 		      if(!sizemagcpy) {
 			if((magcpy = (double *) malloc((*ngood)*sizeof(double))) == NULL)
-			  error(ERR_MEMALLOC);
+			  vt_error(ERR_MEMALLOC);
 			sizemagcpy = *ngood;
 		      }
 		      else if(sizemagcpy < (*ngood)) {
 			if((magcpy = (double *) realloc(magcpy, (*ngood)*sizeof(double))) == NULL)
-			  error(ERR_MEMALLOC);
+			  vt_error(ERR_MEMALLOC);
 			sizemagcpy = *ngood;
 		      }
 		      if(markclip) {
@@ -460,12 +460,12 @@ int sigclip (int size, double *t, double *mag, double *sig, double *ave, double 
 	  } else {
 	    if(!sizemagcpy) {
 	      if((magcpy = (double *) malloc((*ngood)*sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sizemagcpy = *ngood;
 	    }
 	    else if(sizemagcpy < (*ngood)) {
 	      if((magcpy = (double *) realloc(magcpy, (*ngood)*sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sizemagcpy = *ngood;
 	    }
 	    for(i=0, k=0; i < size; i++) {

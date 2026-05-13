@@ -64,13 +64,13 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
      (magtofit = (double *) malloc(Njd * sizeof(double))) == NULL ||
      (constantterm = (double *) malloc(Njd * sizeof(double))) == NULL ||
      (order = (int *) malloc(Nparam * sizeof(int))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   for(j=0; j < Nparam; j++)
     order[j] = 1;
   for(i=0; i < Njd; i++) {
     if((decorr[i] = (double *) malloc(Nparam * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     for(j=0; j < Nparam; j++) {
       decorr[i][j] = EvaluateExpression(lcid, threadid, i, c->expressions[j]);
     }
@@ -112,11 +112,11 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
 	numrejlast = numrej;
 	if(tmpmag == NULL) {
 	  if((tmpmag = malloc(Njd * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(tmpmag2 == NULL) {
 	  if((tmpmag2 = malloc(Njd * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	k = 0;
 	for(i=0; i < Njd; i++) {
@@ -146,7 +146,7 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
 	      continue;
 	  }
 	  if(!isnan(p->mag[threadid][i]) && !isinf(p->mag[threadid][i])) {
-	    if(tmpmag[i] > rmsval*c->rejsigclip || tmpmag[i] < -rmsval*c->rejsigclip) {
+	    if(tmpmag[i] > rmsval*VT_EVAL_DOUBLE(c, rejsigclip, lcid, threadid) || tmpmag[i] < -rmsval*VT_EVAL_DOUBLE(c, rejsigclip, lcid, threadid)) {
 	      magtofit[i] = sqrt(-1.0);
 	      numrej++;
 	    }
@@ -189,7 +189,7 @@ void DoLinfit(ProgramData *p, _Linfit *c, int threadid, int lcid) {
 	      }
 	      sprintf(outname,"%s/%s.linfit.model", c->outdir, &p->lcnames[lcid][i2]);*/
       if((outfile = fopen(outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
     }
     if(c->calcchi2out) {
       c->chi2out[threadid] = 0.;
@@ -252,7 +252,7 @@ void InitLinfit(ProgramData *p, _Linfit *c, int cnum) {
 	if((v->vectortype != VARTOOLS_VECTORTYPE_INLIST 
 	    && v->vectortype != VARTOOLS_VECTORTYPE_SCALAR) ||
 	   v->datatype != VARTOOLS_TYPE_DOUBLE) {
-	  error2(ERR_INVALIDVARIABLEFORLINFIT,v->varname);
+	  vt_error2(ERR_INVALIDVARIABLEFORLINFIT,v->varname);
 	}
 	c->params[i] = v;
 	break;
@@ -280,7 +280,7 @@ void InitLinfit(ProgramData *p, _Linfit *c, int cnum) {
   */
 
   if((c->expressions = (_Expression **) malloc(nparam * sizeof(_Expression *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < nparam; i++)
     RegisterDataFromInputList(p,
@@ -314,7 +314,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_VARIABLE ?
        Fullexpression->op1_variable == v : 0) {
       if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
       Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
       Newexpression->op1_constant = 1.0;
@@ -328,7 +328,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     case VARTOOLS_OPERANDTYPE_VARIABLE:
       if(Fullexpression->op1_variable == v) {
 	if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	Newexpression->op1_constant = 1.0;
@@ -345,7 +345,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       break;
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       break;
     default:
@@ -355,9 +355,9 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     case VARTOOLS_OPERANDTYPE_VARIABLE:
       if(Fullexpression->op2_variable == v) {
 	if(foundit)
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	Newexpression->op1_constant = 1.0;
@@ -373,7 +373,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       if(foundit) {
 	if(GetLinfitVariableExpression(v, p, c, 
 				       (_Expression *) Fullexpression->op2_expression) != NULL) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	} else {
 	  return Newexpression;
 	}
@@ -383,7 +383,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       break;
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       if(foundit)
 	return Newexpression;
@@ -402,7 +402,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     case VARTOOLS_OPERANDTYPE_VARIABLE:
       if(Fullexpression->op1_variable == v) {
 	if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	Newexpression->op1_constant = 1.0;
@@ -419,7 +419,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       break;
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       break;
     default:
@@ -429,9 +429,9 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     case VARTOOLS_OPERANDTYPE_VARIABLE:
       if(Fullexpression->op2_variable == v) {
 	if(foundit)
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	Newexpression->op1_constant = -1.0;
@@ -447,7 +447,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       if(foundit) {
 	if(GetLinfitVariableExpression(v, p, c, 
 				       (_Expression *) Fullexpression->op2_expression)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	} else {
 	  return Newexpression;
 	}
@@ -456,7 +456,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						  (_Expression *) Fullexpression->op2_expression);
       if(Newexpression == NULL) return NULL;
       if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
       Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
       Newexpression2->op1_constant = -1.0;
@@ -466,7 +466,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       break;
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       if(foundit)
 	return Newexpression;
@@ -487,12 +487,12 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
 	  Newexpression = (_Expression *) Fullexpression->op2_expression;
 	  if(CheckExpressionForVariables(Newexpression, c->Nparams, c->params)){
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  return Newexpression;
 	} else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = Fullexpression->op2type;
 	  switch(Newexpression->op1type) {
@@ -502,13 +502,13 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	  case VARTOOLS_OPERANDTYPE_VARIABLE:
 	    for(i=0; i < c->Nparams; i++) {
 	      if(Fullexpression->op2_variable == c->params[i])
-		error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+		vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    }
 	    Newexpression->op1_variable = Fullexpression->op2_variable;
 	    break;
 	  case VARTOOLS_OPERANDTYPE_FUNCTION:
 	    if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	      error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	      vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    }
 	    Newexpression->op1_functioncall = (void *) Fullexpression->op2_functioncall;
 	    break;
@@ -525,10 +525,10 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	  if(Fullexpression->op2_variable == v) {
 	    for(i=0; i < c->Nparams; i++) {
 	      if(Fullexpression->op1_variable == c->params[i])
-		error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+		vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    }
 	    if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	    Newexpression->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression->op1_variable = Fullexpression->op1_variable;
@@ -545,7 +545,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	  }
 	  if(foundit) {
 	    if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	      error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	      vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    }
 	    else 
 	      return NULL;
@@ -555,7 +555,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 							(_Expression *) Fullexpression->op2_expression);
 	    if(Newexpression != NULL) {
 	      if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	      Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	      Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -569,7 +569,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	  break;
 	case VARTOOLS_OPERANDTYPE_FUNCTION:
 	  if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  return NULL;
 	  break;
@@ -587,7 +587,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	if(Fullexpression->op2_variable == v) {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = Fullexpression->op1_constant;
@@ -602,7 +602,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op2_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression2->op1_constant = Fullexpression->op1_constant;
@@ -615,7 +615,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return NULL;
 	break;
@@ -631,7 +631,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op1_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression2->op1_constant = Fullexpression->op2_constant;
@@ -654,14 +654,14 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	}
 	if(foundit == 2) {
 	  if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params)){
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  else {
 	    return(Fullexpression->op1_expression);
 	  }
 	} else if(foundit == 1) {
 	  if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params)){
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  else
 	    return NULL;
@@ -671,7 +671,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						      (_Expression *) Fullexpression->op1_expression);
 	  if(Newexpression != NULL) {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression2->op1_variable = Fullexpression->op2_variable;
@@ -689,10 +689,10 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op1_expression);
 	if(Newexpression != NULL) {
 	  if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = Newexpression;
@@ -704,10 +704,10 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						      (_Expression *) Fullexpression->op2_expression);
 	  if(Newexpression != NULL) {
 	    if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params)){
-	      error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	      vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    }
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	    Newexpression2->op1_expression = Newexpression;
@@ -721,13 +721,13 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	Newexpression = GetLinfitVariableExpression(v, p, c, 
 						    (_Expression *) Fullexpression->op1_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = Newexpression;
@@ -743,7 +743,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op1_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = Newexpression;
@@ -756,13 +756,13 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       }
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       switch(Fullexpression->op2type) {
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	if(Fullexpression->op2_variable == v) {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_FUNCTION;
 	  Newexpression->op1_functioncall = Fullexpression->op1_functioncall;
@@ -776,7 +776,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op2_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_FUNCTION;
 	  Newexpression2->op1_functioncall = Fullexpression->op1_functioncall;
@@ -789,7 +789,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return NULL;
 	break;
@@ -803,7 +803,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	if(Fullexpression->op2_variable == v) {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = Fullexpression->op1type;
 	  return Newexpression;
@@ -816,7 +816,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 						    (_Expression *) Fullexpression->op2_expression);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = Fullexpression->op1type;
 	  Newexpression2->op2type = VARTOOLS_OPERANDTYPE_EXPRESSION;
@@ -828,7 +828,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return NULL;
 	break;
@@ -842,17 +842,17 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_VARIABLE) {
       for(i=0; i < c->Nparams; i++) {
 	if(Fullexpression->op2_variable == c->params[i])
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION) {
       if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_CONSTANT ||
@@ -861,7 +861,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
       return NULL;
     }
     if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     Newexpression->operatortype = VARTOOLS_OPERATORTYPE_DIVIDE;
     Newexpression->op2type = Fullexpression->op2type;
     if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_VARIABLE) {
@@ -897,7 +897,7 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     }
     else if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       free(Newexpression);
       return NULL;
@@ -908,34 +908,34 @@ _Expression *GetLinfitVariableExpression(_Variable *v, ProgramData *p,
     if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_VARIABLE){
       for(i=0; i < c->Nparams; i++) {
 	if(Fullexpression->op1_variable == c->params[i])
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION){
       if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params)){
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION){
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     if(Fullexpression->operatortype != VARTOOLS_OPERATORTYPE_NOT) {
       if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_VARIABLE){
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i])
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION){
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION){
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
     }
@@ -974,7 +974,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       break;
     case VARTOOLS_OPERANDTYPE_FUNCTION:
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
       return Fullexpression;
       break;
@@ -997,7 +997,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = Fullexpression->op2_constant;
@@ -1011,7 +1011,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	      return NULL;
 	    else {
 	      if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	      Newexpression->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	      Newexpression->op1_variable = Fullexpression->op1_variable;
@@ -1023,7 +1023,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	  Newexpression->op1_variable = Fullexpression->op2_variable;
@@ -1037,7 +1037,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	    return NULL;
 	  else {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -1050,7 +1050,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  }
 	  else {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_ADD;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -1062,13 +1062,13 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(!foundit)
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_FUNCTION;
 	  Newexpression->op1_functioncall = Fullexpression->op2_functioncall;
@@ -1080,7 +1080,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = Fullexpression->op2type;
 	  return Newexpression;
@@ -1093,7 +1093,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       switch(Fullexpression->op2type) {
       case VARTOOLS_OPERANDTYPE_CONSTANT:
 	if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	if(Newexpression != NULL) {
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_ADD;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
@@ -1119,7 +1119,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	}
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(Newexpression == NULL) {
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
@@ -1142,7 +1142,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	if(Newexpression2 == NULL)
 	  return Newexpression;
 	if((Newexpression3 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression3->operatortype = VARTOOLS_OPERATORTYPE_ADD;
 	Newexpression3->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	Newexpression3->op1_expression = (void *) Newexpression;
@@ -1152,11 +1152,11 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(Newexpression == NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_FUNCTION;
 	  Newexpression2->op1_functioncall = Fullexpression->op2_functioncall;
@@ -1164,7 +1164,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	} 
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_ADD;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1176,14 +1176,14 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Newexpression == NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression2->op1type = Fullexpression->op2type;
 	  return Newexpression2;
 	}
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_ADD;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1195,7 +1195,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
     default:
       if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       switch(Fullexpression->op2type) {
@@ -1209,7 +1209,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	} else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = Fullexpression->op1type;
 	  if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_CONSTANT) {
@@ -1224,7 +1224,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	Newexpression = GetLinfitConstantExpression(p, c, (_Expression *) Fullexpression->op2_expression); 
 	if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression2->op1type = Fullexpression->op1type;
 	if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_CONSTANT) {
 	  Newexpression2->op1_constant = Fullexpression->op1_constant;
@@ -1246,7 +1246,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	  if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	}
 	return Fullexpression;
@@ -1270,7 +1270,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = -(Fullexpression->op2_constant);
@@ -1284,7 +1284,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	      return NULL;
 	    else {
 	      if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	      Newexpression->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	      Newexpression->op1_variable = Fullexpression->op1_variable;
@@ -1296,7 +1296,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = -1.0;
@@ -1312,7 +1312,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	    return NULL;
 	  else {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -1322,7 +1322,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	else {
 	  if(foundit) {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	    Newexpression2->op1_constant = -1.0;
@@ -1332,7 +1332,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  }
 	  else {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_SUBTRACT;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	    Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -1344,13 +1344,13 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(!foundit)
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = -1.0;
@@ -1364,7 +1364,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression->op1_constant = -1.0;
@@ -1379,7 +1379,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       switch(Fullexpression->op2type) {
       case VARTOOLS_OPERANDTYPE_CONSTANT:
 	if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	if(Newexpression != NULL) {
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_SUBTRACT;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
@@ -1405,7 +1405,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	}
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(Newexpression == NULL) {
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
@@ -1429,7 +1429,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  if(Newexpression2 == NULL)
 	    return NULL;
 	  if((Newexpression3 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression3->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression3->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression3->op1_constant = -1.0;
@@ -1440,7 +1440,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	if(Newexpression2 == NULL)
 	  return Newexpression;
 	if((Newexpression3 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression3->operatortype = VARTOOLS_OPERATORTYPE_SUBTRACT;
 	Newexpression3->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	Newexpression3->op1_expression = (void *) Newexpression;
@@ -1450,11 +1450,11 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(Newexpression == NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression2->op1_constant = -1.0;
@@ -1464,7 +1464,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	} 
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_SUBTRACT;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1476,7 +1476,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Newexpression == NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression2->op1_constant = -1.0;
@@ -1485,7 +1485,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	}
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_SUBTRACT;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1497,7 +1497,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
     default:
       if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       switch(Fullexpression->op2type) {
@@ -1511,7 +1511,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  return Fullexpression;
 	} else {
 	  if((Newexpression = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression->operatortype = VARTOOLS_OPERATORTYPE_CONSTANT;
 	  Newexpression->op1type = Fullexpression->op1type;
 	  if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_CONSTANT) {
@@ -1526,7 +1526,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	Newexpression = GetLinfitConstantExpression(p, c, (_Expression *) Fullexpression->op2_expression); 
 	if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression2->op1type = Fullexpression->op1type;
 	if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_CONSTANT) {
 	  Newexpression2->op1_constant = Fullexpression->op1_constant;
@@ -1548,7 +1548,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	  if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	}
 	return Fullexpression;
@@ -1575,7 +1575,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	}
 	else {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_CONSTANT;
 	  Newexpression2->op1_constant = Fullexpression->op1_constant;
@@ -1587,7 +1587,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	  if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	}
 	return Fullexpression;
@@ -1605,7 +1605,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i]) {
 	    if(foundit)
-	      error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	      vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    else
 	      return NULL;
 	  }
@@ -1618,7 +1618,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	if(foundit) {
 	  if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	  return NULL;
 	} else {
@@ -1626,7 +1626,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	  if(Newexpression == NULL)
 	    return NULL;
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_VARIABLE;
 	  Newexpression2->op1_variable = Fullexpression->op1_variable;
@@ -1637,7 +1637,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(foundit)
 	  return NULL;
@@ -1659,10 +1659,10 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	foundit = CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params);
 	if(foundit) {
 	  if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params))
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  if(Newexpression != NULL) {
 	    if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	    Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	    Newexpression2->op1_expression = (void *) Newexpression;
@@ -1677,7 +1677,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	    Newexpression2 = GetLinfitConstantExpression(p, c, (_Expression *) Fullexpression->op2_expression);
 	    if(Newexpression2 != NULL) {
 	      if((Newexpression3 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      Newexpression3->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	      Newexpression3->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	      Newexpression3->op1_expression = (void *) Newexpression;
@@ -1697,14 +1697,14 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i]) {
 	    if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params))
-	      error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	      vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	    else
 	      return NULL;
 	  }
 	}
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1718,11 +1718,11 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1736,7 +1736,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1754,7 +1754,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
     default:
       if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       switch(Fullexpression->op2type) {
@@ -1770,7 +1770,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	if(Newexpression == NULL)
 	  return NULL;
 	if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_MULTIPLY;
 	Newexpression2->op1type = Fullexpression->op1type;
 	if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION)
@@ -1783,7 +1783,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return Fullexpression;
 	break;
@@ -1802,19 +1802,19 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i])
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return Fullexpression;
 	break;
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params))
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	return Fullexpression;
 	break;
       default:
 	if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	  if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	}
 	return Fullexpression;
@@ -1831,7 +1831,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i]) {
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	  }
 	}
 	if(foundit)
@@ -1841,7 +1841,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(foundit) {
 	  return NULL;
@@ -1851,7 +1851,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(foundit)
 	  return NULL;
@@ -1871,10 +1871,10 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       switch(Fullexpression->op2type) {
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params))
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_DIVIDE;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1888,11 +1888,11 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i])
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_DIVIDE;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1906,11 +1906,11 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_DIVIDE;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1924,7 +1924,7 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
       default:
 	if(Newexpression != NULL) {
 	  if((Newexpression2 = (_Expression *) malloc(sizeof(_Expression))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  Newexpression2->operatortype = VARTOOLS_OPERATORTYPE_DIVIDE;
 	  Newexpression2->op1type = VARTOOLS_OPERANDTYPE_EXPRESSION;
 	  Newexpression2->op1_expression = (void *) Newexpression;
@@ -1942,25 +1942,25 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
     default:
       if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION) {
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       switch(Fullexpression->op2type) {
       case VARTOOLS_OPERANDTYPE_VARIABLE:
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op1_variable == c->params[i])
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return Fullexpression;
 	break;
       case VARTOOLS_OPERANDTYPE_EXPRESSION:
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params))
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	return Fullexpression;
 	break;
       case VARTOOLS_OPERANDTYPE_FUNCTION:
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
 	return Fullexpression;
 	break;
@@ -1976,34 +1976,34 @@ _Expression *GetLinfitConstantExpression(ProgramData *p,
     if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_VARIABLE){
       for(i=0; i < c->Nparams; i++) {
 	if(Fullexpression->op1_variable == c->params[i])
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION){
       if(CheckExpressionForVariables((_Expression *) Fullexpression->op1_expression, c->Nparams, c->params)){
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     else if(Fullexpression->op1type == VARTOOLS_OPERANDTYPE_FUNCTION){
       if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op1_functioncall, c->params, c->Nparams)) {
-	error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
       }
     }
     if(Fullexpression->operatortype != VARTOOLS_OPERATORTYPE_NOT) {
       if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_VARIABLE){
 	for(i=0; i < c->Nparams; i++) {
 	  if(Fullexpression->op2_variable == c->params[i])
-	    error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	    vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION){
 	if(CheckExpressionForVariables((_Expression *) Fullexpression->op2_expression, c->Nparams, c->params)){
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
       else if(Fullexpression->op2type == VARTOOLS_OPERANDTYPE_FUNCTION){
 	if(CheckFunctionCallForVariables((_FunctionCall *) Fullexpression->op2_functioncall, c->params, c->Nparams)) {
-	  error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
+	  vt_error2(ERR_INVALIDFUNCTIONLINFIT,c->functionstring);
 	}
       }
     }
@@ -2024,7 +2024,7 @@ void SetupLinfitExpression(ProgramData *p, _Linfit *c)
       c->expressions[i] = GetLinfitVariableExpression(c->params[i],p,c, 
 						      Fullexpression);
       if(c->expressions[i] == NULL) {
-	error2(ERR_LINFITMISSINGPARAM, c->params[i]->varname);
+	vt_error2(ERR_LINFITMISSINGPARAM, c->params[i]->varname);
       }
     }
   c->constantexpression = GetLinfitConstantExpression(p, c, Fullexpression);
@@ -2114,7 +2114,7 @@ int CheckExpressionForVariables(_Expression *expression, int Nvar,
 }
 
 int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
-		       _Linfit *c)
+		       _Linfit *c, Command *cs)
 {
   int i, k, j, nparam, s;
   char oldval;
@@ -2130,13 +2130,13 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
     return(1);
 
   if((c->functionstring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->functionstring,"%s",argv[i]);
   i++;
   if(i >= argc) {*iret = i; return 1;}
 
   if((c->paramliststring = (char *) malloc((strlen(argv[i])+1))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(c->paramliststring,"%s",argv[i]);
   c->modelvarname = NULL;
   c->calcchi2out = 0;
@@ -2144,6 +2144,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   c->omodel = 0;
   c->rejectoutliers = 0;
   c->rejsigclip = 0.0;
+  VT_INIT_PARAM(c, rejsigclip);
   c->rejuseMAD = 0;
   c->rejiterate = 0;
   c->rejfixnum = 0;
@@ -2157,7 +2158,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->modelvarname= (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->modelvarname,"%s",argv[i]);
     } else
       i--;
@@ -2170,7 +2171,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       c->rejectoutliers = 1;
       i++;
       if(i >= argc) {*iret = i; return 1;}
-      c->rejsigclip = atof(argv[i]);
+      VT_PARSE_DOUBLE_CS(cs, c, rejsigclip, argv, i);
       i++;
       if(i < argc) {
 	if(!strcmp(argv[i],"useMAD")) {
@@ -2223,7 +2224,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       i++;
       if(i >= argc) {*iret = i; return 1;}
       if((c->outdir= (char *) malloc((strlen(argv[i])+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->outdir,"%s",argv[i]);
       /* Check if the user gave the "format" keyword */
       i++;
@@ -2233,7 +2234,10 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	  if(i < argc) {
 	    c->outfilename_format = (char *) realloc(c->outfilename_format, (strlen(argv[i])+1)*sizeof(char));
 	    sprintf(c->outfilename_format,"%s",argv[i]);
-	    i++;
+	    /* Do not i++ here: the surrounding parser does its own i++
+	       after this block; an extra advance silently swallows the
+	       next argv token (e.g. -oneline immediately following
+	       'format <fmt>'). */
 	  } else {
 	    *iret = i; return 1;
 	  }
@@ -2256,7 +2260,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
 	*iret = i; return 1;
       }
       if((c->maskvarname = (char *) malloc(strlen(argv[i])+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->maskvarname,"%s",argv[i]);
     }
     else
@@ -2276,15 +2280,15 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
       c->paramliststring[k] = '\0';
       if(!nparam) {
 	if((c->paramnames = (char **) malloc(sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((c->paramnames = (char **) realloc(c->paramnames, (nparam + 1)*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       if((s = strlen(&(c->paramliststring[j]))) == 0)
-	error2(ERR_BADVARIABLENAME,"");
+	vt_error2(ERR_BADVARIABLENAME,"");
       if((c->paramnames[nparam] = (char *) malloc((s+1))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->paramnames[nparam],"%s",&(c->paramliststring[j]));
       j = k+1;
       c->paramliststring[k] = oldval;
@@ -2294,7 +2298,7 @@ int ParseLinfitCommand(int *iret, int argc, char **argv, ProgramData *p,
   } while(c->paramliststring[k-1] != '\0');
   
   if((c->params = (_Variable **) malloc(nparam * sizeof(_Variable *))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   c->Nparams = nparam;
 
   *iret = i;

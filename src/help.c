@@ -67,48 +67,48 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t<   \"white\"\n");
       printtostring(s,
-		    "\t\t\t<\"sig_white\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_white\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
 		    "\t  | \"squareexp\"\n");
       printtostring(s,
-		    "\t\t\t<\"rho\" <\"fix\" val | \"list\" [\"column\" col]>>\n"); 
+		    "\t\t\t<\"rho\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_red\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_red\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_white\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_white\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t[\"bintime\" <\"fix\" val | \"list\" [\"column\" col]>]\n");
+		    "\t\t\t[\"bintime\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>]\n");
       printtostring(s,
 		    "\t  | \"exp\"\n");
       printtostring(s,
-		    "\t\t\t<\"rho\" <\"fix\" val | \"list\" [\"column\" col]>>\n"); 
+		    "\t\t\t<\"rho\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_red\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_red\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_white\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_white\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t[\"bintime\" <\"fix\" val | \"list\" [\"column\" col]>]\n");
+		    "\t\t\t[\"bintime\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>]\n");
       printtostring(s,
 		    "\t  | \"matern\"\n");
       printtostring(s,
-		    "\t\t\t<\"nu\" <\"fix\" val | \"list\" [\"column\" col]>>\n"); 
+		    "\t\t\t<\"nu\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"rho\" <\"fix\" val | \"list\" [\"column\" col]>>\n"); 
+		    "\t\t\t<\"rho\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_red\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_red\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_white\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_white\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t[\"bintime\" <\"fix\" val | \"list\" [\"column\" col]>]\n");
+		    "\t\t\t[\"bintime\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>]\n");
 #ifdef _HAVE_GSL
       printtostring(s,
 		    "\t  | \"wavelet\n");
       printtostring(s,
-		    "\t\t\t<\"gamma\" <\"fix\" val | \"list\" [\"column\" col]>>\n"); 
+		    "\t\t\t<\"gamma\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_red\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_red\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
       printtostring(s,
-		    "\t\t\t<\"sig_white\" <\"fix\" val | \"list\" [\"column\" col]>>\n");
+		    "\t\t\t<\"sig_white\" <\"fix\" val | \"var\" varname | \"expr\" expression | \"list\" [\"column\" col]>>\n");
 #endif
       printtostring(s,
 	"\t>\n");
@@ -168,18 +168,18 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-autocorrelation",16) && strlen(c) == 16))
     {
-      printtostring(s,"-autocorrelation start stop step outdir [\"maskpoints\" maskvar]\n");
+      printtostring(s,"-autocorrelation <\"var\" startvar | \"expr\" startexpr | start> <\"var\" stopvar | \"expr\" stopexpr | stop> <\"var\" stepvar | \"expr\" stepexpr | step> outdir [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-binlc",6) && strlen(c) == 6))
     {
       printtostring(s,"-binlc <\"average\" | \"median\" | \"weightedaverage\">\n");
-      printtostring(s,"\t<\"binsize\" binsize | \"nbins\" nbins>\n");
+      printtostring(s,"\t<\"binsize\" <\"var\" bsvar | \"expr\" bsexpr | binsize> | \"nbins\" <\"var\" nbvar | \"expr\" nbexpr | nbins>>\n");
       printtostring(s,"\t[\"bincolumns\" var1[:stats1][,var2[:stats2],...]]\n");
       printtostring(s,"\t[\"T0\"\n");
-      printtostring(s,"\t\t<\"fix\" T0val | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum> |\n");
+      printtostring(s,"\t\t<\"fix\" T0val | \"var\" varname | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum> |\n");
       printtostring(s,"\t\t \"expr\" expression>]\n");
-      printtostring(s,"\t[\"firstbinshift\" firstbinshift]\n");
+      printtostring(s,"\t[\"firstbinshift\" <\"var\" fbvar | \"expr\" fbexpr | firstbinshift>]\n");
       printtostring(s,"\t<\"tcenter\" | \"taverage\" | \"tmedian\" | \"tnoshrink\" [\"bincolumnsonly\"]>\n");
       printtostring(s,"\t[\"maskpoints\" maskvar]\n");
       
@@ -223,15 +223,19 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strcmp(c,"-BLSFixDurTc")))
     {
       printtostring(s,"-BLSFixDurTc\n");
-      printtostring(s,"\t<\"duration\" <\"fix\" dur | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t<\"duration\" <\"fix\" dur | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
-      printtostring(s,"\t<\"Tc\" <\"fix\" Tc | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t<\"Tc\" <\"fix\" Tc | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
-      printtostring(s,"\t[\"fixdepth\" <\"fix\" depth | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t[\"fixdepth\" <\"fix\" depth | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>\n");
-      printtostring(s,"\t\t[\"qgress\" <\"fix\" qgress | \"fixcolumn\" <colname | colnum>\n");
-      printtostring(s,"\t\t\t| \"list\" [\column\" col]>]]\n");
-      printtostring(s,"\tminper maxper nfreq timezone\n");
+      printtostring(s,"\t\t[\"qgress\" <\"fix\" qgress | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t\t| \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t\t\t| \"list\" [\"column\" col]>]]\n");
+      printtostring(s,"\t<\"var\" minpvar | \"expr\" minpexpr | minper> <\"var\" maxpvar | \"expr\" maxpexpr | maxper> <\"var\" nfvar | \"expr\" nfexpr | nfreq> timezone\n");
       printtostring(s,"\tNpeak outperiodogram [outdir] omodel [model_outdir]\n");
       printtostring(s,"\tcorrectlc [\"fittrap\"]\n");
       printtostring(s,"\t[\"ophcurve\" outdir phmin phmax phstep]\n");
@@ -241,16 +245,21 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strcmp(c,"-BLSFixPerDurTc")))
     {
       printtostring(s,"-BLSFixPerDurTc\n");
-      printtostring(s,"\t<\"period\" <\"fix\" per | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t<\"period\" <\"fix\" per | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
-      printtostring(s,"\t<\"duration\" <\"fix\" dur | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t<\"duration\" <\"fix\" dur | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
-      printtostring(s,"\t<\"Tc\" <\"fix\" Tc | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t<\"Tc\" <\"fix\" Tc | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>>\n");
-      printtostring(s,"\t[\"fixdepth\" <\"fix\" depth | \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t[\"fixdepth\" <\"fix\" depth | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]>\n");
-      printtostring(s,"\t\t[\"qgress\" <\"fix\" qgress | \"fixcolumn\" <colname | colnum>\n");
-      printtostring(s,"\t\t\t| \"list\" [\column\" col]>]]\n");
+      printtostring(s,"\t\t[\"qgress\" <\"fix\" qgress | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t\t| \"fixcolumn\" <colname | colnum>\n");
+      printtostring(s,"\t\t\t| \"list\" [\"column\" col]>]]\n");
       printtostring(s,"\ttimezone omodel [model_outdir]\n");
       printtostring(s,"\tcorrectlc [\"fittrap\"]\n");
       printtostring(s,"\t[\"ophcurve\" outdir phmin phmax phstep]\n");
@@ -279,7 +288,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-clip",5) && strlen(c) == 5))
     {
-      printtostring(s,"-clip sigclip iter [\"niter\" n] [\"median\"] [\"markclip\" var [\"noinitmark\"]]\n");
+      printtostring(s,"-clip <\"var\" sigclipvar | \"expr\" sigclipexpr | sigclip> <\"var\" itervar | \"expr\" iterexpr | iter> [\"niter\" <\"var\" nvar | \"expr\" nexpr | n>] [\"median\"] [\"markclip\" var [\"noinitmark\"]]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-converttime",12) && strlen(c) == 12))
@@ -323,18 +332,20 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-dftclean",9) && strlen(c) == 9))
     {
-      printtostring(s,"-dftclean nbeam [\"maxfreq maxf\"] [\"outdspec\" dspec_outdir]\n");
-      printtostring(s,"\t[\"finddirtypeaks\" Npeaks [\"clip\" clip clipiter]]\n");
+      printtostring(s,"-dftclean <\"var\" nbvar | \"expr\" nbexpr | nbeam>\n");
+      printtostring(s,"\t[\"maxfreq\" <\"var\" mfvar | \"expr\" mfexpr | maxf>] [\"outdspec\" dspec_outdir]\n");
+      printtostring(s,"\t[\"finddirtypeaks\" Npeaks [\"clip\" <\"var\" cvar | \"expr\" cexpr | clip> clipiter]]\n");
       printtostring(s,"\t[\"outwfunc\" wfunc_outdir]\n");
-      printtostring(s,"\t[\"clean\" gain SNlimit [\"outcbeam\" cbeam_outdir]\n");
+      printtostring(s,"\t[\"clean\" <\"var\" gvar | \"expr\" gexpr | gain> <\"var\" snvar | \"expr\" snexpr | SNlimit>\n");
+      printtostring(s,"\t\t[\"outcbeam\" cbeam_outdir]\n");
       printtostring(s,"\t[\"outcspec\" cspec_outdir]\n");
-      printtostring(s,"\t[\"findcleanpeaks\" Npeaks [\"clip\" clip clipiter]]]\n");
+      printtostring(s,"\t[\"findcleanpeaks\" Npeaks [\"clip\" <\"var\" cvar | \"expr\" cexpr | clip> clipiter]]]\n");
       printtostring(s,"\t[\"useampspec\"] [\"verboseout\"] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-difffluxtomag",14) && strlen(c) == 14))
     {
-      printtostring(s,"-difffluxtomag mag_constant offset [\"magcolumn\" col]\n");
+      printtostring(s,"-difffluxtomag <\"var\" mcvar | \"expr\" mcexpr | mag_constant> <\"var\" offvar | \"expr\" offexpr | offset> [\"magcolumn\" col]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19))
@@ -344,7 +355,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strcmp(c,"-expr")))
     {
-      printtostring(s,"-expr var\"=\"expression\n");
+      printtostring(s,"-expr [\"listvar\" | \"scalar\" | \"const\"] var\"=\"expression [\"outputcolumn\"]\n");
       commandfound = 1;
     }
 #ifdef _HAVE_GSL
@@ -366,7 +377,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-fluxtomag",10) && strlen(c) == 10))
     {
-      printtostring(s,"-fluxtomag mag_constant offset\n");
+      printtostring(s,"-fluxtomag <\"var\" mcvar | \"expr\" mcexpr | mag_constant> <\"var\" offvar | \"expr\" offexpr | offset>\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-GetLSAmpThresh",15) && strlen(c) == 15))
@@ -396,43 +407,53 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strncmp(c,"-Injectharm",11) && strlen(c) == 11))
     {
       printtostring(s,"-Injectharm <\"list\" [\"column\" col] | \"fix\" per\n");
-      printtostring(s,"\t| \"rand\" minp maxp\n");
-      printtostring(s,"\t| \"logrand\" minp maxp | \"randfreq\" minf maxf\n");
-      printtostring(s,"\t| \"lograndfreq\" minf maxf>\n");
+      printtostring(s,"\t| \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t| \"rand\" <\"var\" v | \"expr\" e | minp> <\"var\" v | \"expr\" e | maxp>\n");
+      printtostring(s,"\t| \"logrand\" <\"var\" v | \"expr\" e | minp> <\"var\" v | \"expr\" e | maxp>\n");
+      printtostring(s,"\t| \"randfreq\" <\"var\" v | \"expr\" e | minf> <\"var\" v | \"expr\" e | maxf>\n");
+      printtostring(s,"\t| \"lograndfreq\" <\"var\" v | \"expr\" e | minf> <\"var\" v | \"expr\" e | maxf>>\n");
       printtostring(s,"\tNharm (<\"amplist\" [\"column\" col]\n");
-      printtostring(s,"\t| \"ampfix\" amp | \"amprand\" minamp maxamp \n");
-      printtostring(s,"\t| \"amplogrand\" minamp maxamp> [\"amprel\"]\n");
-      printtostring(s,"\t<\"phaselist\" [\"column\" col]\n");
-      printtostring(s,"\t| \"phasefix\" phase | \"phaserand\"> [\"phaserel\"])0...Nharm Nsubharm\n");
-      printtostring(s,"\t(<\"amplist\" [\"column\" col] | \"ampfix\" amp\n");
+      printtostring(s,"\t| \"ampfix\" amp | \"ampvar\" varname | \"ampexpr\" expression\n");
       printtostring(s,"\t| \"amprand\" minamp maxamp \n");
       printtostring(s,"\t| \"amplogrand\" minamp maxamp> [\"amprel\"]\n");
       printtostring(s,"\t<\"phaselist\" [\"column\" col]\n");
-      printtostring(s,"\t| \"phasefix\" phase | \"phaserand\"> [\"phaserel\"])1...Nsubharm\n\tomodel [modeloutdir]\n");
+      printtostring(s,"\t| \"phasefix\" phase | \"phasevar\" varname | \"phaseexpr\" expression\n");
+      printtostring(s,"\t| \"phaserand\"> [\"phaserel\"])0...Nharm Nsubharm\n");
+      printtostring(s,"\t(<\"amplist\" [\"column\" col] | \"ampfix\" amp\n");
+      printtostring(s,"\t| \"ampvar\" varname | \"ampexpr\" expression\n");
+      printtostring(s,"\t| \"amprand\" minamp maxamp \n");
+      printtostring(s,"\t| \"amplogrand\" minamp maxamp> [\"amprel\"]\n");
+      printtostring(s,"\t<\"phaselist\" [\"column\" col]\n");
+      printtostring(s,"\t| \"phasefix\" phase | \"phasevar\" varname | \"phaseexpr\" expression\n");
+      printtostring(s,"\t| \"phaserand\"> [\"phaserel\"])1...Nsubharm\n\tomodel [modeloutdir]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-Injecttransit",14) && strlen(c) == 14))
     {
       printtostring(s,"-Injecttransit <\"Plist\" [\"column\" col] | \"Pfix\" per\n");
-      printtostring(s,"\t\t| \"Pexpr\" expr | \"Prand\" minp maxp\n");
-      printtostring(s,"\t\t| \"Plogrand\" minp maxp | \"randfreq\" minf maxf\n");
-      printtostring(s,"\t\t| \"lograndfreq\" minf maxf>\n");
-      printtostring(s,"\t<\"Rplist\" [\"column\" col] | \"Rpfix\" Rp | \"Rpexpr\" expr\n");
-      printtostring(s,"\t\t| \"Rprand\" minRp maxRp | \"Rplogrand\" minRp maxRp>\n");
-      printtostring(s,"\t<\"Mplist\" [\"column\" col] | \"Mpfix\" Mp | \"Mpexpr\" expr\n");
-      printtostring(s,"\t\t| \"Mprand\" minMp maxMp | \"Mplogrand\" minMp maxMp>\n");
+      printtostring(s,"\t\t| \"Pvar\" varname | \"Pexpr\" expr\n");
+      printtostring(s,"\t\t| \"Prand\" <\"var\" v | \"expr\" e | minp> <\"var\" v | \"expr\" e | maxp>\n");
+      printtostring(s,"\t\t| \"Plogrand\" <\"var\" v | \"expr\" e | minp> <\"var\" v | \"expr\" e | maxp>\n");
+      printtostring(s,"\t\t| \"randfreq\" <\"var\" v | \"expr\" e | minf> <\"var\" v | \"expr\" e | maxf>\n");
+      printtostring(s,"\t\t| \"lograndfreq\" <\"var\" v | \"expr\" e | minf> <\"var\" v | \"expr\" e | maxf>>\n");
+      printtostring(s,"\t<\"Rplist\" [\"column\" col] | \"Rpfix\" Rp | \"Rpvar\" varname | \"Rpexpr\" expr\n");
+      printtostring(s,"\t\t| \"Rprand\" <\"var\" v | \"expr\" e | minRp> <\"var\" v | \"expr\" e | maxRp>\n");
+      printtostring(s,"\t\t| \"Rplogrand\" <\"var\" v | \"expr\" e | minRp> <\"var\" v | \"expr\" e | maxRp>>\n");
+      printtostring(s,"\t<\"Mplist\" [\"column\" col] | \"Mpfix\" Mp | \"Mpvar\" varname | \"Mpexpr\" expr\n");
+      printtostring(s,"\t\t| \"Mprand\" <\"var\" v | \"expr\" e | minMp> <\"var\" v | \"expr\" e | maxMp>\n");
+      printtostring(s,"\t\t| \"Mplogrand\" <\"var\" v | \"expr\" e | minMp> <\"var\" v | \"expr\" e | maxMp>>\n");
       printtostring(s,"\t<\"phaselist\" [\"column\" col] | \"phasefix\" phase\n");
-      printtostring(s,"\t\t| \"phasexpr\" expr | \"phaserand>\n");
+      printtostring(s,"\t\t| \"phasevar\" varname | \"phasexpr\" expr | \"phaserand>\n");
       printtostring(s,"\t<\"sinilist\" [\"column\" col] | \"sinifix\" sin_i\n");
-      printtostring(s,"\t\t| \"siniexpr\" expr | \"sinirand\">\n");
-      printtostring(s,"\t<\"eomega\" <\"elist\" [\"column\" col] | \"efix\" e \"expr\" expr | \"erand\">\n");
-      printtostring(s,"\t\t<\"olist\" [\"column\" col] | \"ofix\" omega | \"oexpr\" expr | \"orand\">\n");
-      printtostring(s,"\t| \"hk\" <\"hlist\" [\"column\" col] | \"hfix\" h | \"hexpr\" expr | \"hrand\">\n");
-      printtostring(s,"\t\t<\"klist\" [\"column\" col] | \"kfix\" k | \"kexpr\" expr | \"krand\">>\n");      
-      printtostring(s,"\t<\"Mstarlist\" [\"column\" col] | \"Mstarfix\" Mstar | \"Mstarexpr\" expr>\n");
-      printtostring(s,"\t<\"Rstarlist\" [\"column\" col] | \"Rstarfix\" Rstar | \"Rstarexpr\" expr>\n");
+      printtostring(s,"\t\t| \"sinivar\" varname | \"siniexpr\" expr | \"sinirand\">\n");
+      printtostring(s,"\t<\"eomega\" <\"elist\" [\"column\" col] | \"efix\" e | \"evar\" varname | \"eexpr\" expr | \"erand\">\n");
+      printtostring(s,"\t\t<\"olist\" [\"column\" col] | \"ofix\" omega | \"ovar\" varname | \"oexpr\" expr | \"orand\">\n");
+      printtostring(s,"\t| \"hk\" <\"hlist\" [\"column\" col] | \"hfix\" h | \"hvar\" varname | \"hexpr\" expr | \"hrand\">\n");
+      printtostring(s,"\t\t<\"klist\" [\"column\" col] | \"kfix\" k | \"kvar\" varname | \"kexpr\" expr | \"krand\">>\n");      
+      printtostring(s,"\t<\"Mstarlist\" [\"column\" col] | \"Mstarfix\" Mstar | \"Mstarvar\" varname | \"Mstarexpr\" expr>\n");
+      printtostring(s,"\t<\"Rstarlist\" [\"column\" col] | \"Rstarfix\" Rstar | \"Rstarvar\" varname | \"Rstarexpr\" expr>\n");
       printtostring(s,"\t<\"quad\" | \"nonlin\"> <\"ldlist\" [\"column\" col]\n");
-      printtostring(s,"\t| \"ldfix\" ld1 ... ldn | \"ldexpr\" ld1 ... ldn>\n");
+      printtostring(s,"\t| \"ldfix\" ld1 ... ldn | \"ldvar\" ld1 ... ldn | \"ldexpr\" ld1 ... ldn>\n");
       printtostring(s,"\t[\"dilute\" <\"list\" [\"column\" col] | \"fix\" dilute | \"expr\" dilutexpr>]\n");
       printtostring(s,"\t omodel [modeloutdir]\n");
       commandfound = 1;
@@ -442,14 +463,37 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-Jstet timescale dates [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
-  if(c == NULL || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
+  if(c == NULL || !strcmp(c,"-harmonicfilter")
+     || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
     {
-      printtostring(s,"-Killharm <\"aov\" | \"ls\" | \"both\" | \"injectharm\" \n");
-      printtostring(s,"\t| \"fix\" Nper per1 ... perN\n");
+      printtostring(s,"-harmonicfilter <\"aov\" | \"ls\" | \"both\" | \"injectharm\" \n");
+      printtostring(s,"\t| \"fix\" Nper <\"var\" v | \"expr\" e | per1> ... <\"var\" v | \"expr\" e | perN>\n");
       printtostring(s,"\t| \"list\" Nper [\"column\" col1]> Nharm Nsubharm\n");
       printtostring(s,"\tomodel [model_outdir] [\"fitonly\"]\n");
       printtostring(s,"\t[\"outampphase\" | \"outampradphase\" | \"outRphi\" | \"outRradphi\"]\n");
-      printtostring(s,"\t[\"clip\" val]\n");
+      printtostring(s,"\t[\"clip\" <\"var\" cvar | \"expr\" cexpr | val>]\n");
+      printtostring(s,"\t(-Killharm is accepted as a synonym for -harmonicfilter;\n");
+      printtostring(s,"\t the output-column prefix follows the invoking token.)\n");
+      commandfound = 1;
+    }
+  if(c == NULL || !strcmp(c,"-fourierfilter"))
+    {
+      printtostring(s,"-fourierfilter\n");
+      printtostring(s,"\t<\"full\" |\n");
+      printtostring(s,"\t \"highpass\" \"minfreq\" <\"var\" v | \"expr\" e | \"fix\" value | \"fixcolumn\" <colname|colnum> | \"list\" [\"column\" col]> |\n");
+      printtostring(s,"\t \"lowpass\"  \"maxfreq\" <...> |\n");
+      printtostring(s,"\t \"bandpass\" \"minfreq\" <...> \"maxfreq\" <...> |\n");
+      printtostring(s,"\t \"bandcut\"  \"minfreq\" <...> \"maxfreq\" <...>>\n");
+      printtostring(s,"\t[\"filterexpr\" expr [\"freqvar\" name]]\n");
+      printtostring(s,"\t[\"fullspec\"] [\"forcefft\"]\n");
+      printtostring(s,"\t[\"taper\" <\"linear\"|\"cosine\"|\"blackman\"|\"kaiser\">\n");
+      printtostring(s,"\t        \"deltafreq\" <value> [\"beta\" <value>]]\n");
+      printtostring(s,"\t[\"resample\" <\"delmin\"|\"fix\" val|\"var\" name|\"expr\" e>\n");
+      printtostring(s,"\t            [\"gapbreak\" <\"fix\" v|\"expr\" e|\"frac_min_sep\" v|\n");
+      printtostring(s,"\t                         \"frac_med_sep\" v|\"percentile_sep\" v>]]\n");
+      printtostring(s,"\t[\"padmode\" <\"wrap\"|\"reflect\"|\"zero\"> [\"padfrac\" val]]\n");
+      printtostring(s,"\t[\"ofourier\" outdir [\"nameformat\" fmt]]\n");
+      printtostring(s,"\t[\"nowarn\"]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strcmp(c,"-linfit")))
@@ -457,7 +501,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "-linfit function paramlist [\"modelvar\" varname]\n");
       printtostring(s,
-		    "\t[\"reject\" sigclip [\"useMAD\"] [\"iter\" [\"fixednum\" number]]]\n");
+		    "\t[\"reject\" <\"var\" scvar | \"expr\" scexpr | sigclip> [\"useMAD\"] [\"iter\" [\"fixednum\" number]]]\n");
       printtostring(s,
 		    "\t[\"correctlc\"]\n");
       printtostring(s,
@@ -486,10 +530,15 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
   if(c == NULL || (!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18))
     {
       printtostring(s,"-MandelAgolTransit <bls | blsfixper\n");
-      printtostring(s,"\t\t| P0 T00 r0 a0 <\"i\" inclination | \"b\" bimpact> e0 omega0 mconst0>\n");
-      printtostring(s,"\t<\"quad\" | \"nonlin\"> ldcoeff1_0 ... ldcoeffn_0 fitephem\n");
+      printtostring(s,"\t\t| <\"var\" v | \"expr\" e | P0> <\"var\" v | \"expr\" e | T00>\n");
+      printtostring(s,"\t\t  <\"var\" v | \"expr\" e | r0> <\"var\" v | \"expr\" e | a0>\n");
+      printtostring(s,"\t\t  <\"i\" <\"var\" v | \"expr\" e | inclination> | \"b\" <\"var\" v | \"expr\" e | bimpact>>\n");
+      printtostring(s,"\t\t  <\"var\" v | \"expr\" e | e0> <\"var\" v | \"expr\" e | omega0>\n");
+      printtostring(s,"\t\t  <\"var\" v | \"expr\" e | mconst0>>\n");
+      printtostring(s,"\t<\"quad\" | \"nonlin\"> <\"var\" v | \"expr\" e | ldcoeff1_0>\n");
+      printtostring(s,"\t\t... <\"var\" v | \"expr\" e | ldcoeffn_0> fitephem\n");
       printtostring(s,"\tfitr fita fitinclterm fite fitomega fitmconst fitldcoeff1 ... fitldcoeffn\n");
-      printtostring(s,"\tfitRV [RVinputfile RVmodeloutfile K0 gamma0 fitK fitgamma]\n");
+      printtostring(s,"\tfitRV [RVinputfile RVmodeloutfile <\"var\" v | \"expr\" e | K0> <\"var\" v | \"expr\" e | gamma0> fitK fitgamma]\n");
       printtostring(s,"\tcorrectlc omodel [model_outdir] [\"modelvar\" var]\n");
       printtostring(s,"\t[\"ophcurve\" curve_outdir phmin phmax phstep]\n");
       printtostring(s,"\t[\"ojdcurve\" curve_outdir jdstep]\n");
@@ -508,7 +557,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-medianfilter",13) && strlen(c) == 13))
     {
-      printtostring(s,"-medianfilter time [\"average\" | \"weightedaverage\"] [\"replace\"]\n");
+      printtostring(s,"-medianfilter <\"var\" tvar | \"expr\" texpr | time> [\"average\" | \"weightedaverage\"] [\"replace\"]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-microlens",10) && strlen(c) == 10))
@@ -518,7 +567,9 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"f0\"\n");
       printtostring(s,
-		    "\t\t[\"fix\" fixval | \"list\" [\"column\" col]\n");
+		    "\t\t[\"fix\" fixval | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,
+		    "\t\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
@@ -528,7 +579,9 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"f1\"\n");
       printtostring(s,
-		    "\t\t[\"fix\" fixval | \"list\" [\"column\" col]\n");
+		    "\t\t[\"fix\" fixval | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,
+		    "\t\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
@@ -538,7 +591,9 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"u0\"\n");
       printtostring(s,
-		    "\t\t[\"fix\" fixval | \"list\" [\"column\" col]\n");
+		    "\t\t[\"fix\" fixval | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,
+		    "\t\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
@@ -548,7 +603,9 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"t0\"\n");
       printtostring(s,
-		    "\t\t[\"fix\" fixval | \"list\" [\"column\" col]\n");
+		    "\t\t[\"fix\" fixval | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,
+		    "\t\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
@@ -558,7 +615,9 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"tmax\"\n");
       printtostring(s,
-		    "\t\t[\"fix\" fixval | \"list\" [\"column\" col]\n");
+		    "\t\t[\"fix\" fixval | \"var\" varname | \"expr\" expression\n");
+      printtostring(s,
+		    "\t\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,
 		    "\t\t\t| \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
@@ -586,11 +645,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "\t[\"priors\" priorlist] [\"constraints\" constraintlist]\n");
       printtostring(s,
-		    "\t<\"amoeba\" [\"tolerance\" tol] [\"maxsteps\" steps]\n");
+		    "\t<\"amoeba\" [\"tolerance\" <\"var\" v | \"expr\" e | tol>] [\"maxsteps\" <\"var\" v | \"expr\" e | steps>]\n");
       printtostring(s,
-		    "\t | \"mcmc\" [\"Naccept\" N | \"Nlinkstotal\" N]\n");
+		    "\t | \"mcmc\" [\"Naccept\" <\"var\" v | \"expr\" e | N> | \"Nlinkstotal\" <\"var\" v | \"expr\" e | N>]\n");
       printtostring(s,
-		    "\t\t\t[\"fracburnin\" frac] [\"eps\" eps] [\"skipamoeba\"]\n");
+		    "\t\t\t[\"fracburnin\" <\"var\" v | \"expr\" e | frac>] [\"eps\" <\"var\" v | \"expr\" e | eps>] [\"skipamoeba\"]\n");
       printtostring(s,
 		    "\t\t\t[\"chainstats\" exprlist statslist]\n");
       printtostring(s,
@@ -607,10 +666,13 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     {
       printtostring(s,"-o <outdir | outname>\n");
       printtostring(s,"\t[\"nameformat\" formatstring | \"namecommand\" command\n");
-      printtostring(s,"\t\t| \"namefromlist\" [\"column\" col]]\n");
-      printtostring(s,"\t[\"columnformat\" formatstring] [\"delimiter\" delimchar]\n");
+      printtostring(s,"\t\t| \"namefromlist\" [\"column\" col]\n");
+      printtostring(s,"\t\t| \"changesuffix\" oldsuffix newsuffix]\n");
+      printtostring(s,"\t[\"columnformat\" formatstring | \"allcols\"]\n");
+      printtostring(s,"\t[\"delimiter\" delimchar]\n");
       printtostring(s,"\t[\"fits\"] [\"copyheader\"] [\"logcommandline\"]\n");
-      printtostring(s,"\t[\"noclobber\"]\n");
+      printtostring(s,"\t[\"noclobber\"] [\"gzip\" | \"bzip2\"]\n");
+      printtostring(s,"\t[\"forceoutdirmode\"] [\"capture\" | \"capture_id\" id]\n");
       commandfound = 1;
     }
   if(c == NULL || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))
@@ -618,11 +680,15 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,
 		    "-Phase <\"aov\" | \"ls\" | \"bls\" | \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
-		    "\t\t| \"list\" [\"column\" col] | \"fix\" period>\n"); 
+		    "\t\t| \"list\" [\"column\" col] | \"fix\" period\n");
+      printtostring(s,
+		    "\t\t| \"var\" varname | \"expr\" expression>\n");
       printtostring(s,
 		    "\t[\"T0\" <\"bls\" phaseTc | \"fixcolumn\" <colname | colnum>\n");
       printtostring(s,
-		    "\t\t| \"list\" [\"column\" col] | \"fix\" T0>]\n");
+		    "\t\t| \"list\" [\"column\" col] | \"fix\" T0\n");
+      printtostring(s,
+		    "\t\t| \"var\" varname | \"expr\" expression>]\n");
       printtostring(s,
 		    "\t[\"phasevar\" var] [\"startphase\" startphase]\n");
       commandfound = 1;
@@ -803,9 +869,13 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     {
       printtostring(s,"-Starspot\n");
       printtostring(s,
-		    "\t<aov | ls | list [\"column\" col] | \"fix\" period |\n");
-      printtostring(s,"\t\t\"fixcolumn\" <colname | colnum>>\n");
-      printtostring(s,"\ta0 b0 alpha0 i0 chi0 psi00 mconst0 fitP fita fitb\n");
+		    "\t<aov | ls | list [\"column\" col] | \"fix\" period\n");
+      printtostring(s,"\t\t| \"var\" varname | \"expr\" expression\n");
+      printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>>\n");
+      printtostring(s,"\t<\"var\" v | \"expr\" e | a0> <\"var\" v | \"expr\" e | b0>\n");
+      printtostring(s,"\t<\"var\" v | \"expr\" e | alpha0> <\"var\" v | \"expr\" e | i0>\n");
+      printtostring(s,"\t<\"var\" v | \"expr\" e | chi0> <\"var\" v | \"expr\" e | psi00>\n");
+      printtostring(s,"\t<\"var\" v | \"expr\" e | mconst0> fitP fita fitb\n");
       printtostring(s,"\tfitalpha fiti fitchi fitpsi fitmconst correctlc omodel [model_outdir]\n");
       commandfound = 1;
     }
@@ -849,9 +919,12 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strcmp(c,"-wwz")))
     {
-      printtostring(s,"-wwz <\"maxfreq\" <\"auto\" | maxfreq>> <\"freqsamp\" freqsamp>\n");
-      printtostring(s,"\t<\"tau0\" <\"auto\" | tau0>> <\"tau1\" <\"auto\" | tau1>>\n");
-      printtostring(s,"\t<\"dtau\" <\"auto\" | dtau>> [\"c\" cval]\n");
+      printtostring(s,"-wwz <\"maxfreq\" <\"auto\" | \"var\" v | \"expr\" e | maxfreq>>\n");
+      printtostring(s,"\t<\"freqsamp\" <\"var\" v | \"expr\" e | freqsamp>>\n");
+      printtostring(s,"\t<\"tau0\" <\"auto\" | \"var\" v | \"expr\" e | tau0>>\n");
+      printtostring(s,"\t<\"tau1\" <\"auto\" | \"var\" v | \"expr\" e | tau1>>\n");
+      printtostring(s,"\t<\"dtau\" <\"auto\" | \"var\" v | \"expr\" e | dtau>>\n");
+      printtostring(s,"\t[\"c\" <\"var\" v | \"expr\" e | cval>]\n");
       printtostring(s,"\t[\"outfulltransform\" outdir");
 #ifdef USECFITSIO
       printtostring(s," [\"fits\" | \"pm3d\"]");
@@ -877,12 +950,12 @@ void listcommands(char *c, ProgramData *p)
   s.Nchar_cur_line = 0;
   val = listcommands_noexit(c, p, &s);
   if(!val)
-    error2(ERR_HELP_BADCOMMAND,c);
+    vt_error2(ERR_HELP_BADCOMMAND,c);
   if(c != NULL)
     fprintf(stderr,"Command syntax:\n\n");
   if(s.s != NULL)
     {
-      fprintf(stderr,s.s);
+      fprintf(stderr, "%s", s.s);
       free(s.s);
     }
     exit(ERR_USAGE);
@@ -911,7 +984,9 @@ void usage_common(OutText *s)
   printtostring(s, "\t[-basename] [-readall] [-binaryperiodogram] [-jdtol jdtol] [-matchstringid]\n");
   printtostring(s, "\t[-nobuffer] [-help [\"all\" | commandname]] [-quiet] [-randseed seed]\n");
   printtostring(s, "\t[-bufferlines nlines] [-numbercolumns] [-listcommands [commandname]]\n");
+  printtostring(s, "\t[-setlcname name]\n");
   printtostring(s, "\t[-redirectstats statsfile [\"append\"]] [-oneline]\n");
+  printtostring(s, "\t[-startcommandnumber N] [-printallscalars]\n");
   printtostring(s, "\t[-example commandname] [-showinputlistformat]\n");
   printtostring(s, "\t");
     printtostring(s, "[-showinputlcformat] ");
@@ -957,7 +1032,7 @@ void usage(char *argv)
   sprintf(s2,"\tVARTOOLS version %s\n\n",VARTOOLS_VERSION);
   printtostring(&s, s2);
 #endif
-  fprintf(stderr,s.s);
+  fprintf(stderr, "%s", s.s);
   if(s.s != NULL)
     free(s.s);
   exit(ERR_USAGE);
@@ -1010,9 +1085,9 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Either provide an individual light curve, or a list of light curves. If lcname or lclist is \"-\" then input will be taken from stdin. Some commands can only be used with lists. The list should contain a single light curve filename per line, by default in the first column. You can change the column of the file-list by giving the \"column\" keyword and specifying the column number. If the word \"all\" is used for the column number, then every white-space-separated string in the input list will be taken to be the name of a light curve file. Use this option if inputing the list of light curves on a single line. Note that additional columns may be necessary to specify, for example, the periods to use for pre-whitening or any other values required by some commands. The column cannot be set to \"all\" if anything other than the light curve file names are to be read from the list.\n\n");
       printtostring(&s,"When reading an input list, give the optional \"combinelcs\" keyword to read multiple light curve files into a single light curve within vartools. In this case the column in the input list giving the light curve names should, in each line, provide a comma-delimited list of light curve files to read-in and treat as a single light curve within vartools. Note that the light curve name that will be used within vartools for that line will be the name of the first file in the comma-delimited list. Use the \"delimiter\" keyword to change the delimiter, and the \"lcnumvar\" keyword to optionally specify the name of a variable that will store the input file index for each point in the combined light curve. Points from the first file will have an index value of 0, from the second will have an index value of 1 and so on. See the help for the -inlistvars option for associating other per-file values with the points in combined light curves.\n\n");
 #ifdef _USEBINARY_LC
-      printtostring(&s," Give the optional \"binary\" keyword to either command after the filename if the input light curves are in Penev's binary format. Note that light curves in binary fits format will be identified by the suffix .fits appearing in the filename.");
+      printtostring(&s," Give the optional \"binary\" keyword to either command after the filename if the input light curves are in Penev's binary format. Note that light curves in binary fits format will be identified by the suffix .fits appearing in the filename, including the cfitsio-recognised compressed variants .fits.gz, .fits.fz, .fits.Z, and .fits.bz2.");
 #endif
-      printtostring(&s," Use the \"opencommand\" option to apply a shell command to each light curve file before reading it in. In this case 'command' is a string which is passed to the shell with instances of %%s replaced by the filename as read in from the input list, and instances of %%%% replaced by %%. The command will be executed by the shell (after substituting %%s and %%%%) and the light curve will be read from the stdout of that command.");
+      printtostring(&s," Use the \"opencommand\" option to apply a shell command to each light curve file before reading it in. In this case 'command' is a string which is passed to the shell with instances of %s replaced by the filename as read in from the input list, and instances of %% replaced by %. The command will be executed by the shell (after substituting %s and %%) and the light curve will be read from the stdout of that command.");
       printtostring(&s,"\n\n");
       commandfound = 1;
     }
@@ -1067,7 +1142,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-readformat",11) && strlen(c) == 11))
     {
       printtostring(&s,"-readformat Nskip [\"stringid\" colstringid] [\"inpututc\" format] col_time col_mag col_sig\n\n");
-      printtostring(&s,"This option is now deprecated, it is suggested to use the -inputlcformat option instead.\n\nUse this option to specify the format of the input light curves. Nskip is the number of lines to skip at the beginning of each file (this includes any lines that begin with '#' which are otherwise automatically ignored), the default value is 0. If you need to read in a column of strings from each light curve specify \"stringid\" and then the column, by default no column of strings is read in. The stringid column must be specified in this fashion, however, if the matchstringid option is set. If the keyword \"inpututc\" is given, then the input time is taken to be a string giving the UTC of the observation, this will be converted to JD on input. The user must specify the format of the UTC string, this is taken as a format string for a scanf command, with %%Y parsed as the year, %%M as the month, %%D as the day, %%h as the hour, %%m as the minute, and %%s as the second. Note that the year, month, day, hour, and minute will all be converted to integers while seconds are treated as floating point. For example, if the UTC in the light curve has the format 2011-05-18T04:08:03 one would give the format \"%%Y-%%M-%%DT%%h:%%m:%%s\". col_time, col_mag and col_sig are the columns that contain the time, magnitude and magnitude uncertainties (or differential flux and differential flux uncertainty if the light curve will be passed through the -difffluxtomag command), the default values are 1, 2 and 3. Use 0 to not read in a column, if col_time is set to 0 then input times will be set to the line number in the file (starting from 0), if col_mag is set to 0 all magnitudes are set to 0.0, if col_sig is set to 0 all uncertainties are set to 1.0 (use the \"-changeerror\" command to set the uncertainties to the RMS of each light curve). The time is assumed to be in days, though for most commands this is not important.\n\n");
+      printtostring(&s,"This option is now deprecated, it is suggested to use the -inputlcformat option instead.\n\nUse this option to specify the format of the input light curves. Nskip is the number of lines to skip at the beginning of each file (this includes any lines that begin with '#' which are otherwise automatically ignored), the default value is 0. If you need to read in a column of strings from each light curve specify \"stringid\" and then the column, by default no column of strings is read in. The stringid column must be specified in this fashion, however, if the matchstringid option is set. If the keyword \"inpututc\" is given, then the input time is taken to be a string giving the UTC of the observation, this will be converted to JD on input. The user must specify the format of the UTC string, this is taken as a format string for a scanf command, with %Y parsed as the year, %M as the month, %D as the day, %h as the hour, %m as the minute, and %s as the second. Note that the year, month, day, hour, and minute will all be converted to integers while seconds are treated as floating point. For example, if the UTC in the light curve has the format 2011-05-18T04:08:03 one would give the format \"%Y-%M-%DT%h:%m:%s\". col_time, col_mag and col_sig are the columns that contain the time, magnitude and magnitude uncertainties (or differential flux and differential flux uncertainty if the light curve will be passed through the -difffluxtomag command), the default values are 1, 2 and 3. Use 0 to not read in a column, if col_time is set to 0 then input times will be set to the line number in the file (starting from 0), if col_mag is set to 0 all magnitudes are set to 0.0, if col_sig is set to 0 all uncertainties are set to 1.0 (use the \"-changeerror\" command to set the uncertainties to the RMS of each light curve). The time is assumed to be in days, though for most commands this is not important.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-functionlist")))
@@ -1098,7 +1173,7 @@ void help(char *c, ProgramData *p)
 #elif _USEBINARY_LC
       printtostring(&s, ". If column header names are given, the column names must correspond to the same column numbers for all light curves processed in a single vartools call. The program will only determine the column numbers from the header of the first light curve processed, and will not check to make sure that subsequent light curves use the same columns");
 #endif
-      printtostring(&s, ". If the column number is zero, then the variable will be created, but it will not be read-in from the light curve. Two additional optional control parameters are allowed. This includes the variable type (options are \"double\", \"float\", \"int\", \"long\", \"short\", \"string\", \"char\", or \"utc\"), and a scanf-type format string. The default type is \"double\" except for the variable \"id\" which has a default type of \"string\". Note that for the variables \"t\", \"mag\" and \"err\" the type must be \"double\" or \"utc\", while for \"id\" it must be \"string\". The variable type \"utc\" is a special type which is used to read-in a UTC date and immediately convert it into JD (stored as a double). In this case the user must provide the format of the UTC string, this is taken as a format string for a scanf command, with %%Y parsed as the year, %%M as the month, %%D as the day, %%h as the hour, %%m as the minute, and %%s as the second. Note that the year, month, day, hour, and minute will all be converted to integers while seconds are treated as floating point. For example, if the UTC in the light curve has the format 2011-05-18T04:08:03 one would give the format \"%%Y-%%M-%%DT%%h:%%m:%%s\". If the column number is set to 0, then one must specify the type, while the format will be used to indicate how to initialize the variable. In this case fmt should be an analytic expression which can include any previously defined variables as well as the special variable \"NR\" which is the integer record number of a point in the light curve (0 for the first observation, 1 for the second, etc.). See \"vartools -functionlist\" for a list of supported functions, constants and operators. For the special variables \"t\", \"mag\", and \"err\" if the column number is 0 it is not necessary to specify the type or format; the defaults are t=NR, mag=0, and err=1. The optional keywords \"skipnum\" and \"skipchar\" can be used to specify a number of lines to skip at the start of each light curve, and to change the comment character(s). Lines for which the first non-white-space character matches one of the comment characters will be skipped (the default is \"#\"). Multiple comment characters can be specified using a comma-separated list. Use the \"delimiter\" option to specify a character or string to use for delimiting between columns. The default is white space.\n\n");
+      printtostring(&s, ". If the column number is zero, then the variable will be created, but it will not be read-in from the light curve. Two additional optional control parameters are allowed. This includes the variable type (options are \"double\", \"float\", \"int\", \"long\", \"short\", \"string\", \"char\", or \"utc\"), and a scanf-type format string. The default type is \"double\" except for the variable \"id\" which has a default type of \"string\". Note that for the variables \"t\", \"mag\" and \"err\" the type must be \"double\" or \"utc\", while for \"id\" it must be \"string\". The variable type \"utc\" is a special type which is used to read-in a UTC date and immediately convert it into JD (stored as a double). In this case the user must provide the format of the UTC string, this is taken as a format string for a scanf command, with %Y parsed as the year, %M as the month, %D as the day, %h as the hour, %m as the minute, and %s as the second. Note that the year, month, day, hour, and minute will all be converted to integers while seconds are treated as floating point. For example, if the UTC in the light curve has the format 2011-05-18T04:08:03 one would give the format \"%Y-%M-%DT%h:%m:%s\". If the column number is set to 0, then one must specify the type, while the format will be used to indicate how to initialize the variable. In this case fmt should be an analytic expression which can include any previously defined variables as well as the special variable \"NR\" which is the integer record number of a point in the light curve (0 for the first observation, 1 for the second, etc.). See \"vartools -functionlist\" for a list of supported functions, constants and operators. For the special variables \"t\", \"mag\", and \"err\" if the column number is 0 it is not necessary to specify the type or format; the defaults are t=NR, mag=0, and err=1. The optional keywords \"skipnum\" and \"skipchar\" can be used to specify a number of lines to skip at the start of each light curve, and to change the comment character(s). Lines for which the first non-white-space character matches one of the comment characters will be skipped (the default is \"#\"). Multiple comment characters can be specified using a comma-separated list. Use the \"delimiter\" option to specify a character or string to use for delimiting between columns. The default is white space.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-inlistvars")))
@@ -1128,7 +1203,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strcmp(c,"-bufferlines")))
     {
       printtostring(&s,"-bufferlines Nlines\n\n");
-      printtostring(&s,"If this is specified then Nlines will be buffered within VARTOOLS before being written to standard out. This buffering is separate from the system buffering done on stdout itself, which may be turned off with the -nobuffer option. The -bufferlines option only has an effect if the -parallel option is used, and will help speed up the processing by preventing threads from waiting on each other to output results. The tradeoff with using a larger buffer is that more memory is used, and results will be output less frequently.\n\n");
+      printtostring(&s,"If this is specified then Nlines will be buffered within VARTOOLS before being written to standard out. This buffering is separate from the system buffering done on stdout itself, which may be turned off with the -nobuffer option. The -bufferlines option only has an effect if the -parallel option is used, and will help speed up the processing by preventing threads from waiting on each other to output results. The tradeoff with using a larger buffer is that more memory is used, and results will be output less frequently. When -bufferlines is not given, the buffer size defaults to max(32, 2*Nproc) where Nproc is the value passed to -parallel — this guarantees that effective parallelism is not capped by the buffer size for thread counts up to ~16, and scales appropriately for higher Nproc.  Setting Nlines below the value of Nproc will cap effective parallelism at Nlines (any thread that finishes a light curve will spin waiting for a free buffer until another thread's row has been flushed).\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-jdtol",6) && strlen(c) == 6))
@@ -1148,6 +1223,12 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-nobuffer\n\n");
       printtostring(&s,"If this is specified then stdout will not be buffered, by default it is buffered.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strcmp(c,"-setlcname")))
+    {
+      printtostring(&s,"-setlcname name\n\n");
+      printtostring(&s,"Override the light-curve name VARTOOLS uses internally when reading the LC from standard input (i.e. when '-i -' was given).  By default such an LC is named 'stdin', which appears in the output statistics 'Name' column and in any '%s' substitutions performed by 'nameformat' (and similar) options on commands that write per-LC output files.  Use this option to give the LC a meaningful name (e.g. the original on-disk filename) so the output table and per-LC filenames carry that name instead.\n\nHas no effect when '-i' was used to read an actual file path or when '-l' (list mode) was given; in those cases the name is taken from the file or list as usual.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-quiet",6) && strlen(c) == 6))
@@ -1178,6 +1259,18 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-oneline\n\n");
       printtostring(&s,"Output each statistic on a separate line rather than using the default of outputing a table. This option can provide more readable output when processing a single light curve. It is not suggested when processing a list of light curves.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-startcommandnumber",19) && strlen(c) == 19))
+    {
+      printtostring(&s,"-startcommandnumber N\n\n");
+      printtostring(&s,"Offset the auto-generated suffix on every command's output column names by the non-negative integer N. For example, without this option the first command's output columns end in \"_0\", the second in \"_1\", and so on; with \"-startcommandnumber 5\" they instead end in \"_5\", \"_6\", etc. Commands that have an explicit \"-columnsuffix\" preceding them are unaffected. This option is primarily intended for use by pyvartools when continuing a chained sequence of commands across multiple vartools invocations: it lets the second invocation's output column names pick up where the first left off, so that prior output values (which pyvartools injects as scalar variables) do not collide with new output columns of the same command. Direct CLI users will rarely need this flag.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-printallscalars",16) && strlen(c) == 16))
+    {
+      printtostring(&s,"-printallscalars\n\n");
+      printtostring(&s,"In addition to the usual -oneline output, append one line per per-star variable (vectortype SCALAR, PERSTARDATA, or INLIST) in the format:\n\n\tVARTOOLS_SCALAR:varname = value\n\nThese lines are emitted for every user-defined scalar, per-star listvar, and input-list variable currently registered in the pipeline, immediately after the OUTCOLUMN lines for each light curve. Requires -oneline (using -printallscalars without -oneline is an error). This option is primarily intended for use by pyvartools to round-trip scalar state across chained command invocations. Direct CLI users can use it to dump the values of all user-defined scalar variables from an -expr command, but it is not needed for normal output.\n\n");
       commandfound = 1;
     }
 #ifdef PARALLEL
@@ -1245,7 +1338,7 @@ void help(char *c, ProgramData *p)
       listcommands_noexit("-addfitskeyword",p,&s);
       printtostring(&s,"Add a keyword to the header of any subsequently output fits-format light curves. Parameters are as follows:\n\n");
       printtostring(&s,"keyword - The header keyword to add.\n\n");
-      printtostring(&s,"\"combinelc\" lcnumvar - optionally add multiple keywords, one per value of the lcnumvar variable. In this case 'keyword' should be a format rule with instances of \"%%d\" replaced with the unique values of lcnumvar. If using the \"var\" option below, the value of that variable will be evaluated at the first instance in the light curve where lcnumvar takes on a new unique value. Use this option for example, to log the values of a combinelc variable specified with -inlistvars into a light curve header.\n\n");
+      printtostring(&s,"\"combinelc\" lcnumvar - optionally add multiple keywords, one per value of the lcnumvar variable. In this case 'keyword' should be a format rule with instances of \"%d\" replaced with the unique values of lcnumvar. If using the \"var\" option below, the value of that variable will be evaluated at the first instance in the light curve where lcnumvar takes on a new unique value. Use this option for example, to log the values of a combinelc variable specified with -inlistvars into a light curve header.\n\n");
       printtostring(&s,"\"TDOUBLE\" | \"TINT\" | \"TLONG\" | \"TSTRING\" - The datatype to use for the keyword.\n\n");
       printtostring(&s,"\"fix\" val - set the value to a fixed value set on the command-line for all light curves.\n\n");
       printtostring(&s,"\"var\" variable - set the value to the contents of a variable.\n\n");
@@ -1396,7 +1489,98 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strcmp(c,"-expr")))
     {
       listcommands_noexit("-expr",p,&s);
-      printtostring(&s,"Evaluate an analytic expression. The argument to this command is an equality, with the left-hand-side being the name of a variable to update, and the right-hand-side being an analytic expression. See \"vartools -functionlist\" for the allowed syntax. If the variable on the left-hand-side has not previously been defined, it will be created as a light-curve vector. Note that variables which appear on the right-hand-side can be the name of a vector which is read-in from the light curve and set using the -inputlcformat option, a scalar or vector created by another command (e.g. the fitting parameters, or the output model vector, created by the -linfit command), or any output parameter from a previously executed command (these latter variables have the names of the output columns which can be found by running vartools with the -headeronly command. Note that any leading numbers or '_' characters are removed; also any character that is not a digit, a letter, or a '_' in the header name will be replaced with a '_' in its variable name equivalent. For example if the header name is '2_STATS_mag_PCT20.00_0' its variable name would be 'STATS_mag_PCT20_00_0', where the leading '2_' is removed, and the '.' is replaced with a '_'). The left-hand-side of the equality cannot be a variable associated with an output column.\n\nUse square brackets '[]' after the variable name on the left-hand-side to update only a subset of the components of the vector. Within the square brackets you can either specify a single index value (indexed starting from 0), an expression that evaluates to a single index value, a range of indices (using a ':' to distinguish between the first index and the last index to operate on) or an expression that evaluates to a vector, in which case only components where the resulting vector has a value > 0 will be updated. Examples of each of these are as follows:\n\n1: '-expr mag[0]=5.0' would set the magnitude value for the first observation in the light curve to 5.0, and would not affect any of the other components in the light curve.\n\n2: '-expr mag[i+2]=5.0' would set the magnitude value for the observation indexed by 'i+2' (if 'i' is a scalar variable, if it is a light curve vector it would be treated as in example 8 below) to 5.0.\n\n3: '-expr mag[len(mag)-2]=5.0' would set the magnitude value for the second to last observation to 5.0. Note that len(mag) returns the length of the magnitude vector, and due to indexing from zero, len(mag)-1 is the index of the last point in the vector.\n\n4: '-expr mag[0:2]=5.0' would set the magnitude values for the first and second observations in the light curve to 5 (note that here we follow the python convention where the upper index in the range is not itself included, so mag[0:2] corresponds to mag[0] and mag[1]).\n\n5: '-expr mag[:5]=5.0' would set the magnitude values for the first five observations in the light curve to 5.\n\n6: '-expr mag[5:]=5.0' would set the magnitude values for all but the first five observations to 5.0.\n\n7: '-expr mag[(t>25.0)&&(t<30.0)]=5.0' would set the magnitude values for any points with 25 < t < 30.0 to 5.0.\n\n8: '-expr mag[t-25.0]=5.0' would set the magnitude values for any points with t > 25 to 5.0.\n\n");
+      printtostring(&s,
+"Evaluate an analytic expression. The argument to this command is an equality, "
+"with the left-hand-side being the name of a variable to update, and the "
+"right-hand-side being an analytic expression. See \"vartools -functionlist\" "
+"for the allowed syntax.\n\n"
+"Variable types on the left-hand-side:\n\n"
+"By default (no keyword), a new left-hand-side variable is created as a "
+"light-curve vector with one value per observation. The optional keywords "
+"\"listvar\", \"scalar\", and \"const\" change the type of the created variable:\n\n"
+"  -expr var=expression\n"
+"      Default. Creates 'var' as a per-observation light-curve vector. The "
+"right-hand-side is evaluated once per observation in the light curve.\n\n"
+"  -expr listvar var=expression\n"
+"      Creates 'var' as a per-star variable (one value per light curve in the "
+"input list). The right-hand-side is evaluated once per star. If the expression "
+"references light-curve vectors (e.g. 'mag', 't'), the value at the first "
+"observation (index 0) is used. Array indexing on the right-hand-side "
+"(e.g. 'mag[4]') can be used to access other observations. The len() function "
+"can also be used (e.g. 'len(mag)' gives the number of points). The resulting "
+"value persists and can be referenced in subsequent commands for all light "
+"curves. Square-bracket indexing on the left-hand-side is ignored for listvar "
+"variables since they are scalars per star, not arrays.\n\n"
+"  -expr scalar var=expression\n"
+"      Creates 'var' as a per-thread scalar. Similar to listvar but indexed by "
+"thread rather than by light-curve index. If the variable already exists with a "
+"different type (e.g. as a per-star or per-observation variable), its existing "
+"type is preserved. The same evaluation rules as listvar apply: light-curve "
+"vectors on the right-hand-side are evaluated at observation index 0.\n\n"
+"  -expr const var=expression\n"
+"      Creates 'var' as a global constant (single scalar value). The "
+"right-hand-side should ideally be a constant expression or involve only other "
+"constants. The expression is evaluated once per light curve (overwriting the "
+"same value each time), so if it references light-curve data, the value from "
+"the last processed light curve will persist. Nondeterministic functions such "
+"as rand() or gauss() will produce a different value for each light curve, "
+"with only the last value retained.\n\n"
+"For all types, if the variable on the left-hand-side already exists, its "
+"existing type is preserved regardless of the keyword used.\n\n"
+"The optional \"outputcolumn\" keyword (only valid when \"listvar\", "
+"\"scalar\", or \"const\" was given) exposes the LHS variable's "
+"computed value as a column in the result table.  The column is named "
+"Expr_<varname>_<command-index>, e.g. 'Expr_avg_2' for the third "
+"command in '-expr listvar avg=mean(mag) outputcolumn'.  This is "
+"equivalent to chaining a separate -print command after the -expr but "
+"keeps the command index unchanged.  An error is raised at parse time "
+"if 'outputcolumn' is given without 'listvar'/'scalar'/'const' "
+"(the value would otherwise be per-observation, not a single column).\n\n"
+"Note that variables which appear on the right-hand-side can be the name of a "
+"vector which is read-in from the light curve and set using the -inputlcformat "
+"option, a scalar or vector created by another command (e.g. the fitting "
+"parameters, or the output model vector, created by the -linfit command), or "
+"any output parameter from a previously executed command (these latter "
+"variables have the names of the output columns which can be found by running "
+"vartools with the -headeronly command. Note that any leading numbers or '_' "
+"characters are removed; also any character that is not a digit, a letter, or "
+"a '_' in the header name will be replaced with a '_' in its variable name "
+"equivalent. For example if the header name is '2_STATS_mag_PCT20.00_0' its "
+"variable name would be 'STATS_mag_PCT20_00_0', where the leading '2_' is "
+"removed, and the '.' is replaced with a '_'). The left-hand-side of the "
+"equality cannot be a variable associated with an output column.\n\n"
+"Square-bracket indexing on the left-hand-side (for per-observation "
+"light-curve vectors only):\n\n"
+"Use square brackets '[]' after the variable name on the left-hand-side to "
+"update only a subset of the components of the vector. Within the square "
+"brackets you can either specify a single index value (indexed starting from "
+"0), an expression that evaluates to a single index value, a range of indices "
+"(using a ':' to distinguish between the first index and the last index to "
+"operate on) or an expression that evaluates to a vector, in which case only "
+"components where the resulting vector has a value > 0 will be updated. "
+"Examples of each of these are as follows:\n\n"
+"1: '-expr mag[0]=5.0' would set the magnitude value for the first observation "
+"in the light curve to 5.0, and would not affect any of the other components in "
+"the light curve.\n\n"
+"2: '-expr mag[i+2]=5.0' would set the magnitude value for the observation "
+"indexed by 'i+2' (if 'i' is a scalar variable, if it is a light curve vector "
+"it would be treated as in example 8 below) to 5.0.\n\n"
+"3: '-expr mag[len(mag)-2]=5.0' would set the magnitude value for the second "
+"to last observation to 5.0. Note that len(mag) returns the length of the "
+"magnitude vector, and due to indexing from zero, len(mag)-1 is the index of "
+"the last point in the vector.\n\n"
+"4: '-expr mag[0:2]=5.0' would set the magnitude values for the first and "
+"second observations in the light curve to 5 (note that here we follow the "
+"python convention where the upper index in the range is not itself included, "
+"so mag[0:2] corresponds to mag[0] and mag[1]).\n\n"
+"5: '-expr mag[:5]=5.0' would set the magnitude values for the first five "
+"observations in the light curve to 5.\n\n"
+"6: '-expr mag[5:]=5.0' would set the magnitude values for all but the first "
+"five observations to 5.0.\n\n"
+"7: '-expr mag[(t>25.0)&&(t<30.0)]=5.0' would set the magnitude values for "
+"any points with 25 < t < 30.0 to 5.0.\n\n"
+"8: '-expr mag[t-25.0]=5.0' would set the magnitude values for any points "
+"with t > 25 to 5.0.\n\n");
       commandfound = 1;
     }
 #ifdef _HAVE_GSL
@@ -1482,10 +1666,28 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations. The dates file should contain JDs for all possible observations in the first columns - this is used to calculate the maximum possible weight. Note that the J statistic calculated here differs from Stetson's definition by including an extra factor of (sum(weights)/weight_max).\n\n Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
       commandfound = 1;
     }
-  if(all == 1 || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
+  if(all == 1 || !strcmp(c,"-harmonicfilter")
+     || (!strncmp(c,"-Killharm",9) && strlen(c) == 9))
     {
-      listcommands_noexit("-Killharm",p,&s);
-      printtostring(&s,"This command whitens light curves against one or more periods. The mean value of the light curve, the period of the light curve and the cos and sin coefficients are output. The light curves passed to the next command are whitened light curves (unless the keyword \"fitonly\" is given). The origin of the period(s) is either from the most recent previous aov command (either aov, or aov_harm), from the most recent previous LS command, two periods one from aov, the other from LS, the period from the most recent injectharm command, Nper periods per1 through perN that are fixed for all light curves, or Nper periods specified in the input list (the periods are read off in order as additional columns in the input light curve list - a list must be used for this option; use the optional \"column\" keyword to specify the column for the first period, subsequent periods are read in order following that column). The light curves will be whitened using Nharm higher-harmonics (frequencies of 2*f0, 3*f0, ... (Nharm~+~1)*f0) and Nsubharm sub-harmonics (frequencies of f0/2, f0/3, ... f0/(Nsubharm~+~1)). omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".killharm.model\" will be appended to the filename. If \"fitonly\" is specified, then the model is not subtracted from the light curve (a keyword is used rather than a flag to maintain compatability with scripts written before this option was added). By default the a_k and b_k cos and sin coefficients are output. If the keyword \"outampphase\" or \"outampradphase\" is given, then the output will be the amplitudes A_k~=~sqrt(a_k^2~+~b_k^2) and the phases (phi_k~=~atan2(-b_k,~a_k)/2pi for \"outampphase\" or phi_k~=~atan2(-b_k,~a_k) for \"outampradphase\"). If the keyword \"outRphi\" or \"outRradphi\" is given then the output will be the relative amplitudes R_k1~=~A_k/A_1 and phases phi_k1~=~phi_k~-~k*phi_1 (in units of 0 to 1, or in radians for the two keywords respectively). Note that for sub-harmonics, k~=~1/2,~1/3, etc. For the fundamental mode the amplitude A_1 and the phase phi_1 will be given. Finally one can also fit the model, applying a clipping to the residuals, and refit the model to the points which passed the clipping. To do this give the \"clip\" keyword, followed by the number of sigma to use for the clipping.\n\n");
+      listcommands_noexit("-harmonicfilter",p,&s);
+      printtostring(&s,"(-Killharm is accepted as a synonym for -harmonicfilter and is retained for backward compatibility; the output-column prefix follows the invoking token, so existing scripts that read Killharm_* columns continue to work unchanged.)\n\n");
+      printtostring(&s,"Note that -harmonicfilter fits a Fourier series at one or more *known* periods and is distinct from -fourierfilter, which performs a full-band Fourier-domain high/low/band-pass/band-cut filter by DFT/FFT of the whole light curve.  Use -fourierfilter when you want spectral filtering without specifying periods in advance.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || !strcmp(c,"-fourierfilter"))
+    {
+      listcommands_noexit("-fourierfilter",p,&s);
+      printtostring(&s,"Apply a Fourier-domain filter to the light curve.  A band filter (\"highpass\", \"lowpass\", \"bandpass\", \"bandcut\") and/or an analytic \"filterexpr\" is applied in frequency space, and the filtered light curve replaces the input (with one subtract-mode exception noted below).  The command uses GSL's mixed-radix complex FFT (O(N log N)) and requires a GSL-enabled build.\n\nThere are two algorithmic paths:\n\n\t1. Uniform sampling (or \"forcefft\"): mean-subtract, optional edge padding, complex FFT on the input samples, apply the band+taper+filterexpr mask to each bin (or 1-mask when subtracting), complex IFFT, add the mean back.  FFT bin spacing is df_fft = 1/(Ntot*delmin), with Ntot = Njd for padmode=wrap (the default) or Ntot = Njd + 2*floor(padfrac*Njd) for reflect/zero padding.\n\n\t2. \"resample <delta>\": linearly interpolate the light curve onto a uniform grid at spacing <delta>, run path 1 on that grid, then linearly interpolate the filtered result back to the original sample times.  Required for non-uniformly-sampled data.  Can be combined with \"gapbreak\" to split the light curve at large gaps and filter each segment independently.\n\nOn non-uniformly-sampled data *without* \"resample\" (and without \"forcefft\"), the command prints a warning to stderr and skips the filter for that light curve — the mag column passes through unchanged, subsequent LCs and subsequent pipeline commands are not affected, and the output columns for the skipped LC are set to Mean_Mag=0, RMS_Out=RMS_In, Nfreqcalc=Nfreqfilt=0.  The warning is silenceable with \"nowarn\".\n\nSubtract vs replace: in path 1, modes \"highpass\" and \"bandcut\" *without* \"filterexpr\" or \"fullspec\" compute the reject-band reconstruction and subtract it from the input (preserving the original pass-band content exactly, modulo FFT round-off).  All other path-1 cases and path 2 always replace the light curve with the pass-band reconstruction.\n\n");
+      printtostring(&s,"The filter type is one of:\n\n\t\"full\"     — reconstruct the full Fourier series (use with \"filterexpr\" for an analytic filter).\n\t\"highpass\" — keep frequencies above minfreq.\n\t\"lowpass\"  — keep frequencies below maxfreq.\n\t\"bandpass\" — keep frequencies in [minfreq, maxfreq].\n\t\"bandcut\"  — remove frequencies in [minfreq, maxfreq].\n\nEach of minfreq / maxfreq may be specified as \"fix value\", \"list [column col]\", \"fixcolumn <name|num>\", \"expr expression\", or \"var <name>\", following the usual per-star parameter conventions.\n\n");
+      printtostring(&s,"\"filterexpr expr [freqvar name]\" applies an analytic filter f(freq) on top of the selected band; the expression is evaluated at each trial frequency and the Fourier coefficients at that frequency are multiplied by the result.  By default the expression references the frequency as the variable \"f\" (e.g. \"filterexpr 'exp(-(f/0.5)^2)'\").  Use \"freqvar name\" to rename it if it collides with another variable in scope.  The filter expression may reference constants and per-star scalars, but not light-curve-vector variables.\n\n");
+      printtostring(&s,"\"fullspec\" tells vartools to compute Fourier coefficients across the full Nyquist range even when the selected band is narrower.  Useful together with \"ofourier\" for writing the full coefficient file regardless of the filter.\n\n");
+      printtostring(&s,"\"forcefft\" forces path 1 (direct FFT on the input samples) even when the detected sampling is not uniform.  On uniformly-sampled data the FFT path runs automatically, so \"forcefft\" is a no-op there; on non-uniform data \"forcefft\" prints a warning and runs the FFT anyway, treating the samples as evenly spaced (useful only when \"isuniform\" detection rejects a grid because of tiny numerical jitter — prefer \"resample\" for genuinely non-uniform sampling).\n\n");
+      printtostring(&s,"\"taper <shape> deltafreq <value> [beta <value>]\" softens each band edge with a smooth transition.  Instead of a brick-wall cutoff at minfreq/maxfreq, the filter response goes from 0 to 1 (or 1 to 0) over the window [edge - deltafreq, edge + deltafreq] using the named shape.  This reduces Gibbs-style ringing in the reconstructed light curve at the cost of slightly widening the transition band.  <shape> is one of:\n\n\t\"linear\"   — linear ramp (sharpest transition, largest ringing).\n\t\"cosine\"   — raised cosine, 0.5*(1 - cos(pi*u)); aliases \"tukey\" and \"hann\".\n\t\"blackman\" — 0.42 - 0.5*cos(pi*u) + 0.08*cos(2pi*u); broader transition, lower sidelobes.\n\t\"kaiser\"   — Kaiser window with extra shape parameter \"beta <value>\" (beta ~= 5 gives a Hann-like taper; larger beta = smoother but wider transition).\n\nThe taper is applied to every cut edge of the current filter mode, so bandpass/bandcut pick up two transitions and highpass/lowpass pick up one.  With mode=\"full\" there are no edges so \"taper\" has no effect (a warning is printed).  If \"deltafreq\" is large enough that the two bandpass/bandcut tapers would overlap, the plateau is clipped to the midpoint and a warning is printed.  \"taper\" and \"filterexpr\" may be combined and compose multiplicatively.\n\n");
+      printtostring(&s,"\"resample <delta>\" enables the non-uniform-sampling path: the LC is linearly interpolated onto a uniform grid at step <delta>, FFT-filtered on that grid, IFFT-reconstructed, and linearly interpolated back to the original sample times.  Required for non-uniformly-sampled data — there is no mathematically valid FFT on a non-uniform grid, so without resample the command skips that LC with a warning (see \"Non-uniform sampling without resample\" above).  <delta> accepts the keyword \"delmin\" (use the minimum dt of this LC, with a tiny-gap guard of 1e-12*T) or any of the standard per-star forms \"fix val\", \"var name\", or \"expr expression\".\n\n");
+      printtostring(&s,"\"gapbreak <spec>\" (only valid after \"resample\") splits the LC at any inter-sample gap >= <spec> and filters each segment independently before concatenating.  For highpass and bandpass modes (where the DC bin is masked out) all segments are anchored at the overall-LC weighted mean so no inter-segment jumps appear.  If the largest gap exceeds 1/minfreq for a highpass/bandpass/bandcut mode, a warning is printed (the filter is asking about a frequency whose period is shorter than a data gap — inherently poorly defined, but the command still runs).  <spec> mirrors the -resample command's \"gaps\" clause: \"fix v\", \"expr e\", \"frac_min_sep v\" (v * min dt), \"frac_med_sep v\" (v * median dt), or \"percentile_sep v\" (v = percentile 0..100).\n\n");
+      printtostring(&s,"\"ofourier outdir [nameformat fmt]\" writes the Fourier cos/sin coefficients to a file under outdir with suffix .fouriercoeffs (nameformat overrides the default filename pattern as for -o).\n\n");
+      printtostring(&s,"\"padmode <mode> [padfrac <val>]\" controls how each segment is extended at its edges before the FFT.  The FFT implicitly treats the signal as periodic; when the first and last samples disagree (typical for astronomical light curves with trends) the wrap-around injects spurious spectral power and the filtered output shows Gibbs-style ringing near the start and end of each segment.  <mode> is one of:\n\n\t\"wrap\"     — no padding (current default, matches the FFT's native periodic extension).\n\t\"reflect\"  — mirror padfrac*N samples of the segment at each edge.  Usually the best choice: the mirror is continuous at the boundary so there's no implicit discontinuity.\n\t\"zero\"     — zero-extend each edge (around the segment mean).  Produces a smoother spectrum than \"wrap\" but introduces its own implicit step from the signal edge down to the mean.\n\npadfrac defaults to 0.5 for reflect/zero (doubling the total FFT length) and 0 for wrap.  For reflect the actual padding is clamped to N-1 samples per side.  The padded region is discarded after the IFFT, so the returned signal length matches the input.  padmode applies to both the direct-FFT (path 1) and the resample (path 2) paths.\n\n");
+      printtostring(&s,"\"nowarn\" suppresses all per-LC runtime warnings from -fourierfilter: the non-uniform-sampling skip warning, the within-segment-gap-vs-minfreq advisory, the taper-edge-overlap warning, the forcefft-on-non-uniform warning, and the resample-delta-non-positive warning.  Useful in batch pipelines where the caller has vetted the data.  Parse-time warnings (kaiser beta without kaiser, taper with mode=full) are not suppressed since they flag user-facing CLI-usage issues.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-linfit")))
@@ -1528,7 +1730,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strcmp(c,"-match")))
     {
       listcommands_noexit("-match",p,&s);
-      printtostring(&s,"Perform a row-by-row match of a datafile to the light curve, adding columns from the datafile into the set of light curve columns. Either a single file to match every light curve should be specified by using the \"file\" keyword, or a separate file to use for each light curve should be read-in from the input light curve list file using the \"inlist\" keyword and then giving the column number in the list to read these files from. Note that any file that ends in a \".fits\" extension will be assumed to be a binary FITS table. The optional \"opencommand\" keyword can be given to apply a shell command to each match file before reading it in. In this case 'command' is a string which is passed to the shell with instances of %%s replaced by the filename as read in from the input list, and instances of %%%% replaced by %%. The command will be executed by the shell (after substituting %%s and %%%%) and the match file will be read from the stdout of that command. The optional keywords \"skipnum\" and \"skipchar\" can be used to specify a number of lines to skip at the start of each match file, and to change the comment character(s). Lines for which the first non-white-space character matches one of the comment characters will be skipped (the default is \"#\"). Multiple comment characters can be specified using a comma-separated list. Use the \"delimiter\" option to specify a character or string to use for delimiting between columns. The default is white space.\n\nAfter indicating how the match file(s) is(are) to be read in, next use the \"matchcolumn\" keyword to indicate which column in the match file to match the light curve to, and which variable in the light curve to match on. Note that for any entries in the match column of the match file that are not unique, only one of the rows will be matched to the light curve. If there are non-unique entries in the match column of the light curve, each row will be matched to the same row from the match file. To specify the light curve variable to match on use the varname:colnum format, where varname is the variable name in the light curve to match on, and colnum is the column number from the match file to use for matching. If the input match file is a FITS binary table, then you can give the column header name instead of the column number. If only colnum is specified, then the time variable will be used for matching, or the ID variable if the \"-matchstringid\" option was given to vartools.\n\nNext give the \"addcolumns\" keyword, and indicate the additional columns in the light curve to read in from the match file and merge into the light curve. For each column give the variable name and the column number (or optionally the column header name for a FITS binary table). You may also optionally give the datatype for the column and a scanf format string for reading in the data from the file. Both of these follow the same syntax as in the \"-inputlcformat\" option. Any variable that has not yet been defined will be added into the light curve through the matching, while for any variable that already exists the existing data in that column will be replaced with the data from the match file.\n\nLastly indicate the method for handling rows in the light curve that do not match to the match file. If the \"cullmissing\" keyword is given, then the non-matching row will be removed from the light curve. If the \"nanmissing\" keyword is given, then any double or float columns added to the light curve will be set to NaN, any int, long, short or char columns added will be set to 0, and any string columns will be set to \"NaN\". If the \"missingval\" keyword is used, then the missing rows of the added columns will all be set to value (cast into the appropriate data type).\n\n");
+      printtostring(&s,"Perform a row-by-row match of a datafile to the light curve, adding columns from the datafile into the set of light curve columns. Either a single file to match every light curve should be specified by using the \"file\" keyword, or a separate file to use for each light curve should be read-in from the input light curve list file using the \"inlist\" keyword and then giving the column number in the list to read these files from. Note that any file that ends in a \".fits\" extension will be assumed to be a binary FITS table. The optional \"opencommand\" keyword can be given to apply a shell command to each match file before reading it in. In this case 'command' is a string which is passed to the shell with instances of %s replaced by the filename as read in from the input list, and instances of %% replaced by %. The command will be executed by the shell (after substituting %s and %%) and the match file will be read from the stdout of that command. The optional keywords \"skipnum\" and \"skipchar\" can be used to specify a number of lines to skip at the start of each match file, and to change the comment character(s). Lines for which the first non-white-space character matches one of the comment characters will be skipped (the default is \"#\"). Multiple comment characters can be specified using a comma-separated list. Use the \"delimiter\" option to specify a character or string to use for delimiting between columns. The default is white space.\n\nAfter indicating how the match file(s) is(are) to be read in, next use the \"matchcolumn\" keyword to indicate which column in the match file to match the light curve to, and which variable in the light curve to match on. Note that for any entries in the match column of the match file that are not unique, only one of the rows will be matched to the light curve. If there are non-unique entries in the match column of the light curve, each row will be matched to the same row from the match file. To specify the light curve variable to match on use the varname:colnum format, where varname is the variable name in the light curve to match on, and colnum is the column number from the match file to use for matching. If the input match file is a FITS binary table, then you can give the column header name instead of the column number. If only colnum is specified, then the time variable will be used for matching, or the ID variable if the \"-matchstringid\" option was given to vartools.\n\nNext give the \"addcolumns\" keyword, and indicate the additional columns in the light curve to read in from the match file and merge into the light curve. For each column give the variable name and the column number (or optionally the column header name for a FITS binary table). You may also optionally give the datatype for the column and a scanf format string for reading in the data from the file. Both of these follow the same syntax as in the \"-inputlcformat\" option. Any variable that has not yet been defined will be added into the light curve through the matching, while for any variable that already exists the existing data in that column will be replaced with the data from the match file.\n\nLastly indicate the method for handling rows in the light curve that do not match to the match file. If the \"cullmissing\" keyword is given, then the non-matching row will be removed from the light curve. If the \"nanmissing\" keyword is given, then any double or float columns added to the light curve will be set to NaN, any int, long, short or char columns added will be set to 0, and any string columns will be set to \"NaN\". If the \"missingval\" keyword is used, then the missing rows of the added columns will all be set to value (cast into the appropriate data type).\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-medianfilter",13) && strlen(c) == 13))
@@ -1564,7 +1766,7 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-o",p,&s);
 
-      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve.\n\nYou can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %%s replaced with $inname, instances of %%b replaced with $inname stripped of any final extension, instances of %%d replaced with the light curve number (starting with 1), instances of %%0nd where n is an integer replaced with the formatted light curve number, and instances of %%%% will be replaced with %%. For example, if the second line in the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%%s%%05d.txt\" would result in copying the file \"tmp/2.lc\" to \"./directory/file2.lc00002.txt\". As another example, if the first line in the file \"inlist\" is \"tmp/2.tmp.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat %b.txt\" would result in copying the file \"tmp/2.tmp.lc\" to \"./directory/2.tmp.txt\".\n\nAlternatively you can use the \"namecommand\" keyword to execute a shell command (e.g., sed or awk) to determine the name of the output light curve. Here the command 'echo $fulllcname $outdir $lcnum' will be piped into the command given by the user after the \"namecommand\" keyword, and the name of the light curve will be set to the output of the resulting process. Here $fulllcname is the full name of the input light curve file as read in from the input list, outdir is the output directory specified for this -o command, and lcnum is the light curve number. In the prior example where the second line the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory namecommand 'gawk '\"'\"'{n = split($1,s1,\"/\"); split(s1[n],s2,\".\"); print $2\"/\"s2[1]\".\"$3\".txt\";}'\"'\"''\" would copy the file \"tmp/2.lc\" to \"./directory/2.2.txt\".\n\nThe \"namefromlist\" option can be used to indicate that each output filename should be read from the input light curve list file. The outdir will be prepended to each filename. By default this will be taken from the next unused column in the list. Give the \"column\" keyword, followed by the column number, to specify the column to use.\n\nIf a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring, \"namecommand\" option and command, or the \"namefromlist\" option will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%%.17g,mag:%%.5f,err:%%.5f,xpos:%%.3f\" would output the variables t, mag, err, and xpos using formats %%.17g, %%.5f, %%.5f, and %%.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header. Additionally a colon can optionally be used after the units, and the text after that colon will be included in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section as an additional description of the column. An additional optional colon after the description can be used to specify an alternative \"units\" value for the column to add in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. Give the keyword \"copyheader\" to copy the primary header from the input light curve (if it was a fits format light curve) to the output fits light curve. Give the keyword \"logcommandline\" to log the vartools command line to the file header. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\n");
+      printtostring(&s,"Output the light curves to directory outdir or to the file outname. If a light curve list is used, the directory form will be used, if a single light curve is read in, then the outname form will be used.\n\nThe default output filename for the outdir form is: $outdir/$inname where inname is the base filename of the input light curve.\n\nYou can optionally specify a format rule for the output name by giving the \"nameformat\" keyword followed by the formatstring. In that case the output filename will be $outdir/$formatstring with instances of %s replaced with $inname, instances of %b replaced with $inname stripped of any final extension, instances of %d replaced with the light curve number (starting with 1), instances of %0nd where n is an integer replaced with the formatted light curve number, and instances of %% will be replaced with %. For example, if the second line in the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat file%s%05d.txt\" would result in copying the file \"tmp/2.lc\" to \"./directory/file2.lc00002.txt\". As another example, if the first line in the file \"inlist\" is \"tmp/2.tmp.lc\", the command \"vartools -l inlist -rms -o ./directory nameformat %b.txt\" would result in copying the file \"tmp/2.tmp.lc\" to \"./directory/2.tmp.txt\".\n\nAlternatively you can use the \"namecommand\" keyword to execute a shell command (e.g., sed or awk) to determine the name of the output light curve. Here the command 'echo $fulllcname $outdir $lcnum' will be piped into the command given by the user after the \"namecommand\" keyword, and the name of the light curve will be set to the output of the resulting process. Here $fulllcname is the full name of the input light curve file as read in from the input list, outdir is the output directory specified for this -o command, and lcnum is the light curve number. In the prior example where the second line the file \"inlist\" is \"tmp/2.lc\", the command \"vartools -l inlist -rms -o ./directory namecommand 'gawk '\"'\"'{n = split($1,s1,\"/\"); split(s1[n],s2,\".\"); print $2\"/\"s2[1]\".\"$3\".txt\";}'\"'\"''\" would copy the file \"tmp/2.lc\" to \"./directory/2.2.txt\".\n\nThe \"namefromlist\" option can be used to indicate that each output filename should be read from the input light curve list file. The outdir will be prepended to each filename. By default this will be taken from the next unused column in the list. Give the \"column\" keyword, followed by the column number, to specify the column to use.\n\nThe \"changesuffix\" option takes two arguments oldsuffix and newsuffix; after the default output basename has been constructed, any trailing oldsuffix on that basename is stripped (if present) and newsuffix is appended.  For example, with \"changesuffix .fits .txt\" an input light curve foo.fits would be written as foo.txt; with \"changesuffix '' .lc\" the trailing oldsuffix step is skipped and .lc is simply appended; with \"changesuffix .fits ''\" the trailing .fits is stripped with nothing appended.  Use this when the default output names are misleading (e.g. when ASCII output is being written for FITS-named inputs).  \"changesuffix\" is mutually exclusive with \"nameformat\", \"namecommand\", and \"namefromlist\".  It is applied before any \"fits\", \"gzip\", or \"bzip2\" suffixes are added.\n\nIf a single light curve is read in, then the parameter given to -o is the name of the output light curve. The \"nameformat\" option and formatstring, \"namecommand\" option and command, or the \"namefromlist\" option will be ignored if they are given. If \"-\" is given for outname, then the light curve will be output to stdout. In that case you should also use the -quiet command to avoid mixing the output light curve with the output statistics.\n\nBy default the output light curves will have three columns: time, mag, and err. You can use the \"columnformat\" keyword to change this format. The formatstring is a comma-separated list of variable names to output, optionally using a colon after each variable name to specify the printf format to use for that variable. For example, \"columnformat t:%.17g,mag:%.5f,err:%.5f,xpos:%.3f\" would output the variables t, mag, err, and xpos using formats %.17g, %.5f, %.5f, and %.3f respectively. Here xpos is a non-default variable that one would have read-in with the -inputlcformat command. If the light curves are output in fits format, then terms after the colon will be used to specify the units of the column in the light curve header. Additionally a colon can optionally be used after the units, and the text after that colon will be included in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section as an additional description of the column. An additional optional colon after the description can be used to specify an alternative \"units\" value for the column to add in the fits header COMMENT under the ASTROPY-SERIALIZED-COLUMNS section.\n\nAs an alternative to \"columnformat\", the \"allcols\" keyword emits every light-curve-vector variable that has been defined by commands appearing before this -o in the command sequence, each under its own variable name as the column label. A default printf format is chosen per datatype: %.17g for double-precision, %.9g for single-precision floats, %d for integer types, %s for strings, and %c for characters. This covers the standard t/mag/err columns, any auxiliary columns read via -inputlcformat, and any new LC vectors created by earlier commands in the pipeline (for example the \"phasevar\" variable produced by -Phase, or a model variable stored via -linfit or -nonlinfit \"modelvar\"). When writing an ASCII output light curve, \"allcols\" also prepends a header line of the form \"# name1 name2 ...\" listing the column names so downstream readers (including pyvartools) can recover them automatically. \"allcols\" and \"columnformat\" cannot be combined; use \"columnformat\" when you need per-column format control.\n\nBy default a single space character is used to delimit columns when outputing ascii data. You can change the character used for delimiting columns by giving the keyword \"delimiter\" followed by the character to use.\n\nBy default light curves are output in ascii format. Give the keyword \"fits\" to output the light curves in binary fits table format. The output light curve will have the extension \".fits\" appended if it is not already present. Give the keyword \"copyheader\" to copy the primary header from the input light curve (if it was a fits format light curve) to the output fits light curve. Give the keyword \"logcommandline\" to log the vartools command line to the file header. The keyword \"noclobber\" may be used to prevent overwritting any existing files. VARTOOLS will terminate if it encounters an existing file with noclobber set.\n\nGive the keyword \"gzip\" or \"bzip2\" to compress the output. The corresponding extension (.gz or .bz2) is appended to the output filename if not already present, and the data are piped through the \"gzip\" or \"bzip2\" external program (which must be on PATH). Combined with \"fits\", \"gzip\" produces a compressed FITS file via cfitsio's native .fits.gz support; combining \"fits\" with \"bzip2\" is not supported. Compression keywords cannot be combined with \"-\" (stdout) when \"fits\" is also given.\n\nGive the \"forceoutdirmode\" keyword to treat the -o argument as an output directory even when the input was supplied via -i (single-file mode), with the per-LC basename derived from the input light curve's name. This is useful in conjunction with the in-process libvartoolspipeline driver, where each call processes a single light curve but the caller wants a directory of named output files (one per call). It is a no-op under -l, where the directory interpretation is the default.\n\nGive the \"capture\" keyword to skip writing a file and instead snapshot the current light-curve state into an in-memory buffer keyed by the -o argument (which is interpreted as an opaque id, not a path). Used by the libvartoolspipeline driver to satisfy cmd.o(capture=True) without disk I/O. Each \"capture\" id must be unique across the pipeline; vartools errors out at parse time if two -o capture commands share an id. Multiple \"capture\" -o commands at different points in the chain produce distinct snapshots, so the caller can read back the LC state at each captured point. From the CLI this keyword is mostly useful for libvartoolspipeline embedders; the standalone vartools binary has no public API to read the captured buffers back, so a non-library CLI invocation effectively discards the snapshot.\n\nGive the \"capture_id\" keyword followed by an id to write the file as normal *and* also snapshot the post-write LC state into the in-memory buffer keyed by the given id.  This is the combined form: vartools fopen/fwrite the file at the path given by the -o argument, then memcpy the current LC variables into the captured-LC slot.  Mutually exclusive with \"capture\" (which has no path-write).  Useful when a library driver wants both a persistent file artifact on disk and the post-write arrays in Python without having to re-read the file.\n\n");
       commandfound = 1;
     }
   if(all == 1 || ((!strncmp(c,"-Phase",6) || !strncmp(c,"-phase",6)) && strlen(c) == 6))
@@ -1679,8 +1881,8 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"\tMAD - 1.483*medmeddev. For a gaussian distribution this equals stddev in the limit of large N.\n");
       printtostring(&s,"\tkurtosis\n");
       printtostring(&s,"\tskewness\n");
-      printtostring(&s,"\tpct%%f - %%f percentile, where %%f is a floating point number between 0 and 100. Here 0 corresponds to the minimum value and 100 to the maximum value in the vector.\n");
-      printtostring(&s,"\twpct%%f - percentile including light curve uncertainties as weights.\n");
+      printtostring(&s,"\tpct%f - %f percentile, where %f is a floating point number between 0 and 100. Here 0 corresponds to the minimum value and 100 to the maximum value in the vector.\n");
+      printtostring(&s,"\twpct%f - percentile including light curve uncertainties as weights.\n");
       printtostring(&s,"\tmax - maximum value, equivalent to pct100.\n");
       printtostring(&s,"\tmin - minimum value, equivalent to pct0.\n");
       printtostring(&s,"\tsum - sum of all elements in the vector.\n\n");
@@ -1719,10 +1921,10 @@ void help(char *c, ProgramData *p)
   if(s.s != NULL)
     {
       if(all) {
-	printf(s.s);
+	printf("%s", s.s);
       }
       else
-	fprintf(stderr,s.s);
+	fprintf(stderr, "%s", s.s);
     }
 #ifdef DYNAMICLIB
     if(CheckIfUserCommandHelpIsCalled(p, all, c))
@@ -1751,6 +1953,6 @@ void help(char *c, ProgramData *p)
   if(s.s != NULL)
     free(s.s);
   if(!commandfound)
-    error2(ERR_HELP_BADCOMMAND,c);
+    vt_error2(ERR_HELP_BADCOMMAND,c);
   exit(ERR_USAGE);
 }

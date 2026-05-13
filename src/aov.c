@@ -520,7 +520,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 
   FILE *outfile;
 
-  _HistType h;
+  _HistType h = {0};
 
   if(N <= 1) {
     for(i = 0; i < Npeaks; i++) {
@@ -571,7 +571,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	     (h.histC = (double *) malloc(sizeHISTvector * sizeof(double))) == NULL ||
 	     (h.histD = (double *) malloc(sizeHISTvector * sizeof(double))) == NULL ||
 	     (h.histE = (double *) malloc(sizeHISTvector * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       else
 	{
@@ -591,7 +591,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	     (h.histC = (double *) realloc(h.histC, sizeHISTvector * sizeof(double))) == NULL ||
 	     (h.histD = (double *) realloc(h.histD, sizeHISTvector * sizeof(double))) == NULL ||
 	     (h.histE = (double *) realloc(h.histE, sizeHISTvector * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
     }
   else
@@ -607,7 +607,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
   if((t = (double *) malloc(N * sizeof(double))) == NULL ||
      (mag = (double *) malloc(N * sizeof(double))) == NULL ||
      (sig = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(!usemask) {
     for(i=0;i<N;i++)
@@ -708,47 +708,47 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
       if(!size_periodogram && !size_periodogram_whiten)
 	{
 	  if((periods = (double *) malloc(Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       else if(Nperiod > MAX_(size_periodogram_whiten,size_periodogram))
 	{
 	  if((periods = (double *) realloc(periods, Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       size_periodogram = Nperiod;
       if((periodogram = (double *) malloc((Nperiod) * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   else if(size_periodogram < Nperiod && !whiten)
     {
       if(Nperiod > MAX_(size_periodogram_whiten,size_periodogram))
 	{
 	  if((periods = (double *) realloc(periods, Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       size_periodogram = Nperiod;
       if((periodogram = (double *) realloc(periodogram, Nperiod * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   if(!size_periodogram_whiten && whiten)
     {
       if(!size_periodogram && !size_periodogram_whiten)
 	{
 	  if((periods = (double *) malloc(Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       else if(Nperiod > MAX_(size_periodogram_whiten,size_periodogram))
 	{
 	  if((periods = (double *) realloc(periods, Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       size_periodogram_whiten = Nperiod;
       if((periodogram_whiten = (double **) malloc((Npeaks + 1) * sizeof(double *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0;i<Npeaks+1;i++)
 	{
 	  if((periodogram_whiten[i] = (double *) malloc(Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
     }
   else if(size_periodogram_whiten < Nperiod && whiten)
@@ -756,13 +756,13 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
       if(Nperiod > MAX_(size_periodogram_whiten,size_periodogram))
 	{
 	  if((periods = (double *) realloc(periods, Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       size_periodogram_whiten = Nperiod;
       for(i=0;i<Npeaks+1;i++)
 	{
 	  if((periodogram_whiten[i] = (double *) realloc(periodogram_whiten[i], Nperiod * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
     }
   freq = 1./minP;

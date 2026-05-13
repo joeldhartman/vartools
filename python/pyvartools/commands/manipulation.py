@@ -1,10 +1,11 @@
 """Light curve manipulation and statistics command wrappers."""
 
 from __future__ import annotations
-from typing import List, Optional, Union
+import re
+from typing import List, Optional, Sequence, Union
 
 from pyvartools._command import VartoolsCommand
-from ._helpers import _bool, _flag, _injectparam, _norm_save, _outtoken, _period_spec, _pval, _should_emit
+from ._helpers import _bool, _flag, _injectparam, _norm_save, _outtoken, _period_spec, _pval, _should_emit, _varexpr
 
 
 class clip(VartoolsCommand):
@@ -50,9 +51,9 @@ class clip(VartoolsCommand):
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-clip", str(self.sigclip), "1" if self.iterative else "0"]
+        args = ["-clip"] + _varexpr(self.sigclip) + _varexpr(1 if self.iterative else 0)
         if self.niter is not None:
-            args += ["niter", str(self.niter)]
+            args += ["niter"] + _varexpr(self.niter)
         args += _bool("median", self.median)
         if self.markclip is not None:
             args += ["markclip", self.markclip]
@@ -219,9 +220,39 @@ class stats(VartoolsCommand):
     variables : str or list of str
         Variable name(s) to compute statistics for (comma-separated in vartools).
     statistics : str or list of str
-        Statistic name(s) to compute (e.g. ``"mean"``, ``"median"``,
-        ``"stddev"``, ``"min"``, ``"max"``).
+        Statistic name(s) to compute.  Each name may appear at most once
+        per call (vartools rejects repeats; e.g.
+        ``["mean","stddev","stddev"]`` errors out at parse time).
+
+        Recognised names (full list, matching the vartools ``-stats``
+        parser in ``src/statistics.c``):
+
+        =================  ==================================================
+        Name               Statistic
+        =================  ==================================================
+        ``mean``           Arithmetic mean
+        ``weightedmean``   Inverse-variance-weighted mean (uses err)
+        ``median``         Median (50th percentile)
+        ``wmedian``        Weighted median (uses err)
+        ``stddev``         Sample standard deviation (1/(N-1) normalisation)
+        ``meddev``         Median absolute deviation from the **mean**
+        ``medmeddev``      Median absolute deviation from the **median**
+        ``MAD``            ``meddev``-style MAD scaled by 1.4826
+                           (normal-consistent estimator of σ)
+        ``kurtosis``       Sample kurtosis (Fisher normalisation, biased)
+        ``skewness``       Sample skewness (biased)
+        ``max``            Maximum value
+        ``min``            Minimum value
+        ``sum``            Sum
+        ``pctXX``          XXth percentile (e.g. ``pct10``, ``pct90``,
+                           ``pct50.5``)
+        ``wpctXX``         Inverse-variance-weighted XXth percentile
+        =================  ==================================================
+
+        See the vartools ``-stats`` CLI docs for full definitions and
+        the per-LC output-column names.
     maskpoints : str, optional
+        Variable name; only points with ``maskvar > 0`` contribute.
 
     Examples
     --------
@@ -229,6 +260,7 @@ class stats(VartoolsCommand):
 
         stats("mag", "mean,median,stddev")
         stats(["mag", "err"], ["mean", "stddev"])
+        stats("mag", ["pct10", "pct50", "pct90"])
     """
 
     _vt_name = "stats"
@@ -248,8 +280,14 @@ class stats(VartoolsCommand):
                 + _flag("maskpoints", self.maskpoints))
 
 
-class Killharm(VartoolsCommand):
-    """Remove harmonic signals from the light curve.
+class harmonicfilter(VartoolsCommand):
+    """Fit (and optionally subtract) a truncated Fourier series at one or
+    more known periods — the ``-harmonicfilter`` vartools command.
+
+    Output columns are emitted under the ``HarmonicFilter_*`` prefix when
+    invoked via this class.  The legacy :class:`Killharm` subclass below
+    invokes the same command under the ``-Killharm`` synonym and produces
+    ``Killharm_*`` columns for backward compatibility.
 
     Parameters
     ----------
@@ -272,7 +310,10 @@ class Killharm(VartoolsCommand):
     maskpoints : str, optional
     """
 
-    _vt_name = "Killharm"
+    _vt_name = "harmonicfilter"
+    # CLI token emitted by this class — subclasses override to swap to a
+    # synonym (see Killharm).
+    _cli_token = "-harmonicfilter"
 
     def __init__(
         self,
@@ -296,37 +337,116 @@ class Killharm(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
-        args = ["-Killharm"] + self._killharm_period_spec()
+        args = [self._cli_token] + self._killharm_period_spec()
         args += [str(self.nharm), str(self.nsubharm)]
         args += _outtoken(self.save_model, outdir)
         args += _bool("fitonly", self.fitonly)
         if self.output_format is not None:
             args += [self.output_format]
         if self.clip is not None:
-            args += ["clip", str(self.clip)]
+            args += ["clip"] + _varexpr(self.clip)
         args += _flag("maskpoints", self.maskpoints)
         return args
 
     def _killharm_period_spec(self) -> List[str]:
         """Build period spec tokens for Killharm.
 
-        Killharm's "fix" spec has the form: fix Nper per1 ... perN.
-        A plain float becomes: fix 1 <value>.
-        A string like "fix 2.0 1.0" is expanded to: fix 2 2.0 1.0.
-        Keywords like "ls", "aov", "both" are passed as-is.
+        Killharm's "fix" spec has the form: fix Nper per1 ... perN, where
+        each perN may be a number, ``var <name>``, or ``expr <expression>``.
+        Keywords like "ls", "aov", "both", "injectharm", "list" are passed
+        through verbatim.  A tuple/list of values emits the multi-period
+        ``fix Nper <v1> ... <vN>`` form (used when a chained ``period="both"``
+        back-reference resolves to a pair of periods).
         """
+        # vartools' valid -harmonicfilter / -Killharm period keywords are
+        # aov / ls / both / injectharm / list — *not* bls (the CLI
+        # rejects "bls" with "undefined variable" because it routes the
+        # token through the var-name path).  "both" is the vartools
+        # CLI keyword that uses a paired (LS, AOV) period set.
+        _KILLHARM_KEYWORDS = {"ls", "aov", "both", "injectharm", "list"}
         p = self.period
         if isinstance(p, (int, float)):
             return ["fix", "1", str(p)]
-        tokens = str(p).split()
-        if tokens[0] == "fix":
-            # bare "fix val" → insert count of periods
+        if isinstance(p, (tuple, list)):
+            return ["fix", str(len(p))] + [str(v) for v in p]
+        s = str(p)
+        tokens = s.split()
+        first = tokens[0] if tokens else ""
+        if first == "fix":
+            # "fix <period> [period ...]" — insert the period count.  Each
+            # period is assumed to be a bare value or pre-qualified token.
             periods = tokens[1:]
             return ["fix", str(len(periods))] + periods
-        return tokens
+        if first in _KILLHARM_KEYWORDS:
+            return tokens
+        # "var NAME" / "expr EXPR" pre-qualified forms (produced by the
+        # per-LC substitution in Pipeline.run_batch) need the "fix 1"
+        # prefix prepended, not another "expr"/"var" wrap.
+        if first in ("var", "expr"):
+            return ["fix", "1"] + tokens
+        # Single period specified as a variable name (from -inlistvars or
+        # -expr listvar) or an analytic expression.  Must be wrapped in
+        # the "fix 1 var|expr" form since Killharm requires an explicit
+        # period count.
+        if re.match(r'^[A-Za-z_]\w*$', s):
+            return ["fix", "1", "var", s]
+        return ["fix", "1", "expr", s]
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import (_resolve_period_backref, _most_recent_lookup,
+                                _coerce_to_numeric)
+        from pyvartools.perlc import PerLC
+        # "both" is a Killharm-only back-ref that pulls the most-recent LS
+        # period and the most-recent AOV period.  The result becomes a
+        # (ls_period, aov_period) tuple that _killharm_period_spec renders
+        # into `fix 2 <ls> <aov>`.
+        if isinstance(self.period, str) and self.period.strip() == "both":
+            ls_stats = _most_recent_lookup(prev, ["LS"])
+            aov_stats = _most_recent_lookup(prev, ["aov", "aov_harm"])
+            if ls_stats is None:
+                raise LookupError(
+                    "Back-reference 'both' has no prior -LS command in "
+                    "this chain"
+                )
+            if aov_stats is None:
+                raise LookupError(
+                    "Back-reference 'both' has no prior -aov or -aov_harm "
+                    "command in this chain"
+                )
+            ls_per = _coerce_to_numeric(ls_stats.Period_1)
+            aov_per = _coerce_to_numeric(aov_stats.Period_1)
+            # Both scalars → 2-tuple of floats.  Any PerLC input → 2-tuple of
+            # PerLCs (multi-period batch emission handled elsewhere; for now
+            # raise if either value is PerLC, since Killharm's per-LC pair
+            # emission isn't plumbed through).
+            if isinstance(ls_per, PerLC) or isinstance(aov_per, PerLC):
+                raise NotImplementedError(
+                    "Killharm(period='both') across a batch chain boundary "
+                    "is not supported (per-LC pairs of periods would need "
+                    "two -inlistvars columns).  Pass the two periods "
+                    "explicitly via Raw() or a single-LC chain."
+                )
+            self.period = (float(ls_per), float(aov_per))
+            return
+        self.period = _resolve_period_backref(prev, self.period)
 
     def _output_file_specs(self):
-        return {"model": (".killharm.model", None)}
+        # Suffix follows the invoking CLI token — subclasses override.
+        suffix = (".harmonicfilter.model"
+                  if self._cli_token == "-harmonicfilter"
+                  else ".killharm.model")
+        return {"model": (suffix, None)}
+
+
+class Killharm(harmonicfilter):
+    """Legacy name for :class:`harmonicfilter`.  Accepted for backward
+    compatibility; emits ``-Killharm`` on the command line and produces
+    output columns under the ``Killharm_*`` prefix.  New code should use
+    :class:`harmonicfilter`.
+    """
+
+    _vt_name = "Killharm"
+    _cli_token = "-Killharm"
 
 
 class linfit(VartoolsCommand):
@@ -393,7 +513,7 @@ class linfit(VartoolsCommand):
         if self.modelvar is not None:
             args += ["modelvar", self.modelvar]
         if self.reject is not None:
-            args += ["reject", str(self.reject)]
+            args += ["reject"] + _varexpr(self.reject)
             args += _bool("useMAD", self.reject_usemad)
             if self.reject_iter:
                 args += ["iter"]
@@ -418,39 +538,75 @@ class Injectharm(VartoolsCommand):
     Parameters
     ----------
     period : float or str
-        Period of the signal to inject.
+        Period of the signal to inject.  Float → emits ``"fix <val>"``.
+        String passthrough (e.g. ``"logrand 0.2 2.0"``, ``"list"``).
+    amplitude : float or str
+        Fundamental-harmonic amplitude.  Float → ``"ampfix"``.  ``"rand"``
+        → ``"amprand"``; ``"list"`` → ``"amplist"``; bare identifier →
+        ``"ampvar <name>"``; any other string → ``"ampexpr <string>"``.
     nharm : int
-        Number of harmonics.
-    amplitude : float
-        Signal amplitude (for a single harmonic, semi-amplitude in mag).
-    phase : float, optional
-        Initial phase (0–1).
+        Total number of harmonics, including the fundamental.  ``nharm=1``
+        is a pure sinusoid.  ``nharm=11`` is fundamental + 10 overtones.
+    phase : float or str, optional
+        Fundamental-harmonic phase.  Float → ``"phasefix"``.  ``"rand"``
+        → ``"phaserand"``; bare identifier → ``"phasevar <name>"``; other
+        string → ``"phaseexpr <string>"``.  Default 0.0.
+    harmonic_amps_rel : sequence of float, optional
+        Relative amplitudes for harmonics 2..``nharm`` (length ``nharm-1``).
+        Each entry emits ``ampfix R amprel`` so the harmonic's amplitude is
+        ``R`` times the fundamental amplitude.  Use this with the R values
+        from a Fourier-series fit to inject a realistic templated signal.
+    harmonic_phases_rel : sequence of float, optional
+        Relative phases for harmonics 2..``nharm`` (length ``nharm-1``).
+        Each entry emits ``phasefix phi phaserel`` so the harmonic phase
+        is offset from the fundamental phase by ``phi``.
+    nsubharm : int
+        Number of sub-harmonics (default 0).  When non-zero, sub-harmonics
+        share the fundamental's amp/phase mode (no per-sub-harmonic list).
     save_model : bool
         Write the injected signal model to a file.
 
-    Notes
-    -----
-    By design, this class exposes only the most common injection modes:
+    Examples
+    --------
+    Pure sinusoid::
 
-    * **Amplitude**: ``"ampfix"`` and ``"amplogrand"`` only.  For ``"amprand"`` or
-      ``"amplist"`` use :class:`~pyvartools.commands.Raw`.
-    * **Period**: ``"fix"`` and ``"logrand"`` (via the ``period`` parameter).  For
-      ``"list"`` or ``"rand"`` period modes use :class:`~pyvartools.commands.Raw`.
+        cmd.Injectharm(period=2.5, amplitude=0.05)
 
-    These restrictions keep the parameter space manageable.  The full CLI can always
-    be accessed via ``cmd.Raw("-Injectharm ...")``.
+    10-harmonic RR Lyrae template, fundamental amplitude 0.1, random phase::
+
+        cmd.Injectharm(period=0.514333, amplitude=0.1, phase="rand", nharm=11,
+                       harmonic_amps_rel=[0.47, 0.36, 0.24, 0.16, 0.11, 0.06,
+                                          0.04, 0.03, 0.02, 0.02],
+                       harmonic_phases_rel=[0.61, 0.26, -0.07, 0.61, 0.29,
+                                            0.22, 0.95, 0.59, 0.66, 0.94])
     """
 
     _vt_name = "Injectharm"
 
+    # Special amplitude / phase keyword strings that map to bare CLI flags
+    # rather than to ``ampexpr`` / ``phaseexpr``.  Both the short Pythonic
+    # form (``"rand"``) and the verbatim CLI form (``"amprand"``) are
+    # accepted to match the spelling in vartools' own help text.
+    _AMP_KEYWORDS = {
+        "rand": "amprand",        "amprand": "amprand",
+        "list": "amplist",        "amplist": "amplist",
+        "logrand": "amplogrand",  "amplogrand": "amplogrand",
+    }
+    _PHASE_KEYWORDS = {
+        "rand": "phaserand",      "phaserand": "phaserand",
+        "list": "phaselist",      "phaselist": "phaselist",
+    }
+
     def __init__(
         self,
         period,
-        amplitude: float,
+        amplitude,
         nharm: int = 1,
-        phase: float = 0.0,
+        phase=0.0,
         nsubharm: int = 0,
         save_model: bool = False,
+        harmonic_amps_rel: Optional[Sequence[float]] = None,
+        harmonic_phases_rel: Optional[Sequence[float]] = None,
     ) -> None:
         self.period = period
         self.amplitude = amplitude
@@ -458,6 +614,68 @@ class Injectharm(VartoolsCommand):
         self.phase = phase
         self.nsubharm = nsubharm
         self.save_model = save_model
+        self.harmonic_amps_rel = (
+            list(harmonic_amps_rel) if harmonic_amps_rel is not None else None
+        )
+        self.harmonic_phases_rel = (
+            list(harmonic_phases_rel) if harmonic_phases_rel is not None else None
+        )
+
+        # Validate paired lengths up front so the error surfaces at
+        # construction time rather than at run time.
+        if self.harmonic_amps_rel is not None:
+            if len(self.harmonic_amps_rel) != nharm - 1:
+                raise ValueError(
+                    f"harmonic_amps_rel must have length nharm-1 "
+                    f"({nharm - 1}); got {len(self.harmonic_amps_rel)}.  "
+                    f"Provide one relative amplitude per harmonic 2..{nharm}."
+                )
+        if self.harmonic_phases_rel is not None:
+            if len(self.harmonic_phases_rel) != nharm - 1:
+                raise ValueError(
+                    f"harmonic_phases_rel must have length nharm-1 "
+                    f"({nharm - 1}); got {len(self.harmonic_phases_rel)}."
+                )
+        # If only one of the two lists was supplied, the user almost
+        # certainly wants both.  Reject early with a clear message.
+        if (self.harmonic_amps_rel is None) != (self.harmonic_phases_rel is None):
+            raise ValueError(
+                "harmonic_amps_rel and harmonic_phases_rel must be supplied "
+                "together (or both omitted)."
+            )
+
+    def _amp_tokens(self, amp) -> List[str]:
+        """Build the ampfix/ampvar/ampexpr/amp<keyword> tokens for one amp value.
+
+        The string form is whitespace-split so range-form keywords like
+        ``"rand 0.01 0.1"`` map to ``["amprand", "0.01", "0.1"]`` rather
+        than being treated as a single bareword.
+        """
+        if isinstance(amp, (int, float)):
+            return ["ampfix", str(amp)]
+        if isinstance(amp, str):
+            tokens = amp.split()
+            head = tokens[0] if tokens else ""
+            if head in self._AMP_KEYWORDS:
+                return [self._AMP_KEYWORDS[head]] + tokens[1:]
+            if re.match(r'^[A-Za-z_]\w*$', amp):
+                return ["ampvar", amp]
+            return ["ampexpr", amp]
+        return ["ampfix", str(amp)]
+
+    def _phase_tokens(self, phase) -> List[str]:
+        """Build the phasefix/phasevar/phaseexpr/phase<keyword> tokens for one phase value."""
+        if isinstance(phase, (int, float)):
+            return ["phasefix", str(phase)]
+        if isinstance(phase, str):
+            tokens = phase.split()
+            head = tokens[0] if tokens else ""
+            if head in self._PHASE_KEYWORDS:
+                return [self._PHASE_KEYWORDS[head]] + tokens[1:]
+            if re.match(r'^[A-Za-z_]\w*$', phase):
+                return ["phasevar", phase]
+            return ["phaseexpr", phase]
+        return ["phasefix", str(phase)]
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
@@ -466,11 +684,31 @@ class Injectharm(VartoolsCommand):
         # Nharm=1 means fundamental + 1st harmonic, etc.
         vt_nharm = self.nharm - 1
         args += [str(vt_nharm)]
-        # Repeat amp/phase spec for each of the nharm harmonics
-        for _ in range(self.nharm):
-            args += ["ampfix", str(self.amplitude), "phasefix", str(self.phase)]
-        # sub-harmonics
+
+        # Fundamental harmonic spec.
+        args += self._amp_tokens(self.amplitude)
+        args += self._phase_tokens(self.phase)
+
+        # Higher harmonics.  When per-harmonic relative lists are supplied,
+        # emit ``ampfix R amprel phasefix phi phaserel`` for each.
+        # Otherwise, replicate the fundamental's amp/phase spec for every
+        # harmonic — preserves prior behaviour where amplitude/phase are
+        # shared across all harmonics.
+        if self.harmonic_amps_rel is not None:
+            for R, phi in zip(self.harmonic_amps_rel, self.harmonic_phases_rel):
+                args += ["ampfix", str(R), "amprel",
+                         "phasefix", str(phi), "phaserel"]
+        else:
+            for _ in range(self.nharm - 1):
+                args += self._amp_tokens(self.amplitude)
+                args += self._phase_tokens(self.phase)
+
+        # Sub-harmonics — vartools expects Nsubharm followed by Nsubharm
+        # copies of the (amp, phase) spec.
         args += [str(self.nsubharm)]
+        for _ in range(self.nsubharm):
+            args += self._amp_tokens(self.amplitude)
+            args += self._phase_tokens(self.phase)
         args += _outtoken(self.save_model, outdir)
         return args
 
@@ -576,7 +814,13 @@ class Injecttransit(VartoolsCommand):
                 args += ["dilute", "fix", str(self.dilute)]
             else:
                 args += ["dilute"] + str(self.dilute).split()
-        args += [self.ld_type] + [str(c) for c in self.ld_coeffs]
+        args += [self.ld_type]
+        ldc = list(self.ld_coeffs)
+        if ldc and isinstance(ldc[0], str) and ldc[0] in (
+                "ldlist", "ldfix", "ldvar", "ldexpr"):
+            args += [str(c) for c in ldc]
+        else:
+            args += ["ldfix"] + [str(c) for c in ldc]
         args += _outtoken(self.save_model, outdir)
         return args
 
@@ -760,7 +1004,7 @@ class difffluxtomag(VartoolsCommand):
         self.magcolumn = magcolumn
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-difffluxtomag", str(self.mag_constant), str(self.offset)]
+        args = ["-difffluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
         args += _flag("magcolumn", self.magcolumn)
         return args
 
@@ -783,7 +1027,7 @@ class fluxtomag(VartoolsCommand):
         self.offset = offset
 
     def _to_cli_args(self) -> List[str]:
-        return ["-fluxtomag", str(self.mag_constant), str(self.offset)]
+        return ["-fluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
 
 
 class changeerror(VartoolsCommand):
@@ -867,11 +1111,306 @@ class medianfilter(VartoolsCommand):
         self.replace = replace
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-medianfilter", str(self.time)]
+        args = ["-medianfilter"] + _varexpr(self.time)
         if self.method in ("average", "weightedaverage"):
             args.append(self.method)
         args += _bool("replace", self.replace)
         return args
+
+
+class fourierfilter(VartoolsCommand):
+    """Full-band Fourier-domain filter (``-fourierfilter``).
+
+    Applies a band filter and/or an analytic ``filterexpr`` in
+    frequency space via GSL's mixed-radix complex FFT (O(N log N))
+    and requires a GSL-enabled vartools build.  Uniformly-sampled
+    data is FFT-filtered directly; non-uniform data must be
+    interpolated onto a uniform grid first using ``resample=<delta>``.
+    This is distinct from :class:`harmonicfilter`, which fits
+    harmonics of one or more *known* periods.
+
+    Parameters
+    ----------
+    mode : str
+        Filter type: ``"full"``, ``"highpass"``, ``"lowpass"``,
+        ``"bandpass"``, or ``"bandcut"``.
+    minfreq : float or str, optional
+        Low-frequency cutoff.  Required for ``highpass``, ``bandpass``,
+        ``bandcut``.  Accepts var/expr/fixcolumn forms.
+    maxfreq : float or str, optional
+        High-frequency cutoff.  Required for ``lowpass``, ``bandpass``,
+        ``bandcut``.  Accepts var/expr/fixcolumn forms.
+    filterexpr : str, optional
+        Analytic filter applied to each Fourier coefficient as a
+        function of frequency.  The frequency variable name defaults to
+        ``"f"`` (e.g. ``"exp(-(f/0.5)**2)"``) and may be renamed via
+        ``freqvar``.  The expression may only reference constants and
+        per-star scalars, not light-curve vectors.
+    freqvar : str, optional
+        Override the default frequency-variable name (``"f"``) used in
+        ``filterexpr``.
+    fullspec : bool
+        Compute Fourier coefficients across the full Nyquist range even
+        when the selected band is narrower.  Useful with ``save_fouriercoeffs``.
+    forcefft : bool
+        Force the FFT fast path even when sampling is not detected as
+        uniform (prints a warning if used on genuinely non-uniform
+        data).  On uniformly-sampled data the FFT is used by default;
+        ``forcefft=True`` is a no-op in that case.
+    taper : str, optional
+        Smooth-edge taper to apply at each cut edge instead of a
+        brick-wall cutoff.  One of:
+
+        - ``"linear"``: linear ramp (sharpest transition).
+        - ``"cosine"`` (aliases ``"tukey"``, ``"hann"``):
+          ``0.5*(1 - cos(pi*u))``.
+        - ``"blackman"``: ``0.42 - 0.5*cos(pi*u) + 0.08*cos(2pi*u)``.
+        - ``"kaiser"``: requires ``taper_beta``.
+
+        The taper is centered on each cut edge and spans
+        ``[edge - taper_deltafreq, edge + taper_deltafreq]``.  With
+        ``mode="full"`` there are no edges and ``taper`` is a no-op
+        (vartools prints a warning).
+    taper_deltafreq : float, optional
+        Half-width of the taper window, in frequency units.  Required
+        when ``taper`` is given.
+    taper_beta : float, optional
+        Shape parameter for ``taper="kaiser"``; larger values give
+        smoother but wider transitions (``beta ~= 5`` is Hann-like).
+    resample : float, str, or None, optional
+        Enable the resample → FFT → filter → IFFT → resample-back
+        path (required for non-uniformly-sampled data).  Accepts:
+
+        - ``"delmin"`` — use the minimum dt in the LC.
+        - a positive ``float`` — fixed delta-t.
+        - a string expression (e.g. ``"medt"``) — evaluated per LC.
+
+        When absent and the input is non-uniform, vartools prints a
+        warning to stderr and **skips the filter for that LC** (the
+        mag column passes through unchanged; output columns are set
+        to ``Mean_Mag=0``, ``RMS_Out=RMS_In``, ``Nfreqcalc=Nfreqfilt=0``).
+        Subsequent LCs and subsequent pipeline commands are not
+        affected.
+    gapbreak_type : str, optional
+        When ``resample`` is set, split the LC at any gap exceeding the
+        specified threshold and filter each segment independently.
+        Type is one of ``"fix"``, ``"expr"``, ``"frac_min_sep"``,
+        ``"frac_med_sep"``, or ``"percentile_sep"``.
+    gapbreak_value : float or str, optional
+        Threshold value for the gap-break spec.  Units depend on
+        ``gapbreak_type``: seconds (or whatever time unit the LC uses)
+        for ``"fix"`` / ``"expr"``; a multiplier for
+        ``"frac_min_sep"`` / ``"frac_med_sep"``; a percentile (0-100)
+        for ``"percentile_sep"``.
+    padmode : str, optional
+        Edge-padding mode applied before the FFT (both the direct-FFT
+        path and the resample path).  The FFT implicitly treats the
+        signal as periodic, so if the first and last sample values
+        disagree (common for astronomical LCs) the wrap-around injects
+        spurious spectral power and the filtered output shows Gibbs-
+        style ringing near the segment boundaries.  ``"wrap"``
+        (default) uses the native FFT behaviour; ``"reflect"`` mirrors
+        the signal at each edge; ``"zero"`` zero-extends (around the
+        segment mean) at each edge.
+    padfrac : float, optional
+        Pad length per side, as a fraction of the segment length.
+        Default ``0.5`` when ``padmode`` is ``"reflect"`` or
+        ``"zero"`` (doubles the total FFT length); ignored for
+        ``"wrap"``.  Clamped to at most one segment length for
+        ``"reflect"``.
+    save_fouriercoeffs : bool, str, or :class:`pyvartools.Output`, optional
+        Write the Fourier cos/sin coefficients to a file.  Captures as
+        ``result.files["fourierfilter_fouriercoeffs_N"]`` when truthy.
+        See :doc:`Auxiliary output files <commands/index>`.
+    nowarn : bool, optional
+        When ``True``, suppress all per-LC runtime warnings from
+        ``-fourierfilter`` (non-uniform advisory, within-segment gap
+        vs. ``minfreq``, taper-edge overlap, forcefft on non-uniform,
+        resample delta <= 0).  Useful in batch pipelines where the
+        caller has vetted the data and doesn't need the repeated
+        advisories.  Parse-time warnings about CLI misuse are not
+        suppressed.
+    """
+
+    _vt_name = "fourierfilter"
+
+    _VALID_TAPERS = ("linear", "cosine", "tukey", "hann", "blackman", "kaiser")
+    _VALID_GAPBREAK_TYPES = ("fix", "expr", "frac_min_sep",
+                             "frac_med_sep", "percentile_sep")
+    _VALID_PADMODES = ("wrap", "reflect", "zero")
+
+    def __init__(
+        self,
+        mode: str = "full",
+        minfreq: Union[float, str, None] = None,
+        maxfreq: Union[float, str, None] = None,
+        filterexpr: Optional[str] = None,
+        freqvar: Optional[str] = None,
+        fullspec: bool = False,
+        forcefft: bool = False,
+        taper: Optional[str] = None,
+        taper_deltafreq: Optional[float] = None,
+        taper_beta: Optional[float] = None,
+        resample: Union[float, str, None] = None,
+        gapbreak_type: Optional[str] = None,
+        gapbreak_value: Union[float, str, None] = None,
+        padmode: Optional[str] = None,
+        padfrac: Optional[float] = None,
+        nowarn: bool = False,
+        save_fouriercoeffs=False,
+    ) -> None:
+        if mode not in ("full", "highpass", "lowpass", "bandpass", "bandcut"):
+            raise ValueError(
+                f"fourierfilter(): unknown mode {mode!r}; must be one of "
+                f"full, highpass, lowpass, bandpass, bandcut"
+            )
+        if mode in ("highpass", "bandpass", "bandcut") and minfreq is None:
+            raise ValueError(f"fourierfilter(mode={mode!r}): minfreq is required")
+        if mode in ("lowpass", "bandpass", "bandcut") and maxfreq is None:
+            raise ValueError(f"fourierfilter(mode={mode!r}): maxfreq is required")
+        if freqvar is not None and filterexpr is None:
+            raise ValueError(
+                "fourierfilter(): freqvar has no effect without filterexpr"
+            )
+        if taper is not None:
+            if taper not in self._VALID_TAPERS:
+                raise ValueError(
+                    f"fourierfilter(): unknown taper {taper!r}; must be one "
+                    f"of {', '.join(self._VALID_TAPERS)}"
+                )
+            if taper_deltafreq is None or taper_deltafreq <= 0:
+                raise ValueError(
+                    "fourierfilter(): taper_deltafreq must be a positive "
+                    "number when taper is given"
+                )
+            if taper == "kaiser" and (taper_beta is None or taper_beta <= 0):
+                raise ValueError(
+                    "fourierfilter(): taper='kaiser' requires a positive "
+                    "taper_beta (try 5-8 for Hann-like behavior)"
+                )
+        elif taper_deltafreq is not None or taper_beta is not None:
+            raise ValueError(
+                "fourierfilter(): taper_deltafreq and taper_beta have no "
+                "effect without taper"
+            )
+        # Gapbreak only makes sense alongside resample
+        if gapbreak_type is not None:
+            if resample is None:
+                raise ValueError(
+                    "fourierfilter(): gapbreak_type requires resample to "
+                    "be set (gapbreak only applies on the resample path)"
+                )
+            if gapbreak_type not in self._VALID_GAPBREAK_TYPES:
+                raise ValueError(
+                    f"fourierfilter(): unknown gapbreak_type "
+                    f"{gapbreak_type!r}; must be one of "
+                    f"{', '.join(self._VALID_GAPBREAK_TYPES)}"
+                )
+            if gapbreak_value is None:
+                raise ValueError(
+                    "fourierfilter(): gapbreak_value is required when "
+                    "gapbreak_type is given"
+                )
+        elif gapbreak_value is not None:
+            raise ValueError(
+                "fourierfilter(): gapbreak_value has no effect without "
+                "gapbreak_type"
+            )
+        if padmode is not None:
+            if padmode not in self._VALID_PADMODES:
+                raise ValueError(
+                    f"fourierfilter(): unknown padmode {padmode!r}; "
+                    f"must be one of {', '.join(self._VALID_PADMODES)}"
+                )
+            if padfrac is not None and padfrac < 0:
+                raise ValueError(
+                    "fourierfilter(): padfrac must be >= 0"
+                )
+        elif padfrac is not None:
+            raise ValueError(
+                "fourierfilter(): padfrac has no effect without padmode"
+            )
+        # resample delmin|float|str validation
+        if resample is not None:
+            if isinstance(resample, str):
+                if resample != "delmin" and not resample.replace(".", "", 1).lstrip("-").isdigit():
+                    # treat it as an expression; pass through to CLI
+                    pass
+            elif isinstance(resample, (int, float)):
+                if resample <= 0:
+                    raise ValueError(
+                        "fourierfilter(): resample delta must be positive"
+                    )
+            else:
+                raise ValueError(
+                    "fourierfilter(): resample must be a positive float, "
+                    '"delmin", or a string expression'
+                )
+        self.mode = mode
+        self.minfreq = minfreq
+        self.maxfreq = maxfreq
+        self.filterexpr = filterexpr
+        self.freqvar = freqvar
+        self.fullspec = fullspec
+        self.forcefft = forcefft
+        self.taper = taper
+        self.taper_deltafreq = taper_deltafreq
+        self.taper_beta = taper_beta
+        self.resample = resample
+        self.gapbreak_type = gapbreak_type
+        self.gapbreak_value = gapbreak_value
+        self.padmode = padmode
+        self.padfrac = padfrac
+        self.nowarn = nowarn
+        self.save_fouriercoeffs = save_fouriercoeffs
+
+    def _to_cli_args(self) -> List[str]:
+        outdir = getattr(self, "_outdir", ".")
+        args = ["-fourierfilter", self.mode]
+        # minfreq/maxfreq use the parser's keyword-prefixed form
+        # (fix/var/expr/fixcolumn/list); _pval(..., keyword="fix")
+        # prepends "fix" in front of bare numbers.
+        if self.mode in ("highpass", "bandpass", "bandcut"):
+            args += ["minfreq"] + _pval(self.minfreq, "fix")
+        if self.mode in ("lowpass", "bandpass", "bandcut"):
+            args += ["maxfreq"] + _pval(self.maxfreq, "fix")
+        if self.filterexpr is not None:
+            args += ["filterexpr", str(self.filterexpr)]
+            if self.freqvar is not None:
+                args += ["freqvar", str(self.freqvar)]
+        if self.fullspec:
+            args += ["fullspec"]
+        if self.forcefft:
+            args += ["forcefft"]
+        if self.taper is not None:
+            args += ["taper", self.taper, "deltafreq", str(self.taper_deltafreq)]
+            if self.taper == "kaiser":
+                args += ["beta", str(self.taper_beta)]
+        if self.resample is not None:
+            if isinstance(self.resample, str) and self.resample == "delmin":
+                args += ["resample", "delmin"]
+            elif isinstance(self.resample, (int, float)):
+                args += ["resample", "fix", str(self.resample)]
+            else:
+                # arbitrary string → expression form
+                args += ["resample", "expr", str(self.resample)]
+            if self.gapbreak_type is not None:
+                args += ["gapbreak", self.gapbreak_type, str(self.gapbreak_value)]
+        if self.padmode is not None:
+            args += ["padmode", self.padmode]
+            if self.padfrac is not None:
+                args += ["padfrac", str(self.padfrac)]
+        # ofourier is a keyword-gated output: `ofourier <outdir>` (no 0/1
+        # flag), so we emit it inline rather than using _outtoken.
+        spec = _norm_save(self.save_fouriercoeffs)
+        if _should_emit(spec):
+            args += ["ofourier", spec.path if spec.path is not None else outdir]
+        if self.nowarn:
+            args += ["nowarn"]
+        return args
+
+    def _output_file_specs(self):
+        return {"fouriercoeffs": (".fouriercoeffs", None)}
 
 
 class expr(VartoolsCommand):
@@ -880,9 +1419,48 @@ class expr(VartoolsCommand):
     Parameters
     ----------
     expression : str
-        Expression of the form ``varname=expr``.
-    outputcolumns : str, optional
-        Comma-separated list of column names to output.
+        Expression of the form ``varname=expression``.
+    vartype : str or None
+        Variable type for the left-hand-side when creating a new variable:
+
+        - ``None`` (default) — per-observation light-curve vector.
+        - ``"listvar"`` — per-star variable (one value per light curve,
+          persists across all LCs).  LC vectors on the RHS are evaluated
+          at the first observation.
+        - ``"scalar"`` — per-thread scalar.
+        - ``"const"`` — global constant (single value, same for all LCs).
+
+        If the variable already exists, its type is preserved regardless
+        of this setting.
+    outputcolumn : bool, optional
+        If True, expose the LHS variable as an output column in the
+        result table.  Only valid when ``vartype`` is one of
+        ``"listvar"``, ``"scalar"``, or ``"const"``; raises ValueError
+        otherwise (the value would otherwise be per-observation, not a
+        single column).  The column name is ``Expr_<varname>_<idx>``
+        (matching the vartools-C convention).
+
+    Notes
+    -----
+    The expression engine supports aggregate functions that operate over
+    all observations in the current light curve.  These are especially
+    useful with ``vartype="listvar"`` to compute per-star summary
+    statistics:
+
+    - ``mean(x [, filter])``, ``median(x)``, ``stddev(x)``, ``MAD(x)``
+    - ``vmin(x)``, ``vmax(x)``, ``sum(x)``
+    - ``pct(x, pctval)``, ``wpct(x, w, pctval)``
+    - ``weightedmean(x, w)``, ``wmedian(x, w)``
+    - ``kurtosis(x)``, ``skewness(x)``, ``meddev(x)``, ``medmeddev(x)``
+
+    All accept an optional filter argument, e.g. ``mean(mag, t>53730)``
+    computes the mean of mag only for observations where t > 53730.
+
+    Examples
+    --------
+    >>> cmd.expr("dmag=mag-10.0")                     # per-observation
+    >>> cmd.expr("avg=mean(mag)", vartype="listvar")   # per-star mean
+    >>> cmd.expr("pi=3.14159", vartype="const")        # global constant
     """
 
     _vt_name = "expr"
@@ -890,14 +1468,32 @@ class expr(VartoolsCommand):
     def __init__(
         self,
         expression: str,
-        outputcolumns: Optional[str] = None,
+        vartype: Optional[str] = None,
+        outputcolumn: bool = False,
     ) -> None:
+        if vartype is not None and vartype not in ("listvar", "scalar", "const"):
+            raise ValueError(
+                f"vartype must be None, 'listvar', 'scalar', or 'const', "
+                f"got {vartype!r}"
+            )
+        if outputcolumn and vartype is None:
+            raise ValueError(
+                "expr: outputcolumn=True requires vartype to be one of "
+                "'listvar', 'scalar', or 'const' (the default per-"
+                "observation LC-vector type would produce one value per "
+                "observation, not a single column)."
+            )
         self.expression = expression
-        self.outputcolumns = outputcolumns
+        self.vartype = vartype
+        self.outputcolumn = outputcolumn
 
     def _to_cli_args(self) -> List[str]:
-        args = ["-expr", self.expression]
-        args += _flag("outputcolumns", self.outputcolumns)
+        args = ["-expr"]
+        if self.vartype is not None:
+            args.append(self.vartype)
+        args.append(self.expression)
+        if self.outputcolumn:
+            args.append("outputcolumn")
         return args
 
 
@@ -1014,6 +1610,26 @@ class resample(VartoolsCommand):
         Time step of the new grid.
     Npoints : int or str, optional
         Number of points in the new grid (alternative to delt).
+    file_times : str, optional
+        Source for the new time grid:
+
+        * a path string → resample to the times in that file (CLI ``file fix <path>``);
+        * the literal ``"list"`` → resample to the times in a per-LC file whose
+          path is read from a column of the input list file (CLI ``file list``).
+          Combine with ``list_column`` and ``t_column`` to control which
+          columns are used.
+    file_column : int, optional
+        **Legacy.** Alias of ``t_column`` for the path-form (``file fix``)
+        mode.  Prefer ``t_column``.
+    list_column : int, optional
+        Only meaningful with ``file_times="list"``.  Column number (1-based)
+        in the *input list file* that holds the per-LC time-grid filename.
+        Maps to the CLI ``listcolumn`` keyword.  When omitted, vartools
+        consumes the next available list-file column.
+    t_column : int, optional
+        Column number (1-based) in the *time-grid file* that holds the time
+        values.  Maps to the CLI ``column`` keyword (path mode) or
+        ``tcolumn`` keyword (list mode).  Defaults to ``1``.
     """
 
     _vt_name = "resample"
@@ -1031,6 +1647,8 @@ class resample(VartoolsCommand):
         Npoints=None,
         file_times: Optional[str] = None,
         file_column: Optional[int] = None,
+        list_column: Optional[int] = None,
+        t_column: Optional[int] = None,
         gaps: Optional[str] = None,
     ) -> None:
         self.method = method
@@ -1044,6 +1662,8 @@ class resample(VartoolsCommand):
         self.Npoints = Npoints
         self.file_times = file_times
         self.file_column = file_column
+        self.list_column = list_column
+        self.t_column = t_column
         self.gaps = gaps
 
     def _to_cli_args(self) -> List[str]:
@@ -1058,15 +1678,33 @@ class resample(VartoolsCommand):
                 args += ["nbreaks", str(self.nbreaks)]
             if self.order is not None:
                 args += ["order", str(self.order)]
+        # Resolve t_column from t_column or the legacy file_column alias.
+        eff_t_column = self.t_column
+        if eff_t_column is None and self.file_column is not None:
+            eff_t_column = self.file_column
         if self.file_times is not None:
             toks = str(self.file_times).split()
             if toks[0] == "list":
-                args += ["file"] + toks
+                # New-grid times read from a per-LC file named in the input
+                # list-file.  Accept either the kwarg form (preferred) or
+                # extra tokens passed inside file_times itself (legacy).
+                args += ["file", "list"]
+                if len(toks) > 1:
+                    # Legacy: user inlined "list listcolumn N tcolumn M" in
+                    # the file_times string.  Pass the trailing tokens
+                    # through verbatim and ignore the kwargs to avoid
+                    # double-emission.
+                    args += toks[1:]
+                else:
+                    if self.list_column is not None:
+                        args += ["listcolumn", str(self.list_column)]
+                    if eff_t_column is not None:
+                        args += ["tcolumn", str(eff_t_column)]
             else:
-                # treat as a path → "fix" mode
+                # Single file path → "fix" mode.
                 args += ["file", "fix", str(self.file_times)]
-                if self.file_column is not None:
-                    args += ["column", str(self.file_column)]
+                if eff_t_column is not None:
+                    args += ["column", str(eff_t_column)]
         if self.gaps is not None:
             args += ["gaps"] + str(self.gaps).split()
         if self.tstart is not None:
@@ -1095,7 +1733,14 @@ class decorr(VartoolsCommand):
         List of (filename, polynomial_order) for global trend vectors.
     lc_columns : list of (int, int)
         List of (column_number, polynomial_order) for LC-internal terms.
-    save_model : bool
+    save_model : bool, str, or Output, optional
+        Directory for auxiliary file output.  A string is the
+        **directory name** (not a filename); per-LC ``*.decorr.model``
+        files are written inside it.  ``True`` captures the model files
+        into ``result.files["decorr_model_N"]`` via a pyvartools-managed
+        temp directory.  See the Auxiliary-output-files section of the
+        pyvartools docs for the full ``Output`` semantics.  Default
+        ``False`` (no model output).
     maskpoints : str, optional
     """
 
@@ -1131,9 +1776,17 @@ class decorr(VartoolsCommand):
         args += [str(len(self.lc_columns))]
         for col, order in self.lc_columns:
             args += [str(col), str(order)]
+        # The -decorr CLI grammar treats `omodel` as a 0/1 flag in
+        # this slot (parsecommandline.c:969 calls atoi() on it), not
+        # as a literal keyword.  Help text writes "omodel" as the
+        # placeholder name for the slot, which mis-led an earlier
+        # version of this wrapper into emitting the literal word --
+        # vartools then atoi()'d it to 0, skipped the path-reading
+        # branch, and fell through with the path as a stray top-level
+        # argument ("Invalid command or option <path>").
         m_spec = _norm_save(self.save_model)
         if _should_emit(m_spec):
-            args += ["omodel", m_spec.path or outdir]
+            args += ["1", m_spec.path or outdir]
         else:
             args += ["0"]
         args += _flag("maskpoints", self.maskpoints)

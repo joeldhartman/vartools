@@ -1,10 +1,10 @@
 """Miscellaneous vartools command wrappers."""
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from pyvartools._command import VartoolsCommand
 from pyvartools.userlib import UserCommand  # noqa: F401 — re-exported
-from ._helpers import _flag, _bool, _outtoken, _pval
+from ._helpers import _flag, _bool, _outtoken, _pval, _varexpr
 
 
 class addfitskeyword(VartoolsCommand):
@@ -15,7 +15,13 @@ class addfitskeyword(VartoolsCommand):
     keyword : str
         FITS keyword name (max 8 characters).
     dtype : str
-        Data type: ``"TDOUBLE"``, ``"TINT"``, ``"TLONG"``, or ``"TSTRING"``.
+        Data type.  Accepted spellings (all map to the same vartools
+        token):
+
+        * ``"TDOUBLE"`` / ``"double"`` / ``"float"`` → ``TDOUBLE``
+        * ``"TINT"``    / ``"int"``                  → ``TINT``
+        * ``"TLONG"``   / ``"long"``                 → ``TLONG``
+        * ``"TSTRING"`` / ``"string"`` / ``"str"``   → ``TSTRING``
     value : str
         Value specification.  Either a bare Python scalar (``"fix"`` is
         prepended automatically) or a full vartools token string such as
@@ -32,6 +38,13 @@ class addfitskeyword(VartoolsCommand):
 
     _vt_name = "addfitskeyword"
 
+    _DTYPE_ALIASES = {
+        "double": "TDOUBLE", "float": "TDOUBLE", "TDOUBLE": "TDOUBLE",
+        "int":    "TINT",    "TINT":    "TINT",
+        "long":   "TLONG",   "TLONG":   "TLONG",
+        "string": "TSTRING", "str": "TSTRING", "TSTRING": "TSTRING",
+    }
+
     def __init__(
         self,
         keyword: str,
@@ -43,7 +56,12 @@ class addfitskeyword(VartoolsCommand):
         combinelc: Optional[str] = None,
     ) -> None:
         self.keyword = keyword
-        self.dtype = dtype
+        if dtype not in self._DTYPE_ALIASES:
+            raise ValueError(
+                f"addfitskeyword: dtype must be one of "
+                f"{sorted(set(self._DTYPE_ALIASES))}; got {dtype!r}"
+            )
+        self.dtype = self._DTYPE_ALIASES[dtype]
         self.value = value
         self.comment = comment
         self.hdu = hdu
@@ -79,9 +97,11 @@ class converttime(VartoolsCommand):
     Parameters
     ----------
     input_format : str
-        Input time format: ``"mjd"``, ``"jd"``, ``"hjd"``, or ``"bjd"``.
+        Input time format.  Case-insensitive — ``"jd"`` / ``"JD"`` /
+        ``"Jd"`` are equivalent.  Valid values: ``mjd``, ``jd``, ``hjd``,
+        ``bjd``.
     output_format : str
-        Output time format: ``"mjd"``, ``"jd"``, ``"hjd"``, or ``"bjd"``.
+        Output time format.  Same valid values as ``input_format``.
     ra : float or str, optional
         Right ascension for HJD/BJD conversion.  A float is treated as
         degrees and passed as ``"fix ra dec"`` (requires ``dec`` too).
@@ -104,6 +124,8 @@ class converttime(VartoolsCommand):
 
     _vt_name = "converttime"
 
+    _VALID_FORMATS = {"mjd", "jd", "hjd", "bjd"}
+
     def __init__(
         self,
         input_format: str,
@@ -117,8 +139,10 @@ class converttime(VartoolsCommand):
         ephemfile: Optional[str] = None,
         leapsecfile: Optional[str] = None,
     ) -> None:
-        self.input_format = input_format
-        self.output_format = output_format
+        # Vartools' -converttime CLI requires lowercase format keywords;
+        # normalise here so users can pass any case.
+        self.input_format = self._normalise_format(input_format, "input_format")
+        self.output_format = self._normalise_format(output_format, "output_format")
         self.ra = ra
         self.dec = dec
         self.input_subtract = input_subtract
@@ -127,6 +151,17 @@ class converttime(VartoolsCommand):
         self.output_sys = output_sys
         self.ephemfile = ephemfile
         self.leapsecfile = leapsecfile
+
+    @classmethod
+    def _normalise_format(cls, value: str, kind: str) -> str:
+        lower = str(value).lower()
+        if lower not in cls._VALID_FORMATS:
+            raise ValueError(
+                f"converttime: {kind} must be one of "
+                f"{sorted(cls._VALID_FORMATS)} (case-insensitive); "
+                f"got {value!r}"
+            )
+        return lower
 
     def _to_cli_args(self) -> List[str]:
         args = ["-converttime",
@@ -203,6 +238,16 @@ class R(VartoolsCommand):
         verbose: bool = False,
         continueprocess: Optional[int] = None,
     ) -> None:
+        if init is not None and continueprocess is not None:
+            raise ValueError(
+                "cmd.R: pass either `init` (initialise a new R subprocess) "
+                "or `continueprocess` (reuse a prior one), but not both -- "
+                "vartools' -R grammar rejects the combination.  If you "
+                "need extra setup in a continued block, either fold it "
+                "into the earlier -R's `init=...` so the original "
+                "subprocess sees it, or include it directly in this "
+                "block's command string."
+            )
         self.command = command
         self.fromfile = fromfile
         self.init = init
@@ -217,6 +262,216 @@ class R(VartoolsCommand):
 
     def _to_cli_args(self) -> List[str]:
         args = ["-R"]
+        if self.fromfile:
+            args += ["fromfile", str(self.command)]
+        else:
+            args += [str(self.command)]
+        # init / continueprocess share slot 1 in the CLI grammar; they
+        # are mutually exclusive (enforced in __init__), so emission
+        # order is moot.  Emit `init` first to match the order in the
+        # CLI grammar / -R help text.
+        if self.init is not None:
+            if self.init_fromfile:
+                args += ["init", "file", str(self.init)]
+            else:
+                args += ["init", str(self.init)]
+        elif self.continueprocess is not None:
+            args += ["continueprocess", str(self.continueprocess)]
+        if self.vars is not None:
+            args += ["vars", str(self.vars)]
+        else:
+            if self.invars is not None:
+                args += ["invars", str(self.invars)]
+            if self.outvars is not None:
+                args += ["outvars", str(self.outvars)]
+        if self.outputcolumns is not None:
+            args += ["outputcolumns", str(self.outputcolumns)]
+        if self.process_all_lcs:
+            args += ["process_all_lcs"]
+        if self.verbose:
+            args += ["verbose"]
+        return args
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class python(VartoolsCommand):
+    """Run Python code on each light curve (``-python``).
+
+    Mirrors the surface of :class:`R`.  Inline Python code or a path to a
+    ``.py`` file is wrapped in a function vartools generates, and called
+    once per light curve (or once for the whole batch with
+    ``process_all_lcs=True``).  Numeric LC vectors arrive as
+    :class:`numpy.ndarray` objects; string columns arrive as Python lists.
+
+    Parameters
+    ----------
+    command : str
+        Either an inline Python code string or, if ``fromfile=True``, the
+        path to a Python script file.
+    fromfile : bool
+        If True, ``command`` is treated as a file path (emits the
+        ``"fromfile"`` keyword).  Default False (inline string).
+    init : str, optional
+        Initialisation Python code (inline string or, with
+        ``init_fromfile=True``, a file path) executed once per Python
+        worker before per-LC processing starts.  Use this for ``import``
+        statements and helper-function definitions.
+    init_fromfile : bool
+        If True, ``init`` is a file path (emits ``"init" "file" path``).
+    vars : str, optional
+        Comma-separated list of vartools variables passed both into and
+        received back from Python.
+    invars : str, optional
+        Variables to pass into Python (alternative to ``vars``).
+    outvars : str, optional
+        Variables to receive back from Python (alternative to ``vars``).
+    outputcolumns : str, optional
+        Subset of out-vars to emit in the per-star statistics table.
+        Each appears as ``PYTHON_<name>_N``.
+    process_all_lcs : bool
+        Pass ``"process_all_lcs"`` — vartools sends every LC's data into
+        one Python call.  Numeric vectors arrive as lists of
+        ``numpy.ndarray`` objects; scalars as numpy arrays of length
+        ``Nlc``.  Outputs must follow the same shape.
+    skipfail : bool
+        If a per-LC Python exception is raised, skip the remaining
+        pipeline processing for that LC instead of aborting the run.
+    continueprocess : int, optional
+        Reuse the Python subprocess from the *N*-th prior ``-python``
+        command (1-indexed), preserving its global state.  Mutually
+        exclusive with ``init``.
+    inprocess : bool
+        When ``True`` and pyvartools is running in library mode, the
+        user code is executed in the host Python interpreter rather
+        than a per-thread vartools sub-process, so it shares
+        ``sys.modules`` and a caller-supplied globals dict with the
+        calling code.  Default ``False``.
+
+        Configurations rejected at construction time with ``ValueError``
+        (the in-process callback can't handle them and the subprocess
+        fall-through would fork the Python host process unsafely):
+
+        * Bare form -- no ``invars``/``outvars``/``vars``: vartools'
+          parser interprets that as "process all variables", which is
+          unsupported in-process.
+        * ``process_all_lcs=True``: routes through
+          ``RunPythonCommand_all_lcs`` which has no in-process branch.
+        * ``continueprocess`` set: explicitly rejected by the in-process
+          gate (runpython.c:2640).
+
+        Other limitations (these silently fall through to the subprocess
+        path, but the calling Pipeline is in library mode so the fork
+        is again unsafe -- avoid these for now):
+
+        * Only numeric vartools types are marshalled (``DOUBLE``,
+          ``FLOAT``, ``INT``, ``LONG``).  String LC columns or
+          string-typed per-star variables fall through.
+    namespace : dict, optional
+        Only meaningful with ``inprocess=True``.  Dict to use as globals
+        for the user code (default: caller's ``__main__.__dict__``).
+        Useful for sandboxing or for exposing a specific module's
+        globals to the inline code.
+    """
+
+    _vt_name = "python"
+
+    def __init__(
+        self,
+        command: str,
+        fromfile: bool = False,
+        init: Optional[str] = None,
+        init_fromfile: bool = False,
+        vars: Optional[str] = None,
+        invars: Optional[str] = None,
+        outvars: Optional[str] = None,
+        outputcolumns: Optional[str] = None,
+        process_all_lcs: bool = False,
+        skipfail: bool = False,
+        continueprocess: Optional[int] = None,
+        inprocess: bool = False,
+        namespace: Optional[Dict] = None,
+    ) -> None:
+        self.command = command
+        self.fromfile = fromfile
+        self.init = init
+        self.init_fromfile = init_fromfile
+        self.vars = vars
+        self.invars = invars
+        self.outvars = outvars
+        self.outputcolumns = outputcolumns
+        self.process_all_lcs = process_all_lcs
+        self.skipfail = skipfail
+        self.continueprocess = continueprocess
+        self.inprocess = inprocess
+        self.namespace = namespace
+        if inprocess:
+            # The in-process callback path is gated on three C-side
+            # conditions (runpython.c:2638-2640):
+            #   !c->processallvariables && !c->iscontinueprocess
+            # plus a check inside vt_python_run_inprocess that fails on
+            # process_all_lcs (RunPythonCommand_all_lcs has no in-process
+            # branch).  When any of these conditions block in-process,
+            # vartools falls through to the subprocess fork path, which
+            # is unsafe inside a Python host process (forking with an
+            # active interpreter risks deadlocks / segfaults).  Reject
+            # those configurations at construction time so the user
+            # gets a clear error instead of a crash at .run().
+            #
+            # vartools' -python parser sets processallvariables=1 iff no
+            # invars/outvars/inoutvars are given (runpython.c:3120-3124).
+            # ``vars`` is also accepted by the wrapper as a convenience
+            # for the same input/output set.
+            if (vars is None and invars is None and outvars is None
+                    and process_all_lcs is False):
+                raise ValueError(
+                    "cmd.python(inprocess=True) requires at least one of "
+                    "invars=, outvars=, or vars= so vartools knows which "
+                    "variables to marshal across the C->Python callback. "
+                    "The bare form `python(\"x = 1\", inprocess=True)` is "
+                    "interpreted by vartools as 'process all variables', "
+                    "which is not supported by the in-process callback "
+                    "(see runpython.c:2423)."
+                )
+            if process_all_lcs:
+                raise ValueError(
+                    "cmd.python(inprocess=True, process_all_lcs=True) is "
+                    "not supported.  process_all_lcs routes through "
+                    "RunPythonCommand_all_lcs which has no in-process "
+                    "branch; falling through to subprocess from inside "
+                    "library mode is unsafe (Python-host fork)."
+                )
+            if continueprocess is not None:
+                raise ValueError(
+                    "cmd.python(inprocess=True, continueprocess=...) is "
+                    "not supported.  The in-process callback explicitly "
+                    "rejects iscontinueprocess (runpython.c:2640) and "
+                    "the subprocess fallback would fork the Python host "
+                    "process unsafely."
+                )
+            # In-process path — register the C callback and namespace now
+            # so the wrapper is ready by the time the pipeline executes.
+            # Importing _python_inprocess pulls in ctypes + numpy and
+            # dlopens libvartoolspipeline.so, so do it lazily here only
+            # when inprocess=True is actually requested.
+            from .. import _python_inprocess
+            _python_inprocess.register()
+            ns = namespace
+            if ns is None:
+                import sys as _sys
+                ns = _sys.modules["__main__"].__dict__
+            _python_inprocess.set_namespace(ns)
+        if init is not None and continueprocess is not None:
+            raise ValueError(
+                "cmd.python: pass either `init` (initialise a new Python "
+                "subprocess) or `continueprocess` (reuse a prior one), "
+                "but not both — vartools' -python grammar rejects the "
+                "combination."
+            )
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-python"]
         if self.fromfile:
             args += ["fromfile", str(self.command)]
         else:
@@ -239,8 +494,8 @@ class R(VartoolsCommand):
             args += ["outputcolumns", str(self.outputcolumns)]
         if self.process_all_lcs:
             args += ["process_all_lcs"]
-        if self.verbose:
-            args += ["verbose"]
+        if self.skipfail:
+            args += ["skipfail"]
         return args
 
     def _output_file_specs(self) -> dict:
@@ -336,15 +591,31 @@ class match(VartoolsCommand):
 class o(VartoolsCommand):
     """Output the current light curve to a file (-o).
 
+    The CLI ``-o`` keyword takes a single positional argument that is
+    interpreted as a *filename* in single-LC mode (``vartools -i ...``)
+    and as a *directory* in list mode (``vartools -l ...``).  pyvartools
+    splits this dual semantics into two explicit keyword arguments:
+    ``outname=`` for single-LC runs and ``outdir=`` for list/batch runs.
+    The same ``cmd.o`` instance can be used in both modes if both are
+    supplied; pyvartools picks the correct one based on which run method
+    was invoked.
+
     Parameters
     ----------
-    filename : str, optional
-        Output file path (or directory in batch mode).  Required unless
-        ``capture=True``.
+    outname : str, optional
+        Output filename used when the pipeline is invoked via
+        :meth:`Pipeline.run` or :meth:`Pipeline.run_file` (single-LC
+        mode).  Use ``"-"`` to write to stdout (combine with ``-quiet``
+        to keep the stats table out of the LC stream).
+    outdir : str, optional
+        Output directory used when the pipeline is invoked via
+        :meth:`Pipeline.run_filelist`, :meth:`Pipeline.run_batch`, or
+        :meth:`Pipeline.run_combinelcs` (list mode).  Per-LC filenames
+        are constructed inside this directory.
     nameformat : str, optional
-        Format string for constructing per-LC output filenames in batch
-        mode, e.g. ``"file_%s_%05d.txt"`` (``%s`` = LC basename, ``%d``
-        = sequence number).
+        Format string for constructing per-LC output filenames in
+        list mode, e.g. ``"file_%s_%05d.txt"`` (``%s`` = LC basename,
+        ``%d`` = sequence number).  Ignored in single-LC mode.
     columnformat : str, optional
         Output column specification, e.g.
         ``"t:%17.9f,mag:%9.5f,err:%9.5f"``.
@@ -355,25 +626,46 @@ class o(VartoolsCommand):
     copyheader : bool
         Copy the input FITS header to the output file.
     namecommand : str, optional
-        Shell command used to generate the output filename.
+        Shell command used to generate the output filename in list
+        mode.  Ignored in single-LC mode.
     namefromlist : bool or str, optional
-        Derive output filename from the input list.  Pass ``True`` to use
-        the default column, or a column number/name string to use a
-        specific column (emits ``"namefromlist" "column" col``).
+        Derive output filename from the input list (list mode only).
+        Pass ``True`` to use the default column, or a column
+        number/name string to use a specific column (emits
+        ``"namefromlist" "column" col``).
+    changesuffix : tuple of (str, str), optional
+        After the default output basename has been built, strip a
+        trailing ``old_suffix`` (if present) and append ``new_suffix``,
+        e.g. ``changesuffix=(".fits", ".txt")`` rewrites ``foo.fits``
+        to ``foo.txt``.  Either string may be empty: ``("", ".lc")``
+        appends only, ``(".fits", "")`` strips only.  Mutually
+        exclusive with ``nameformat`` / ``namecommand`` /
+        ``namefromlist``.  Applied before any ``fits`` / ``gzip`` /
+        ``bzip2`` suffix is added.  List-mode only.
     delimiter : str, optional
         Column delimiter character for the output file.
     logcommandline : bool
         Write the vartools command line to the output file header.
+    gzip : bool
+        Pipe the output through ``gzip`` and append ``.gz`` to the
+        filename.  Combined with ``fits=True`` this produces a
+        gzip-compressed FITS file via cfitsio's native ``.fits.gz``
+        driver.  Mutually exclusive with ``bzip2``.
+    bzip2 : bool
+        Pipe the output through ``bzip2`` and append ``.bz2``.  Cannot
+        be combined with ``fits=True`` (cfitsio does not support bzip2
+        on write).  Mutually exclusive with ``gzip``.
     capture : bool
         If ``True``, capture the written light curve and return it in
         ``result.files[key]``.  For single-LC runs, ``result.files[key]``
         is a ``LightCurve``; for batch runs it is a list of
         ``LightCurve`` objects (one per input LC, ``None`` if missing).
 
-        When ``filename`` is ``None`` the output is written to a
-        temporary file/directory that is cleaned up automatically after
-        the run.  When ``filename`` is also supplied the file is written
-        to disk *and* captured.  Default ``False``.
+        When neither ``outname`` nor ``outdir`` is supplied, the output
+        is written to a temporary file/directory (mode-appropriate)
+        that is cleaned up automatically after the run.  When a path
+        is also supplied the file is written to disk *and* captured.
+        Default ``False``.
     key : str
         Key under which the captured LC(s) are stored in
         ``result.files``.  Default ``"o"``.  Use a unique key when the
@@ -384,81 +676,271 @@ class o(VartoolsCommand):
 
     def __init__(
         self,
-        filename: Optional[str] = None,
+        outname: Optional[str] = None,
+        outdir: Optional[str] = None,
         nameformat: Optional[str] = None,
         columnformat: Optional[str] = None,
+        allcols: bool = False,
         fits: bool = False,
         noclobber: bool = False,
         copyheader: bool = False,
         namecommand: Optional[str] = None,
         namefromlist: Union[bool, str, None] = None,
+        changesuffix: Optional[Tuple[str, str]] = None,
         delimiter: Optional[str] = None,
         logcommandline: bool = False,
+        gzip: bool = False,
+        bzip2: bool = False,
         capture: bool = False,
         key: str = "o",
     ) -> None:
-        if filename is None and not capture:
+        if outname is None and outdir is None and not capture:
             raise ValueError(
-                "cmd.o() requires either a filename or capture=True"
+                "cmd.o() requires outname= (single-LC mode) or outdir= "
+                "(list/batch mode), or capture=True (auto-managed temp "
+                "path)"
             )
-        self.filename = filename
+        if allcols and columnformat is not None:
+            raise ValueError(
+                "cmd.o(): 'allcols' and 'columnformat' are mutually exclusive"
+            )
+        if gzip and bzip2:
+            raise ValueError(
+                "cmd.o(): 'gzip' and 'bzip2' are mutually exclusive"
+            )
+        # Slot-1 mutual exclusion: only one of nameformat / namecommand /
+        # namefromlist / changesuffix may be set.
+        slot1 = sum(x is not None and x is not False for x in (
+            nameformat, namecommand, namefromlist, changesuffix))
+        if slot1 > 1:
+            raise ValueError(
+                "cmd.o(): 'nameformat', 'namecommand', 'namefromlist' and "
+                "'changesuffix' are mutually exclusive"
+            )
+        if changesuffix is not None:
+            if (not isinstance(changesuffix, (tuple, list))
+                    or len(changesuffix) != 2):
+                raise ValueError(
+                    "cmd.o(): 'changesuffix' must be a 2-tuple "
+                    "(old_suffix, new_suffix)"
+                )
+        self.outname = outname
+        self.outdir = outdir
         self.nameformat = nameformat
         self.columnformat = columnformat
+        self.allcols = allcols
         self.fits = fits
         self.noclobber = noclobber
         self.copyheader = copyheader
         self.namecommand = namecommand
         self.namefromlist = namefromlist
+        self.changesuffix = (
+            (str(changesuffix[0]), str(changesuffix[1]))
+            if changesuffix is not None else None
+        )
         self.delimiter = delimiter
         self.logcommandline = logcommandline
+        self.gzip = gzip
+        self.bzip2 = bzip2
         self.capture = capture
         self.key = key
-        # Injected by Pipeline before _to_cli_args() is called when
-        # capture=True and filename is None.
+        # Injected by Pipeline before _to_cli_args_for_mode() is called
+        # when capture=True and no explicit outname/outdir was given.
+        # In single-LC mode it points at a file; in list mode at a dir.
         self._capture_path: Optional[str] = None
 
+    def _path_for_mode(self, mode: str) -> Optional[str]:
+        """Return the user-supplied output path for the given run mode,
+        or ``None`` if only the *other* mode's kwarg was supplied (in
+        which case the caller is responsible for raising an error or
+        falling back to ``self._capture_path``)."""
+        if mode == "single":
+            return self.outname
+        return self.outdir
+
+    def _other_mode_set(self, mode: str) -> bool:
+        """True if only the *opposite*-mode path kwarg was supplied —
+        used to produce a clearer mismatch error than 'capture path
+        not assigned'."""
+        if mode == "single":
+            return self.outname is None and self.outdir is not None
+        return self.outdir is None and self.outname is not None
+
     def _to_cli_args(self) -> List[str]:
-        path = self.filename if self.filename is not None else self._capture_path
-        if path is None:
-            raise RuntimeError(
-                "cmd.o with capture=True must be run through a Pipeline "
-                "(capture path has not been assigned yet)"
-            )
+        # Default emission used by __repr__ etc.; production emission
+        # always goes through _to_cli_args_for_mode().
+        return self._to_cli_args_for_mode("single")
+
+    def _to_cli_args_for_mode(self, mode: str) -> List[str]:
+        # In any library mode (single or batch), a cmd.o(capture=True) with
+        # no explicit disk path is satisfied entirely in memory: vartools
+        # snapshots the current LC arrays into a buffer keyed by self.key,
+        # and pyvartools pulls them out via LibPipeline.read_capture(key).
+        # No file is written, no tmp directory is allocated.
+        if (mode in ("library_single", "library_batch") and self.capture
+                and self.outname is None and self.outdir is None):
+            return ["-o", str(self.key), "capture"]
+        # ``library_batch`` is library-mode batch processing: vartools is
+        # invoked once per LC through libvartoolspipeline, but a directory
+        # of named output files is wanted (one per call).  vartools is in
+        # single-file mode internally, so we emit ``-o <outdir> ... force-
+        # outdirmode`` to flip the writer into directory-naming behaviour.
+        force_outdir = (mode == "library_batch")
+        # Detect library mode before we normalize — needed below to
+        # decide whether to emit the new "capture_id <key>" keyword
+        # (write+capture combined; library mode only).
+        is_library = mode in ("library_single", "library_batch")
+        # Normalize: from here on, library_single behaves like single
+        # (single-LC, outname-as-path) and library_batch like list
+        # (batch, outdir-as-path).  The library/subprocess distinction
+        # at this point only changes whether the LC arrays are spilled
+        # to disk before vartools sees them; the -o argv is identical.
+        if mode == "library_single":
+            mode = "single"
+        elif mode == "library_batch":
+            mode = "list"
+        if force_outdir:
+            path = self.outdir or self._capture_path
+            if path is None:
+                raise RuntimeError(
+                    "cmd.o in library_batch mode requires outdir=PATH "
+                    "(or capture=True); got neither."
+                )
+        else:
+            path = self._path_for_mode(mode)
+            if path is None:
+                path = self._capture_path
+            if path is None:
+                if self._other_mode_set(mode):
+                    wanted = "outname=" if mode == "single" else "outdir="
+                    supplied = "outdir=" if mode == "single" else "outname="
+                    run_methods = (
+                        "Pipeline.run / Pipeline.run_file"
+                        if mode == "single"
+                        else "Pipeline.run_filelist / Pipeline.run_batch / "
+                             "Pipeline.run_combinelcs"
+                    )
+                    raise RuntimeError(
+                        f"cmd.o was constructed with {supplied} but the "
+                        f"pipeline is being invoked in {mode}-LC mode "
+                        f"({run_methods}); supply {wanted} to use this "
+                        f"pipeline in {mode}-LC mode."
+                    )
+                raise RuntimeError(
+                    "cmd.o with capture=True must be run through a Pipeline "
+                    "(capture path has not been assigned yet)"
+                )
+        # The CLI parser for -o consumes keywords in fixed positional
+        # slots with `else i--` fall-through, so they must be emitted in
+        # this exact order (slot 1: name*; slot 2: columnformat/allcols;
+        # slot 3: delimiter; slot 4: fits; slot 5: copyheader; slot 6:
+        # logcommandline; slot 7: noclobber; slot 8: gzip|bzip2).
         args = ["-o", str(path)]
+        # slot 1
         if self.nameformat is not None:
             args += ["nameformat", str(self.nameformat)]
-        if self.columnformat is not None:
-            args += ["columnformat", str(self.columnformat)]
-        if self.fits:
-            args += ["fits"]
-        if self.noclobber:
-            args += ["noclobber"]
-        if self.copyheader:
-            args += ["copyheader"]
-        if self.namecommand is not None:
+        elif self.namecommand is not None:
             args += ["namecommand", str(self.namecommand)]
-        if self.namefromlist is not None and self.namefromlist is not False:
-            if self.namefromlist is True:
+        elif self.namefromlist is not None and self.namefromlist is not False:
+            # In library_batch with the per-LC outname auto-rewrite marker,
+            # emit bare `namefromlist` (no column reference).  Vartools
+            # auto-registers OUTPUTLCS_OUTFILENAME_<cn> as an INLIST
+            # variable that the per-call set API can populate without
+            # needing a list-file column.  In subprocess (or single-LC),
+            # keep the existing `namefromlist column <X>` form so the
+            # list-file machinery binds correctly.
+            _perlc_synth_lib_batch = (
+                mode == "library_batch"
+                and getattr(self, "_perlc_outname_synthetic", False))
+            if self.namefromlist is True or _perlc_synth_lib_batch:
                 args += ["namefromlist"]
             else:
                 args += ["namefromlist", "column", str(self.namefromlist)]
+        elif self.changesuffix is not None:
+            args += ["changesuffix", self.changesuffix[0], self.changesuffix[1]]
+        # slot 2
+        if self.columnformat is not None:
+            args += ["columnformat", str(self.columnformat)]
+        elif self.allcols or self.capture:
+            # When capturing, default to `allcols` so the captured DataFrame
+            # contains every LC-vector variable defined by earlier commands —
+            # matching the library-mode fast path.  The explicit allcols flag
+            # also takes this branch for non-capturing callers.
+            args += ["allcols"]
+        # slot 3
         if self.delimiter is not None:
             args += ["delimiter", str(self.delimiter)]
+        # slot 4
+        if self.fits:
+            args += ["fits"]
+        # slot 5
+        if self.copyheader:
+            args += ["copyheader"]
+        # slot 6
         if self.logcommandline:
             args += ["logcommandline"]
+        # slot 7
+        if self.noclobber:
+            args += ["noclobber"]
+        # slot 8
+        if self.gzip:
+            args += ["gzip"]
+        elif self.bzip2:
+            args += ["bzip2"]
+        # slot 9 — library_batch mode override (see top of method)
+        if force_outdir:
+            args += ["forceoutdirmode"]
+        # slot 10 — combined write+capture mode in library mode.  The
+        # "capture" keyword (no path) was already handled at the very
+        # top of this method.  If we got here in a library mode with
+        # capture=True, that means a real path was also given and we
+        # want both: the file gets written via the path-based slots
+        # above, and "capture_id <key>" tells vartools to also memcpy
+        # the post-write LC into the slot keyed by self.key.
+        if is_library and self.capture:
+            args += ["capture_id", str(self.key)]
         return args
 
     def _output_file_specs(self) -> dict:
         return {}
 
+    # ------------------------------------------------------------------
+    # Capture helpers
+    # ------------------------------------------------------------------
+
+    def _columnformat_names(self):
+        """Return the list of column names declared in ``self.columnformat``.
+
+        Returns ``None`` when no ``columnformat`` is set.  Each entry in
+        the comma-separated spec is ``name[:printf_format]`` — strip the
+        format suffix and keep the bare name, so the captured ASCII
+        DataFrame can be renamed from auto-generated ``col4``/``col5``/…
+        to the user-declared names.
+        """
+        if not self.columnformat:
+            return None
+        names = []
+        for entry in str(self.columnformat).split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            names.append(entry.split(":", 1)[0])
+        return names or None
+
 
 class ifcmd(VartoolsCommand):
-    """Conditional execution of commands (-if).
+    """Open a conditional block (-if).
 
     Parameters
     ----------
     condition : str
         The vartools condition expression (passed verbatim).
+
+    See Also
+    --------
+    elifcmd : ``-elif`` branch.
+    elsecmd : ``-else`` branch.
+    ficmd : ``-fi`` — closes an `ifcmd` / `elifcmd` / `elsecmd` block.
     """
 
     _vt_name = "if"
@@ -467,8 +949,71 @@ class ifcmd(VartoolsCommand):
         self.condition = condition
 
     def _to_cli_args(self) -> List[str]:
-        # vartools -if requires the condition tokens on the same command line
-        return ["-if"] + str(self.condition).split()
+        # vartools -if takes the condition as a single token; do not split
+        # on whitespace.
+        return ["-if", str(self.condition)]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class elifcmd(VartoolsCommand):
+    """Open a conditional `-elif` branch.
+
+    Must be preceded by a matching :class:`ifcmd` and closed by a
+    :class:`ficmd`.
+
+    Parameters
+    ----------
+    condition : str
+        The vartools condition expression (passed verbatim).
+    """
+
+    _vt_name = "elif"
+
+    def __init__(self, condition: str) -> None:
+        self.condition = condition
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-elif", str(self.condition)]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class elsecmd(VartoolsCommand):
+    """Open a conditional `-else` branch.
+
+    Must be preceded by a matching :class:`ifcmd` (or :class:`elifcmd`) and
+    closed by a :class:`ficmd`.  Takes no parameters.
+    """
+
+    _vt_name = "else"
+
+    def __init__(self) -> None:
+        pass
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-else"]
+
+    def _output_file_specs(self) -> dict:
+        return {}
+
+
+class ficmd(VartoolsCommand):
+    """Close a conditional block (`-fi`).
+
+    Must follow a matching :class:`ifcmd` / :class:`elifcmd` / :class:`elsecmd`
+    sequence.  Takes no parameters.
+    """
+
+    _vt_name = "fi"
+
+    def __init__(self) -> None:
+        pass
+
+    def _to_cli_args(self) -> List[str]:
+        return ["-fi"]
 
     def _output_file_specs(self) -> dict:
         return {}
@@ -531,9 +1076,9 @@ class binlc(VartoolsCommand):
     def _to_cli_args(self) -> List[str]:
         args = ["-binlc", str(self.method)]
         if self.binsize is not None:
-            args += ["binsize", str(self.binsize)]
+            args += ["binsize"] + _varexpr(self.binsize)
         else:
-            args += ["nbins", str(self.nbins)]
+            args += ["nbins"] + _varexpr(self.nbins)
         if self.bincolumns is not None:
             args += ["bincolumns", str(self.bincolumns)]
         if self.T0 is not None:
@@ -542,7 +1087,7 @@ class binlc(VartoolsCommand):
             else:
                 args += ["T0"] + str(self.T0).split()
         if self.firstbinshift is not None:
-            args += ["firstbinshift", str(self.firstbinshift)]
+            args += ["firstbinshift"] + _varexpr(self.firstbinshift)
         to = str(self.time_output)
         args += [to]
         if to == "tnoshrink" and self.bincolumnsonly:
@@ -578,7 +1123,7 @@ class columnsuffix(VartoolsCommand):
             cmd.LS(0.5, 10.0, 1e-3),
         ])
         result = pipe.run(lc)
-        best_period = float(result.stats["LS_Period_1_ls"])
+        best_period = float(result.vars["LS_Period_1_ls"])
     """
 
     _vt_name = "columnsuffix"

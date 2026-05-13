@@ -550,7 +550,7 @@ Memory for mulimbf and mulimb0 must be allocated before calling this function, t
      if((t = (double *) malloc(NMAX * sizeof(double))) == NULL ||
 	(th = (double *) malloc(NMAX * sizeof(double))) == NULL ||
 	(r = (double *) malloc(NMAX * sizeof(double))) == NULL)
-       error(ERR_MEMALLOC);
+       vt_error(ERR_MEMALLOC);
 
      if((bt0 = (double *) malloc(nb * sizeof(double))) == NULL ||
 	(mulimb = (double *) malloc(nb * sizeof(double))) == NULL ||
@@ -867,7 +867,7 @@ void integratemandelagoltransitmodel(double exptime_phase, int Npoints, double *
 
   if((fluxtmp = (double *) malloc(Nresamp * sizeof(double))) == NULL ||
      (phasetmp = (double *) malloc(Nresamp * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   dphasesamp = exptime_phase/(Nresamp - 1);
   for(i=0; i < Npoints; i++) {
@@ -1120,7 +1120,7 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
       line = malloc(line_size);
       NRVcurve = 0;
       if((RVfile = fopen(RVfilename,"r")) == NULL)
-	error2(ERR_FILENOTFOUND,RVfilename);
+	vt_error2(ERR_FILENOTFOUND,RVfilename);
       while(gnu_getline(&line,&line_size,RVfile) >= 0)
 	NRVcurve++;
       rewind(RVfile);
@@ -1131,14 +1131,14 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
 	      if((RVcurveJD = (double *) malloc(NRVcurve * sizeof(double))) == NULL ||
 		 (RVcurveRV = (double *) malloc(NRVcurve * sizeof(double))) == NULL ||
 		 (RVcurvesig = (double *) malloc(NRVcurve * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  else
 	    {
 	      if((RVcurveJD = (double *) realloc(RVcurveJD, NRVcurve * sizeof(double))) == NULL ||
 		 (RVcurveRV = (double *) realloc(RVcurveRV, NRVcurve * sizeof(double))) == NULL ||
 		 (RVcurvesig = (double *) realloc(RVcurvesig, NRVcurve * sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  sizeRVcurvevec = NRVcurve;
 	}
@@ -1174,7 +1174,7 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
     }
 
   if((ia = (int *) malloc(ma * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(fitephem) ia[0] = 1; else ia[0] = 0;
   if(fitephem) ia[1] = 1; else ia[1] = 0;
@@ -1200,11 +1200,11 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
 
   if((p = (double **) malloc((nvar + 1)* sizeof(double *))) == NULL ||
      (y = (double *) malloc((nvar + 1) * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(j=0;j<nvar+1;j++)
     if((p[j] = (double *) malloc(ma * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
 
   /* If mconst is less than zero, set it equal to the average magnitude of the light curve */
   if(*mconst < 0)
@@ -1355,7 +1355,7 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
     {
       if((delmag = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (phase = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if(!amoeba_val)
 	{
 	  for(i=0;i<N;i++)
@@ -1377,7 +1377,7 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
 	  else
 	    {
 	      if((outfile = fopen(modelname,"w")) == NULL)
-		error2(ERR_CANNOTWRITE,modelname);
+		vt_error2(ERR_CANNOTWRITE,modelname);
 	    }
 	  if(!amoeba_val)
 	    {
@@ -1421,14 +1421,14 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
     if(ophcurve)
     {
       if((outfile2 = fopen(ophcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ophcurvename);
+	vt_error2(ERR_CANNOTWRITE,ophcurvename);
 
       fprintf(outfile2,"#Phase Mag_model\n");
       Nphase = ceil((phmax - phmin)/phstep)+1;
 
       if((delmag = (double *) malloc(Nphase * sizeof(double))) == NULL ||
 	 (phase = (double *) malloc(Nphase * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0, ph=phmin;i<Nphase && ph <= phmax;i++, ph += phstep)
 	{
 	  if(ph < 0) {
@@ -1468,14 +1468,14 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
     if(ojdcurve)
     {
       if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ojdcurvename);
+	vt_error2(ERR_CANNOTWRITE,ojdcurvename);
 
       fprintf(outfile2,"#Time Mag_model Phase\n");
       Nphase = ceil((t[N-1] - t[0])/jdstep)+1;
       if((delmag = (double *) malloc(Nphase * sizeof(double))) == NULL ||
 	 (phase = (double *) malloc(Nphase * sizeof(double))) == NULL ||
 	 (tout = (double *) malloc(Nphase * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0, jdtmp=t[0];i<Nphase && jdtmp <= t[N-1];i++, jdtmp += jdstep)
 	{
 	  tout[i] = jdtmp;
@@ -1508,12 +1508,12 @@ void fitmandelagoltransit_amoeba(ProgramData *programdat, int N, double *t, doub
   if(fitRV && *P > 0.)
     {
       if((omodelRVcurvefile = fopen(omodelRVcurve,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,omodelRVcurve);
+	vt_error2(ERR_CANNOTWRITE,omodelRVcurve);
 
       sizemodelRVcurve = DEFAULTSIZEMODELRVCURVE;
       if((phaseRVmodel = (double *) malloc(sizemodelRVcurve * sizeof(double))) == NULL ||
 	 (RVmodel = (double *) malloc(sizemodelRVcurve * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       dphase = 1./((double) sizemodelRVcurve);
       phaseRVmodel[0] = 0.;

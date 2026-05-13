@@ -122,7 +122,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
     lib = lt_dlopenext(libname);
 
     if(lib == NULL) {
-      error2(ERR_OPEN_LIBRARY,libname);
+      vt_error2(ERR_OPEN_LIBRARY,libname);
     }  
   }
 
@@ -130,12 +130,12 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 
   if(!p->NUserLib) {
     if((p->UserLib = (_UserLib *) malloc(sizeof(_UserLib))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->NUserLib = 1;
   }
   else {
     if((p->UserLib = (_UserLib *) realloc(p->UserLib, (p->NUserLib + 1)*sizeof(_UserLib))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->NUserLib += 1;
   }
 
@@ -189,7 +189,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
   p->UserLib[j].ParseCL_function_ptr = func;
 
@@ -203,7 +203,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
   p->UserLib[j].RunCommand_function_ptr = func;
 
@@ -217,7 +217,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
   p->UserLib[j].ShowSyntax_function = ((ShowSyntax_function_type)(func));
 
@@ -231,7 +231,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
   p->UserLib[j].ShowHelp_function = ((ShowHelp_function_type)(func));
 
@@ -245,7 +245,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
   p->UserLib[j].Initialize_function = ((Initialize_function_type)(func));
 
@@ -307,7 +307,7 @@ int load_user_library(char *libname, ProgramData *p, int islib, ...) {
   if(func == NULL) {
     /* If this function is missing, it means the user did not link to the
        libvartools.a library in making their own library. */
-    error2(ERR_LIBRARY_MISSING_FUNCTION,"VARTOOLS_Set_Function_Pointers");
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,"VARTOOLS_Set_Function_Pointers");
   }
   
   ((void (*)(void (*)(_VARTOOLS_FUNCTION_POINTER_STRUCT *))) 
@@ -370,7 +370,7 @@ int load_userfunction_library(char *libname, ProgramData *p) {
   */
 
   if(lib == NULL) {
-    error2(ERR_OPEN_LIBRARY,libname);
+    vt_error2(ERR_OPEN_LIBRARY,libname);
   }
 
   /* Call the initialization routine */
@@ -405,7 +405,7 @@ int load_userfunction_library(char *libname, ProgramData *p) {
   if(func == NULL) {
     /* If this function is missing, it means the user did not link to the
        libvartools.a library in making their own library. */
-    error2(ERR_LIBRARY_MISSING_FUNCTION,"VARTOOLS_Set_Function_Pointers");
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,"VARTOOLS_Set_Function_Pointers");
   }
   
   ((void (*)(void (*)(_VARTOOLS_FUNCTION_POINTER_STRUCT *))) 
@@ -421,7 +421,7 @@ int load_userfunction_library(char *libname, ProgramData *p) {
 #endif
   */
   if(func == NULL) {
-    error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
+    vt_error2(ERR_LIBRARY_MISSING_FUNCTION,tmpstring);
   }
 
   ((void (*)(ProgramData *))func)(p);
@@ -439,11 +439,11 @@ int vRegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*fu
   if(p->NUserFunc == 0) {
     p->NUserFunc = 1;
     if((p->UserFunc = (_UserFunc *) malloc(sizeof(_UserFunc))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     p->NUserFunc += 1;
     if((p->UserFunc = (_UserFunc *) realloc(p->UserFunc, (p->NUserFunc*sizeof(_UserFunc)))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   sprintf(p->UserFunc[p->NUserFunc - 1].funcname, "%s", funcname);
   p->UserFunc[p->NUserFunc - 1].Nargs = Nexpr;
@@ -456,7 +456,7 @@ int vRegisterUserFunction(ProgramData *p, char *funcname, int Nexpr, double (*fu
     if(Nexpr > 0) {
       if((p->UserFunc[p->NUserFunc - 1].argnames = (OutText *) malloc(Nexpr * sizeof(OutText))) == NULL ||
 	 (p->UserFunc[p->NUserFunc - 1].argsummaries = (OutText *) malloc(Nexpr * sizeof(OutText))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     for(i = 0; i < Nexpr; i++) {
       InitOutTextStruct(&(p->UserFunc[p->NUserFunc - 1].argnames[i]));
@@ -498,11 +498,11 @@ int CheckIfUserCommandIsCalled(ProgramData *p, Command *c, int cn, char *argv) {
       increaseNcommands(p,&c);
       c[cn].cnum = CNUM_USERCOMMAND;
       if((c[cn].UserCommand = (_UserCommand *) malloc(sizeof(_UserCommand))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       /*c[cn].UserCommand->lib = &(p->UserLib[i]);*/
       c[cn].UserCommand->libnum = i;
       if((c[cn].UserCommand->userdata = (void *) malloc(p->UserLib[i].sizeuserdata)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       /*c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;*/
       c[cn].require_sort = p->UserLib[i].RequireSortLC;
@@ -543,11 +543,11 @@ int CheckIfUserCommandIsCalled(ProgramData *p, Command *c, int cn, char *argv) {
 	increaseNcommands(p,&c);
 	c[cn].cnum = CNUM_USERCOMMAND;
 	if((c[cn].UserCommand = (_UserCommand *) malloc(sizeof(_UserCommand))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	/*c[cn].UserCommand->lib = &(p->UserLib[i]);*/
 	c[cn].UserCommand->libnum = i;
 	if((c[cn].UserCommand->userdata = (void *) malloc(p->UserLib[i].sizeuserdata)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	
 	/*c[cn].require_sort = c[cn].UserCommand->lib->RequireSortLC;*/
 	c[cn].require_sort = p->UserLib[i].RequireSortLC;
@@ -726,7 +726,7 @@ void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum) {
 	sprintf(fmt,"%%d");
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
       if(d->Ncolumns <= 0) {
 	/*
@@ -912,7 +912,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  voidptr = (float *) floatptr;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
 	if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN)
 	  getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
@@ -953,7 +953,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	    voidptr = (float *) floatptr;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	  getoutcolumnvalue(d->linkedcolumn[k], lc_num, lc_list_num,
 			    d->datatype, voidptr);
@@ -993,7 +993,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = *((float *) fix->dataptr);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
 	for(k=0; k < Nc; k++) {
@@ -1027,7 +1027,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	    *floatptr = (*((float **) fix->dataptr))[k];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -1065,7 +1065,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = ((*((float **) d->inlistdataptr))[lc_list_num]);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
 	for(k=0; k < Nc; k++) {
@@ -1100,7 +1100,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	    *floatptr = ((*((float ***) d->inlistdataptr))[lc_list_num][k]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       }
@@ -1136,7 +1136,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	*floatptr = (float) eval_result;
 	break;
       default:
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
     } else if(d->source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
       for(k=0; k < p->NJD[lc_num]; k++) {
@@ -1171,7 +1171,7 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = (float) eval_result;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
@@ -1210,10 +1210,10 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_list_num]);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     }  else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
 	       (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
@@ -1251,10 +1251,10 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = ((*((float *) (*(d->existingvariable))->dataptr)));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
 	      (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
@@ -1292,10 +1292,10 @@ void RunUserCommand(ProgramData *p, Command *c, int lc_list_num, int lc_num) {
 	  *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       }
     }
   }
@@ -1375,7 +1375,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    voidptr = (float *) floatptr;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	  if(d->source == VARTOOLS_SOURCE_PRIORCOLUMN)
 	    getoutcolumnvalue(d->linkedcolumn[0], lc_num, 
@@ -1417,7 +1417,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	      voidptr = (float *) floatptr;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	    getoutcolumnvalue(d->linkedcolumn[k], lc_num, lc_num,
 			      d->datatype, voidptr);
@@ -1457,7 +1457,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = *((float *) fix->dataptr);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
 	  for(k=0; k < Nc; k++) {
@@ -1491,7 +1491,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	      *floatptr = (*((float **) fix->dataptr))[k];
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -1529,7 +1529,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = ((*((float **) d->inlistdataptr))[lc_num]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
 	  for(k=0; k < Nc; k++) {
@@ -1564,7 +1564,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	      *floatptr = ((*((float ***) d->inlistdataptr))[lc_num][k]);
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	    }
 	  }
 	}
@@ -1600,7 +1600,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	  *floatptr = (float) eval_result;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else if(d->source == VARTOOLS_SOURCE_EVALEXPRESSION_LC) {
 	for(k=0; k < p->NJD[lc_num]; k++) {
@@ -1635,7 +1635,7 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = (float) eval_result;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	}
       } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
@@ -1674,10 +1674,10 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	}
       }  else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
 		 (d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
@@ -1715,10 +1715,10 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = ((*((float *) (*(d->existingvariable))->dataptr)));
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	}
       } else if(d->source == VARTOOLS_SOURCE_EXISTINGVARIABLE ? 
 		(d->expectedvectortype == VARTOOLS_VECTORTYPE_PERSTARDATA &&
@@ -1756,10 +1756,10 @@ void RunUserCommand_all_lcs(ProgramData *p, Command *c) {
 	    *floatptr = ((*((float **) (*(d->existingvariable))->dataptr))[lc_num]);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	  }
 	} else {
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	}
       }
 
@@ -1864,7 +1864,7 @@ void GetColumnNameForRecentCommand(ProgramData *p, Command *c, int cnum,
       k--;
     }
     if(k <= 0) {
-      error2(ERR_NO_PREVIOUS_COMMAND,"BLS");
+      vt_error2(ERR_NO_PREVIOUS_COMMAND,"BLS");
     }
     if(!strcmp(paramname,"Period")) {
       sprintf(outcolname,"BLS_Period_1_%d",(k-1));
@@ -1879,7 +1879,7 @@ void GetColumnNameForRecentCommand(ProgramData *p, Command *c, int cnum,
       return;
     }
     else {
-      error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
+      vt_error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
     }
     break;
   case CNUM_AOV:
@@ -1892,14 +1892,14 @@ void GetColumnNameForRecentCommand(ProgramData *p, Command *c, int cnum,
       k--;
     }
     if(k <= 0) {
-      error2(ERR_NO_PREVIOUS_COMMAND,"aov");
+      vt_error2(ERR_NO_PREVIOUS_COMMAND,"aov");
     }
     if(!strcmp(paramname,"Period")) {
       sprintf(outcolname,"Period_1_%d",(k-1));
       return;
     }
     else {
-      error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
+      vt_error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
     }
     break;
   case CNUM_HARMAOV:
@@ -1912,14 +1912,14 @@ void GetColumnNameForRecentCommand(ProgramData *p, Command *c, int cnum,
       k--;
     }
     if(k <= 0) {
-      error2(ERR_NO_PREVIOUS_COMMAND,"aov_harm");
+      vt_error2(ERR_NO_PREVIOUS_COMMAND,"aov_harm");
     }
     if(!strcmp(paramname,"Period")) {
       sprintf(outcolname,"Period_1_%d",(k-1));
       return;
     }
     else {
-      error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
+      vt_error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
     }
     break;
   case CNUM_LS:
@@ -1932,18 +1932,18 @@ void GetColumnNameForRecentCommand(ProgramData *p, Command *c, int cnum,
       k--;
     }
     if(k <= 0) {
-      error2(ERR_NO_PREVIOUS_COMMAND,"LS");
+      vt_error2(ERR_NO_PREVIOUS_COMMAND,"LS");
     }
     if(!strcmp(paramname,"Period")) {
       sprintf(outcolname,"LS_Period_1_%d",(k-1));
       return;
     }
     else {
-      error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
+      vt_error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
     }
     break;
   default:
-    error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
+    vt_error(ERR_INVALID_CALL_GETCOLUMNNAMEFORRECENTCOMMAND);
   }
 }
 
@@ -2279,19 +2279,19 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       Ncolumns != 0 ||
       output != 0)
      )
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
 
   if((source == VARTOOLS_SOURCE_EVALEXPRESSION && Ncolumns != 0) ||
      (source == VARTOOLS_SOURCE_EVALEXPRESSION_LC && Ncolumns != 0) ||
      (source == VARTOOLS_SOURCE_EXISTINGVARIABLE && Ncolumns != 0))
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
 
   if(dataptr == NULL && output) {
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
   }
 
   if(source == VARTOOLS_SOURCE_EXISTINGVARIABLE && output) {
-    error(ERR_BADTYPE);
+    vt_error(ERR_BADTYPE);
   }
 
   switch(datatype)
@@ -2328,11 +2328,11 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 
   if(!co->Nptrs) {
     if((co->UserDataPointers = (_UserDataPointer *) malloc(sizeof(_UserDataPointer))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     ptr = co->UserDataPointers;
   } else {
     if((co->UserDataPointers = (_UserDataPointer *) realloc(co->UserDataPointers, (co->Nptrs + 1)*sizeof(_UserDataPointer))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     ptr = co->UserDataPointers;
     k = 0;
     for(j=0; j < co->Nptrs; j++) {
@@ -2367,14 +2367,14 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
   if(output) {
     if(!co->Noutput) {
       if((co->OutputData = (_UserDataPointer *) malloc(sizeof(_UserDataPointer))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     } else {
       if((co->OutputData = (_UserDataPointer *) realloc(co->OutputData, (co->Noutput + 1)*sizeof(_UserDataPointer))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     
     if((ptr[co->Nptrs].outname = (char *) malloc(MAXLEN)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     if(outname != NULL)
       sprintf(ptr[co->Nptrs].outname,"%s",outname);
     else
@@ -2424,7 +2424,7 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	  voidptr = (void *) malloc(sizeof(void *));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       }
@@ -2461,7 +2461,7 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	  voidptr = (void *) malloc(sizeof(void *));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       }
@@ -2481,10 +2481,10 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	 the value is typically given on the command line */
       if(!co->Nfix) {
 	if((co->FixValues = (_UserDataPointer *) malloc(sizeof(_UserDataPointer))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((co->FixValues = (_UserDataPointer *) realloc(co->FixValues, (co->Nfix + 1)*sizeof(_UserDataPointer))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       co->FixValues[co->Nfix].datatype = datatype;
       voidptr = va_arg(varlist,void *);
@@ -2533,7 +2533,7 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	  voidptr = (void *) charptr1;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       } else {
@@ -2596,7 +2596,7 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	  voidptr = (void *) charptr;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       }
@@ -2614,17 +2614,17 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       if(Ncolumns >= 1) {
 	if((ptr[co->Nptrs].linkedcolumn = (OutColumn **) malloc(Ncolumns*sizeof(OutColumn *))) == NULL ||
 	   (ptr[co->Nptrs].priorname = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	for(k=0; k < Ncolumns; k++) {
 	  if((ptr[co->Nptrs].priorname[k] = (char *) malloc(MAXLEN)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       } else {
 	if((ptr[co->Nptrs].linkedcolumn = (OutColumn **) malloc(sizeof(OutColumn *))) == NULL ||
 	   (ptr[co->Nptrs].priorname = (char **) malloc(sizeof(char *))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	if((ptr[co->Nptrs].priorname[0] = (char *) malloc(MAXLEN)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
 
       if(Ncolumns <= 0) {
@@ -2743,9 +2743,9 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 
       if((ptr[co->Nptrs].linkedcolumn = (OutColumn **) malloc(sizeof(OutColumn *))) == NULL ||
 	 (ptr[co->Nptrs].priorname = (char **) malloc(sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((ptr[co->Nptrs].priorname[0] = (char *) malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       colnum = va_arg(varlist,int);
       charptr1 = va_arg(varlist,char *);
@@ -2763,16 +2763,16 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       if(co->Nexpr == 0) {
 	if((co->expr_strings = (char **) malloc(sizeof(char *))) == NULL ||
 	   (co->UserDataExpressions = (_Expression ***) malloc(sizeof(_Expression **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((co->expr_strings = (char **) realloc(co->expr_strings, (co->Nexpr + 1)*sizeof(char *))) == NULL ||
 	   (co->UserDataExpressions = (_Expression ***) realloc(co->UserDataExpressions, (co->Nexpr + 1)*sizeof(_Expression **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       co->UserDataExpressions[co->Nexpr] = &(ptr[co->Nptrs].evalexpression);
       exprstring = va_arg(varlist,char *);
       if((co->expr_strings[co->Nexpr] = malloc(sizeof(exprstring)+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(co->expr_strings[co->Nexpr],"%s",exprstring);
 
       co->Nexpr += 1;
@@ -2783,16 +2783,16 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       if(co->Nexpr == 0) {
 	if((co->expr_strings = (char **) malloc(sizeof(char *))) == NULL ||
 	   (co->UserDataExpressions = (_Expression ***) malloc(sizeof(_Expression **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((co->expr_strings = (char **) realloc(co->expr_strings, (co->Nexpr + 1)*sizeof(char *))) == NULL ||
 	   (co->UserDataExpressions = (_Expression ***) realloc(co->UserDataExpressions, (co->Nexpr + 1)*sizeof(_Expression **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       co->UserDataExpressions[co->Nexpr] = &(ptr[co->Nptrs].evalexpression);
       exprstring = va_arg(varlist,char *);
       if((co->expr_strings[co->Nexpr] = malloc(sizeof(exprstring)+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(co->expr_strings[co->Nexpr],"%s",exprstring);
 
       co->Nexpr += 1;
@@ -2813,17 +2813,17 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
 	   (c->prior_var_vectortypes = (char *) malloc(sizeof(char))) == NULL ||
 	   (c->prior_var_names = (char **) malloc(sizeof(char *))) == NULL ||
 	   (c->prior_vars = (_Variable ***) malloc(sizeof(_Variable **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       } else {
 	if((c->prior_var_datatypes = (char *) realloc(c->prior_var_datatypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
 	   (c->prior_var_vectortypes = (char *) realloc(c->prior_var_vectortypes, (c->N_prior_vars + 1)*sizeof(char))) == NULL ||
 	   (c->prior_var_names = (char **) realloc(c->prior_var_names, (c->N_prior_vars + 1)*sizeof(char *))) == NULL ||
 	   (c->prior_vars = (_Variable ***) realloc(c->prior_vars, (c->N_prior_vars + 1)*sizeof(_Variable **))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       exprstring = va_arg(varlist,char *);
       if((c->prior_var_names[c->N_prior_vars] = (char *) malloc(strlen(exprstring)+1)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(c->prior_var_names[c->N_prior_vars],"%s",exprstring);
       c->prior_var_vectortypes[c->N_prior_vars] = (char) va_arg(varlist,int);
       c->prior_vars[c->N_prior_vars] = va_arg(varlist,_Variable **);
@@ -2832,14 +2832,14 @@ void vRegisterDataVector(ProgramData *p, Command *c, void *dataptr,
       c->prior_var_datatypes[c->N_prior_vars] = datatype;
       if(c->prior_var_vectortypes[c->N_prior_vars] == VARTOOLS_VECTORTYPE_LC &&
 	 output) {
-	error(ERR_BADTYPE);
+	vt_error(ERR_BADTYPE);
       }
 
       c->N_prior_vars += 1;
       break;
 
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 
@@ -2936,7 +2936,7 @@ int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
   sizepriornames = 0;
 
   if(Nvec <= 0)
-    error(ERR_INVALIDUSEOFPARSEFIXSPECFIXCOLUMN);
+    vt_error(ERR_INVALIDUSEOFPARSEFIXSPECFIXCOLUMN);
  
   i = *iret;
 
@@ -2983,7 +2983,7 @@ int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
 	      fixptr = (void *) &stringval;
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	      break;
 	    }
 	    i++;
@@ -2994,59 +2994,59 @@ int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
 	  switch(datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    if((dbl2ptr = (double **) malloc(sizeof(double *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*dbl2ptr = (double *) malloc(Ncolumns*sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = dbl2ptr;
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    if((flt2ptr = (float **) malloc(sizeof(float *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*flt2ptr = (float *) malloc(Ncolumns*sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = flt2ptr;
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    if((int2ptr = (int **) malloc(sizeof(int *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*int2ptr = (int *) malloc(Ncolumns*sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = int2ptr;
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    if((long2ptr = (long **) malloc(sizeof(long *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*long2ptr = (long *) malloc(Ncolumns*sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = long2ptr;
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    if((short2ptr = (short **) malloc(sizeof(short *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*short2ptr = (short *) malloc(Ncolumns*sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = short2ptr;
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    if((char2ptr = (char **) malloc(sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*char2ptr = (char *) malloc(Ncolumns)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    fixptr = char2ptr;
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    if((string2ptr = (char ***) malloc(sizeof(char **))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((*string2ptr = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < Ncolumns; k++) {
 	      if(((*string2ptr)[k] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    fixptr = string2ptr;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	    break;
 	  }
 	  for(k=0; k < Ncolumns; k++) {
@@ -3075,7 +3075,7 @@ int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
 		sprintf((*string2ptr)[k],"%s",argv[i]);
 		break;
 	      default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 		break;
 	      }
 	    } else {
@@ -3127,27 +3127,27 @@ int ParseFixSpecFixcolumn(ProgramData *p, Command *c, int *iret, char **argv,
 	if(Ncolumns <= 0) {
 	  if(!sizepriornames) {
 	    if((priornames = (char **) malloc(sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((priornames[0] = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sizepriornames = 1;
 	  }
 	} else {
 	  if(!sizepriornames) {
 	    if((priornames = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < Ncolumns; k++) {
 	      if((priornames[k] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    sizepriornames = Ncolumns;
 	  } 
 	  else if(sizepriornames > Ncolumns) {
 	    if((priornames = (char **) realloc(priornames, Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=sizepriornames; k < Ncolumns; k++) {
 	      if((priornames[k] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    sizepriornames = Ncolumns;
 	  }
@@ -3250,7 +3250,7 @@ Return values:
   if(*iret >= argc)
     return 2;
   if(((*outdir) = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf((*outdir),"%s",argv[*iret]);
   *outputflag = 1;
   (*iret)++;
@@ -3262,7 +3262,7 @@ Return values:
   if(*iret >= argc)
     return 2;
   if(((*format) = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf((*format),"%s",argv[*iret]);
   *formatflag = 1;
   return 0;
@@ -3355,7 +3355,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
     switch(datatype) {
     case VARTOOLS_TYPE_DOUBLE:
       if((dblptr = (double *) malloc(Ncolumns * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	dblptr[i] = atof(argv[*iret]);
 	(*iret)++;
@@ -3364,7 +3364,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_FLOAT:
       if((fltptr = (float *) malloc(Ncolumns * sizeof(float))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	fltptr[i] = (float) atof(argv[*iret]);
 	(*iret)++;
@@ -3373,10 +3373,10 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_STRING:
       if((stringptr = (char **) malloc(Ncolumns * sizeof(char *))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	if((stringptr[i] = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
 	sprintf(stringptr[i],"%s",argv[*iret]);
 	(*iret)++;
       }
@@ -3384,7 +3384,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_CHAR:
       if((charptr = (char *) malloc(Ncolumns * sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	charptr[i] = argv[*iret][0];
 	(*iret)++;
@@ -3393,7 +3393,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_INT:
       if((intptr = (int *) malloc(Ncolumns * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	intptr[i] = atoi(argv[*iret]);
 	(*iret)++;
@@ -3402,7 +3402,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_SHORT:
       if((shortptr = (short *) malloc(Ncolumns * sizeof(short))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	shortptr[i] = (short) atoi(argv[*iret]);
 	(*iret)++;
@@ -3411,7 +3411,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_LONG:
       if((longptr = (long *) malloc(Ncolumns * sizeof(long))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       for(i=0; i < Ncolumns; i++) {
 	longptr[i] = atol(argv[*iret]);
 	(*iret)++;
@@ -3419,7 +3419,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       *((long **) dataptr) = longptr;
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
   } else {
     switch(datatype) {
@@ -3431,7 +3431,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       break;
     case VARTOOLS_TYPE_STRING:
       if((charptr = (char *) malloc((strlen(argv[*iret])+1)*sizeof(char))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       sprintf(charptr,"%s",argv[*iret]);
       *((char **) dataptr) = charptr;
       break;
@@ -3448,7 +3448,7 @@ int ParseConstantParameter(ProgramData *p, Command *c, int *iret, char **argv,
       *((long *) dataptr) = atol(argv[*iret]);
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
     }
     (*iret)++;
   }
@@ -3585,61 +3585,61 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	      break;
 	    case VARTOOLS_TYPE_STRING:
 	      if(((*((char **) fixval)) = (char *) malloc(strlen(*((char **) defaultval))+1)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(*((char **) fixval),"%s", (*((char **)defaultval)));
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	      break;
 	    }
 	  } else {
 	    switch(datatype) {
 	    case VARTOOLS_TYPE_DOUBLE:
 	      if((*((double **) fixval) = (double *) malloc(Ncolumns*sizeof(double))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((double **) fixval))[j] = (*((double **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_FLOAT:
 	      if((*((float **) fixval) = (float *) malloc(Ncolumns*sizeof(float))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((float **) fixval))[j] = (*((float **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_INT:
 	      if((*((int **) fixval) = (int *) malloc(Ncolumns*sizeof(int))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((int **) fixval))[j] = (*((int **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_LONG:
 	      if((*((long **) fixval) = (long *) malloc(Ncolumns*sizeof(long))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((long **) fixval))[j] = (*((long **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_SHORT:
 	      if((*((short **) fixval) = (short *) malloc(Ncolumns*sizeof(short))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((short **) fixval))[j] = (*((short **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_CHAR:
 	      if((*((char **) fixval) = (char *) malloc(Ncolumns*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++)
 		(*((char **) fixval))[j] = (*((char **) defaultval))[j];
 	      break;
 	    case VARTOOLS_TYPE_STRING:
 	      if((*((char ***) fixval) = (char **) malloc(Ncolumns*sizeof(char))) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      for(j=0; j < Ncolumns; j++) {
 		if(((*((char ***) fixval))[j] = (char *) malloc(strlen((*((char ***) defaultval))[j])+1)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		sprintf((*((char ***) fixval))[j],"%s", (*((char ***)defaultval))[j]);
 		break;
 	      default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 		break;
 	      }
 	    }
@@ -3694,11 +3694,11 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	      break;
 	    case VARTOOLS_TYPE_STRING:
 	      if((*((char **) fixval) = (char *) malloc(strlen(argv[*iret])+1)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	      sprintf(*((char **) fixval),"%s",argv[*iret]);
 	      break;
 	    default:
-	      error(ERR_BADTYPE);
+	      vt_error(ERR_BADTYPE);
 	      break;
 	    }
 	    *iret = *iret + 1;
@@ -3710,34 +3710,34 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	  switch(datatype) {
 	  case VARTOOLS_TYPE_DOUBLE:
 	    if((*((double **) fixval) = (double *) malloc(Ncolumns*sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_FLOAT:
 	    if((*((float **) fixval) = (float *) malloc(Ncolumns*sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_INT:
 	    if((*((int **) fixval) = (int *) malloc(Ncolumns*sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_LONG:
 	    if((*((long **) fixval) = (long *) malloc(Ncolumns*sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_SHORT:
 	    if((*((short **) fixval) = (short *) malloc(Ncolumns*sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_CHAR:
 	    if((*((char **) fixval) = (char *) malloc(Ncolumns*sizeof(char))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  case VARTOOLS_TYPE_STRING:
 	    if((*((char ***) fixval) = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	    break;
 	  }
 	  for(k=0; k < Ncolumns; k++) {
@@ -3764,11 +3764,11 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 		break;
 	      case VARTOOLS_TYPE_STRING:
 		if(((*((char ***) fixval))[j] = (char *) malloc(strlen(argv[*iret])+1)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 		sprintf((*((char ***) fixval))[k],"%s", argv[*iret]);
 		break;
 	      default:
-		error(ERR_BADTYPE);
+		vt_error(ERR_BADTYPE);
 		break;
 	      }
 	    } else {
@@ -3785,16 +3785,16 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	  *iret = *iret + 1;
 	  if(*iret >= argc) { va_end(varlist); return 1; }
 	  if((*((char **) expr_char) = (char *) malloc(strlen(argv[*iret])+1)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  sprintf((*((char **) expr_char)),"%s",argv[*iret]);
 	} else {
 	  if((*((char ***) expr_char) = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Ncolumns; j++) {
 	    *iret = *iret + 1;
 	    if(*iret >= argc) { va_end(varlist); return 1; }
 	    if(((*((char ***) expr_char))[j] = (char *) malloc(strlen(argv[*iret])+1)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sprintf((*((char ***) expr_char))[j],"%s",argv[*iret]);
 	  }
 	}
@@ -3822,29 +3822,29 @@ int ParseParameterBuiltInCommand(ProgramData *p, int cnum,
 	if(Ncolumns <= 0) {
 	  if(!sizepriornames) {
 	    if((priornames = (char **) malloc(sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    if((priornames[0] = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    sizepriornames = 1;
 	  }
 	} else {
 	  if((*((OutColumn ***) outcolumn) = (OutColumn **) malloc(Ncolumns*sizeof(OutColumn *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  if(!sizepriornames) {
 	    if((priornames = (char **) malloc(Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < Ncolumns; k++) {
 	      if((priornames[k] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    sizepriornames = Ncolumns;
 	  } 
 	  else if(sizepriornames > Ncolumns) {
 	    if((priornames = (char **) realloc(priornames, Ncolumns*sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=sizepriornames; k < Ncolumns; k++) {
 	      if((priornames[k] = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    sizepriornames = Ncolumns;
 	  }
@@ -4028,124 +4028,124 @@ void MemAllocDataForUserCommand(Command *c, int Nlc)
 	case VARTOOLS_TYPE_DOUBLE:
 	  dblptr = (double **) d->dataptr;
 	  if(((*dblptr) = (double *) malloc(Nlc * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  stringptr = (char ***) d->dataptr;
 	  if(((*stringptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*stringptr)[j]) = (char *) malloc(MAXLEN)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  intptr = (int **) d->dataptr;
 	  if(((*intptr) = (int *) malloc(Nlc * sizeof(int))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  shortptr = (short **) d->dataptr;
 	  if(((*shortptr) = (short *) malloc(Nlc * sizeof(short))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  floatptr = (float **) d->dataptr;
 	  if(((*floatptr) = (float *) malloc(Nlc * sizeof(float))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  longptr = (long **) d->dataptr;
 	  if(((*longptr) = (long *) malloc(Nlc * sizeof(long))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  charptr = (char **) d->dataptr;
 	  if(((*charptr) = (char *) malloc(Nlc)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  break;
 	case VARTOOLS_TYPE_USERDEF:
 	  if(((*((char **)d->dataptr)) = 
 	      (char *) malloc(Nlc * d->size_element)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    d->initialize_usertype_ptr(Nlc, (void *) (&(*((char **)d->dataptr))[j*d->size_element]), d->extra_user_data);
 	  }
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       } else {
 	switch(d->datatype) {
 	case VARTOOLS_TYPE_DOUBLE:
 	  dbl2ptr = (double ***) d->dataptr;
 	  if(((*dbl2ptr) = (double **) malloc(Nlc * sizeof(double *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j<Nlc; j++) {
 	    if((((*dbl2ptr)[j]) = (double *) malloc(Nc * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_STRING:
 	  string2ptr = (char ****) d->dataptr;
 	  if(((*string2ptr) = (char ***) malloc(Nlc * sizeof(char **))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*string2ptr)[j]) = (char **) malloc(Nc * sizeof(char *))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(k=0; k < Nc; k++) {
 	      if((((*string2ptr)[j][k]) = (char *) malloc(MAXLEN)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	  break;
 	case VARTOOLS_TYPE_INT:
 	  int2ptr = (int ***) d->dataptr;
 	  if(((*int2ptr) = (int **) malloc(Nlc * sizeof(int *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*int2ptr)[j]) = (int *) malloc(Nc * sizeof(int))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_SHORT:
 	  short2ptr = (short ***) d->dataptr;
 	  if(((*short2ptr) = (short **) malloc(Nlc * sizeof(short *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*short2ptr)[j]) = (short *) malloc(Nc * sizeof(short))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_FLOAT:
 	  float2ptr = (float ***) d->dataptr;
 	  if(((*float2ptr) = (float **) malloc(Nlc * sizeof(float *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*float2ptr)[j]) = (float *) malloc(Nc * sizeof(float))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_LONG:
 	  long2ptr = (long ***) d->dataptr;
 	  if(((*long2ptr) = (long **) malloc(Nlc * sizeof(long *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*long2ptr)[j]) = (long *) malloc(Nc * sizeof(long))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	case VARTOOLS_TYPE_CHAR:
 	  char2ptr = (char ***) d->dataptr;
 	  if(((*char2ptr) = (char **) malloc(Nlc * sizeof(char *))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j < Nlc; j++) {
 	    if((((*char2ptr)[j]) = (char *) malloc(Nc)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	}
       }
     }
@@ -4158,10 +4158,10 @@ void MemAllocDataForUserCommand(Command *c, int Nlc)
 void RegisterTrackedOpenFile(ProgramData *p, FILE *f){
   if(!p->N_tracked_open_files) {
     if((p->tracked_open_files = (FILE **) malloc(sizeof(FILE *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   } else {
     if((p->tracked_open_files = (FILE **) realloc(p->tracked_open_files, (p->N_tracked_open_files+1)*sizeof(FILE *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   p->tracked_open_files[p->N_tracked_open_files] = f;
   p->N_tracked_open_files += 1;
@@ -4208,8 +4208,8 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->kurtosis = &kurtosis;
   fptr->skewness = &skewness;
   fptr->percentile = &percentile;
-  fptr->error = &error;
-  fptr->error2 = &error2;
+  fptr->error = &vt_error;
+  fptr->error2 = &vt_error2;
   fptr->fitpoly = &fitpoly;
   fptr->chi2 = &chi2;
   fptr->isDifferentPeriods = &isDifferentPeriods;

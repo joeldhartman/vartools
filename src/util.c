@@ -59,12 +59,12 @@ void checkUTCFormat(char *UTCformat, int *UTCindex)
   for(j=0; j < 6; j++)
     UTCindex[j] = -1;
   if(UTCformat == NULL)
-    error(ERR_INVALID_UTC_FORMAT);
+    vt_error(ERR_INVALID_UTC_FORMAT);
   while(UTCformat[i] != '\0') {
     if(UTCformat[i] == '%') {
       i++;
       if(UTCformat[i] == '\0') {
-	error(ERR_INVALID_UTC_FORMAT);
+	vt_error(ERR_INVALID_UTC_FORMAT);
       }
       j = -1;
       switch(UTCformat[i]) {
@@ -89,13 +89,13 @@ void checkUTCFormat(char *UTCformat, int *UTCindex)
 	j = 5;
 	break;
       default:
-	error(ERR_INVALID_UTC_FORMAT);
+	vt_error(ERR_INVALID_UTC_FORMAT);
       };
       if(j != -1) {
 	if(UTCindex[j] != -1)
-	  error(ERR_INVALID_UTC_FORMAT);
+	  vt_error(ERR_INVALID_UTC_FORMAT);
 	if(nscanned == 6)
-	  error(ERR_INVALID_UTC_FORMAT);
+	  vt_error(ERR_INVALID_UTC_FORMAT);
 	UTCformat[i] = 'f';
 	UTCindex[j] = nscanned;
 	nscanned++;
@@ -104,7 +104,7 @@ void checkUTCFormat(char *UTCformat, int *UTCindex)
     i++;
   }
   if(nscanned <= 0)
-    error(ERR_INVALID_UTC_FORMAT);
+    vt_error(ERR_INVALID_UTC_FORMAT);
   return;
 }
 
@@ -193,7 +193,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
       text->Nchar_cur_line = 0;
       text->space = MAXLEN;
       if((text->s = malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       text->s[0] = '\0';
     }
 
@@ -207,7 +207,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
     while(text->len_s + (k-k1) + 2 >= text->space) {
       text->space = text->space * 2;
       if((text->s = realloc(text->s, text->space)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     if(text->Nchar_cur_line + (k - k1) > LINEWRAP_LENGTH) {
       text->s[j] = '\n';
@@ -215,7 +215,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
       while(text->len_s + (k-k1) + 2 + space_indent >= text->space) {
 	text->space = text->space * 2;
 	if((text->s = realloc(text->s, text->space)) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
       for(m=0; m < space_indent; m++) {
 	text->s[j] = ' ';
@@ -242,7 +242,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
 	while(text->len_s + TAB_SPACE_SIZE + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(text->Nchar_cur_line + TAB_SPACE_SIZE >= LINEWRAP_LENGTH) {
 	  text->s[j] = '\n';
@@ -250,7 +250,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
 	  while(text->len_s + space_indent + 1 >= text->space) {
 	    text->space = text->space * 2;
 	    if((text->s = realloc(text->s, text->space)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  for(m=0; m < space_indent; m++) {
 	    text->s[j] = ' ';
@@ -276,7 +276,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
 	while(text->len_s + 2 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(text->Nchar_cur_line + 1 >= LINEWRAP_LENGTH) {
 	  text->s[j] = '\n';
@@ -284,7 +284,7 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
 	  while(text->len_s + space_indent + 1 >= text->space) {
 	    text->space = text->space * 2;
 	    if((text->s = realloc(text->s, text->space)) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	  }
 	  for(m=0; m < space_indent; m++) {
 	    text->s[j] = ' ';
@@ -308,14 +308,14 @@ void printtostring_indentwrap(OutText *text, const char *stoadd, int Ntab_indent
 	while(text->len_s + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	text->s[j] = '\n';
 	j++;
 	while(text->len_s + space_indent + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	for(m=0; m < space_indent; m++) {
 	  text->s[j] = ' ';
@@ -342,7 +342,7 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
       text->Nchar_cur_line = 0;
       text->space = MAXLEN;
       if((text->s = malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       text->s[0] = '\0';
     }
 
@@ -356,7 +356,7 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
     while(text->len_s + (k-k1) + 2 >= text->space) {
       text->space = text->space * 2;
       if((text->s = realloc(text->s, text->space)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     while(k1 < k) {
       if(stoadd[k1] == '~')
@@ -374,7 +374,7 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
 	while(text->len_s + TAB_SPACE_SIZE + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	for(k2 = 0; k2 < TAB_SPACE_SIZE; k2++) {
 	  text->s[j] = ' ';
@@ -389,7 +389,7 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
 	while(text->len_s + 2 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(text->Nchar_cur_line != 0) {
 	  text->s[j] = ' ';
@@ -404,7 +404,7 @@ void printtostring_nowrap(OutText *text, const char *stoadd)
 	while(text->len_s + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	text->s[j] = '\n';
 	j++;
@@ -427,7 +427,7 @@ void printtostring_nowrap_tabindent(OutText *text, const char *stoadd)
       text->Nchar_cur_line = 0;
       text->space = MAXLEN;
       if((text->s = malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       text->s[0] = '\0';
     }
 
@@ -443,7 +443,7 @@ void printtostring_nowrap_tabindent(OutText *text, const char *stoadd)
   while(text->len_s + (k-k1) + 2 >= text->space) {
     text->space = text->space * 2;
     if((text->s = realloc(text->s, text->space)) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   while(k1 < k) {
     text->s[j] = stoadd[k1];
@@ -479,7 +479,7 @@ void printtostring(OutText *text, const char *stoadd)
       text->Nchar_cur_line = 0;
       text->space = MAXLEN;
       if((text->s = malloc(MAXLEN)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       text->s[0] = '\0';
     }
 
@@ -493,7 +493,7 @@ void printtostring(OutText *text, const char *stoadd)
     while(text->len_s + (k-k1) + 2 >= text->space) {
       text->space = text->space * 2;
       if((text->s = realloc(text->s, text->space)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
     if(text->Nchar_cur_line + (k - k1) > LINEWRAP_LENGTH) {
       text->s[j] = '\n';
@@ -518,7 +518,7 @@ void printtostring(OutText *text, const char *stoadd)
 	while(text->len_s + TAB_SPACE_SIZE + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(text->Nchar_cur_line + TAB_SPACE_SIZE >= LINEWRAP_LENGTH) {
 	  text->s[j] = '\n';
@@ -542,7 +542,7 @@ void printtostring(OutText *text, const char *stoadd)
 	while(text->len_s + 2 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	if(text->Nchar_cur_line + 1 >= LINEWRAP_LENGTH) {
 	  text->s[j] = '\n';
@@ -564,7 +564,7 @@ void printtostring(OutText *text, const char *stoadd)
 	while(text->len_s + 1 >= text->space) {
 	  text->space = text->space * 2;
 	  if((text->s = realloc(text->s, text->space)) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
 	text->s[j] = '\n';
 	j++;
@@ -830,12 +830,12 @@ void SwapLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	    if(!sizemax) {
 	      sizemax = d->maxstringlength;
 	      if((ts = (char *) malloc(sizemax)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	    else {
 	      sizemax = d->maxstringlength;
 	      if((ts = (char *) realloc(ts,sizemax)) == NULL)
-		error(ERR_MEMALLOC);
+		vt_error(ERR_MEMALLOC);
 	    }
 	  }
 	  memcpy(ts, ((*stringptr)[lc][i]), d->maxstringlength);
@@ -874,7 +874,7 @@ void SwapLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	  (*charptr)[lc][j] = tc;
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
     }
@@ -900,12 +900,12 @@ void SwapLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	      if(!sizemax) {
 		sizemax = d->maxstringlength;
 		if((ts = (char *) malloc(sizemax)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	      else {
 		sizemax = d->maxstringlength;
 		if((ts = (char *) realloc(ts,sizemax)) == NULL)
-		  error(ERR_MEMALLOC);
+		  vt_error(ERR_MEMALLOC);
 	      }
 	    }
 	    memcpy(ts, ((*string2ptr)[lc][u][i]), d->maxstringlength);
@@ -944,7 +944,7 @@ void SwapLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	    (*char2ptr)[lc][u][j] = tc;
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	    break;
 	  }
       }
@@ -1015,7 +1015,7 @@ void CopyLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	  (*charptr)[lc][j] = (*charptr)[lc][i];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
     }
@@ -1057,7 +1057,7 @@ void CopyLightCurvePoints(int i, int j, ProgramData *p, int lc)
 	    (*char2ptr)[lc][u][j] = (*char2ptr)[lc][u][i];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	    break;
 	  }
       }
@@ -1188,7 +1188,7 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	    (*charptr)[lc][h] = (*charptr)[lc][kk];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
     }
@@ -1281,7 +1281,7 @@ void AverageLightCurvePoints(int i, int j, int h, ProgramData *p, int lc)
 	      (*char2ptr)[lc][u][h] = (*char2ptr)[lc][u][kk];
 	    break;
 	  default:
-	    error(ERR_BADTYPE);
+	    vt_error(ERR_BADTYPE);
 	    break;
 	  }
       }
@@ -1590,7 +1590,7 @@ int sortlcbyvarstring_internal(int i0, int iN, char **t, int lc, ProgramData *p)
   if(iN - i0 <= 1) return 0;
 
   if((v = (char *) malloc((strlen(t[i0])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(v,"%s",t[i0]);
   i = i0;
   j = iN;
@@ -1626,7 +1626,7 @@ int sortlcbyvarstring(int size, char **t, int lc, ProgramData *p)
     return 0;
 
   if((v = (char *) malloc((strlen(t[0])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(v,"%s",t[0]);
 
   i = 0;
@@ -1662,7 +1662,7 @@ int sortlcbyvarstring_rev_internal(int i0, int iN, char **t, int lc, ProgramData
   if(iN - i0 <= 1) return 0;
 
   if((v = (char *) malloc((strlen(t[i0])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(v,"%s",t[i0]);
   i = i0;
   j = iN;
@@ -1698,7 +1698,7 @@ int sortlcbyvarstring_rev(int size, char **t, int lc, ProgramData *p)
     return 0;
 
   if((v = (char *) malloc((strlen(t[0])+1)*sizeof(char))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   sprintf(v,"%s",t[0]);
 
   i = 0;

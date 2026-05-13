@@ -1334,7 +1334,7 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -1430,7 +1430,7 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
     {
       if((srvals = (double *) malloc(SRVALSSIZE * sizeof(double))) == NULL ||
 	 (srvals_minus = (double *) malloc(SRVALSSIZE * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       firsttime = 1;
     }
 
@@ -1466,11 +1466,11 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
   }
 
   if(nb > nbmax) {
-    error(ERR_BLSNBMAX);
+    vt_error(ERR_BLSNBMAX);
   }
   tot = t[n-1] - t[0];
   if(fmin < 1./tot) {
-    error(ERR_BLSFMINTOOSMALL);
+    vt_error(ERR_BLSFMINTOOSMALL);
   }
 
   /**********************************************************/
@@ -2434,7 +2434,7 @@ the periodogram, and then search it for peaks    *
   if(operiodogram)
     {
       if((outfile = fopen(outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
       if(ascii)
 	{
 	  fprintf(outfile,"#Period  S/N   SR\n");
@@ -2462,7 +2462,7 @@ the periodogram, and then search it for peaks    *
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
@@ -2506,7 +2506,7 @@ the periodogram, and then search it for peaks    *
   if(ophcurve)
     {
       if((outfile2 = fopen(ophcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ophcurvename);
+	vt_error2(ERR_CANNOTWRITE,ophcurvename);
 
       fprintf(outfile2,"#Phase Mag_model\n");
       ph2 = phmin;
@@ -2538,7 +2538,7 @@ the periodogram, and then search it for peaks    *
   if(ojdcurve)
     {
       if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ojdcurvename);
+	vt_error2(ERR_CANNOTWRITE,ojdcurvename);
 
       fprintf(outfile2,"#Time Mag_model Phase\n");
       jdtmp = t[0];
@@ -2703,7 +2703,7 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
     if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
        (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     }
     n = 0;
     for(i = 0; i < n_in; i++) {
@@ -2798,7 +2798,7 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
     {
       if((srvals = (double *) malloc(SRVALSSIZE * sizeof(double))) == NULL ||
 	 (srvals_minus = (double *) malloc(SRVALSSIZE * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       firsttime = 1;
     }
 
@@ -2839,12 +2839,12 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   }
 
   if(nb >= nbmax) {
-    error(ERR_BLSNBMAX);
+    vt_error(ERR_BLSNBMAX);
   }
   if(nb < 2) nb = 2;
   tot = t[n-1] - t[0];
   if(fmin < 1./tot) {
-    error(ERR_BLSFMINTOOSMALL);
+    vt_error(ERR_BLSFMINTOOSMALL);
   }
 
   /**********************************************************/
@@ -3815,7 +3815,7 @@ the periodogram, and then search it for peaks    *
   if(operiodogram)
     {
       if((outfile = fopen(outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
 
       if(ascii)
 	{
@@ -3844,7 +3844,7 @@ the periodogram, and then search it for peaks    *
   if(omodel)
     {
       if((outfile2 = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
 
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
@@ -3888,7 +3888,7 @@ the periodogram, and then search it for peaks    *
   if(ophcurve)
     {
       if((outfile2 = fopen(ophcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ophcurvename);
+	vt_error2(ERR_CANNOTWRITE,ophcurvename);
 
       fprintf(outfile2,"#Phase Mag_model\n");
       ph2 = phmin;
@@ -3920,7 +3920,7 @@ the periodogram, and then search it for peaks    *
   if(ojdcurve)
     {
       if((outfile2 = fopen(ojdcurvename,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,ojdcurvename);
+	vt_error2(ERR_CANNOTWRITE,ojdcurvename);
 
       fprintf(outfile2,"#Time Mag_model Phase\n");
       jdtmp = t[0];
@@ -4079,7 +4079,7 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	Bls->sizeuv[lcnum] = p->NJD[lcnum];
 	if((Bls->u[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL ||
 	   (Bls->v[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     else if(Bls->sizeuv[lcnum] < p->NJD[lcnum])
       {
@@ -4088,7 +4088,7 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	free(Bls->v[lcnum]);
 	if((Bls->u[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL ||
 	   (Bls->v[lcnum] = (double *) malloc(Bls->sizeuv[lcnum] * sizeof(double))) == NULL)
-	  error(ERR_MEMALLOC);
+	  vt_error(ERR_MEMALLOC);
       }
     
     if(Bls->operiodogram)
@@ -4268,11 +4268,11 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	if(!(Bls->sizepvec[threadindex])) {
 	  Bls->sizepvec[threadindex] = Bls->nf2[lcnum] + 1;
 	  if((Bls->p[threadindex] = (double *) malloc(Bls->sizepvec[threadindex]*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  Bls->sizepvec[threadindex] = Bls->nf2[lcnum] + 1;
 	  if((Bls->p[threadindex] = (double *) realloc(Bls->p[threadindex], Bls->sizepvec[threadindex]*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       }
 #else
@@ -4280,11 +4280,11 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	if(!Bls->sizepvec) {
 	  Bls->sizepvec = Bls->nf2[lcnum] + 1;
 	  if((Bls->p = (double *) malloc(Bls->sizepvec*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	} else {
 	  Bls->sizepvec = Bls->nf2[lcnum] + 1;
 	  if((Bls->p = (double *) realloc(Bls->p, Bls->sizepvec*sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	}
       }
 #endif

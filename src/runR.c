@@ -779,7 +779,7 @@ int WriteVariablesFromRToSocket(ProgramData *p, _RCommand *cparent,
   short tmpshortout;
   int lenvec;
 
-  char *tmpstr;
+  const char *tmpstr;
   char *tmpcharvec = NULL;
   int sizetmpcharvec = 0;
 
@@ -1366,6 +1366,7 @@ int SendVariablesToChildRProcess(ProgramData *p, int lcindex,
       case VARTOOLS_VECTORTYPE_CONSTANT:
 	ptrtosend = c->vars[i]->dataptr;
 	break;
+      case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
       case VARTOOLS_VECTORTYPE_SCALAR:
       case VARTOOLS_VECTORTYPE_INLIST:
 	if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_SCALAR)
@@ -1487,6 +1488,7 @@ int SendVariablesToChildRProcess(ProgramData *p, int lcindex,
 	  ptrtosend = (void *) &((*((char **)c->vars[i]->dataptr))[0]);
 	  strlentosend = strlen((char *)ptrtosend);
 	  break;
+	case VARTOOLS_VECTORTYPE_INTERNALSCALAR:
 	case VARTOOLS_VECTORTYPE_SCALAR:
 	case VARTOOLS_VECTORTYPE_INLIST:
 	  if(c->vars[i]->vectortype == VARTOOLS_VECTORTYPE_SCALAR)
@@ -2056,12 +2058,12 @@ void StopRunningRCommand(ProgramData *p, int threadindex, _RCommand *c)
   int msg = VARTOOLS_R_MESSAGE_ENDPROCESS;
   if(!c->iscontinueprocess) {
     if(c->IsRRunning[threadindex]) {
-      write(c->sockets[threadindex][0], &msg, sizeof(int));
+      (void)write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
   } else {
     if(!((_RCommand *)c->continueprocesscommandptr)->IsRRunning[threadindex]) {
-      write(c->sockets[threadindex][0], &msg, sizeof(int));
+      (void)write(c->sockets[threadindex][0], &msg, sizeof(int));
       close(c->sockets[threadindex][0]);
     }
   }
@@ -2241,7 +2243,11 @@ void InitRCommand(ProgramData *p, _RCommand *c, int Nlcs)
     }
 #endif
   } else {
-    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(sizeof(_RObjectContainer *))))) == NULL ||
+    /* Allocate Nlcs slots: when readallflag=true the main thread only writes
+       slot 0, but if this command (or any child) has RequireReadAll set,
+       InitializeR() later fills slots 1..Nlcs-1.  Allocating just one slot
+       here caused a heap overflow in that path. */
+    if((c->Robjects = (void *)(((_RObjectContainer **) malloc(Nlcs * sizeof(_RObjectContainer *))))) == NULL ||
        (c->outcolumndata = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
       DO_ERROR_MEMALLOC;
     if(c->Noutcolumnvars > 0) {

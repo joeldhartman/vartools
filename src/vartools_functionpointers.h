@@ -58,7 +58,7 @@ typedef struct {
   void (*error)(int);
   void (*error2)(int, char *);
   double (*fitpoly)(int, double *, double *, double *, int, int, double *, double *);
-  double (*chi2)(int, double *, double *, double *, double *, int *);
+  double (*chi2)(int, double *, double *, double *, double *, int *, int, _Variable *, int, int);
   int (*isDifferentPeriods)(double, double, double);
 
   /* Sort functions */

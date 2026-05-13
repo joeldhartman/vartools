@@ -341,7 +341,7 @@ void GetCleanBeam(double *W_r, double *W_i, int Nf, double **B_r, int *Nb)
   (*Nb) = ceil(sqrt(11.5/sigval));
 
   if(((*B_r) = (double *) malloc((2*(*Nb) + 1)* sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0,x=-(*Nb);i<(2*(*Nb) + 1);i++,x++)
     {
@@ -385,7 +385,7 @@ void finddftpeaks(int Nf, double df, double *pow, int Npeaks, double *peaks, dou
   Nftot = 2*Nf + 1;
 
   if((pow_cpy = (double *) malloc(Nftot * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   memcpy(pow_cpy, pow, Nftot * sizeof(double));
 
@@ -534,7 +534,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
     if((t_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
        (mag_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
        (sig_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     N = 0;
     for(i = 0; i < N_in; i++) {
       if(!isnan(mag_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
@@ -577,10 +577,10 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
     }
   }
 
-  gain = c->gain;
-  SNlimit = c->SNlimit;
-  nb = c->nbeam;
-  maxfreq = c->maxfreq;
+  gain = VT_EVAL_DOUBLE(c, gain, lclistnum, lcnum);
+  SNlimit = VT_EVAL_DOUBLE(c, SNlimit, lclistnum, lcnum);
+  nb = VT_EVAL_INT(c, nbeam, lclistnum, lcnum);
+  maxfreq = VT_EVAL_DOUBLE(c, maxfreq, lclistnum, lcnum);
 
   T = t[N-1] - t[0];
   /* Determine the frequency spacing and number of frequencies */
@@ -613,7 +613,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
      (W_i = (double *) malloc(Nwtot * sizeof(double))) == NULL ||
      (S_r = (double *) malloc(Nftot * sizeof(double))) == NULL ||
      (S_i = (double *) malloc(Nftot * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* Compute the dirty spectrum */
   FDFT(t, mag, N, df, Nf, R_r, R_i);
@@ -625,7 +625,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
     {
       sprintf(outname,"%s/%s%s",c->dirtyspec_outdir,lcbasename,c->dirtyspec_suffix);
       if((outfile = fopen(outname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,outname);
+	vt_error2(ERR_CANNOTWRITE,outname);
       if(ascii)
 	{
 	  fprintf(outfile,"#Freq Pow DFT_real DFT_imag\n");
@@ -647,7 +647,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
 
   /* Find the peaks in the dirty spectrum if we are asked to */
   if(c->finddirtypeaks)
-    finddftpeaks(Nf, df, R_pow, c->Npeaks_dirty, c->peakfreqs_dirty[lc], c->peakpows_dirty[lc],c->clip_dirty,c->clipiter_dirty,c->SNR_dirty[lc],c->useampspec,&(c->stdper_dirty[lc]), &(c->aveper_dirty[lc]), &(c->stdper_noclip_dirty[lc]), &(c->aveper_noclip_dirty[lc]));
+    finddftpeaks(Nf, df, R_pow, c->Npeaks_dirty, c->peakfreqs_dirty[lc], c->peakpows_dirty[lc],VT_EVAL_DOUBLE(c, clip_dirty, lclistnum, lcnum),c->clipiter_dirty,c->SNR_dirty[lc],c->useampspec,&(c->stdper_dirty[lc]), &(c->aveper_dirty[lc]), &(c->stdper_noclip_dirty[lc]), &(c->aveper_noclip_dirty[lc]));
 
   /* Compute the window function if we're asked to output it, or if we are going to run clean */
   if(c->outwspec || c->runclean)
@@ -659,7 +659,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
 	{
 	  sprintf(outname,"%s/%s%s",c->wspec_outdir,lcbasename,c->wspec_suffix);
 	  if((outfile = fopen(outname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,outname);
+	    vt_error2(ERR_CANNOTWRITE,outname);
 	  if(ascii)
 	    {
 	      fprintf(outfile,"#Freq Wspec_real Wspec_imag\n");
@@ -694,7 +694,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
 	{
 	  sprintf(outname,"%s/%s%s",c->cbeam_outdir,lcbasename,c->cbeam_suffix);
 	  if((outfile = fopen(outname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,outname);
+	    vt_error2(ERR_CANNOTWRITE,outname);
 	  if(ascii)
 	    {
 	      fprintf(outfile,"#Freq C_beam\n");
@@ -718,7 +718,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
 	{
 	  sprintf(outname,"%s/%s%s",c->cspec_outdir,lcbasename,c->cspec_suffix);
 	  if((outfile = fopen(outname,"w")) == NULL)
-	    error2(ERR_CANNOTWRITE,outname);
+	    vt_error2(ERR_CANNOTWRITE,outname);
 	  if(ascii)
 	    {
 	      fprintf(outfile,"#Freq Pow_clean DFT_real_clean DFT_imag_clean DFT_real_clean_deconv DFT_imag_clean_deconv\n");
@@ -742,7 +742,7 @@ void dodftclean(int N_in, double *t_in, double *mag_in, double *sig_in, int lc, 
 
       /* Get the peaks in the clean spectrum if asked to */
       if(c->findcleanpeaks)
-	finddftpeaks(Nf, df, C_pow, c->Npeaks_clean, c->peakfreqs_clean[lc], c->peakpows_clean[lc],c->clip_clean,c->clipiter_clean,c->SNR_clean[lc],c->useampspec,&(c->aveper_clean[lc]), &(c->stdper_clean[lc]), &(c->aveper_noclip_clean[lc]), &(c->stdper_noclip_clean[lc]));
+	finddftpeaks(Nf, df, C_pow, c->Npeaks_clean, c->peakfreqs_clean[lc], c->peakpows_clean[lc],VT_EVAL_DOUBLE(c, clip_clean, lclistnum, lcnum),c->clipiter_clean,c->SNR_clean[lc],c->useampspec,&(c->aveper_clean[lc]), &(c->stdper_clean[lc]), &(c->aveper_noclip_clean[lc]), &(c->stdper_noclip_clean[lc]));
     }
 
   /* Free all the allocated vectors */

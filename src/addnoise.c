@@ -85,7 +85,7 @@ void addnoise_wavelet(ProgramData *p, double gamval, double sig_r, double sig_w,
 
   if((datain = (double *) malloc(p->NJD[lc] * sizeof(double))) == NULL ||
      (dataout = (double *) malloc(p->NJD[lc] * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   Nin = p->NJD[lc];
 
@@ -107,7 +107,7 @@ void addnoise_wavelet(ProgramData *p, double gamval, double sig_r, double sig_w,
   n0 = 2;
 
   if((p_ = malloc (Nin * sizeof (size_t))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   
   gsl_sort_index (p_, datain, 1, Nin);
   
@@ -137,7 +137,7 @@ void addnoise_wavelet(ProgramData *p, double gamval, double sig_r, double sig_w,
   work = gsl_wavelet_workspace_alloc (N);
   
   if((data = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   //g = 1./(2.*log(2.));
 
@@ -168,6 +168,7 @@ void addnoise_wavelet(ProgramData *p, double gamval, double sig_r, double sig_w,
   
   for (i=0; i < Nin; i++) {
     j1 = floor((datain[p_[i]] - datain[p_[0]])/sep);
+    if(j1 >= N-1) j1 = N-2;
     j2 = j1+1;
     r1 = datain[p_[0]] + j1*sep;
     r2 = datain[p_[0]] + j2*sep;
@@ -218,17 +219,17 @@ void addnoise_covar_squareexp(ProgramData *p, double cov_rho, double sig_r, doub
      (Nvec = (int *) malloc(NJD * sizeof(int))) == NULL ||
      (b = (double *) malloc(NJD * sizeof(double))) == NULL ||
      (p_chol = (double *) malloc(NJD * sizeof(double))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   for(i=0; i < NJD; i++) {
     if((Cov[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(cov_rho <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   if(sig_r <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   cov_rho = cov_rho*cov_rho;
   sig_r = sig_r*sig_r;
@@ -301,17 +302,17 @@ void addnoise_covar_exp(ProgramData *p, double cov_rho, double sig_r, double sig
      (Nvec = (int *) malloc(NJD * sizeof(int))) == NULL ||
      (b = (double *) malloc(NJD * sizeof(double))) == NULL ||
      (p_chol = (double *) malloc(NJD * sizeof(double))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   for(i=0; i < NJD; i++) {
     if((Cov[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(cov_rho <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   if(sig_r <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   sig_r = sig_r*sig_r;
   sig_w = sig_w*sig_w;
@@ -385,20 +386,20 @@ void addnoise_covar_matern(ProgramData *p, double cov_nu, double cov_rho, double
      (Nvec = (int *) malloc(NJD * sizeof(int))) == NULL ||
      (b = (double *) malloc(NJD * sizeof(double))) == NULL ||
      (p_chol = (double *) malloc(NJD * sizeof(double))) == NULL) {
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   }
   for(i=0; i < NJD; i++) {
     if((Cov[i] = (double *) malloc(NJD * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   if(cov_nu <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   if(cov_rho <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   if(sig_r <= 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
   sig_r = sig_r*sig_r;
   sig_w = sig_w*sig_w;
@@ -471,7 +472,7 @@ void addnoise_white(ProgramData *p, double sig_w, int lc)
   if(NJD <= 0) return;
 
   if(sig_w < 0.0) {
-    error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
+    vt_error(ERR_NEGATIVE_COVAR_PARAM_ADDNOISE);
   }
 
   for(i=0; i < NJD; i++) {
@@ -485,18 +486,34 @@ void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid) {
     sortlcbytime(p->NJD[threadid], p->t[threadid], threadid, p);
     if(c->rho_r_type == PERTYPE_SPECIFIED)
       d1 = c->rho_r[lcid][0];
+    else if(c->rho_r_type == PERTYPE_VAR)
+      d1 = EvaluateVariable_Double(lcid, threadid, 0, c->rho_r_var);
+    else if(c->rho_r_type == PERTYPE_EXPR)
+      d1 = EvaluateExpression(lcid, threadid, 0, c->rho_r_expr);
     else
       d1 = c->rho_r_fix;
     if(c->sig_r_type == PERTYPE_SPECIFIED)
       d2 = c->sig_r[lcid][0];
+    else if(c->sig_r_type == PERTYPE_VAR)
+      d2 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_r_var);
+    else if(c->sig_r_type == PERTYPE_EXPR)
+      d2 = EvaluateExpression(lcid, threadid, 0, c->sig_r_expr);
     else
       d2 = c->sig_r_fix;
     if(c->sig_w_type == PERTYPE_SPECIFIED)
       d3 = c->sig_w[lcid][0];
+    else if(c->sig_w_type == PERTYPE_VAR)
+      d3 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_w_var);
+    else if(c->sig_w_type == PERTYPE_EXPR)
+      d3 = EvaluateExpression(lcid, threadid, 0, c->sig_w_expr);
     else
       d3 = c->sig_w_fix;
     if(c->bintime_type == PERTYPE_SPECIFIED)
       d4 = c->bintime[lcid][0];
+    else if(c->bintime_type == PERTYPE_VAR)
+      d4 = EvaluateVariable_Double(lcid, threadid, 0, c->bintime_var);
+    else if(c->bintime_type == PERTYPE_EXPR)
+      d4 = EvaluateExpression(lcid, threadid, 0, c->bintime_expr);
     else
       d4 = c->bintime_fix;
     addnoise_covar_squareexp(p, d1, d2, d3, threadid, d4);
@@ -505,18 +522,34 @@ void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid) {
     sortlcbytime(p->NJD[threadid], p->t[threadid], threadid, p);
     if(c->rho_r_type == PERTYPE_SPECIFIED)
       d1 = c->rho_r[lcid][0];
+    else if(c->rho_r_type == PERTYPE_VAR)
+      d1 = EvaluateVariable_Double(lcid, threadid, 0, c->rho_r_var);
+    else if(c->rho_r_type == PERTYPE_EXPR)
+      d1 = EvaluateExpression(lcid, threadid, 0, c->rho_r_expr);
     else
       d1 = c->rho_r_fix;
     if(c->sig_r_type == PERTYPE_SPECIFIED)
       d2 = c->sig_r[lcid][0];
+    else if(c->sig_r_type == PERTYPE_VAR)
+      d2 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_r_var);
+    else if(c->sig_r_type == PERTYPE_EXPR)
+      d2 = EvaluateExpression(lcid, threadid, 0, c->sig_r_expr);
     else
       d2 = c->sig_r_fix;
     if(c->sig_w_type == PERTYPE_SPECIFIED)
       d3 = c->sig_w[lcid][0];
+    else if(c->sig_w_type == PERTYPE_VAR)
+      d3 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_w_var);
+    else if(c->sig_w_type == PERTYPE_EXPR)
+      d3 = EvaluateExpression(lcid, threadid, 0, c->sig_w_expr);
     else
       d3 = c->sig_w_fix;
     if(c->bintime_type == PERTYPE_SPECIFIED)
       d4 = c->bintime[lcid][0];
+    else if(c->bintime_type == PERTYPE_VAR)
+      d4 = EvaluateVariable_Double(lcid, threadid, 0, c->bintime_var);
+    else if(c->bintime_type == PERTYPE_EXPR)
+      d4 = EvaluateExpression(lcid, threadid, 0, c->bintime_expr);
     else
       d4 = c->bintime_fix;
     addnoise_covar_exp(p, d1, d2, d3, threadid, d4);
@@ -525,22 +558,42 @@ void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid) {
     sortlcbytime(p->NJD[threadid], p->t[threadid], threadid, p);
     if(c->nu_r_type == PERTYPE_SPECIFIED)
       d0 = c->nu_r[lcid][0];
+    else if(c->nu_r_type == PERTYPE_VAR)
+      d0 = EvaluateVariable_Double(lcid, threadid, 0, c->nu_r_var);
+    else if(c->nu_r_type == PERTYPE_EXPR)
+      d0 = EvaluateExpression(lcid, threadid, 0, c->nu_r_expr);
     else
       d0 = c->nu_r_fix;
     if(c->rho_r_type == PERTYPE_SPECIFIED)
       d1 = c->rho_r[lcid][0];
+    else if(c->rho_r_type == PERTYPE_VAR)
+      d1 = EvaluateVariable_Double(lcid, threadid, 0, c->rho_r_var);
+    else if(c->rho_r_type == PERTYPE_EXPR)
+      d1 = EvaluateExpression(lcid, threadid, 0, c->rho_r_expr);
     else
       d1 = c->rho_r_fix;
     if(c->sig_r_type == PERTYPE_SPECIFIED)
       d2 = c->sig_r[lcid][0];
+    else if(c->sig_r_type == PERTYPE_VAR)
+      d2 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_r_var);
+    else if(c->sig_r_type == PERTYPE_EXPR)
+      d2 = EvaluateExpression(lcid, threadid, 0, c->sig_r_expr);
     else
       d2 = c->sig_r_fix;
     if(c->sig_w_type == PERTYPE_SPECIFIED)
       d3 = c->sig_w[lcid][0];
+    else if(c->sig_w_type == PERTYPE_VAR)
+      d3 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_w_var);
+    else if(c->sig_w_type == PERTYPE_EXPR)
+      d3 = EvaluateExpression(lcid, threadid, 0, c->sig_w_expr);
     else
       d3 = c->sig_w_fix;
     if(c->bintime_type == PERTYPE_SPECIFIED)
       d4 = c->bintime[lcid][0];
+    else if(c->bintime_type == PERTYPE_VAR)
+      d4 = EvaluateVariable_Double(lcid, threadid, 0, c->bintime_var);
+    else if(c->bintime_type == PERTYPE_EXPR)
+      d4 = EvaluateExpression(lcid, threadid, 0, c->bintime_expr);
     else
       d4 = c->bintime_fix;
     addnoise_covar_matern(p, d0, d1, d2, d3, threadid, d4);
@@ -548,6 +601,10 @@ void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid) {
   else if(c->noise_type == VARTOOLS_ADDNOISE_WHITE) {
     if(c->sig_w_type == PERTYPE_SPECIFIED)
       d3 = c->sig_w[lcid][0];
+    else if(c->sig_w_type == PERTYPE_VAR)
+      d3 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_w_var);
+    else if(c->sig_w_type == PERTYPE_EXPR)
+      d3 = EvaluateExpression(lcid, threadid, 0, c->sig_w_expr);
     else
       d3 = c->sig_w_fix;
     addnoise_white(p, d3, threadid);
@@ -558,14 +615,26 @@ void addnoise(ProgramData *p, _AddNoise *c, int threadid, int lcid) {
       mergeequallctimes(p, threadid);
     if(c->gammaval_type == PERTYPE_SPECIFIED)
       d1 = c->gammaval[lcid][0];
+    else if(c->gammaval_type == PERTYPE_VAR)
+      d1 = EvaluateVariable_Double(lcid, threadid, 0, c->gammaval_var);
+    else if(c->gammaval_type == PERTYPE_EXPR)
+      d1 = EvaluateExpression(lcid, threadid, 0, c->gammaval_expr);
     else
       d1 = c->gammaval_fix;
     if(c->sig_r_type == PERTYPE_SPECIFIED)
       d2 = c->sig_r[lcid][0];
+    else if(c->sig_r_type == PERTYPE_VAR)
+      d2 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_r_var);
+    else if(c->sig_r_type == PERTYPE_EXPR)
+      d2 = EvaluateExpression(lcid, threadid, 0, c->sig_r_expr);
     else
       d2 = c->sig_r_fix;
     if(c->sig_w_type == PERTYPE_SPECIFIED)
       d3 = c->sig_w[lcid][0];
+    else if(c->sig_w_type == PERTYPE_VAR)
+      d3 = EvaluateVariable_Double(lcid, threadid, 0, c->sig_w_var);
+    else if(c->sig_w_type == PERTYPE_EXPR)
+      d3 = EvaluateExpression(lcid, threadid, 0, c->sig_w_expr);
     else
       d3 = c->sig_w_fix;
     addnoise_wavelet(p, d1, d2, d3, threadid);

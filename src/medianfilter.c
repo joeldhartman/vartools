@@ -60,12 +60,12 @@ replace - 0 means the median is subtracted from each point.
     return;
 
   if((magout = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   if(!meanflag)
     {
       if((vals = (double *) malloc(N * sizeof(double))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
 
       jstart = 0;
       jstop = 0;

@@ -89,7 +89,7 @@ void getJstet(int ngood_in, double tmin, double wkmax, double *time_in, double *
     if((time_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL ||
        (mag_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL ||
        (sig_mask = (double *) malloc(ngood_in * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     ngood = 0;
     for(i = 0; i < ngood_in; i++) {
       if(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {

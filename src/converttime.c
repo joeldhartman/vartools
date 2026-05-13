@@ -566,7 +566,7 @@ void load_cspice_kernels(char *ephemfile, char *leapsecfile, char *planetdatafil
     if(ephemfile[0] == '\0') {
       ephemfile_env = getenv("CSPICE_EPHEM_FILE");
       if(ephemfile_env == NULL)
-	error(ERR_NO_EPHEM_FILE);
+	vt_error(ERR_NO_EPHEM_FILE);
       else {
 	sprintf(ephemfile,"%s",ephemfile_env);
       }
@@ -575,7 +575,7 @@ void load_cspice_kernels(char *ephemfile, char *leapsecfile, char *planetdatafil
     if(planetdatafile[0] == '\0') {
       planetdatafile_env = getenv("CSPICE_PLANETDATA_FILE");
       if(planetdatafile_env == NULL)
-	error(ERR_NO_PLANETDATA_FILE);
+	vt_error(ERR_NO_PLANETDATA_FILE);
       else {
 	sprintf(planetdatafile,"%s",planetdatafile_env);
       }
@@ -590,7 +590,7 @@ void load_cspice_kernels(char *ephemfile, char *leapsecfile, char *planetdatafil
     if(leapsecfile[0] == '\0') {
       leapsecfile_env = getenv("CSPICE_LEAPSEC_FILE");
       if(leapsecfile_env == NULL)
-	error(ERR_NO_LEAPSEC_FILE);
+	vt_error(ERR_NO_LEAPSEC_FILE);
       else {
 	sprintf(leapsecfile,"%s",leapsecfile_env);
       }
@@ -661,7 +661,7 @@ void ParseObservatoryCode(char *code, double *obslat, double *obslong, double *o
       }
     }
   }
-  error2(ERR_UNKNOWNOBSERVATORY,code);
+  vt_error2(ERR_UNKNOWNOBSERVATORY,code);
 }
 
 /* Main Function for converting time from one system to another */
@@ -701,7 +701,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	if(N > 0) {
 	  if((raoutv = (double *) malloc(N * sizeof(double))) == NULL ||
 	     (decoutv = (double *) malloc(N * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < N; i++) {
 	    raoutv[i] = c->raval_lcvals[lc][i];
 	    decoutv[i] = c->decval_lcvals[lc][i];
@@ -713,7 +713,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	if(N > 0) {
 	  if((raoutv = (double *) malloc(N * sizeof(double))) == NULL ||
 	     (decoutv = (double *) malloc(N * sizeof(double))) == NULL)
-	    error(ERR_MEMALLOC);
+	    vt_error(ERR_MEMALLOC);
 	  for(i=0; i < N; i++) {
 	    raoutv[i] = EvaluateExpression(lcreal, lc, i, c->raval_lcexpr);
 	    decoutv[i] = EvaluateExpression(lcreal, lc, i, c->decval_lcexpr);
@@ -721,7 +721,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       epochout = c->radecepoch;
       if(c->useinput_radec) {
 	if(c->inputradec_source == VARTOOLS_SOURCE_FIXED) {
@@ -741,7 +741,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  if(N > 0) {
 	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
 	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < N; i++) {
 	      rainv[i] = c->inputraval_lcvals[lc][i];
 	      decinv[i] = c->inputdecval_lcvals[lc][i];
@@ -753,7 +753,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  if(N > 0) {
 	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
 	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < N; i++) {
 	      rainv[i] = EvaluateExpression(lcreal, lc, i, c->inputraval_lcexpr);
 	      decinv[i] = EvaluateExpression(lcreal, lc, i, c->inputdecval_lcexpr);
@@ -761,7 +761,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  }
 	}
 	else
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
 	epochin = c->inputradecepoch;
       }
       else {
@@ -772,7 +772,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  if(N > 0) {
 	    if((rainv = (double *) malloc(N * sizeof(double))) == NULL ||
 	       (decinv = (double *) malloc(N * sizeof(double))) == NULL)
-	      error(ERR_MEMALLOC);
+	      vt_error(ERR_MEMALLOC);
 	    for(i=0; i < N; i++) {
 	      rainv[i] = raoutv[i];
 	      decinv[i] = decoutv[i];
@@ -791,7 +791,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  ppm_mu_dec_out = c->ppm_mu_dec_vals[lcreal][0];
 	}
 	else
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
       } else {
 	ppm_mu_ra_out = 0.; ppm_mu_dec_out = 0.;
       }
@@ -805,7 +805,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	  ppm_mu_dec_in = c->inputppm_mu_dec_vals[lcreal][0];
 	}
 	else
-	  error(ERR_CODEERROR);
+	  vt_error(ERR_CODEERROR);
       } else {
 	ppm_mu_ra_in = ppm_mu_ra_out; ppm_mu_dec_in = ppm_mu_dec_out;
       }
@@ -891,11 +891,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -954,11 +954,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1038,11 +1038,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1199,7 +1199,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
 #ifdef PARALLEL
       if(p->Nproc_allow > 1) {
 	pthread_mutex_unlock(&(p->cspice_mutex));
@@ -1208,11 +1208,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
       break;
 #else
     case TIMETYPE_BJD:
-      error(ERR_NEEDCSPICE);
+      vt_error(ERR_NEEDCSPICE);
       break;
 #endif
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
     }
     break;
 
@@ -1276,11 +1276,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1333,11 +1333,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1414,11 +1414,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1569,7 +1569,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
 #ifdef PARALLEL
       if(p->Nproc_allow > 1) {
 	pthread_mutex_unlock(&(p->cspice_mutex));
@@ -1578,11 +1578,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
       break;
 #else
     case TIMETYPE_BJD:
-      error(ERR_NEEDCSPICE);
+      vt_error(ERR_NEEDCSPICE);
       break;
 #endif
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
     }
     break;
 
@@ -1669,11 +1669,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1749,11 +1749,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -1873,11 +1873,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 #endif
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 #else
       else
-	error(ERR_NEEDCSPICE);
+	vt_error(ERR_NEEDCSPICE);
       break;
 #endif
 
@@ -2062,7 +2062,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
 #ifdef PARALLEL
       if(p->Nproc_allow > 1) {
 	pthread_mutex_unlock(&(p->cspice_mutex));
@@ -2071,11 +2071,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
       break;
 #else
     case TIMETYPE_BJD:
-      error(ERR_NEEDCSPICE);
+      vt_error(ERR_NEEDCSPICE);
       break;
 #endif
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
     }
     break;
 #ifdef _HAVE_CSPICE
@@ -2237,7 +2237,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 
     case TIMETYPE_JD:
@@ -2374,7 +2374,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
 
     case TIMETYPE_HJD:
@@ -2561,7 +2561,7 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
     case TIMETYPE_BJD:
 
@@ -2673,10 +2673,10 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
 	}
       }
       else
-	error(ERR_CODEERROR);
+	vt_error(ERR_CODEERROR);
       break;
     default:
-      error(ERR_CODEERROR);
+      vt_error(ERR_CODEERROR);
     }
 #ifdef PARALLEL
     if(p->Nproc_allow > 1) {
@@ -2686,11 +2686,11 @@ void converttime(int N, double *t, int lc, int lcreal, _ConvertTime *c, ProgramD
     break;
 #else
   case TIMETYPE_BJD:
-    error(ERR_NEEDCSPICE);
+    vt_error(ERR_NEEDCSPICE);
     break;
 #endif
   default:
-    error(ERR_CODEERROR);
+    vt_error(ERR_CODEERROR);
   }
   if(raoutv != NULL) free(raoutv);
   if(decoutv != NULL) free(decoutv);

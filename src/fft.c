@@ -40,7 +40,7 @@ void RunFFTCommand(ProgramData *p, int lcindex, int threadindex, _FFT *f)
   if(p->NJD[threadindex] <= 0) return;
 
   if((tmpdata = (double *) malloc(2*p->NJD[threadindex]*sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   for(i=0; i < p->NJD[threadindex]; i++) {
     if(f->inputvar_real != NULL) {
@@ -96,7 +96,7 @@ int ParseFFTCommand(int *iret, int argc, char **argv, ProgramData *p, _FFT *f)
     f->inputvarname_real[0] = '\0';
   } else {
     if((f->inputvarname_real = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(f->inputvarname_real,"%s",argv[i]);
   }
 
@@ -108,7 +108,7 @@ int ParseFFTCommand(int *iret, int argc, char **argv, ProgramData *p, _FFT *f)
     f->inputvarname_imag[0] = '\0';
   } else {
     if((f->inputvarname_imag = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(f->inputvarname_imag,"%s",argv[i]);
   }
 
@@ -120,7 +120,7 @@ int ParseFFTCommand(int *iret, int argc, char **argv, ProgramData *p, _FFT *f)
     f->outputvarname_real[0] = '\0';
   } else {
     if((f->outputvarname_real = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(f->outputvarname_real,"%s",argv[i]);
   }
 
@@ -132,7 +132,7 @@ int ParseFFTCommand(int *iret, int argc, char **argv, ProgramData *p, _FFT *f)
     f->outputvarname_imag[0] = '\0';
   } else {
     if((f->outputvarname_imag = (char *) malloc((strlen(argv[i])+1)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     sprintf(f->outputvarname_imag,"%s",argv[i]);
   }
 

@@ -1,0 +1,192 @@
+VARTOOLS — Windows Installation Notes
+======================================
+
+This file covers Windows-specific installation details.  The main ``README``
+covers platform-independent material (dependencies, general ``configure``
+options, ``pyvartools``, etc.); read it first.
+
+VARTOOLS is a POSIX-oriented program.  Two parts of the code assume a POSIX
+environment and **will not build on native Windows without significant
+modification**:
+
+* The embedded ``-python`` command (``src/runpython.c``) uses ``fork()`` and
+  ``socketpair(AF_UNIX, ...)`` to talk to a child Python process.
+* The embedded ``-R`` command (``src/runR.c``) uses the same mechanism.
+
+Almost everything else (threading, dynamic loading, I/O) is portable.
+
+**Recommended path: Windows Subsystem for Linux (WSL).**  WSL provides a
+full Linux environment, with the ``fork`` / ``socketpair`` POSIX APIs that
+VARTOOLS needs, directly on Windows 10 and Windows 11.  All features of
+VARTOOLS work on WSL without any code modifications.
+
+An alternative path via **MSYS2 / MinGW-w64** is possible for users who
+need a native Windows build, but comes with caveats — see section 3.
+
+
+1. WSL path (recommended)
+-------------------------
+
+1.1 Install WSL
+~~~~~~~~~~~~~~~
+
+On Windows 10 (version 2004+) or Windows 11, open PowerShell or Command
+Prompt as Administrator and run::
+
+    wsl --install
+
+This installs Ubuntu by default.  Reboot when prompted.  For a different
+distro, run ``wsl --list --online`` and then
+``wsl --install -d <DistroName>``.
+
+Microsoft's full WSL documentation is at
+https://learn.microsoft.com/en-us/windows/wsl/.
+
+1.2 Build VARTOOLS inside WSL
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Open your WSL distribution (e.g. "Ubuntu" from the Start menu) and follow
+the instructions in ``README.linux`` as you would on native Linux.  All
+optional dependencies install cleanly through ``apt-get``, and all VARTOOLS
+features work.
+
+1.3 Interop with Windows files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Windows drives appear at ``/mnt/c/`` etc. inside WSL, so you can run
+``vartools`` on light curves that live on the Windows side::
+
+    vartools -i /mnt/c/Users/you/lightcurves/1.lc -LS 0.1 10.0 0.1 1 0
+
+For best performance keep working files inside the WSL filesystem
+(``~/`` etc.), not on ``/mnt/c/`` — the WSL-to-Windows filesystem bridge
+adds significant overhead on large batches.
+
+
+2. MSYS2 / MinGW-w64 path
+-------------------------
+
+`MSYS2 <https://www.msys2.org/>`_ provides a POSIX-like build environment
+on Windows, including GCC, autotools, and many of the libraries VARTOOLS
+depends on.  Core VARTOOLS compiles and runs under MSYS2.
+
+**Major limitation:** the embedded ``-python`` and ``-R`` commands will
+not work under MSYS2 or any native Windows build.  Their implementation
+in ``src/runpython.c`` and ``src/runR.c`` assumes Unix-domain sockets and
+``fork()``, which are not available on native Windows.  Using these
+commands requires WSL.
+
+2.1 Install MSYS2 and prerequisites
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install MSYS2 from https://www.msys2.org/ and open the **MINGW64** shell
+(not the generic MSYS2 shell — the toolchain differs).  Then::
+
+    pacman -Syu       # update package database; may need to close and reopen the shell
+    pacman -Syu       # second pass to complete updates
+    pacman -S --needed \
+        mingw-w64-x86_64-gcc \
+        mingw-w64-x86_64-gcc-fortran \
+        mingw-w64-x86_64-make \
+        mingw-w64-x86_64-libtool \
+        mingw-w64-x86_64-cfitsio \
+        mingw-w64-x86_64-gsl
+
+For ``./autogen.sh`` support::
+
+    pacman -S --needed autoconf automake
+
+``pthread`` support is provided automatically by the ``mingw-w64-x86_64-gcc``
+package — no separate install is needed.  (The old
+``pthreads-win32`` / ``pthreads4w`` project, mentioned in older VARTOOLS
+documentation, is no longer required under modern MSYS2.)
+
+2.2 CSPICE
+~~~~~~~~~~
+
+Build CSPICE from source, as on the other platforms.  Use NAIF's
+``PC_Cygwin_GCC_64bit`` distribution (also works under MSYS2/MinGW-w64)::
+
+    mkdir -p ~/src && cd ~/src
+    curl -O https://naif.jpl.nasa.gov/pub/naif/toolkit//C/PC_Cygwin_GCC_64bit/packages/cspice.tar.Z
+    gunzip cspice.tar.Z
+    tar -xf cspice.tar
+    cd cspice
+    sh makeall.csh
+
+2.3 Build VARTOOLS
+~~~~~~~~~~~~~~~~~~
+
+From the MINGW64 shell, inside the unpacked VARTOOLS source directory::
+
+    ./configure \
+        --prefix=$HOME/.local \
+        --with-cspice=$HOME/src/cspice \
+        --without-python \
+        FC=gfortran F77=gfortran
+    make
+    make install
+
+**Important:**  pass ``--without-python`` (and equivalently avoid
+``--with-RHOME``) to skip the features that do not work on native Windows.
+Without the flag, ``configure`` may try to detect Python / R and either
+fail the build or produce a binary that crashes at runtime when you call
+``-python`` or ``-R``.
+
+If you attempted to build with these features and hit compilation errors
+referencing ``fork``, ``socketpair``, ``AF_UNIX``, or ``SOCK_STREAM``,
+this is why.
+
+Verify::
+
+    $HOME/.local/bin/vartools.exe -help
+
+
+3. Native Windows (Visual Studio)
+---------------------------------
+
+Building with Microsoft's native toolchain (Visual Studio, ``cl.exe``) is
+**not supported**.  VARTOOLS uses the GNU autoconf / automake build
+system which requires a POSIX-like shell and assumes GCC-compatible
+syntax throughout.  There are no Visual Studio project files, and
+substantial porting work would be required to add them.
+
+Use WSL (section 1) or MSYS2 (section 2) instead.
+
+
+4. pyvartools on Windows
+------------------------
+
+Under WSL, follow ``README.linux`` — ``pyvartools`` works exactly as on
+native Linux.
+
+Under MSYS2 native builds, ``pyvartools`` itself (the Python wrapper
+package) installs fine via ``pip``, and will drive the native ``vartools.exe``
+for most commands.  The embedded ``-python`` and ``-R`` commands are
+unavailable, as noted above; commands that don't rely on those features
+work normally.
+
+
+5. Typical problems
+-------------------
+
+* **``configure`` fails with "C compiler cannot create executables"** in
+  the MSYS2 / non-MINGW64 shell — open the correct shell (the Start menu
+  entry named **"MSYS2 MINGW64"**, not plain "MSYS2").
+
+* **Compile errors referencing ``fork``, ``socketpair``, or ``AF_UNIX``**
+  — you're building with ``-python`` or ``-R`` enabled on native Windows.
+  Add ``--without-python`` (or disable R detection) during ``configure``,
+  or switch to WSL.
+
+* **Executable runs but immediately crashes loading a DLL** — the
+  MSYS2 runtime DLLs aren't on Windows's ``PATH`` when you run the binary
+  from outside the MINGW64 shell.  Either run it from the MINGW64 shell,
+  or add the MSYS2 ``mingw64/bin`` directory to your Windows ``PATH``.
+
+* **Paths with backslashes break a ``-L USERLIBS`` lookup** — VARTOOLS's
+  library-name parsing looks for ``/`` as the path separator (``userlib.c``).
+  MSYS2 and Cygwin translate Windows paths to forward-slash form
+  automatically when their bash is used, so this usually isn't a problem,
+  but if you are passing raw Windows paths (``C:\Users\...\lib.dll``)
+  convert them to forward slashes first (``C:/Users/.../lib.dll``).

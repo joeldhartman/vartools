@@ -255,16 +255,16 @@ void dokillharms(int N, double *t, double *mag, double *sig, int Nper, double *p
      (v = (double **) malloc(ncomp * sizeof(double *))) == NULL ||
      (isclip = (int *) malloc(N * sizeof(int))) == NULL ||
      (magmodel = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0;i<N;i++) {
     isclip[i] = 0;
     if((Amatrix[i] = (double *) malloc(ncomp * sizeof(double))) == NULL ||
        (DesignMatrix[i] = (double *) malloc(ncomp * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   for(i=0;i<ncomp;i++)
     if((v[i] = (double *) malloc(ncomp * sizeof(double))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   /*  if((a = (long double **) malloc(ncomp * sizeof(long double *))) == NULL ||
      (indx = (int *) malloc(ncomp * sizeof(int))) == NULL ||
      (b = (long double *) malloc(ncomp * sizeof(long double))) == NULL)
@@ -505,7 +505,7 @@ void dokillharms(int N, double *t, double *mag, double *sig, int Nper, double *p
   if(omodel)
     {
       if((outfile = fopen(modelname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE,modelname);
+	vt_error2(ERR_CANNOTWRITE,modelname);
     }
   if(omodel || !fitonly) {
     for(i=0; i < N; i++) {

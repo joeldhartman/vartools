@@ -76,7 +76,9 @@ class TestCLIArgs:
         assert args[0] == "-aov"
 
     def test_bls_basic(self):
-        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1)._to_cli_args()
+        # nfreq= required when density_mode=False (the "optimal"
+        # frequency grid is density-mode-only per vartools).
+        args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, nfreq=1000)._to_cli_args()
         assert args[0] == "-BLS"
 
     def test_phase_basic(self):
@@ -175,23 +177,23 @@ class TestEndToEnd:
     def test_rms_run(self):
         lc = make_sinusoidal_lc()
         result = vt.Pipeline([cmd.rms()]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
         # rms should report RMS or similar statistic
-        assert len(result.stats) >= 1
+        assert len(result.vars) >= 1
 
     def test_clip_run(self):
         lc = make_sinusoidal_lc()
         result = vt.Pipeline([cmd.clip(sigclip=5.0)]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_ls_run(self):
         lc = make_sinusoidal_lc(n=300, period=1.5)
         result = vt.Pipeline([cmd.LS(0.5, 5.0, 1e-3)]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
         # The best LS period should be near 1.5 days
-        period_keys = [k for k in result.stats.index if "Period" in str(k)]
+        period_keys = [k for k in result.vars.index if "Period" in str(k)]
         if period_keys:
-            best = float(result.stats.loc[period_keys[0]])
+            best = float(result.vars.loc[period_keys[0]])
             assert abs(best - 1.5) < 0.05, f"LS period {best} not near 1.5"
 
     def test_ls_save_output(self):
@@ -206,7 +208,7 @@ class TestEndToEnd:
     def test_stats_run(self):
         lc = make_sinusoidal_lc()
         result = vt.Pipeline([cmd.stats("mag", "mean,stddev")]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_clip_then_ls(self):
         lc = make_sinusoidal_lc(n=300, period=2.0)
@@ -215,7 +217,7 @@ class TestEndToEnd:
             cmd.LS(0.5, 5.0, 1e-3),
         ])
         result = pipe.run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_capture_lc(self):
         lc = make_sinusoidal_lc()
@@ -226,8 +228,8 @@ class TestEndToEnd:
     def test_batch_run(self):
         lcs = [make_sinusoidal_lc(period=1.0 + i * 0.3) for i in range(3)]
         result = vt.Pipeline([cmd.rms()]).run_batch(lcs)
-        assert result.stats is not None
-        assert len(result.stats) == 3
+        assert result.vars is not None
+        assert len(result.vars) == 3
 
     def test_list_commands(self):
         cmds = vt.list_commands()
@@ -238,7 +240,7 @@ class TestEndToEnd:
     def test_addnoise_run(self):
         lc = make_sinusoidal_lc()
         result = vt.Pipeline([cmd.addnoise(sig_white=0.01)]).run(lc)
-        assert result.stats is not None
+        assert result.vars is not None
 
     def test_sortlc_run(self):
         # Shuffle the light curve first, then sort

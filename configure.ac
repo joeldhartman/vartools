@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.52], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.6], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -241,15 +241,27 @@ if test x"$ax_python_use" = x"true"; then
    CPPFLAGS_SAVE="$CPPFLAGS"
    LDFLAGS_SAVE="$LDFLAGS"
 
-   CPPFLAGS="$PYTHON_CSPEC $CPPFLAGS"
    NUMPY_INCLUDE_DIR=`echo "import numpy; print(numpy.get_include())" | $PYTHON - 2>/dev/null`
    NUMPY_INCLUDE_DIR_FULL="${NUMPY_INCLUDE_DIR}/numpy"
    AC_SUBST(NUMPY_INCLUDE_DIR)
    AC_SUBST(NUMPY_INCLUDE_DIR_FULL)
+   # NumPy 2.x's arrayobject.h pulls in numpy/_public_dtype_api_table.h
+   # via a relative include path; the AC_CHECK_HEADER below references
+   # arrayobject.h by absolute path, but the relative sub-include needs
+   # -I${NUMPY_INCLUDE_DIR} on the compile line to resolve.  NumPy 1.x
+   # didn't have this sub-include, which is why builds against the older
+   # API succeeded without it.
+   CPPFLAGS="-I${NUMPY_INCLUDE_DIR} $PYTHON_CSPEC $CPPFLAGS"
    AC_CHECK_HEADER([${NUMPY_INCLUDE_DIR}/numpy/arrayobject.h], [NUMPY_HEADER=yes], [AC_MSG_WARN([Numpy extension header not found])], [#include "Python.h"])
    AC_SUBST(NUMPY_HEADER)
    AM_CONDITIONAL(PYTHON_USE, test x$NUMPY_HEADER = xyes)
    if test x"$NUMPY_HEADER" = x"yes"; then
+       # Ensure -I${NUMPY_INCLUDE_DIR} reaches the build of runpython.c
+       # (Makefile.am uses @PYTHON_CSPEC@), so its absolute-path include
+       # of arrayobject.h can resolve numpy/_public_dtype_api_table.h
+       # under NumPy 2.x.
+       PYTHON_CSPEC="-I${NUMPY_INCLUDE_DIR} ${PYTHON_CSPEC}"
+       AC_SUBST([PYTHON_CSPEC])
        AC_CHECK_PYTHON_MODULE(numpy, __version__)
        AS_IF([test x"$PYTHON_numpy" = x1],
            [AC_DEFINE_UNQUOTED([PYTHON_NUMPY_VERSION], [${PYTHON_numpy_VERSION}], [NUMPY VERSION])
@@ -306,7 +318,7 @@ AC_ARG_WITH([R-lib],
    fi],
   [])
 
-AS_IF([test "x$with_RHOME" = xcheck],
+AS_IF([test "x$RHOME" = xcheck],
   [AC_CHECK_PROG(ISRBIN,R,yes)
    AS_IF([test "x$ISRBIN" = xyes],
       [RHOME=`R RHOME`],

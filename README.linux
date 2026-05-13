@@ -1,0 +1,168 @@
+VARTOOLS — Linux Installation Notes
+====================================
+
+This file covers Linux-specific installation details.  The main ``README``
+covers platform-independent material (dependencies, general ``configure``
+options, ``pyvartools``, etc.); read it first.
+
+Linux is the primary development platform for VARTOOLS.  Most distributions
+can build the C binary and all optional dependencies from packaged software.
+
+
+1. Prerequisites
+----------------
+
+Required:
+
+* A C compiler (``gcc`` or ``clang``).
+* A Fortran compiler (``gfortran``) — required for some command extensions.
+* ``make``.
+* ``libtool`` (for the dynamic-library support that VARTOOLS uses to load
+  user-compiled commands and functions).
+
+Optional (each enables additional features — see the main README for a full
+table of what depends on what):
+
+* ``libcfitsio-dev`` — FITS light curve support.
+* ``libgsl-dev`` — ``-addnoise``, ``-microlens``, ``-resample``, ``-FFT``,
+  ``-IFFT`` commands.
+* ``python3-dev`` + ``python3-numpy`` — embedded ``-python`` command.
+* ``r-base-dev`` — embedded ``-R`` command.  Note that ``r-base`` alone is
+  **not** sufficient; the ``-dev`` package provides ``libR.so`` and the R
+  headers that ``configure`` needs to detect.
+
+Only needed if you run ``./autogen.sh`` to regenerate the build system
+(normally the pre-generated ``configure`` script in the distribution tarball
+is sufficient):
+
+* ``autoconf``, ``automake``, ``libtool``.
+
+1.1 Debian / Ubuntu
+~~~~~~~~~~~~~~~~~~~
+
+Install everything required plus all optional dependencies::
+
+    sudo apt-get update
+    sudo apt-get install -y \
+        build-essential gfortran libtool \
+        libcfitsio-dev libgsl-dev \
+        python3-dev python3-numpy \
+        r-base-dev
+
+For ``./autogen.sh`` support, additionally::
+
+    sudo apt-get install -y autoconf automake
+
+1.2 Fedora / RHEL / Rocky / AlmaLinux
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    sudo dnf install -y \
+        gcc gcc-gfortran make libtool \
+        cfitsio-devel gsl-devel \
+        python3-devel python3-numpy \
+        R-core-devel
+
+For ``./autogen.sh`` support, additionally::
+
+    sudo dnf install -y autoconf automake
+
+1.3 Arch Linux / Manjaro
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    sudo pacman -S --needed \
+        base-devel gcc-fortran libtool \
+        cfitsio gsl \
+        python python-numpy \
+        r
+
+1.4 CSPICE (all Linux distributions)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CSPICE (used by ``-converttime`` for BJD/UTC conversions) is not in any
+distro's package repository.  Download and build it from source::
+
+    mkdir -p ~/src && cd ~/src
+    wget https://naif.jpl.nasa.gov/pub/naif/toolkit//C/PC_Linux_GCC_64bit/packages/cspice.tar.Z
+    gunzip cspice.tar.Z
+    tar -xf cspice.tar
+    cd cspice
+    csh makeall.csh       # (or "sh makeall.csh" on distros without csh)
+
+This produces ``~/src/cspice/lib/cspice.a`` and the headers in
+``~/src/cspice/include/``.  Pass these to ``configure`` with
+``--with-cspice=/home/you/src/cspice`` (see below).
+
+You will also want the generic NAIF kernel files for actual use — see the
+``CSPICE`` section in the main README.
+
+
+2. Build and install
+--------------------
+
+Unpack the tarball, then from the source directory::
+
+    ./configure --prefix=$HOME/.local
+    make
+    make install
+
+``configure`` auto-detects any optional library installed to a standard
+location.  If a dependency lives somewhere non-standard, point ``configure``
+at it::
+
+    ./configure \
+        --prefix=$HOME/.local \
+        --with-cspice=$HOME/src/cspice \
+        FC=gfortran F77=gfortran
+
+See the main ``README`` for the full list of ``--with-*`` flags and for
+typical ``CPPFLAGS`` / ``LDFLAGS`` overrides when libraries are in unusual
+places.
+
+After ``make install``, verify with::
+
+    $HOME/.local/bin/vartools -help
+
+If ``$HOME/.local/bin`` is on your ``PATH`` (typical), plain ``vartools``
+works directly.
+
+
+3. pyvartools (Python wrapper)
+------------------------------
+
+After the C binary is installed, install the Python wrapper::
+
+    cd python
+    pip install -e .
+
+The wrapper finds the ``vartools`` binary on ``PATH`` automatically, and
+uses the shared library ``libvartoolspipeline.so`` (installed by
+``make install`` alongside the binary) for in-process execution.  See the
+main ``README`` and the website's *Python API* section for details.
+
+
+4. Typical problems
+-------------------
+
+* **``configure: error: Fortran 77 compiler cannot create executables``** —
+  install ``gfortran``.  The default ``F77`` / ``FC`` on many systems
+  points at a stub that fails.  Pass ``FC=gfortran F77=gfortran`` on the
+  ``configure`` line.
+
+* **``error while loading shared libraries: libcfitsio.so.*``** at runtime —
+  your shell can't find the CFITSIO runtime library.  If you installed
+  CFITSIO from source to a non-standard prefix, add its ``lib`` directory
+  to ``LD_LIBRARY_PATH``, or use ``--with-cfitsio`` during ``configure`` so
+  the built binary has the correct RPATH.
+
+* **``configure`` silently skips R** — you have ``r-base`` but not
+  ``r-base-dev``.  Install ``r-base-dev`` (Debian/Ubuntu) or
+  ``R-core-devel`` (Fedora) and re-run ``configure``.
+
+* **``configure`` can't find the numpy header** — make sure ``python3`` on
+  your ``PATH`` is the same interpreter that has ``numpy`` installed.  The
+  configure script runs ``python3 -c "import numpy; print(numpy.get_include())"``;
+  if this fails, the embedded ``-python`` command is disabled.

@@ -83,7 +83,7 @@ int amoeba(double **p, double *y, int *ia, int ndim, double ftol, double (*funk)
   mpts = ndimused+1;
 
   if((psum = (double *) malloc(ndim * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   *nfunk = 0;
   for (j=0;j<ndim;j++) {
     for(sum=0.0,i=0;i<mpts;i++) sum += p[i][j];
@@ -154,7 +154,7 @@ double amotry(double **p, double *y, int *ia, double *psum, int ndim, int ndimus
   int j;
   double fac1, fac2, ytry, *ptry;
   if((ptry = (double *) malloc(ndim * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   fac1 = (1.0 - fac)/ndimused;
   fac2 = fac1 - fac;
   for(j=0;j<ndim;j++)
@@ -209,7 +209,7 @@ void amoeba_initializesimplexchi2(int Nparameters, int Ntovary, double **p, doub
 {
   int i;
   if(((*chi2vals) = (double *) malloc((Ntovary + 1)*sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   for(i=0; i < Ntovary + 1; i++) {
     (*chi2vals)[i] = (*funk)(p[i], Nparameters, N, t, mag, err, userparam);
   }

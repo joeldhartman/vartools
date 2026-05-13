@@ -59,7 +59,7 @@ void RunPrintCommand(ProgramData *p, _PrintCommand *PrintCommand, int lcnum, int
       floatptr[lcnum] = EvaluateVariable_Float(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
       break;
     case VARTOOLS_TYPE_INT:
-      intptr = (float *) PrintCommand->dataptr[i];
+      intptr = (int *) PrintCommand->dataptr[i];
       intptr[lcnum] = EvaluateVariable_Int(lc_list_num, lcnum, 0, PrintCommand->vars[i]);
       break;
     case VARTOOLS_TYPE_SHORT:
@@ -179,7 +179,7 @@ void addcolumn(ProgramData *p, Command *command, int cnum, int type, int strings
   c = &(p->outcolumns[p->Ncolumns-1]);
   va_start(varlist, lcdereferencecol);
   if((c->dereference = (int *) malloc(Ndereference * sizeof(int))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
   c->type = type;
   c->stringsize = stringsize;
   c->ptr = ptr;
@@ -224,9 +224,9 @@ void increaselinkedcols(ProgramData *p, OutColumn **c, char *s, int cmdidx)
       if((p->colnamestolink = (char **) malloc(sizeof(char *))) == NULL ||
 	 (p->outcolumnstolink = (OutColumn ***) malloc(sizeof(OutColumn **))) == NULL ||
 	 (p->columnstolink_cmdidx = (int *) malloc(sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((p->colnamestolink[0] = (char *) malloc(MAX_COLNAME_LENGTH)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   else
     {
@@ -234,9 +234,9 @@ void increaselinkedcols(ProgramData *p, OutColumn **c, char *s, int cmdidx)
       if((p->colnamestolink = (char **) realloc(p->colnamestolink, p->Ncolstolink * sizeof(char *))) == NULL ||
 	 (p->outcolumnstolink = (OutColumn ***) realloc(p->outcolumnstolink, p->Ncolstolink * sizeof(OutColumn **))) == NULL ||
 	 (p->columnstolink_cmdidx = (int *) realloc(p->columnstolink_cmdidx, p->Ncolstolink * sizeof(int))) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
       if((p->colnamestolink[p->Ncolstolink - 1] = (char *) malloc(MAX_COLNAME_LENGTH)) == NULL)
-	error(ERR_MEMALLOC);
+	vt_error(ERR_MEMALLOC);
     }
   sprintf(p->colnamestolink[p->Ncolstolink - 1],"%s",s);
   p->outcolumnstolink[p->Ncolstolink - 1] = c;
@@ -264,7 +264,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
       colid = atoi(s);
       colid--;
       if(colid < 0 || colid >= p->Ncolumns)
-	error2(ERR_NOCOLUMN, s);
+	vt_error2(ERR_NOCOLUMN, s);
     }
   else
     {
@@ -308,7 +308,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
 	  }
       }
       if(colid < 0 || colid >= p->Ncolumns)
-	error2(ERR_NOCOLUMN, s);
+	vt_error2(ERR_NOCOLUMN, s);
     }
 
   /* Get the command index for the linked column */
@@ -321,7 +321,7 @@ OutColumn *linktocolumn(ProgramData *p, char *s, int commandidx)
       l2++;
       i = atoi(&(p->outcolumns[colid].columnname[l2]));
       if(i >= commandidx)
-	error2(ERR_BADCOLUMNLINK, s);
+	vt_error2(ERR_BADCOLUMNLINK, s);
     }
   return &(p->outcolumns[colid]);
 }
@@ -476,7 +476,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf(*cptr,"%lf",(double *) outvalue);
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -507,7 +507,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sprintf(((char *) outvalue),"%c",(*(charptr)));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -536,7 +536,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%d",((int *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -565,7 +565,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%f",((float *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -594,7 +594,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%hd",((short *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -623,7 +623,7 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%ld",((long *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -652,12 +652,12 @@ void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outv
 	  sscanf((*cptr),"%c",((char *) outvalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 }
@@ -810,7 +810,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf(*cptr,"%lf",*((double *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -841,7 +841,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  *(charptr) = ((char *) invalue)[0];
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -870,7 +870,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%d",*((int *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -899,7 +899,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%f",*((float *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -928,7 +928,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%d",*((short *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -957,7 +957,7 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%ld",*((long *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
@@ -986,12 +986,12 @@ void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *inval
 	  sprintf((*cptr),"%c",*((char *) invalue));
 	  break;
 	default:
-	  error(ERR_BADTYPE);
+	  vt_error(ERR_BADTYPE);
 	  break;
 	}
       break;
     default:
-      error(ERR_BADTYPE);
+      vt_error(ERR_BADTYPE);
       break;
     }
 }
@@ -1171,6 +1171,23 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 #endif
 	case CNUM_CLIP:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_INT, 0, &(c[l].Clip->Nclip), "%5d", 1, 0, 0, 0, "Nclip_%d", l);
+	  break;
+	case CNUM_EXPRESSION:
+	  /* Optional 'outputcolumn' keyword exposes the LHS variable's
+	     value as a column in the result table.  Only emitted when
+	     the parser saw the keyword (and thus only when the variable
+	     is listvar/scalar/const — guaranteed by parser-side check).
+	     CreateOutputColumns runs BEFORE CompileAllExpressions, so
+	     ExpressionCommand->outputvar is still NULL at this point;
+	     we use lhsstring (set during CreateExpressionCommand) for
+	     the column name. */
+	  if(c[l].ExpressionCommand->outputcolumn) {
+	    sprintf(tmpstring, "Expr_%s_%%d",
+		    c[l].ExpressionCommand->lhsstring);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0,
+		      &(c[l].ExpressionCommand->outputcolumn_buffer),
+		      "%.17g", 1, 0, 0, 0, tmpstring, l);
+	  }
 	  break;
 	case CNUM_ENSEMBLERESCALESIG:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ensemblerescalesig->rescalefactor), "%9.5f", 1, 0, 0, 0, "SigmaRescaleFactor_%d", l);
@@ -1504,62 +1521,93 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 		}
 	    }
 	  break;
-	case CNUM_KILLHARM:
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, "Killharm_Mean_Mag_%d", l);
+	case CNUM_KILLHARM: {
+	  /* Output-column prefix follows the invoking CLI token: "Killharm"
+	     if invoked as -Killharm (legacy), "HarmonicFilter" if invoked
+	     as -harmonicfilter (preferred). */
+	  const char *kh_prefix = c[l].Killharm->column_prefix;
+	  sprintf(tmpstring, "%s_Mean_Mag_%%d", kh_prefix);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->mean), "%9.5f", 1, 0, 0, 0, tmpstring, l);
 	  for(j=1;j<=c[l].Killharm->Nper;j++)
 	    {
+	      sprintf(tmpstring, "%s_Period_%%d_%%d", kh_prefix);
 	      if(c[l].Killharm->pertype == PERTYPE_SPECIFIED)
-		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 1, 0, 0, j-1, tmpstring,j,l);
 	      else
-		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, "Killharm_Period_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->periods), "%14.8f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 	      for(i=2;i<=c[l].Killharm->Nsubharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_%d_Coscoeff_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_%%d_Sincoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_%%d_Coscoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Amp_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Phi_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Subharm_Phi_%d_1_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_R_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Subharm_Phi_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->subharmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		}
 	      if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		{
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Sincoeff_%d",j,l);
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Coscoeff_%d",j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Sincoeff_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Coscoeff_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 		}
 	      else
 		{
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Amp_%d",j,l);
-		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Fundamental_Phi_%d",j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Amp_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundA), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
+		  sprintf(tmpstring, "%s_Per%%d_Fundamental_Phi_%%d", kh_prefix);
+		  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->fundB), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 		}
 	      for(i=2;i<=c[l].Killharm->Nharm+1;i++)
 		{
 		  if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_DEFAULT)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Sincoeff_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_%d_Coscoeff_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_%%d_Sincoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_%%d_Coscoeff_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPPHASE || c[l].Killharm->outtype == KILLHARM_OUTTYPE_AMPRADPHASE)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Amp_%d_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Amp_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Phi_%%d_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		  else if(c[l].Killharm->outtype == KILLHARM_OUTTYPE_RPHI || c[l].Killharm->outtype == KILLHARM_OUTTYPE_RRADPHI)
 		    {
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_R_%d_1_%d",j,i,l);
-		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2,"Killharm_Per%d_Harm_Phi_%d_1_%d",j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_R_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmA), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
+		      sprintf(tmpstring, "%s_Per%%d_Harm_Phi_%%d_1_%%d", kh_prefix);
+		      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->harmB), "%9.5f", 3, 0, 0, 0, j-1, i-2, tmpstring,j,i,l);
 		    }
 		}
-	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, "Killharm_Per%d_Amplitude_%d",j,l);
+	      sprintf(tmpstring, "%s_Per%%d_Amplitude_%%d", kh_prefix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Killharm->amp), "%9.5f", 2, 0, 0, 0, j-1, tmpstring,j,l);
 	    }
+	  }
+	  break;
+	case CNUM_FOURIERFILTER:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->mean_mag),  "%9.5f", 1, 0, 0, 0, "FourierFilter_Mean_Mag_%d",  l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_in),    "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_In_%d",    l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FourierFilter->rms_out),   "%9.5f", 1, 0, 0, 0, "FourierFilter_RMS_Out_%d",   l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreqcalc), "%d",    1, 0, 0, 0, "FourierFilter_Nfreqcalc_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].FourierFilter->nfreqfilt), "%d",    1, 0, 0, 0, "FourierFilter_Nfreqfilt_%d", l);
 	  break;
 	case CNUM_INJECTHARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Injectharm->periodinject), "%14.8f", 1, 0, 0, 0, "Injectharm_Period_%d", l);
@@ -2023,7 +2071,7 @@ void printheader_new(ProgramData *p, FILE *outfile)
     {
       if(i)
 	dotab(outfile,p->tabflag);
-      fprintf(outfile,p->outcolumns[i].columnname);
+      fprintf(outfile,"%s",p->outcolumns[i].columnname);
     }
   fprintf(outfile,"\n");
   if(p->tabflag)
@@ -2087,12 +2135,12 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2111,7 +2159,7 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
       }
     for(i=0;i<p->Ncolumns;i++)
       {
-	fprintf(outfile,p->outcolumns[i].columnname);
+	fprintf(outfile,"%s",p->outcolumns[i].columnname);
 	for(j=p->outcolumns[i].length_columnname; j < maxlength; j++)
 	  fprintf(outfile," ");
 	fprintf(outfile," = ");
@@ -2147,12 +2195,12 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2162,6 +2210,64 @@ void printresults_new(ProgramData *p, int lc, int reallc, FILE *outfile)
 	  }
 	fprintf(outfile,"\n");
       }
+
+    /* -printallscalars: append "VARTOOLS_SCALAR:name = value" for every
+       per-star variable that is not already emitted as an OUTCOLUMN.
+       Primary purpose is round-tripping of scalar state across chained
+       vartools invocations from pyvartools. */
+    if(p->printallscalars) {
+      int _si;
+      _Variable *_v;
+      for(_si = 0; _si < p->NDefinedVariables; _si++) {
+	_v = p->DefinedVariables[_si];
+	if(_v == NULL || _v->varname == NULL || _v->dataptr == NULL)
+	  continue;
+	if(_v->vectortype != VARTOOLS_VECTORTYPE_SCALAR &&
+	   _v->vectortype != VARTOOLS_VECTORTYPE_PERSTARDATA &&
+	   _v->vectortype != VARTOOLS_VECTORTYPE_INLIST)
+	  continue;
+	/* SCALAR is per-thread; PERSTARDATA/INLIST are per-LC. */
+	{
+	  int _idx = (_v->vectortype == VARTOOLS_VECTORTYPE_SCALAR)
+	             ? lc : reallc;
+	  fprintf(outfile, "VARTOOLS_SCALAR:%s = ", _v->varname);
+	  switch(_v->datatype) {
+	  case VARTOOLS_TYPE_DOUBLE:
+	    fprintf(outfile, "%.17g",
+		    (*((double **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_FLOAT:
+	    fprintf(outfile, "%.9g",
+		    (double)(*((float **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_INT:
+	    fprintf(outfile, "%d",
+		    (*((int **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_LONG:
+	    fprintf(outfile, "%ld",
+		    (*((long **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_SHORT:
+	    fprintf(outfile, "%d",
+		    (int)(*((short **) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_STRING:
+	    fprintf(outfile, "%s",
+		    (*((char ***) _v->dataptr))[_idx]);
+	    break;
+	  case VARTOOLS_TYPE_CHAR:
+	    fprintf(outfile, "%c",
+		    (*((char **) _v->dataptr))[_idx]);
+	    break;
+	  default:
+	    fprintf(outfile, "?");
+	    break;
+	  }
+	  fprintf(outfile, "\n");
+	}
+      }
+    }
   }
   fprintf(outfile,"\n");
 }
@@ -2171,7 +2277,7 @@ void growbuffer(char **buf, int *sizebuf, int newlen)
   if(newlen + 1 >= (*sizebuf)) {
     (*sizebuf) = 2*(*sizebuf);
     if(((*buf) = (char *) realloc(*buf, (*sizebuf)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
 }
 
@@ -2190,7 +2296,7 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
   if((*sizebuf) == 0) {
     *sizebuf = 256;
     if((*buf = (char *) malloc((*sizebuf)*sizeof(char))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
   }
   int indx=0;
   (*buf)[indx] = '\0';
@@ -2259,12 +2365,12 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2287,9 +2393,9 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
       }
     for(i=0;i<p->Ncolumns;i++)
       {
-	if((len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,p->outcolumns[i].columnname)) >= ((*sizebuf)-indx)) {
+	if((len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,"%s",p->outcolumns[i].columnname)) >= ((*sizebuf)-indx)) {
 	  growbuffer(buf, sizebuf, indx+len+1);
-	  len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,p->outcolumns[i].columnname);
+	  len = snprintf(&((*buf)[indx]),(*sizebuf)-indx,"%s",p->outcolumns[i].columnname);
 	}
 	indx += len;
 	for(j=p->outcolumns[i].length_columnname; j < maxlength; j++) {
@@ -2356,12 +2462,12 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
 		if(!sizeouts)
 		  {
 		    if((outs = (char *) malloc(p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		else
 		  {
 		    if((outs = (char *) realloc(outs, p->outcolumns[i].stringsize)) == NULL)
-		      error(ERR_MEMALLOC);
+		      vt_error(ERR_MEMALLOC);
 		  }
 		sizeouts = p->outcolumns[i].stringsize;
 	      }
@@ -2388,7 +2494,7 @@ void emptyresults_buffer(ProgramData *p, FILE *outfile) {
   int i;
   for(i=0; i < p->Nbuffs_full; i++) {
     buf = p->full_buffer_stack[i];
-    fprintf(outfile,buf->data);
+    fprintf(outfile,"%s",buf->data);
     pushFreeBuffer(p,buf);
   }
   p->Nbuffs_full = 0;
@@ -2414,11 +2520,11 @@ _StringBuffer *popFreeBuffer(ProgramData *p) {
 void pushFullBuffer(ProgramData *p, _StringBuffer *buf) {
   if(!p->full_buffer_stack_alloclen) {
     if((p->full_buffer_stack = (_StringBuffer **) malloc(sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->full_buffer_stack_alloclen = 1;
   } else if(p->Nbuffs_full >= p->full_buffer_stack_alloclen-1) {
     if((p->full_buffer_stack = (_StringBuffer **) realloc(p->full_buffer_stack, (p->Nbuffs_full+1)*sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->full_buffer_stack_alloclen = p->Nbuffs_full+1;
   }
   p->full_buffer_stack[p->Nbuffs_full] = buf;
@@ -2428,11 +2534,11 @@ void pushFullBuffer(ProgramData *p, _StringBuffer *buf) {
 void pushFreeBuffer(ProgramData *p, _StringBuffer *buf) {
   if(!p->free_buffer_stack_alloclen) {
     if((p->free_buffer_stack = (_StringBuffer **) malloc(sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->free_buffer_stack_alloclen = 1;
   } else if(p->Nbuffs_free_stack >= p->free_buffer_stack_alloclen-1) {
     if((p->free_buffer_stack = (_StringBuffer **) realloc(p->free_buffer_stack, (p->Nbuffs_free_stack+1)*sizeof(_StringBuffer *))) == NULL)
-      error(ERR_MEMALLOC);
+      vt_error(ERR_MEMALLOC);
     p->free_buffer_stack_alloclen = p->Nbuffs_free_stack+1;
   }
   p->free_buffer_stack[p->Nbuffs_free_stack] = buf;

@@ -89,17 +89,20 @@ void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcr
 	case PERTYPE_EXPR:
 	  c->paraminject[i][lc] = EvaluateExpression(lcreal, lc, 0, c->paramexpr[i]);
 	  break;
+	case PERTYPE_VAR:
+	  c->paraminject[i][lc] = EvaluateVariable_Double(lcreal, lc, 0, c->paramvar[i]);
+	  break;
 	case PERTYPE_UNIFORMRAND:
 	  switch(i)
 	    {
 	    case INJECTTR_IDX_PERIOD:
-	      c->paraminject[i][lc] = c->minp + (c->maxp - c->minp)*(rand() / (RAND_MAX + 0.0));
+	      c->paraminject[i][lc] = VT_EVAL_DOUBLE(c, minp, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxp, lcreal, lc) - VT_EVAL_DOUBLE(c, minp, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    case INJECTTR_IDX_RP:
-	      c->paraminject[i][lc] = c->minRp + (c->maxRp - c->minRp)*(rand() / (RAND_MAX + 0.0));
+	      c->paraminject[i][lc] = VT_EVAL_DOUBLE(c, minRp, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxRp, lcreal, lc) - VT_EVAL_DOUBLE(c, minRp, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    case INJECTTR_IDX_MP:
-	      c->paraminject[i][lc] = c->minMp + (c->maxMp - c->minMp)*(rand() / (RAND_MAX + 0.0));
+	      c->paraminject[i][lc] = VT_EVAL_DOUBLE(c, minMp, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxMp, lcreal, lc) - VT_EVAL_DOUBLE(c, minMp, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    default:
 	      c->paraminject[i][lc] = (rand() / (RAND_MAX + 0.0));
@@ -110,27 +113,27 @@ void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcr
 	  switch(i)
 	    {
 	    case INJECTTR_IDX_PERIOD:
-	      dval = log(c->minp) + (log(c->maxp) - log(c->minp))*(rand() / (RAND_MAX + 0.0));
+	      dval = log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxp, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minp, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    case INJECTTR_IDX_RP:
-	      dval = log(c->minRp) + (log(c->maxRp) - log(c->minRp))*(rand() / (RAND_MAX + 0.0));
+	      dval = log(VT_EVAL_DOUBLE(c, minRp, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxRp, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minRp, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    case INJECTTR_IDX_MP:
-	      dval = log(c->minMp) + (log(c->maxMp) - log(c->minMp))*(rand() / (RAND_MAX + 0.0));
+	      dval = log(VT_EVAL_DOUBLE(c, minMp, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxMp, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minMp, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
 	      break;
 	    }
 	  c->paraminject[i][lc] = exp(dval);
 	  break;
 	case PERTYPE_UNIFORMRANDFREQ:
-	  dval = c->minf + (c->maxf - c->minf)*(rand() / (RAND_MAX + 0.0));
+	  dval = VT_EVAL_DOUBLE(c, minf, lcreal, lc) + (VT_EVAL_DOUBLE(c, maxf, lcreal, lc) - VT_EVAL_DOUBLE(c, minf, lcreal, lc))*(rand() / (RAND_MAX + 0.0));
 	  c->paraminject[i][lc] = 1./dval;
 	  break;
 	case PERTYPE_LOGRANDFREQ:
-	  dval = log(c->minf) + (log(c->maxf) - log(c->minf))*(rand() / (RAND_MAX + 0.0));
+	  dval = log(VT_EVAL_DOUBLE(c, minf, lcreal, lc)) + (log(VT_EVAL_DOUBLE(c, maxf, lcreal, lc)) - log(VT_EVAL_DOUBLE(c, minf, lcreal, lc)))*(rand() / (RAND_MAX + 0.0));
 	  c->paraminject[i][lc] = 1./exp(dval);
 	  break;
 	default:
-	  error(-1);
+	  vt_error(-1);
 	}
     }
 
@@ -191,7 +194,7 @@ void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcr
 
   if((delmag = (double *) malloc(N * sizeof(double))) == NULL ||
      (phase = (double *) malloc(N * sizeof(double))) == NULL)
-    error(ERR_MEMALLOC);
+    vt_error(ERR_MEMALLOC);
 
   /* Calculate the phases */
   for(i=0;i<N;i++)
@@ -207,7 +210,7 @@ void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcr
   if(c->omodel)
     {
       if((outfile = fopen(modeloutname,"w")) == NULL)
-	error2(ERR_CANNOTWRITE, modeloutname);
+	vt_error2(ERR_CANNOTWRITE, modeloutname);
     }
 
   for(j=0;j<N;j++)

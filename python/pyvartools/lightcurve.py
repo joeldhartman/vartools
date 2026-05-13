@@ -15,9 +15,10 @@ Accepts construction from:
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Sequence, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -26,12 +27,144 @@ import pandas as pd
 # even without it installed (though pyproject.toml lists it as a dependency).
 try:
     from astropy.timeseries import TimeSeries
-    import astropy.units as u
     _HAVE_ASTROPY = True
 except (ImportError, Exception):
     _HAVE_ASTROPY = False
 
+if TYPE_CHECKING:
+    from astropy.io.fits import Header as _FitsHeader
+
 _STANDARD_COLS = ("t", "mag", "err")
+
+
+# Sentinel for ``LightCurve.from_file(..., t_col=, mag_col=, err_col=)``.
+# When loading a FITS file, each kwarg must be explicitly set to a FITS
+# column name (a string) or to ``None`` (meaning "this LC has no such
+# column").  Leaving any of them at the default sentinel raises so the
+# user can't silently load a FITS file with the wrong column convention.
+class _UnsetT:
+    __slots__ = ()
+    def __repr__(self) -> str:
+        return "<UNSET>"
+_UNSET = _UnsetT()
+
+
+def _open_ascii(path: Path, mode: str = "r"):
+    """Open *path* for text reading, transparently handling .gz / .bz2.
+
+    Matches the compression formats vartools' file reader auto-detects.
+    """
+    suffix = str(path).lower()
+    if suffix.endswith(".gz") or suffix.endswith(".Z"):
+        import gzip
+        return gzip.open(path, mode + "t", encoding="utf-8",
+                          errors="replace")
+    if suffix.endswith(".bz2"):
+        import bz2
+        return bz2.open(path, mode + "t", encoding="utf-8",
+                         errors="replace")
+    return open(path, mode)
+
+
+def _read_ascii_header_names(path: Path):
+    """Return column names from the last ``# name1 name2 ...`` comment line
+    at the top of *path*, or ``None`` if no such line is present.
+
+    Only the contiguous block of leading comment lines is scanned, so a
+    ``#commandline`` log line (or any other `#...` line without space-
+    separated tokens that look like identifiers) is ignored unless it
+    happens to be the last header line and parses as a name list.
+
+    Transparently handles .gz, .Z, and .bz2-compressed files (matching
+    the compression formats vartools' file reader auto-detects).
+    """
+    try:
+        with _open_ascii(path, "r") as fh:
+            last_tokens = None
+            for raw in fh:
+                s = raw.lstrip()
+                if not s:
+                    continue
+                if not s.startswith("#"):
+                    break
+                stripped = s[1:].strip()
+                if not stripped:
+                    continue
+                tokens = stripped.split()
+                if all(tok.replace("_", "").replace(".", "").isalnum()
+                       and not tok[0].isdigit()
+                       for tok in tokens):
+                    last_tokens = tokens
+            return last_tokens
+    except OSError:
+        return None
+
+# -----------------------------------------------------------------------------
+# FITS-header helpers — shared between read and write.
+# -----------------------------------------------------------------------------
+
+# Structural FITS keywords that must be (re)derived from the current
+# DataFrame at write time.  These are filtered out on both read (when
+# capturing a header onto LightCurve.fitsheader) and write (when emitting
+# a preserved header back into an output file), so the user-visible
+# ``fitsheader`` only carries observational / provenance metadata.
+_STRUCTURAL_FIXED = frozenset({
+    "SIMPLE", "BITPIX", "EXTEND", "XTENSION", "END",
+    "NAXIS", "PCOUNT", "GCOUNT", "TFIELDS",
+    "EXTNAME", "EXTVER", "EXTLEVEL",
+})
+# Per-column and per-axis indexed keywords: TTYPE1, TFORM2, NAXIS1, …
+_STRUCTURAL_INDEXED_RE = re.compile(
+    r"^(NAXIS|TTYPE|TFORM|TDISP|TSCAL|TZERO|TNULL|TBCOL|TUNIT|"
+    r"TCTYP|TCRPX|TCRVL|TCDLT|TCUNI|TCROT|TDIM)\d+$"
+)
+
+
+def _is_structural_fits_key(keyword: str) -> bool:
+    """True for FITS header keywords that must be redetermined from the data."""
+    k = keyword.upper()
+    return k in _STRUCTURAL_FIXED or bool(_STRUCTURAL_INDEXED_RE.match(k))
+
+
+def _filter_structural(header: "_FitsHeader") -> "_FitsHeader":
+    """Return a copy of *header* with structural keywords stripped."""
+    from astropy.io.fits import Header
+    out = Header()
+    for card in header.cards:
+        # Allow blank / COMMENT / HISTORY cards through unchanged; they carry
+        # no structural meaning.
+        kw = (card.keyword or "").strip()
+        if not kw or kw in ("COMMENT", "HISTORY"):
+            out.append(card, end=True)
+            continue
+        if not _is_structural_fits_key(kw):
+            out.append(card, end=True)
+    return out
+
+
+def _coerce_fitsheader(value):
+    """Convert *value* into an ``astropy.io.fits.Header`` (or return None).
+
+    Accepts ``None`` (returns ``None``), an existing ``Header`` (returned as
+    a copy), or any dict-like whose items can be used as FITS keyword/value
+    pairs.  Raises ``TypeError`` for anything else.
+    """
+    if value is None:
+        return None
+    try:
+        from astropy.io import fits
+    except ImportError as exc:
+        raise ImportError(
+            "astropy is required to attach a FITS header to a LightCurve."
+        ) from exc
+    if isinstance(value, fits.Header):
+        return value.copy()
+    if isinstance(value, dict):
+        return fits.Header(list(value.items()))
+    raise TypeError(
+        f"fitsheader must be None, an astropy.io.fits.Header, or a dict; "
+        f"got {type(value).__name__}"
+    )
 
 
 class LightCurve:
@@ -52,9 +185,28 @@ class LightCurve:
         A label for this light curve (used as the vartools 'Name' field).
     """
 
-    def __init__(self, data: pd.DataFrame, name: str = "") -> None:
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
+    ) -> None:
         self._df = data.copy()
         self.name = name
+        # Per-star scalar variables (VARTOOLS_VECTORTYPE_SCALAR /
+        # PERSTARDATA / INLIST).  Canonical names, no ``_N`` suffix.
+        # Populated by pyvartools during capture; also carried across chained
+        # command invocations so subsequent commands can reference prior
+        # results in analytic expressions.
+        self.scalars: Dict[str, float] = dict(scalars or {})
+        # Optional FITS header preserved from the input file (merged primary +
+        # extension, structural keywords filtered).  Emitted back onto the
+        # primary HDU of FITS output via ``to_file``.  ``None`` if the light
+        # curve did not come from a FITS file.  Accepts an ``astropy.io.fits``
+        # ``Header`` instance or ``None``; other truthy values are converted
+        # to a ``Header`` when astropy is available.
+        self.fitsheader = _coerce_fitsheader(fitsheader)
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -68,6 +220,8 @@ class LightCurve:
         err: Optional[np.ndarray] = None,
         aux: Optional[Dict[str, np.ndarray]] = None,
         name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
     ) -> "LightCurve":
         """Construct from numpy arrays.
 
@@ -81,6 +235,9 @@ class LightCurve:
             Mapping of column name → array for additional columns.
         name : str, optional
             Light curve label.
+        fitsheader : astropy.io.fits.Header or dict, optional
+            FITS header to round-trip through :meth:`to_file`.  Normally set
+            automatically by :meth:`from_file` when reading a FITS file.
         """
         d = {}
         if t is not None:
@@ -92,17 +249,92 @@ class LightCurve:
         if aux:
             for k, v in aux.items():
                 d[k] = np.asarray(v)
-        return cls(pd.DataFrame(d), name=name)
+        return cls(pd.DataFrame(d), name=name, scalars=scalars,
+                   fitsheader=fitsheader)
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, name: str = "") -> "LightCurve":
+    def from_dataframe(
+        cls,
+        df: pd.DataFrame,
+        name: str = "",
+        scalars: Optional[Dict[str, float]] = None,
+        fitsheader: Optional[Any] = None,
+    ) -> "LightCurve":
         """Construct from a pandas DataFrame.
 
         Any DataFrame is accepted.  Columns named ``t``, ``mag``, and ``err``
         are treated as the standard vartools vectors when present; others are
         preserved as auxiliary columns.
         """
-        return cls(df, name=name)
+        return cls(df, name=name, scalars=scalars, fitsheader=fitsheader)
+
+    @classmethod
+    def from_lightkurve(cls, lklc, name: str = "") -> "LightCurve":
+        """Construct from a ``lightkurve.LightCurve`` object.
+
+        Parameters
+        ----------
+        lklc : lightkurve.LightCurve
+            A LightCurve from the lightkurve package (e.g. as returned by
+            ``lightkurve.search_lightcurve(...).download()``).
+        name : str, optional
+            Name to assign to the returned LightCurve.  When empty, the
+            object's ``meta['LABEL']`` or ``meta['OBJECT']`` is used if
+            available.
+
+        Notes
+        -----
+        Lightkurve uses linear flux while pyvartools' ``mag`` column is
+        nominally a magnitude.  This method preserves the numerical values
+        as-is — the data flows in unchanged, with ``flux`` mapped to the
+        pyvartools ``mag`` column and ``flux_err`` mapped to ``err``.  If
+        you need a magnitude scale, take ``-2.5 * log10(flux)`` before or
+        after the conversion.
+        """
+        try:
+            import lightkurve as _lk  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "lightkurve is required to use from_lightkurve().  "
+                "Install it with `pip install lightkurve`."
+            ) from e
+
+        # Times — lightkurve typically holds an astropy.time.Time; fall back
+        # to .value if it's a numpy/Quantity.
+        t_attr = lklc.time
+        t = np.asarray(t_attr.value if hasattr(t_attr, "jd") else t_attr.value
+                       if hasattr(t_attr, "value") else t_attr)
+        if hasattr(t_attr, "jd"):
+            t = t_attr.jd
+        # Flux / err — strip Quantity units if present.
+        flux = lklc.flux
+        flux = np.asarray(flux.value if hasattr(flux, "value") else flux)
+        ferr = lklc.flux_err
+        ferr = np.asarray(ferr.value if hasattr(ferr, "value") else ferr)
+
+        # Auxiliary columns — anything in the table that isn't time/flux/err.
+        aux: Dict[str, np.ndarray] = {}
+        skip = {"time", "flux", "flux_err"}
+        for col in lklc.colnames:
+            if col in skip:
+                continue
+            try:
+                vals = np.asarray(lklc[col])
+                # Skip non-numeric columns (e.g. quality strings) — they
+                # cannot round-trip cleanly through the vartools CLI.
+                if vals.dtype.kind in "biufc":
+                    aux[col] = vals
+            except Exception:
+                continue
+
+        if not name:
+            for k in ("LABEL", "OBJECT", "TARGETID"):
+                v = lklc.meta.get(k) if hasattr(lklc, "meta") else None
+                if v:
+                    name = str(v)
+                    break
+
+        return cls.from_arrays(t, flux, ferr, aux=aux or None, name=name)
 
     @classmethod
     def from_timeseries(cls, ts: "TimeSeries", mag_col: str = "mag",
@@ -133,9 +365,9 @@ class LightCurve:
         path: Union[str, Path],
         name: str = "",
         format: Optional[str] = None,
-        t_col: str = "BJD",
-        mag_col: str = "Mag",
-        err_col: str = "Err",
+        t_col: Union[str, None, "_UnsetT"] = _UNSET,
+        mag_col: Union[str, None, "_UnsetT"] = _UNSET,
+        err_col: Union[str, None, "_UnsetT"] = _UNSET,
         hdu: int = 1,
     ) -> "LightCurve":
         """Read a light curve from a file.
@@ -184,15 +416,75 @@ class LightCurve:
             return cls._from_ascii(path, lc_name)
 
     @classmethod
+    def from_files(
+        cls,
+        paths: Sequence[Union[str, Path]],
+        name: str = "",
+        lcnum_col: str = "lcnum",
+        sort: bool = True,
+        **read_kwargs: Any,
+    ) -> "LightCurve":
+        """Read several light-curve files and combine them into one ``LightCurve``.
+
+        Each file is loaded via :meth:`from_file` (so ``read_kwargs`` such as
+        ``format``, ``t_col``, ``mag_col``, ``err_col``, ``hdu`` may be
+        forwarded to the FITS reader).  The resulting DataFrames are
+        concatenated, an integer ``lcnum_col`` is filled in (0 for the first
+        file, 1 for the second, …), and the combined frame is optionally
+        time-sorted.
+
+        This mirrors what vartools' ``-l ... combinelcs`` mode does internally,
+        but does the merge entirely in Python — useful when you want to feed a
+        single combined LC to commands that don't go through the file-list
+        machinery (e.g. ``Pipeline.run(lc)`` after calling :func:`from_files`).
+
+        Parameters
+        ----------
+        paths : sequence of str | Path
+            Files to combine, in the order their points should be tagged.
+        name : str, optional
+            Label for the combined light curve.  Defaults to the stem of the
+            first file.
+        lcnum_col : str
+            Name of the integer column added to identify the source file of
+            each row.  Default ``"lcnum"``.  If the column already exists in
+            any of the input frames, it is overwritten.
+        sort : bool
+            If True (default), sort the combined frame by ``t`` ascending.
+        **read_kwargs
+            Extra keyword arguments forwarded to :meth:`from_file` (e.g.
+            ``t_col``, ``mag_col``, ``err_col``, ``hdu``).
+
+        Returns
+        -------
+        LightCurve
+        """
+        paths = list(paths)
+        if not paths:
+            raise ValueError("from_files() requires at least one path.")
+        frames = []
+        for i, p in enumerate(paths):
+            lc = cls.from_file(p, **read_kwargs)
+            df = lc._df.copy()
+            df[lcnum_col] = i
+            frames.append(df)
+        merged = pd.concat(frames, ignore_index=True)
+        if sort and "t" in merged.columns:
+            merged = merged.sort_values("t").reset_index(drop=True)
+        if not name:
+            name = Path(paths[0]).stem
+        return cls(merged, name=name)
+
+    @classmethod
     def _from_ascii(cls, path: Path, name: str) -> "LightCurve":
         df = pd.read_csv(path, sep=r"\s+", comment="#", header=None)
         ncols = df.shape[1]
-        if ncols >= 3:
-            # Standard convention: first three columns are t, mag, err.
+        header_names = _read_ascii_header_names(path)
+        if header_names is not None and len(header_names) == ncols:
+            col_names = header_names
+        elif ncols >= 3:
             col_names = list(_STANDARD_COLS) + [f"col{i+4}" for i in range(ncols - 3)]
         else:
-            # Fewer than 3 columns — caller will need to supply column
-            # semantics via the Pipeline `columns` parameter.
             col_names = [f"col{i+1}" for i in range(ncols)]
         df.columns = col_names
         return cls(df, name=name)
@@ -202,39 +494,114 @@ class LightCurve:
         cls,
         path: Path,
         name: str,
-        t_col: str,
-        mag_col: str,
-        err_col: str,
+        t_col,
+        mag_col,
+        err_col,
         hdu: int,
     ) -> "LightCurve":
+        """Load a FITS file.
+
+        Every column in the table HDU is loaded under its original FITS
+        column name into the resulting LightCurve's DataFrame.  The user
+        must explicitly choose which (if any) FITS columns correspond
+        to ``t``, ``mag``, and ``err`` by passing matching ``t_col=``,
+        ``mag_col=``, ``err_col=`` keyword arguments to
+        :meth:`from_file`.  Passing ``None`` for any of the three means
+        the LC has no such column (at run time vartools defaults the
+        missing one — ``t=NR``, ``mag=0``, ``err=1``).  Leaving any of
+        the three unset raises ``ValueError`` listing the available
+        columns.
+
+        For example, with a FITS file whose table columns are
+        ``time / mag / err / airmass``::
+
+            lc = vt.LightCurve.from_file("foo.fits",
+                                          t_col="time", mag_col="mag",
+                                          err_col="err")
+
+        The DataFrame then carries ``t`` (aliased from ``time``),
+        ``mag``, ``err``, plus all original column names
+        (``time``, ``mag``, ``err``, ``airmass``).  Vartools commands
+        that need t/mag/err find them under those names; commands
+        that reference ``airmass`` by name also work.
+        """
         try:
             from astropy.io import fits
         except ImportError as e:
             raise ImportError(
                 "astropy is required to read FITS files."
             ) from e
+
+        # Validate kwargs first; we need the column list for the
+        # error message so we have to open the file.
         with fits.open(path) as hdul:
             table = hdul[hdu]
-            cols = {c.name.upper(): c.name for c in table.columns}
-            def _get(wanted: str) -> np.ndarray:
-                key = cols.get(wanted.upper())
+            available_cols = [c.name for c in table.columns]
+
+            unset = [
+                kwarg for kwarg, val in (
+                    ("t_col", t_col),
+                    ("mag_col", mag_col),
+                    ("err_col", err_col),
+                )
+                if isinstance(val, _UnsetT)
+            ]
+            if unset:
+                raise ValueError(
+                    f"FITS file {str(path)!r} requires explicit "
+                    f"{', '.join(unset)} keyword argument(s) on "
+                    f"LightCurve.from_file().  Available columns: "
+                    f"{available_cols}.  Pass each as the matching "
+                    f"FITS column name (e.g. t_col='BJD'), or pass "
+                    f"None to indicate the LC has no such column "
+                    f"(vartools will default the missing one)."
+                )
+
+            # Load every FITS column into aux under its original FITS
+            # column name.  Strings keep their dtype; everything else
+            # comes through as numeric.
+            aux: Dict[str, np.ndarray] = {}
+            for c in table.columns:
+                aux[c.name] = np.asarray(table.data[c.name])
+
+            cols_lookup = {c.name.upper(): c.name for c in table.columns}
+
+            def _resolve(wanted, kwarg_hint):
+                if wanted is None:
+                    return None
+                if not isinstance(wanted, str):
+                    raise TypeError(
+                        f"LightCurve.from_file: {kwarg_hint}= must be a "
+                        f"string FITS column name or None; got "
+                        f"{type(wanted).__name__}"
+                    )
+                key = cols_lookup.get(wanted.upper())
                 if key is None:
                     raise ValueError(
-                        f"Column '{wanted}' not found in FITS HDU {hdu} of "
-                        f"'{path}'.  Available: {list(cols.values())}"
+                        f"FITS column {wanted!r} not found in HDU "
+                        f"{hdu} of {str(path)!r}.  Available: "
+                        f"{available_cols}.  Pass {kwarg_hint}="
+                        f"'<colname>' (or {kwarg_hint}=None) to "
+                        f"LightCurve.from_file()."
                     )
+                # Use the canonically-cased name from the FITS header
+                # so callers can reference it case-insensitively.
                 return np.asarray(table.data[key], dtype=float)
 
-            t   = _get(t_col)
-            mag = _get(mag_col)
-            err = _get(err_col)
-            skip = {t_col.upper(), mag_col.upper(), err_col.upper()}
-            aux = {
-                c.name: np.asarray(table.data[c.name])
-                for c in table.columns
-                if c.name.upper() not in skip
-            }
-        return cls.from_arrays(t, mag, err, aux=aux or None, name=name)
+            t   = _resolve(t_col,   "t_col")
+            mag = _resolve(mag_col, "mag_col")
+            err = _resolve(err_col, "err_col")
+
+            # Merge primary + data-HDU headers into a single
+            # observational header, filtering out column/axis-
+            # structural keywords.
+            merged = fits.Header(hdul[0].header.copy())
+            if hdu != 0:
+                merged.update(hdul[hdu].header)
+            header = _filter_structural(merged)
+
+        return cls.from_arrays(t, mag, err, aux=aux, name=name,
+                               fitsheader=header)
 
     # ------------------------------------------------------------------
     # Conversion helpers
@@ -252,6 +619,38 @@ class LightCurve:
     def err(self) -> Optional[np.ndarray]:
         return self._df["err"].to_numpy() if "err" in self._df.columns else None
 
+    def _arrays_for_vartools(self) -> Optional[tuple]:
+        """Return ``(t, mag, err)`` arrays sized to fit this LC, with the
+        same defaults vartools' CLI applies when an ``-inputlcformat``
+        omits one or more of those standard columns:
+
+        ``t = NR`` (0-based row index), ``mag = 0``, ``err = 1``.
+
+        Used by the library-mode injection paths so they match the
+        subprocess + CLI behaviour when the user-supplied DataFrame
+        doesn't have t/mag/err.  Returns ``None`` when the DataFrame
+        has zero rows.
+
+        Aux columns (anything other than t/mag/err) are unaffected;
+        they flow through ``extra_columns`` to vartools as named
+        variables and the user's data is preserved under its original
+        name."""
+        n = len(self._df)
+        if n == 0:
+            return None
+        t   = (self._df["t"].to_numpy()   if "t"   in self._df.columns
+               else np.arange(n, dtype=np.float64))
+        mag = (self._df["mag"].to_numpy() if "mag" in self._df.columns
+               else np.zeros(n, dtype=np.float64))
+        err = (self._df["err"].to_numpy() if "err" in self._df.columns
+               else np.ones(n, dtype=np.float64))
+        return t, mag, err
+
+    @property
+    def cols(self) -> list:
+        """List of column names (e.g. ``['t', 'mag', 'err', 'tmp']``)."""
+        return list(self._df.columns)
+
     def to_dataframe(self) -> pd.DataFrame:
         """Return a copy of the internal DataFrame."""
         return self._df.copy()
@@ -260,10 +659,60 @@ class LightCurve:
         """Return (t, mag, err) as numpy arrays."""
         return self.t, self.mag, self.err
 
+    def to_lightkurve(self):
+        """Convert to a ``lightkurve.LightCurve``.
+
+        Returns
+        -------
+        lightkurve.LightCurve
+            The lightkurve object with ``time`` set from this LC's ``t``
+            column (interpreted as JD) and ``flux``/``flux_err`` from the
+            ``mag``/``err`` columns.
+
+        Notes
+        -----
+        Lightkurve treats ``flux`` as a linear flux in electrons/s by
+        default.  This method preserves the numerical values from the
+        ``mag`` column as-is — convert from magnitude to flux yourself if
+        the units matter.  Auxiliary columns are passed through as extra
+        table columns.
+        """
+        try:
+            import lightkurve as _lk
+        except ImportError as e:
+            raise ImportError(
+                "lightkurve is required to use to_lightkurve().  "
+                "Install it with `pip install lightkurve`."
+            ) from e
+        if self.t is None:
+            raise ValueError(
+                "LightCurve has no 't' column; cannot construct a "
+                "lightkurve.LightCurve."
+            )
+        from astropy.time import Time
+        kwargs = {
+            "time": Time(self.t, format="jd"),
+            "flux": self.mag,
+            "flux_err": self.err,
+        }
+        # Pass auxiliary columns through.
+        for col in self._df.columns:
+            if col not in ("t", "mag", "err"):
+                kwargs[col] = self._df[col].to_numpy()
+        if self.name:
+            kwargs["meta"] = {"LABEL": self.name}
+        return _lk.LightCurve(**kwargs)
+
     def to_timeseries(self) -> "TimeSeries":
         """Convert to an astropy TimeSeries."""
         if not _HAVE_ASTROPY:
             raise ImportError("astropy is required to use to_timeseries().")
+        if self.t is None:
+            raise ValueError(
+                "LightCurve has no 't' column; cannot construct a TimeSeries. "
+                "Supply a time array via from_arrays(t=...) or ensure the "
+                "source file has a time column."
+            )
         from astropy.time import Time
         ts = TimeSeries(time=Time(self.t, format="jd"))
         for col in self._df.columns:
@@ -272,13 +721,61 @@ class LightCurve:
         return ts
 
     # ------------------------------------------------------------------
-    # Serialisation (for passing to the vartools binary via temp files)
+    # Serialisation
     # ------------------------------------------------------------------
 
-    def to_tempfile(self, dir: Optional[str] = None) -> str:
+    def to_file(
+        self,
+        path: Union[str, Path],
+        format: Optional[str] = None,
+    ) -> None:
+        """Write the light curve to a file.
+
+        Parameters
+        ----------
+        path : str | Path
+        format : str, optional
+            ``"ascii"`` (default for most extensions) or ``"fits"``.
+            Auto-detected from the file extension when omitted.
+
+        Notes
+        -----
+        ASCII output is whitespace-separated with 10 decimal places of
+        precision and no header line, matching the vartools default format.
+        FITS output requires astropy.
+        """
+        path = Path(path)
+        if format is None:
+            fmt = path.suffix.lower()
+            if fmt in (".fits", ".fit", ".fts"):
+                format = "fits"
+            else:
+                format = "ascii"
+
+        if format == "fits":
+            try:
+                from astropy.io import fits
+                from astropy.table import Table
+            except ImportError as e:
+                raise ImportError("astropy is required to write FITS files.") from e
+            tbl = Table.from_pandas(self._df)
+            bin_hdu = fits.BinTableHDU(data=tbl)
+            primary = fits.PrimaryHDU()
+            # When a preserved header is available, inject its non-structural
+            # keywords onto the primary HDU.  Skip when fitsheader is None so
+            # the default write path is byte-for-byte unchanged from before.
+            if self.fitsheader is not None:
+                for card in _filter_structural(self.fitsheader).cards:
+                    primary.header.append(card, end=True)
+            fits.HDUList([primary, bin_hdu]).writeto(str(path), overwrite=True)
+        else:
+            self._df.to_csv(path, sep=" ", header=False, index=False,
+                            float_format="%.10f")
+
+    def _to_tempfile(self, dir: Optional[str] = None) -> str:
         """Write the light curve to a named temp file and return its path.
 
-        The caller is responsible for deleting the file when done.
+        Internal helper — callers are responsible for deleting the file.
         """
         fd, path = tempfile.mkstemp(suffix=".lc", dir=dir)
         try:
@@ -291,12 +788,157 @@ class LightCurve:
         return path
 
     # ------------------------------------------------------------------
+    # Visualisation
+    # ------------------------------------------------------------------
+
+    def plot(self, ax=None, **kwargs):
+        """Quick-look plot of the light curve.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            Axes to draw on.  A new figure and axes are created if omitted.
+        **kwargs
+            Passed to ``ax.errorbar`` (or ``ax.plot`` when there is no error
+            column).  Override defaults such as ``fmt``, ``markersize``, etc.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+
+        Notes
+        -----
+        The y-axis is inverted automatically (standard astronomical magnitude
+        convention).  Requires matplotlib.
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError as e:
+            raise ImportError("matplotlib is required for LightCurve.plot().") from e
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        kw = dict(fmt=".", markersize=3, elinewidth=0.5, capsize=0)
+        kw.update(kwargs)
+
+        t = self.t
+        mag = self.mag
+        err = self.err
+
+        if t is None or mag is None:
+            raise ValueError(
+                "LightCurve has no 't' or 'mag' column; cannot plot."
+            )
+
+        if err is not None:
+            ax.errorbar(t, mag, err, **kw)
+        else:
+            # Strip errorbar-specific keys that aren't valid for plot()
+            plot_kw = {k: v for k, v in kw.items()
+                       if k not in ("elinewidth", "capsize", "ecolor", "barsabove")}
+            fmt = plot_kw.pop("fmt", ".")
+            ax.plot(t, mag, fmt, **plot_kw)
+
+        ax.invert_yaxis()
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Magnitude")
+        if self.name:
+            ax.set_title(self.name)
+
+        return ax
+
+    # ------------------------------------------------------------------
     # Dunder
     # ------------------------------------------------------------------
+
+    @property
+    def shape(self) -> tuple:
+        """(n_points, n_columns) — mirrors ``DataFrame.shape``."""
+        return self._df.shape
 
     def __len__(self) -> int:
         return len(self._df)
 
+    def __contains__(self, key: str) -> bool:
+        return key in self._df.columns
+
+    def __getitem__(self, key: str) -> np.ndarray:
+        """Return the named column as a numpy array.
+
+        Parameters
+        ----------
+        key : str
+            Column name.  See :attr:`cols` for the available list.
+
+        Returns
+        -------
+        numpy.ndarray
+            The column as a numpy array.  No copy is made when the
+            underlying pandas dtype is numpy-compatible.
+
+        Raises
+        ------
+        KeyError
+            If *key* is not a column of this light curve.
+        """
+        if not isinstance(key, str):
+            raise TypeError(
+                f"LightCurve indexing supports column names (str); "
+                f"got {type(key).__name__}.  Use ``to_dataframe()`` for "
+                f"row-level access."
+            )
+        if key not in self._df.columns:
+            raise KeyError(
+                f"Column {key!r} not in LightCurve.  "
+                f"Available: {list(self._df.columns)}"
+            )
+        return self._df[key].to_numpy()
+
     def __repr__(self) -> str:
+        extra = f", scalars={len(self.scalars)}" if self.scalars else ""
         return (f"LightCurve(name={self.name!r}, n={len(self)}, "
-                f"cols={list(self._df.columns)})")
+                f"cols={list(self._df.columns)}{extra})")
+
+    def _repr_html_(self) -> str:
+        """HTML repr for Jupyter notebooks."""
+        n = len(self)
+        cols = list(self._df.columns)
+        nscalars = len(self.scalars) if self.scalars else 0
+
+        # Preview: first 5 + last 5 rows for tables longer than 10 rows
+        if n <= 10:
+            preview = self._df
+        else:
+            head = self._df.head(5)
+            tail = self._df.tail(5)
+            ellipsis = pd.DataFrame(
+                [["..."] * len(cols)], columns=cols, index=["..."],
+            )
+            preview = pd.concat([head, ellipsis, tail])
+        preview_html = preview._repr_html_()
+
+        # Scalars (if any) — short table
+        if nscalars > 0:
+            scalars_series = pd.Series(self.scalars).rename("value")
+            scalars_html = (
+                f'<details style="margin-top:0.4em">'
+                f'<summary>scalars ({nscalars})</summary>'
+                f'{scalars_series.to_frame()._repr_html_()}'
+                f'</details>'
+            )
+        else:
+            scalars_html = ""
+
+        return (
+            f'<div style="font-family:sans-serif;font-size:0.9em">'
+            f'  <b>LightCurve</b> &middot; '
+            f'  name: <code>{self.name}</code> &middot; '
+            f'  n: {n} &middot; '
+            f'  cols: {cols}'
+            f'  <details style="margin-top:0.4em" open><summary>data</summary>'
+            f'    {preview_html}'
+            f'  </details>'
+            f'  {scalars_html}'
+            f'</div>'
+        )

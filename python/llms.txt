@@ -1,0 +1,1494 @@
+# pyvartools — LLM reference
+
+pyvartools is the Python API for the VARTOOLS light-curve analysis
+program.  Every vartools command is exposed as a Python class; light
+curves are passed in and out through `LightCurve`, `pandas.DataFrame`,
+or numpy arrays.  A single `Pipeline` invocation runs an arbitrary
+chain of commands over one or more light curves and returns the per-LC
+statistics as a `pandas.Series` (single LC) or `pandas.DataFrame`
+(batch).
+
+Two execution paths are available and are selected automatically.  In
+library mode the vartools engine runs in-process via
+`libvartoolspipeline.so`; in subprocess mode the `vartools` binary is
+invoked.  Both produce identical outputs; the choice is transparent
+to the caller.
+
+Full website documentation:
+https://www.astro.princeton.edu/~jhartman/vartools/
+Per-command CLI reference (the canonical specification for what each
+command does, parameter semantics, and output column names) is at the
+same URL.
+
+Citation: Hartman & Bakos, 2016, Astronomy and Computing, 17, 1.
+
+---
+
+## Installation
+
+pyvartools is **not** on PyPI.  Install from the source tree:
+
+```bash
+cd /path/to/vartools/python
+pip install -e .
+```
+
+or, after `./configure && make` of the vartools tree:
+
+```bash
+make install            # installs the binary + libvartoolspipeline.so
+make install-python     # records the install path into pyvartools
+```
+
+Requires Python ≥ 3.8, numpy, and pandas.  Optional: astropy (FITS
+I/O, TimeSeries conversion), matplotlib (`LightCurve.plot`),
+lightkurve (`LightCurve.from_lightkurve`/`to_lightkurve`).
+
+The `vartools` binary is discovered in this order:
+
+1. `pyvartools.set_binary("/path/to/vartools")` at runtime.
+2. `VARTOOLS_BINARY` environment variable.
+3. The install-time path recorded by `make install-python`.
+4. `vartools` on `PATH`.
+
+The library `libvartoolspipeline.so` is discovered similarly via
+`pyvartools.set_library(...)`, the `VARTOOLS_LIBRARY` environment
+variable, the binary's RPATH, or the linker search path.  Setting
+`VARTOOLS_USE_LIBRARY=0` disables library mode globally.
+
+---
+
+## Core types
+
+### `LightCurve` — in-memory light curve
+
+A `LightCurve` wraps a `pandas.DataFrame`.  The standard columns are
+`t` (time), `mag` (magnitude or flux), and `err` (uncertainty), but
+none of the three is required — any column layout is accepted and
+extra columns are propagated to vartools as auxiliary variables.
+
+Constructors (`pyvartools.LightCurve`):
+
+- `LightCurve.from_arrays(t=None, mag=None, err=None, aux=None, name="", scalars=None, fitsheader=None)` —
+  build from numpy arrays.  `aux` is a `{name: array}` dict for
+  additional columns.
+- `LightCurve.from_dataframe(df, name="", scalars=None, fitsheader=None)` —
+  wrap an existing DataFrame.
+- `LightCurve.from_file(path, name="", format=None, t_col=UNSET, mag_col=UNSET, err_col=UNSET, hdu=1)` —
+  read from disk.  Format is auto-detected from the extension
+  (`.fits`/`.fit`/`.fts` → FITS, anything else → ASCII; `.gz`,
+  `.Z`, `.bz2` are transparently decompressed).  For FITS files
+  `t_col`/`mag_col`/`err_col` must be set explicitly to a column
+  name (string) or `None` (no such column); leaving any unset
+  raises `ValueError` with the available column list.
+- `LightCurve.from_files(paths, name="", lcnum_col="lcnum", sort=True, **read_kwargs)` —
+  read several files and concatenate them into one combined LC.
+  An integer `lcnum_col` records which file each row came from.
+- `LightCurve.from_timeseries(ts, mag_col="mag", err_col="err", name="")` —
+  build from an astropy `TimeSeries`.
+- `LightCurve.from_lightkurve(lklc, name="")` — build from a
+  `lightkurve.LightCurve`.
+
+Accessors:
+
+- `lc.t`, `lc.mag`, `lc.err` — `numpy.ndarray` (or `None` if the
+  column is absent).
+- `lc.cols` — list of column names.
+- `lc["colname"]` — column as a numpy array.
+- `"colname" in lc` — column-membership test.
+- `len(lc)` — number of observations.
+- `lc.shape` — `(n_points, n_columns)`.
+- `lc.name` — string label (used as the vartools `Name` field).
+- `lc.scalars` — `dict[str, float]` of per-star scalar variables
+  carried into / out of vartools (created by `cmd.expr` with
+  `vartype="scalar"` or `"const"`, and round-tripped across chain
+  segments).
+- `lc.fitsheader` — preserved FITS header (or `None`).
+- `lc.to_dataframe()` — copy of the internal DataFrame.
+- `lc.to_arrays()` — `(t, mag, err)` tuple.
+- `lc.to_file(path, format=None)` — write to ASCII or FITS.
+- `lc.to_timeseries()`, `lc.to_lightkurve()` — type conversion.
+- `lc.plot(ax=None, **kwargs)` — quick-look matplotlib plot (y-axis
+  inverted).
+
+### `Pipeline` — ordered command chain
+
+A `Pipeline` holds a list of `VartoolsCommand` instances and runs
+them as a single vartools invocation.  Construction:
+
+```python
+import pyvartools as vt
+from pyvartools import commands as cmd
+
+# Builder form — each command method appends and returns the pipeline
+pipe = vt.Pipeline().clip(5.0).LS(0.5, 10.0, 1e-3).rms()
+
+# List form — equivalent
+pipe = vt.Pipeline([cmd.clip(5.0), cmd.LS(0.5, 10.0, 1e-3), cmd.rms()])
+
+# Mixed: builder + add() for commands without a direct builder method
+pipe = vt.Pipeline().clip(5.0).add(vt.UserCommand("USERLIBS/src/mylib.so",
+                                                   "mylib", "fix 1.0"))
+```
+
+A `Pipeline` is reusable and stateless: the same instance may be
+called on any number of light curves.  Run methods are listed under
+[Run methods](#run-methods).
+
+### `LightCurveBatch` — deferred chain over many LCs
+
+`LightCurveBatch(lcs)` collects light curves and accepts the same
+fluent command methods as `LightCurve`, but calls are **deferred**
+until `.run()`.  By default it runs one vartools invocation per LC;
+when the chain contains a `PerLC` attribute, `perlc_vars`, or is
+continuing from a `BatchResult`, the run is auto-routed to
+`Pipeline.run_batch()` so a single invocation handles the whole
+batch.
+
+```python
+lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 6)]
+br  = vt.LightCurveBatch(lcs).clip(5.0).LS(0.5, 10.0, 1e-3).rms().run()
+print(br.vars)            # one row per LC
+```
+
+`LightCurveBatch` accepts a list, an iterable, or `*args`:
+
+```python
+vt.LightCurveBatch([lc1, lc2, lc3])
+vt.LightCurveBatch(lc1, lc2, lc3)
+vt.LightCurveBatch.from_files(["path1.lc", "path2.lc", ...])
+```
+
+Indexing: integer position (`batch[0]`), string `.name` lookup
+(`batch["EXAMPLES/2"]`), iteration, and `len()`.  Membership tests
+accept either a name string or a `LightCurve` instance.
+
+### `Result` — single-LC output
+
+Attributes:
+
+- `result.vars` — `pandas.Series` indexed by vartools output column
+  names (`"LS_Period_1_0"`, `"Log10_LS_Prob_1_0"`, `"RMS_1"`, plus
+  `"Name"`).  Scalars accessed directly: `result.vars["LS_Period_1_0"]`.
+- `result.varobjs` — structured per-command access.
+  `result.varobjs.LS.Period_1` walks the command name then the
+  short field name.  `result.varobjs.LS[0].Period_1` indexes when a
+  command appears more than once in the pipeline.
+- `result.lc` — captured output `LightCurve` (or `None` if the run
+  didn't request capture).
+- `result.files` — `dict[str, pandas.DataFrame | LightCurve]` of
+  auxiliary outputs (periodograms, model files, MCMC chains, captured
+  LCs from `cmd.o(capture=True)`).
+- `result.ok` — `True` when the run completed.  `False` after a
+  per-LC failure in a batch run with `raise_on_error=False`.
+- `result.error` — `RunError` if the run failed, else `None`.
+- Attribute shorthand: `result.LS_Period_1_0` is equivalent to
+  `result.vars["LS_Period_1_0"]`.
+
+### `BatchResult` — multi-LC output
+
+Attributes:
+
+- `batch.vars` — `pandas.DataFrame` with one row per light curve.
+  Columns are the same names as `Result.vars`.  `Name` is always
+  the first column.
+- `batch.lcs` — `list[LightCurve | None]` (empty list when
+  `capture_lc=False`).
+- `batch.files` — `dict[str, list]`; each value is a list with one
+  entry per LC.  For `cmd.o(capture=True)` runs the value is a
+  `LightCurveList`.
+- `batch.lcscalars` — `pandas.DataFrame` aggregating
+  `lc.scalars` across all captured LCs.
+- `batch.ok` / `batch.error` — overall run status; for per-LC
+  errors check `batch[i].error`.
+
+Iteration and indexing:
+
+- `batch[i]` — i-th `Result` (or sub-`BatchResult` for a slice).
+- `batch[start:stop:step]` — `BatchResult` containing the selected LCs.
+- `for r in batch:` — iterate over per-LC `Result` objects.
+- `len(batch)` — number of LCs.
+- `batch.filter(mask)` — return a sub-`BatchResult` where `mask[i]` is
+  true.  `mask` is a boolean numpy array, list, or `pandas.Series`.
+
+### `LightCurveList` — captured LCs
+
+A `list` subclass returned in `batch.files[key]` for any
+`cmd.o(capture=True)` run.  In addition to integer indexing it
+accepts string `.name` lookup (`lcs["EXAMPLES/2"]`) and supports
+`"name" in lcs`.  Missing-output slots stay as `None` so positional
+alignment with the input batch is preserved.
+
+### `PerLC` — per-light-curve values on a command parameter
+
+```python
+from pyvartools import PerLC
+cmd.LS(minp=PerLC([0.1, 0.5, 1.0]), maxp=10.0, subsample=0.01)
+```
+
+`PerLC` wraps a 1-D sequence and tags it explicitly as "one value
+per LC in the batch."  Numpy arrays and pandas `Series` are also
+auto-detected as per-LC arrays; plain Python lists are not (to avoid
+colliding with fixed multi-valued parameters such as
+`MandelAgolTransit(ld_coeffs=[0.236, 0.391])`).  See
+[Per-LC arrays on command parameters](#per-lc-arrays-on-command-parameters).
+
+### Supporting types
+
+- `PerPointVar(type="double", init="0")` — declare a per-observation
+  variable initialised from an analytic expression, passed in
+  `perpoint_vars`.  See [`perpoint_vars`](#perpoint_vars).
+- `PerPointColumn(col, type="double", format=None)` — declare a
+  light-curve-file column for `run_file` / `run_filelist`, passed in
+  `perpoint_columns`.
+- `PerLCColumn(col, type="double", init=None, combinelc=False)` —
+  declare a list-file column for `perlc_vars`.  `col=0` plus `init`
+  expression-initialises the variable instead of reading from a column.
+- `Output(path=None, capture=True)` — control `save_*` output:
+  passes through `bool`, `str` (directory), or an `Output` instance.
+- `RunError` — raised when vartools exits non-zero, the binary can't
+  be found, or `timeout=` is exceeded.
+- `PipelineValidationError` — raised by `Pipeline.validate()` when
+  the parser rejects the command line.  Carries `.stderr` and
+  `.argv` attributes.
+
+---
+
+## Three calling styles
+
+The same vartools command can be invoked three ways.  All three
+produce the same `Result` shape.
+
+### 1. Top-level function — `vt.CMD(lc_input, ...)`
+
+Every command is attached to the `pyvartools` namespace as a
+callable whose first argument is the light curve.
+
+```python
+import pyvartools as vt
+
+result = vt.LS("EXAMPLES/2", 0.5, 10.0, 0.01)
+print(result.varobjs.LS.Period_1)
+```
+
+`lc_input` accepts:
+
+- `LightCurve` instance.
+- `str` or `pathlib.Path` — read via `LightCurve.from_file`.
+- `pandas.DataFrame`.
+- 2-D `numpy.ndarray` — columns are mapped to `t, mag, err, col4, ...`.
+- tuple / list of 1-D arrays — unpacked as `(t, mag, err)`.
+- astropy `TimeSeries`.
+
+Run-time options (`capture_lc`, `timeout`, `randseed`, `skipmissing`,
+`jdtol`, `matchstringid`) may be passed as keyword arguments
+alongside the command parameters.  `capture_lc` defaults to `True`
+for top-level functions.
+
+For FITS files needing non-default column names, construct a
+`LightCurve` explicitly:
+
+```python
+lc = vt.LightCurve.from_file("data.fits", t_col="BJD",
+                              mag_col="Mag", err_col="Err")
+result = vt.LS(lc, 0.5, 10.0, 0.01)
+```
+
+### 2. Method on `LightCurve` or `Result`
+
+Each command is attached as a method on `LightCurve` and `Result`.
+The call executes immediately and returns a `Result`; chaining
+further calls on that `Result` runs the next command on
+`result.lc` and accumulates the output variables across all
+segments.
+
+```python
+lc = vt.LightCurve.from_file("EXAMPLES/2")
+
+# Single command
+r = lc.LS(0.5, 10.0, 0.01)
+
+# Chain — each step is a separate vartools invocation
+r = lc.clip(5.0).LS(0.5, 10.0, 0.01).rms()
+print(r.varobjs.LS.Period_1, r.varobjs.rms.RMS)
+
+# Branch from any intermediate result
+r_clip = lc.clip(5.0)
+r_ls  = r_clip.LS(0.5, 10.0, 0.01)
+r_bls = r_clip.BLS(0.5, 10.0, qmin=0.01, qmax=0.1, nfreq=10000)
+```
+
+Five commands are **pipeline-stateful**: `savelc`, `restorelc`,
+`columnsuffix`, `ifcmd`/`elifcmd`/`elsecmd`/`ficmd`, and `o`.
+Calling them on `LightCurve` or `Result` raises
+`NotImplementedError`; use a `Pipeline` instead.
+
+Output values from prior segments are exposed as named variables
+in subsequent segments, so analytic expressions can reference them:
+
+```python
+r1 = lc.LS(0.5, 10.0, 0.01)
+r2 = r1.expr("doubled=2*LS_Period_1_0", vartype="scalar")
+print(r2.lc.scalars["doubled"])     # 2 * top LS period
+```
+
+### 3. `Pipeline`
+
+A single vartools invocation that runs the full chain.  The most
+efficient form for batch processing and the only form supporting
+pipeline-stateful commands and per-LC array parameters in one
+invocation.
+
+```python
+pipe = vt.Pipeline().clip(5.0).LS(0.5, 10.0, 0.01).rms()
+
+result = pipe.run(lc)                                    # single LC
+batch  = pipe.run_batch(lcs, nthreads=4)                 # in-memory LCs
+batch  = pipe.run_filelist("EXAMPLES/lc_list", nthreads=4)   # files on disk
+```
+
+`LightCurveBatch` is the deferred-chain alternative for collections;
+see [Batch chaining](#batch-chaining).
+
+---
+
+## Run methods
+
+All `Pipeline.run*` methods accept the global options
+`randseed=None`, `skipmissing=False`, `jdtol=None`,
+`matchstringid=False`, `timeout=None`, and `outdir=None`.  Batch
+methods additionally accept `nthreads=1`, `raise_on_error=True`,
+`stats_file=None`, `stats_file_mode="overwrite"`,
+`stats_file_buffer_lines=None`, and `resume=False`.
+
+| Method | Input | Returns |
+|--------|-------|---------|
+| `Pipeline.run(lc, ...)` | `LightCurve` / DataFrame / TimeSeries / path | `Result` |
+| `Pipeline.run_file(path, ...)` | filename | `Result` |
+| `Pipeline.run_batch(lcs, ...)` | list of LCs / DataFrames / paths | `BatchResult` |
+| `Pipeline.run_filelist(paths, ...)` | list-file path or list of paths | `BatchResult` |
+| `Pipeline.run_combinelc(files, ...)` | list of files combined into one LC | `Result` |
+| `Pipeline.run_combinelcs(groups, ...)` | list of groups | `BatchResult` |
+| `LightCurveBatch.run(...)` | (from constructor) | `BatchResult` |
+
+Per-method signatures (positional + key kwargs):
+
+### `Pipeline.run`
+
+```
+run(lc, capture_lc=False, outdir=None, timeout=None,
+    perpoint_vars=None, randseed=None, skipmissing=False,
+    jdtol=None, matchstringid=False) -> Result
+```
+
+Single in-memory LC.  `lc` may be a `LightCurve`, a path,
+a `DataFrame`, or an astropy `TimeSeries`.
+
+### `Pipeline.run_file`
+
+```
+run_file(path, capture_lc=False, outdir=None, timeout=None,
+         perpoint_columns=None, perpoint_vars=None, randseed=None,
+         skipmissing=False, jdtol=None, matchstringid=False) -> Result
+```
+
+vartools reads the file directly — no Python I/O.  `perpoint_columns`
+declares the column layout for the input file.
+
+### `Pipeline.run_batch`
+
+```
+run_batch(lcs, nthreads=1, capture_lc=False, outdir=None,
+          timeout=None, raise_on_error=True, perpoint_vars=None,
+          perlc_vars=None, randseed=None, skipmissing=False,
+          jdtol=None, matchstringid=False, stats_file=None,
+          stats_file_mode="overwrite", stats_file_buffer_lines=None,
+          resume=False) -> BatchResult
+```
+
+All LCs go through a single vartools invocation (`vartools -l ...`).
+pyvartools writes the LCs to temp files; for path-only inputs prefer
+`run_filelist`.
+
+### `Pipeline.run_filelist`
+
+```
+run_filelist(paths, nthreads=1, capture_lc=False, outdir=None,
+             timeout=None, raise_on_error=True, perpoint_columns=None,
+             perpoint_vars=None, perlc_vars=None, combinelcs=False,
+             lcnumvar="lcnum", randseed=None, skipmissing=False,
+             jdtol=None, matchstringid=False, stats_file=None,
+             stats_file_mode="overwrite", stats_file_buffer_lines=None,
+             resume=False) -> BatchResult
+```
+
+`paths` is either the path to an existing vartools list file (one
+LC path per line) or a Python list of paths (pyvartools writes the
+list file).  vartools reads each LC directly — no Python I/O.  Most
+efficient method for large surveys.
+
+`combinelcs=True` treats each line of the list file as a
+comma-separated *group* of paths that vartools combines into one
+in-memory LC before processing.  `perlc_vars` value entries
+(supplying values from Python rather than referencing list-file
+columns) are rejected when `combinelcs=True`; use `run_combinelcs`
+instead.
+
+### `Pipeline.run_combinelc`
+
+```
+run_combinelc(files, nthreads=1, capture_lc=False, outdir=None,
+              timeout=None, raise_on_error=True,
+              perpoint_columns=None, perpoint_vars=None,
+              perlc_vars=None, perlcsegment_vars=None,
+              lcnumvar="lcnum", delimiter=",", randseed=None,
+              skipmissing=False, jdtol=None, matchstringid=False)
+  -> Result
+```
+
+Single-group convenience wrapper around `run_combinelcs`.  Combines
+*files* into one in-memory LC and returns a single `Result`.
+
+### `Pipeline.run_combinelcs`
+
+```
+run_combinelcs(groups, nthreads=1, capture_lc=False, outdir=None,
+               timeout=None, raise_on_error=True,
+               perpoint_columns=None, perpoint_vars=None,
+               perlc_vars=None, perlcsegment_vars=None,
+               lcnumvar="lcnum", delimiter=",", randseed=None,
+               skipmissing=False, jdtol=None, matchstringid=False)
+  -> BatchResult
+```
+
+`groups` is a list of lists of paths; each inner list is one group
+of files that vartools combines into a single in-memory LC.
+`perlcsegment_vars` declares values that vary per file within each
+group; `perlc_vars` declares values that vary per group.
+
+### `LightCurveBatch.run`
+
+```
+batch.run(capture_lc=None, timeout=None, perpoint_vars=None,
+          perlc_vars=None, randseed=None, skipmissing=False,
+          jdtol=None, matchstringid=False) -> BatchResult
+```
+
+`capture_lc` defaults to `True` (vs. `False` for `Pipeline` runs).
+Pipeline-level options set via `.with_options(...)` are merged in;
+keyword arguments on `.run()` override.
+
+### Immediate per-command methods
+
+`LightCurveBatch` and `BatchResult` also expose
+`run_CMD(...) -> BatchResult` for every command — equivalent to a
+one-command chain followed by `.run()`:
+
+```python
+batch = vt.LightCurveBatch(lcs).run_LS(0.5, 10.0, 0.01)
+```
+
+---
+
+## Per-data taxonomy
+
+Values flowing through a pyvartools run divide by *scope* — how
+often the value changes:
+
+- **Per-point** — one value per observation within a light curve.
+  Standard columns (`t`, `mag`, `err`) and any aux columns live
+  here.  Pre-initialise additional per-observation variables with
+  `perpoint_vars`.  Declare disk-file column layout with
+  `perpoint_columns` on `run_file` / `run_filelist`.
+- **Per-LC** — one value per light curve in a batch.  Supplied
+  through `perlc_vars`, through a `PerLC` array on a command
+  parameter, or through a list-file column referenced by
+  `PerLCColumn`.
+- **Per-segment** — one value per file within one combined LC
+  (only meaningful in `run_combinelc` / `run_combinelcs`).
+  Supplied through `perlcsegment_vars`.
+- **Scalar** — single value evaluated once and shared by every LC.
+  Created by `cmd.expr(..., vartype="const" | "scalar" | "listvar")`,
+  stored on `LightCurve.scalars`, and round-tripped across chain
+  segments so subsequent commands can reference it.
+
+### `perpoint_vars`
+
+A `dict[str, PerPointVar]` evaluated once per observation before the
+pipeline runs.  Useful for creating mask vectors, integer indices,
+or derived columns that downstream commands reference by name.  The
+expression may reference any already-existing column and the special
+variable `NR` (0-based observation index).
+
+```python
+from pyvartools import PerPointVar
+
+pipe = vt.Pipeline().expr("err = err * (1 + 9*mask)").rms()
+result = pipe.run(lc, perpoint_vars={
+    "mask": PerPointVar(type="int", init="t<10"),
+})
+```
+
+`PerPointVar.type` values: `"double"` (default), `"float"`, `"int"`,
+`"long"`, `"short"`, `"string"`, `"char"`, `"utc"`.
+
+### `perpoint_columns`
+
+For `run_file` / `run_filelist` — declares how the input file's
+columns map to vartools variables.  Three forms:
+
+```python
+# List form: variable names in column order
+pipe.run_file("data.txt", perpoint_columns=["t", "mag", "err"])
+
+# Dict form: variable name → 1-based column number
+pipe.run_file("data.txt", perpoint_columns={"t": 1, "mag": 2, "err": 3})
+
+# Dict form with PerPointColumn for non-default types or FITS columns
+from pyvartools import PerPointColumn
+pipe.run_filelist("list.txt", perpoint_columns={
+    "t": 1, "mag": 2, "err": 3,
+    "fiphot_flag": PerPointColumn(col=4, type="string"),
+})
+
+# FITS columns by name
+pipe.run_file("data.fits", perpoint_columns={
+    "t": "BJD", "mag": "Mag", "err": "Err",
+})
+```
+
+When `run` / `run_batch` are passed `LightCurve` objects, the column
+layout is inferred from the DataFrame's columns automatically.
+
+### `perlc_vars`
+
+For batch methods — declares per-LC scalar variables.  Two entry
+shapes are accepted in `run_batch` / `LightCurveBatch.run` /
+`run_combinelcs`:
+
+**Schema entries** (always supported):
+
+```python
+from pyvartools import PerLCColumn
+
+# Column number shorthand
+perlc_vars={"minp": 2}
+
+# Full PerLCColumn — declares type and optional init expression
+perlc_vars={"minp": PerLCColumn(col=2, type="double"),
+            "id":   PerLCColumn(col=0, type="string", init="NF")}
+```
+
+`col=0` plus `init` initialises from an expression evaluated per
+LC; `NF` is the 0-based line number in the list file.
+
+**Values entries** (supported in `run_batch`,
+`LightCurveBatch.run`, and `run_combinelcs`):
+
+```python
+# Sequence of length len(lcs) — type inferred from values
+perlc_vars={"minp": [0.5, 0.3, 0.7]}
+
+# Explicit type override
+perlc_vars={"label": (["A", "B", "C"], "string")}
+```
+
+Values entries are rejected by `run_filelist` (pyvartools is not
+the writer of the on-disk list file there).  Reserved names: `t`,
+`mag`, `err`, `id`.  Names may be referenced as bare identifiers in
+command parameters:
+
+```python
+pipe = vt.Pipeline().LS("minp", "maxp", 0.01)
+batch = pipe.run_batch(lcs, perlc_vars={"minp": [0.3, 0.5, 0.7],
+                                          "maxp": [3.0, 5.0, 7.0]})
+```
+
+### `perlcsegment_vars`
+
+For `run_combinelc` / `run_combinelcs` — declares per-segment
+values.  In `run_combinelcs` each entry is a sequence of length
+`len(groups)` whose *i*-th element is itself a sequence of length
+`len(groups[i])`:
+
+```python
+batch = pipe.run_combinelcs(
+    groups=[["EXAMPLES/1", "EXAMPLES/2"],
+            ["EXAMPLES/3", "EXAMPLES/4"]],
+    perlcsegment_vars={"fieldname": [["A1", "A2"], ["B1", "B2"]]},
+    perlc_vars={"starname": ["star_A", "star_B"]},
+)
+```
+
+In `run_combinelc` (single group) entries are flat lists of length
+`len(files)`.
+
+### PerLC arrays on command parameters
+
+Most numeric command parameters accept a `PerLC`, a 1-D
+`numpy.ndarray`, or a `pandas.Series` in place of a scalar; in a
+batch run the *i*-th element is the value for the *i*-th LC.  Plain
+Python lists are not auto-detected; wrap with `PerLC([...])`
+explicitly when a per-LC list is intended.  String-valued PerLC
+arrays drive per-LC output filenames via
+`cmd.o(outname=PerLC([...]))`.
+
+A `pandas.Series` with a non-integer index is matched by `lc.name`
+rather than by position — useful for piping values straight from
+`prior_batch.vars["LS_Period_1_0"]` into a follow-up command:
+
+```python
+br1 = vt.LightCurveBatch(lcs).run_LS(0.5, 10.0, 0.01)
+periods = br1.vars.set_index("Name")["LS_Period_1_0"]
+br2 = br1.harmonicfilter(period=periods, nharm=2).run()
+```
+
+Pipeline-mode PerLC support is restricted to parameters vartools
+itself can read from a named variable.  Commands and parameters
+supported are listed in the website docs under "Per-LC array
+parameters."  `LightCurveBatch` resolves arrays to scalars in
+Python before each individual run, so it works for *any* parameter
+on *any* command — at the cost of one vartools invocation per LC.
+
+---
+
+## Commands
+
+Every vartools command is attached as
+
+- a class in `pyvartools.commands` (`cmd.LS`, `cmd.BLS`, …),
+- a method on `Pipeline` (`pipe.LS(...)`),
+- a method on `LightCurve`, `Result`, `LightCurveBatch`,
+  `BatchResult` (`lc.LS(...)`, `batch.LS(...)`),
+- a top-level function (`vt.LS(...)`),
+- an immediate batch method (`batch.run_LS(...)`).
+
+All accept the same signature.  CLI reference for each command is
+linked in the website docs at the URL above.
+
+### Period-finding
+
+- `cmd.LS(minp, maxp, subsample, npeaks=5, save_periodogram=False,
+           noGLS=False, whiten=False, clip=None, clipiter=None,
+           bootstrap=None, maskpoints=None, fixperiod_snr=None)` —
+  Lomb-Scargle (GLS by default).  Output: `LS_Period_<peak>_<idx>`,
+  `Log10_LS_Prob_<peak>_<idx>`, `LS_Periodogram_Value_<peak>_<idx>`.
+  See `-LS` in the CLI docs.
+- `cmd.aov(minp, maxp, subsample, finetune, npeaks=5, nbin=None,
+            save_periodogram=False, whiten=False, clip=None,
+            clipiter=None, uselog=False, maskpoints=None,
+            fixperiod_snr=None)` — Analysis-of-Variance periodogram.
+  See `-aov`.
+- `cmd.aov_harm(nharm, minp, maxp, subsample, finetune, ...)` —
+  harmonic-AOV periodogram.  See `-aov_harm`.
+- `cmd.BLS(minper, maxper, rmin=0.01, rmax=0.1, qmin=None, qmax=None,
+            stellar_density=None, min_exp_dur_frac=0.5,
+            max_exp_dur_frac=1.5, nbins=200, npeaks=1, subsample=1.0,
+            nfreq=None, df=None, save_periodogram=False,
+            save_model=False, correct_lc=False, extraparams=False,
+            fittrap=False, save_phcurve=False, save_jdcurve=False, ...)`
+  — Box-Least-Squares transit search.  Pass `qmin`/`qmax` to emit
+  the duration-fraction form, or `stellar_density` plus
+  `min_exp_dur_frac`/`max_exp_dur_frac` for density mode.  See `-BLS`.
+- `cmd.BLSFixPer(period, ...)`,
+  `cmd.BLSFixDurTc(duration, Tc, ...)`,
+  `cmd.BLSFixPerDurTc(period, duration, Tc, ...)` — BLS at one or
+  more fixed parameters.  See `-BLSFixPer` etc.
+- `cmd.autocorrelation(start, stop, step, save_result=False)` —
+  discrete autocorrelation function.  Always writes its
+  output file; `save_result=False` suppresses Python capture.
+  See `-autocorrelation`.
+- `cmd.dftclean(nbeam, maxfreq=None, gain=0.1, SNlimit=None,
+                save_dspec=False, save_cspec=False, save_wfunc=False,
+                outdspec=False, outcspec=False, outwfunc=False,
+                finddirtypeaks_clip=None, ...)` — DFT + CLEAN.
+- `cmd.wwz(maxfreq, freqsamp, tau0, tau1, dtau, c=0.0125,
+            save_transform=False, save_maxtransform=False)` —
+  weighted wavelet Z-transform.  See `-wwz`.
+- `cmd.GetLSAmpThresh(...)` — LS detection threshold helper.  See
+  `-GetLSAmpThresh`.
+- `cmd.Phase(period, T0=None)` — phase-fold the light curve.  See
+  `-Phase`.
+
+### Statistics
+
+- `cmd.stats(variables, statistics, maskpoints=None)` — general
+  statistics.  `variables` is comma-joined or a list; `statistics`
+  is comma-joined or a list of stat names: `mean`, `weightedmean`,
+  `median`, `wmedian`, `stddev`, `meddev`, `medmeddev`, `MAD`,
+  `kurtosis`, `skewness`, `max`, `min`, `sum`, `pctXX`, `wpctXX`.
+- `cmd.rms(maskpoints=None)` — RMS and weighted RMS.
+- `cmd.rmsbin(nbin, bintimes, maskpoints=None)` — RMS at given
+  timescales.
+- `cmd.chi2(maskpoints=None)`, `cmd.chi2bin(nbin, bintimes, maskpoints=None)`
+  — chi² and binned chi².
+- `cmd.alarm(maskpoints=None)` — Tamuz et al. alarm statistic.
+- `cmd.Jstet(timescale, maskpoints=None)` — Stetson J.
+- `cmd.autocorrelation` (see Period-finding).
+
+### Light-curve manipulation
+
+- `cmd.clip(sigclip, iterative=True, niter=None, median=False,
+             markclip=None, noinitmark=False, maskpoints=None)` —
+  sigma-clip outliers.
+- `cmd.medianfilter(time, replace=False, average=False, weight=None)`
+  — moving-median high- or low-pass filter.  See `-medianfilter`.
+- `cmd.harmonicfilter(period="ls", nharm=3, nsubharm=0, save_model=False,
+                        fitonly=False, output_format=None, clip=None,
+                        maskpoints=None)` — fit (and optionally
+  subtract) a truncated Fourier series at one or more known periods.
+  `period` accepts a number, a back-reference string (`"ls"`,
+  `"aov"`, `"both"`), a list/tuple of periods, or a variable name.
+  Canonical name; emits `-harmonicfilter` and produces
+  `HarmonicFilter_*` output columns.
+- `cmd.Killharm(...)` — legacy alias for `harmonicfilter`.  Emits
+  `-Killharm` and produces `Killharm_*` output columns.
+- `cmd.fourierfilter(mode="full", minfreq=None, maxfreq=None,
+                       filterexpr=None, freqvar=None, fullspec=False,
+                       forcefft=False, taper=None, taper_deltafreq=None,
+                       taper_beta=None, resample=None, gapbreak_type=None,
+                       gapbreak_value=None, padmode=None, padfrac=None,
+                       nowarn=False, save_fouriercoeffs=False)` —
+  Fourier-domain filter via FFT.  `mode`: `"full"`, `"highpass"`,
+  `"lowpass"`, `"bandpass"`, `"bandcut"`.  Requires GSL-enabled
+  vartools build.  Non-uniformly-sampled data needs `resample=<delta>`.
+- `cmd.linfit(function, paramlist, modelvar=None, reject=None,
+                reject_usemad=False, reject_iter=False,
+                reject_fixednum=None, correct_lc=False,
+                save_model=False, model_nameformat=None, fitmask=None)`
+  — linear combination of analytic functions.
+- `cmd.nonlinfit(function, paramlist, optimizer="amoeba",
+                   linfit_params=None, errors=None, covariance=None,
+                   priors=None, constraints=None,
+                   amoeba_tolerance=None, amoeba_maxsteps=None,
+                   mcmc_naccept=None, mcmc_nlinkstotal=None,
+                   mcmc_fracburnin=None, mcmc_eps=None,
+                   mcmc_skipamoeba=False, mcmc_maxmemstore=None,
+                   mcmc_outchains=False, mcmc_chains_format=None,
+                   mcmc_chains_printevery=None, correct_lc=False,
+                   save_model=False, model_nameformat=None,
+                   modelvar=None, fitmask=None)` — non-linear least
+  squares.  `paramlist` syntax:
+  `"name1:init1[:step[:min:max]],name2:init2,..."`.
+- `cmd.decorr(correct_lc=True, zeropointterm=1, subtractfirstterm=0,
+                global_files=None, lc_columns=None, save_model=False,
+                maskpoints=None)` — decorrelate against external trend
+  vectors.  `global_files` is `[(path, order), ...]`, `lc_columns`
+  is `[(col, order), ...]`.
+- `cmd.expr(expression, vartype=None, outputcolumn=False)` —
+  analytic-expression engine.  See [The expression engine](#the-expression-engine).
+- `cmd.rescalesig(maskpoints=None)` — rescale errors so χ²/dof = 1.
+- `cmd.ensemblerescalesig(sigclip=5.0, maskpoints=None)` — ensemble
+  error rescale.
+- `cmd.changeerror()` — set errors equal to per-LC stddev.
+- `cmd.changevariable(role, varname)` — change which variable
+  vartools treats as `t`, `mag`, `err`, or `id`.
+- `cmd.difffluxtomag(mag_constant=25.0, offset=0.0, magerr=True,
+                        magerr_min=None)` — diff-flux → magnitude.
+- `cmd.fluxtomag(mag_constant=25.0, offset=0.0, magerr=True,
+                    magerr_min=None)` — flux → magnitude.
+- `cmd.binlc(method="average", binsize=None, nbins=None,
+                time_output="tcenter", bincolumns=None,
+                bincolumnsonly=False, T0=None, firstbinshift=None,
+                maskpoints=None)` — bin observations.
+- `cmd.sortlc(var=None, reverse=False)` — sort by variable (default `t`).
+- `cmd.restricttimes(mode, minJD=None, maxJD=None, JDfilename=None,
+                       expression=None, exclude=False, markrestrict=None,
+                       noinitmark=False)` — drop points outside a
+  range/list/expression.  `mode`: `"JDrange"`, `"JDrangebylc"`,
+  `"JDlist"`, `"imagelist"`, `"expr"`.
+- `cmd.restoretimes(prior_command=1)` — undo a prior `-restricttimes`.
+- `cmd.resample(method="linear", left=None, right=None, nbreaks=None,
+                  order=None, tstart=None, tstop=None, delt=None,
+                  Npoints=None, file_times=None, list_column=None,
+                  t_column=None, gaps=None)` — interpolate onto a
+  new time grid.  Methods: `"nearest"`, `"linear"`, `"spline"`,
+  `"splinemonotonic"`, `"bspline"`.
+- `cmd.FFT(input_real, input_imag, output_real, output_imag)` and
+  `cmd.IFFT(...)` — Fourier transform pair.
+- `cmd.savelc()` / `cmd.restorelc(savenumber, vars=None)` — save
+  and restore LC state inside a pipeline.
+- `cmd.copylc(...)` — replicate the LC in memory (transit-injection
+  Monte Carlo).  Pipelines containing `copylc` cannot use
+  `resume=True` on streaming runs.
+- `cmd.match(catalog, matchcolumn, addcolumns, missing="nanmissing",
+               source="file", inlist_column=None, skipnum=None,
+               skipchar=None, delimiter=None, opencommand=None)` —
+  match against an external catalog and add columns.
+
+### Model fitting
+
+- `cmd.TFA(trendlist, dates_file, pixelsep, correct_lc=True,
+            save_coeffs=False, save_model=False, xycol=None, clip=None,
+            usemedian=False, useMAD=False, readformat=None,
+            trend_coeff_priors=None, weight_by_template_stddev=False,
+            fitmask=None, outfitmask=None)` — Trend Filtering Algorithm.
+- `cmd.TFA_SR(...)` — TFA with signal reconstruction.
+- `cmd.SYSREM(...)` — Tamuz, Mazeh & Zucker PCA-like detrending.
+- `cmd.MandelAgolTransit(period, T0, r, a, inclination_or_bimpact,
+                            e, omega, mconst, K=None, gamma=None,
+                            ld_type="quad", ld_coeffs=None,
+                            fit_<paramname>=False, correct_lc=False,
+                            modelvar=None, save_model=False,
+                            save_phcurve=False, save_jdcurve=False, ...)`
+  — Mandel & Agol transit model.  See `-MandelAgolTransit`.
+- `cmd.SoftenedTransit(...)` — Protopapas trapezoidal transit.
+- `cmd.microlens(f0, f1, u0, t0, tmax, save_model=False, ...)` —
+  Wozniak microlens model.
+- `cmd.Starspot(period, a, b, alpha, i, chi, psi0, mconst,
+                   save_model=False, ...)` — Dorren starspot model.
+- `cmd.addnoise(model, ...)` — inject correlated noise.  `model`:
+  `"white"`, `"squareexp"`, `"exp"`, `"matern"`.
+- `cmd.Injectharm(period, amplitude, nharm=1, phase=0.0, nsubharm=0,
+                     save_model=False, harmonic_amps_rel=None,
+                     harmonic_phases_rel=None)` — inject a
+  fundamental + harmonics signal.  `period`/`amplitude`/`phase`
+  accept fixed values, `"rand"` / `"list"` / `"logrand"` keywords,
+  or bare variable names.
+- `cmd.Injecttransit(period, Rp, Mp, phase, sini, Mstar, Rstar,
+                        e=0.0, omega=0.0, hk=False, h=0.0, k=0.0,
+                        dilute=None, ld_type="quad", ld_coeffs=None,
+                        save_model=False)` — inject a limb-darkened
+  transit.  `ld_coeffs=[u1, u2]` (quadratic) or
+  `[c1, c2, c3, c4]` (non-linear).  Set `hk=True` for the
+  `(h, k) = (e sin ω, e cos ω)` parameterisation.
+- `cmd.findblends(...)` — flag potential variability blends with
+  nearby stars.
+
+### Control flow and output
+
+- `cmd.savelc()` / `cmd.restorelc(savenumber, vars=None)` (also in
+  the manipulation list above; pipeline-stateful).
+- `cmd.columnsuffix(suffix)` — replace the numeric `_N` suffix on
+  output columns of subsequent commands with the literal *suffix*.
+  Useful when the same command appears multiple times in a pipeline.
+- `cmd.ifcmd(condition)`, `cmd.elifcmd(condition)`, `cmd.elsecmd()`,
+  `cmd.ficmd()` — conditional block bracketing.  Use as four
+  separate command instances inside a `Pipeline`:
+
+  ```python
+  pipe = vt.Pipeline([
+      cmd.LS(0.5, 10.0, 0.01),
+      cmd.ifcmd("LS_Period_1_0 < 2.0"),
+      cmd.harmonicfilter(period="ls", nharm=3),
+      cmd.elsecmd(),
+      cmd.rms(),
+      cmd.ficmd(),
+  ])
+  ```
+- `cmd.o(outname=None, outdir=None, nameformat=None, columnformat=None,
+          allcols=False, fits=False, noclobber=False, copyheader=False,
+          namecommand=None, namefromlist=None, changesuffix=None,
+          delimiter=None, logcommandline=False, gzip=False, bzip2=False,
+          capture=False, key="o")` — write the current LC to disk
+  and/or capture it into `result.files`.  Single-LC runs use
+  `outname=`; batch runs use `outdir=`; `capture=True` enables
+  Python capture (also works without any disk path — pyvartools
+  manages a temp dir).  `outname=PerLC([names])` writes per-LC
+  filenames inside `outdir`.  See [`cmd.o`](#cmdo).
+- `cmd.print_cols(variables, columnnames=None, fmt=None)` — emit
+  selected variables as extra stats columns.  Class is
+  `pyvartools.commands.print_cols`; pipeline builder method is
+  `pipe.print(...)` (the `print` name shadow is avoided in the
+  class to keep Python parsing clean).
+- `cmd.addfitskeyword(keyword, dtype, value, comment=None, hdu=None,
+                        mode=None, combinelc=None)` — add a FITS
+  header keyword to subsequently-written FITS LCs.  `dtype`:
+  `"TDOUBLE"` / `"TINT"` / `"TLONG"` / `"TSTRING"` (or
+  lower-case aliases).
+- `cmd.converttime(input_format, output_format, ra=None, dec=None,
+                      input_subtract=None, output_subtract=None,
+                      input_sys=None, output_sys=None,
+                      ephemfile=None, leapsecfile=None)` —
+  JD/MJD/HJD/BJD conversion.
+- `cmd.Raw(args)` — escape hatch: emit arbitrary tokens.  Accepts a
+  string (whitespace-split) or a list.
+
+### Embedded scripting
+
+- `cmd.python(command, fromfile=False, init=None, init_fromfile=False,
+                 vars=None, invars=None, outvars=None, outputcolumns=None,
+                 process_all_lcs=False, skipfail=False,
+                 continueprocess=None, inprocess=False, namespace=None)`
+  — run Python code per LC.  Numeric vartools vectors arrive as
+  `numpy.ndarray`, strings as Python lists.
+
+  `inprocess=True` runs the user code in the *host* Python
+  interpreter (only valid in library mode) — same `sys.modules`,
+  caller-supplied `namespace`, no subprocess fork.  Requires
+  `vars=`, `invars=`, or `outvars=`; `process_all_lcs` and
+  `continueprocess` are rejected.
+- `cmd.R(command, ...)` — same surface for R code.
+
+### User extension libraries
+
+vartools supports compiled C extension libraries.  Three Python
+patterns:
+
+```python
+# 1. Raw, one-off
+pipe = vt.Pipeline([
+    vt.UserCommand("USERLIBS/src/stitch.so", "stitch",
+                   "mag err mask lcnum median"),
+])
+
+# 2. Named class via factory
+Stitch = vt.load_userlib("USERLIBS/src/stitch.so")
+pipe = vt.Pipeline([Stitch("mag err mask lcnum median")])
+
+# 3. Auto-discover installed extensions
+cmds = vt.discover_userlibs()
+pipe = vt.Pipeline([cmds["stitch"]("mag err mask lcnum median")])
+```
+
+Typed wrappers for the bundled USERLIBS are also exposed directly:
+`cmd.fastchi2`, `cmd.ftuneven`, `cmd.hatpiflag`, `cmd.jktebop`,
+`cmd.macula`, `cmd.magadd`, `cmd.splinedetrend`, `cmd.stitch`.
+
+A pipeline containing a `UserCommand` (any extension library) is
+forced to subprocess mode because library mode does not support
+dynamically loaded extensions.  Typed wrappers above also force
+subprocess mode.
+
+---
+
+## The expression engine
+
+`cmd.expr(expression, vartype=None, outputcolumn=False)` evaluates
+an analytic expression and stores the result in a variable.
+
+`expression` is `"<varname> = <expr>"`.  `vartype` controls the
+scope of the LHS variable when created:
+
+| `vartype` | Scope |
+|-----------|-------|
+| `None` (default) | per-observation LC vector |
+| `"listvar"` | per-LC value (LC vectors on the RHS are evaluated at first observation) |
+| `"scalar"` | per-thread scalar |
+| `"const"` | global constant (one value, shared across all LCs) |
+
+If the variable already exists its type is preserved.
+`outputcolumn=True` exposes the LHS as an output stats column;
+valid only for `vartype` ∈ {`"listvar"`, `"scalar"`, `"const"`}.
+
+### Aggregate functions
+
+Evaluated over all observations in the current LC.  Each accepts an
+optional boolean filter (e.g. `mean(mag, t>53730)`):
+
+`mean`, `weightedmean` (uses `err`), `median`, `wmedian`,
+`stddev`, `MAD`, `meddev`, `medmeddev`, `vmin`, `vmax`, `sum`,
+`pct(x, p)`, `wpct(x, w, p)`, `kurtosis`, `skewness`.
+
+Aggregates are memoised per LC and constants are folded at compile
+time (1.6).
+
+### Cross-segment references
+
+In a chained run (`lc.CMD().CMD()...` or `batch.CMD().CMD()...`),
+output column values from prior segments are auto-injected into
+subsequent segments as `-expr const` variables.  This lets an
+expression in segment N reference any output column produced by
+segment 0..N-1 by its full name (`LS_Period_1_0`,
+`HarmonicFilter_R1_1`, etc.).  User-defined scalars (`vartype` ∈
+{`"const"`, `"scalar"`, `"listvar"`}) are similarly carried across
+segment boundaries and reachable from any later expression.
+
+---
+
+## Auxiliary outputs (`save_*`)
+
+Commands that produce extra files (periodograms, fitted models,
+MCMC chains, …) expose a `save_*` keyword.  Each accepts:
+
+| Value | Mode | Disk | Captured in `result.files` |
+|-------|------|------|----------------------------|
+| `False` (default) | suppress | no | no |
+| `True` | temp + capture | pipeline-managed temp dir (deleted) | yes |
+| `"/path/to/dir"` | disk only | that directory | no |
+| `Output("/path/to/dir", capture=True)` | disk + capture | that directory | yes |
+
+```python
+from pyvartools import Output
+
+pipe = vt.Pipeline().LS(0.5, 10.0, 1e-3, save_periodogram=True)
+result = pipe.run(lc)
+pgram = result.files["LS_periodogram_0"]   # pandas DataFrame
+```
+
+### `result.files` keys
+
+`"{CommandName}_{logical}_{idx}"` where `idx` is the 0-based
+pipeline position of the command.  Examples and the full key
+catalog:
+
+| Command | `save_*` keyword | Key | Contents |
+|---------|------------------|-----|----------|
+| `LS` | `save_periodogram` | `LS_periodogram_N` | frequency vs. LS power |
+| `aov` | `save_periodogram` | `aov_periodogram_N` | frequency vs. AOV |
+| `aov_harm` | `save_periodogram` | `aov_harm_periodogram_N` | frequency vs. harmonic AOV |
+| `BLS` | `save_periodogram` | `BLS_periodogram_N` | BLS power spectrum |
+| `BLS` | `save_model` | `BLS_model_N` | best-fit transit model |
+| `BLS` | `save_phcurve` | `BLS_phcurve_N` | phase-folded model |
+| `BLS` | `save_jdcurve` | `BLS_jdcurve_N` | time-domain model |
+| `BLSFixPer` | `save_model` | `BLSFixPer_model_N` | model at fixed P |
+| `BLSFixDurTc` | `save_periodogram` | `BLSFixDurTc_periodogram_N` | BLS spectrum |
+| `BLSFixDurTc` | `save_model` | `BLSFixDurTc_model_N` | model |
+| `BLSFixPerDurTc` | `save_model` | `BLSFixPerDurTc_model_N` | model at fixed P/dur/Tc |
+| `autocorrelation` | `save_result` | `autocorrelation_result_N` | lag vs. autocorr |
+| `dftclean` | `save_dspec` | `dftclean_dspec_N` | dirty spectrum |
+| `dftclean` | `save_wfunc` | `dftclean_wfunc_N` | window function |
+| `dftclean` | `save_cspec` | `dftclean_cspec_N` | CLEAN spectrum |
+| `wwz` | `save_transform` | `wwz_transform_N` | full WWZ T-F map |
+| `wwz` | `save_maxtransform` | `wwz_maxtransform_N` | WWZ max vs. time |
+| `harmonicfilter` | `save_model` | `harmonicfilter_model_N` | fitted harmonic series |
+| `Killharm` | `save_model` | `Killharm_model_N` | (legacy alias) |
+| `fourierfilter` | `save_fouriercoeffs` | `fourierfilter_fouriercoeffs_N` | Fourier coefficients |
+| `Injectharm` | `save_model` | `Injectharm_model_N` | injected signal |
+| `Injecttransit` | `save_model` | `Injecttransit_model_N` | injected transit |
+| `linfit` | `save_model` | `linfit_model_N` | fitted linear model |
+| `nonlinfit` | `save_model` | `nonlinfit_model_N` | fitted non-linear model |
+| `nonlinfit` | `mcmc_outchains` | `nonlinfit_chains_N` | MCMC chains |
+| `decorr` | `save_model` | `decorr_model_N` | fitted decorrelation |
+| `TFA` | `save_coeffs` | `TFA_coeffs_N` | trend coefficients |
+| `TFA` | `save_model` | `TFA_model_N` | reconstructed trend |
+| `TFA_SR` | `save_coeffs` | `TFA_SR_coeffs_N` | SR coefficients |
+| `TFA_SR` | `save_model` | `TFA_SR_model_N` | SR reconstructed trend |
+| `SYSREM` | `save_model` | `SYSREM_model_N` | SYSREM model |
+| `SYSREM` | `save_trends` | `SYSREM_trends_N` | trend vectors |
+| `MandelAgolTransit` | `save_model` | `MandelAgolTransit_model_N` | fitted transit LC |
+| `MandelAgolTransit` | `save_phcurve` | `MandelAgolTransit_phcurve_N` | phase-folded model |
+| `MandelAgolTransit` | `save_jdcurve` | `MandelAgolTransit_jdcurve_N` | JD-domain model |
+| `SoftenedTransit` | `save_model` | `SoftenedTransit_model_N` | fitted trapezoid |
+| `Starspot` | `save_model` | `Starspot_model_N` | fitted starspot model |
+| `microlens` | `save_model` | `microlens_model_N` | fitted microlens |
+| `findblends` | `save_matches` | `findblends_matches_N` | matched-blend list |
+
+For batch runs, `batch.files[key]` is a list of `DataFrame` (or
+`None`) per LC.
+
+`autocorrelation` always writes its file (no CLI option to
+suppress); `save_result=False` skips Python capture but the file is
+still written to a temp directory and discarded.
+
+### `cmd.o`
+
+Output the current LC to disk and/or capture it as a
+`LightCurve` in `result.files[key]`.  The CLI `-o` keyword has
+dual semantics — single-LC mode interprets its argument as a
+filename, list mode as a directory — and pyvartools splits this
+into two explicit kwargs:
+
+- `outname=PATH` — single-LC mode (`run`, `run_file`).  `"-"`
+  writes to stdout.
+- `outdir=DIR` — list mode (`run_batch`, `run_filelist`,
+  `run_combinelcs`).  Per-LC filenames are constructed inside.
+- `capture=True` — store the written LC in `result.files[key]`.
+  When neither `outname` nor `outdir` is set, pyvartools manages a
+  temp path (deleted after the run).  For batch runs the captured
+  value is a `LightCurveList`.
+- `key="o"` — key under which the capture is stored; required to
+  be unique when more than one `cmd.o(capture=True)` appears.
+- `outname=PerLC([names])` (batch only) — per-LC output filenames
+  inside `outdir`.
+
+Other slot kwargs follow vartools' positional order: `nameformat`,
+`namecommand`, `namefromlist`, `changesuffix` (mutually exclusive);
+`columnformat` / `allcols`; `delimiter`; `fits`; `copyheader`;
+`logcommandline`; `noclobber`; `gzip` / `bzip2` (mutually
+exclusive).
+
+```python
+# Disk + capture in single-LC mode
+pipe = vt.Pipeline().clip(5.0).o(outname="/tmp/clipped.txt",
+                                   allcols=True, capture=True)
+result = pipe.run(lc)
+clipped_lc = result.files["o"]            # a LightCurve
+
+# Per-LC filenames in batch mode
+names = [f"clipped_{i}.lc" for i in range(1, 4)]
+pipe2 = vt.Pipeline([
+    cmd.clip(5.0),
+    cmd.o(outdir="/tmp/out", outname=vt.PerLC(names), allcols=True),
+])
+batch = pipe2.run_batch(lcs)
+```
+
+---
+
+## Pipeline validation
+
+```python
+pipe.validate(nthreads=1, randseed=None, skipmissing=False,
+              jdtol=None, matchstringid=False, timeout=30,
+              perlc_vars=None) -> list[str]
+```
+
+Run vartools' own parser with `-headeronly` to verify the command
+line and return the expected output column names without processing
+any data.  Raises `PipelineValidationError` (with `.stderr` and
+`.argv`) on a parser rejection.  Useful for catching pipeline
+construction errors and previewing column names.
+
+```python
+pipe = vt.Pipeline().LS(0.5, 10.0, 0.01, npeaks=3).rms()
+cols = pipe.validate()
+# ['Name', 'LS_Period_1_0', 'Log10_LS_Prob_1_0', ..., 'RMS_1', ...]
+```
+
+Per-LC variables referenced by name must be declared:
+
+```python
+pipe = vt.Pipeline().LS("minp", "maxp", 0.01)
+cols = pipe.validate(perlc_vars={"minp": [0.3, 0.5],
+                                   "maxp": [3.0, 5.0]})
+```
+
+`validate()` is also called internally by the `resume=True` path to
+ensure a partial stats file was produced by a matching pipeline.
+
+---
+
+## Streaming output and resume
+
+`run_batch` and `run_filelist` accept `stats_file=PATH` to stream
+the stats table to disk as each LC completes — a space-delimited
+file with a `#`-prefixed header line.  Each row reaches the file as
+soon as vartools finishes that LC, so a long-running batch leaves a
+partial-but-recoverable file even if the process is killed.
+
+```
+#Name LS_Period_1_0 Log10_LS_Prob_1_0 ...
+EXAMPLES/1 0.97817996 -5612.03157 ...
+EXAMPLES/2 1.23534018 -4222.27256 ...
+...
+```
+
+`stats_file_mode="overwrite"` (default) or `"append"`.
+`stats_file_buffer_lines` controls the in-flight ring size when
+`nthreads > 1`; setting it below `nthreads` caps effective
+parallelism.  `nthreads=1` flushes one row at a time regardless.
+
+Restart with `resume=True`:
+
+```python
+batch = pipe.run_batch(lcs, stats_file="survey.stats",
+                       resume=True, nthreads=8)
+```
+
+Resume:
+
+1. Validates the partial file's column layout against the current
+   pipeline via `validate()`.  Mismatch raises
+   `PipelineValidationError`.
+2. Skips LCs whose rows are already in the file (matched by an
+   embedded per-row sequence number).
+3. Runs vartools on the remainder and appends.
+4. Returns a `BatchResult` whose `vars` combines pre-existing and
+   freshly-computed rows.
+
+Caveats:
+
+- `capture_lc=True` and `result.files` only cover the freshly-run
+  LCs.  Resumed positions get `None`.
+- Pipelines containing `-copylc` cannot be resumed (one input row
+  produces multiple output rows).
+- `-randseed time` runs are not bit-identical between original and
+  resumed runs.
+
+---
+
+## Batch chaining (`LightCurveBatch`)
+
+`LightCurveBatch` collects light curves and accepts the same fluent
+command methods as `LightCurve`; calls are deferred until `.run()`.
+
+```python
+lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 6)]
+
+batch = (
+    vt.LightCurveBatch(lcs)
+      .clip(5.0)
+      .LS(0.5, 10.0, 0.01)
+      .rms()
+      .run()
+)
+print(batch.vars[["Name", "LS_Period_1_0", "RMS_2"]])
+print(batch[0].varobjs.LS.Period_1)   # per-LC access
+```
+
+Pipeline-level options are set via `.with_options()` and merged
+into `.run()`:
+
+```python
+batch = (vt.LightCurveBatch(lcs)
+         .with_options(capture_lc=False, randseed=42)
+         .LS(0.5, 10.0, 0.01)
+         .run())
+```
+
+Continuing from a `BatchResult` requires `capture_lc=True` (the
+default for `LightCurveBatch`):
+
+```python
+br1 = vt.LightCurveBatch(lcs).run_LS(0.5, 10.0, 0.01)
+periods = br1.vars["LS_Period_1_0"]   # one period per LC
+br2 = br1.harmonicfilter(period=periods, nharm=2).run()
+```
+
+For large collections (hundreds of LCs+) prefer `Pipeline.run_batch`
+or `Pipeline.run_filelist`: those run the whole batch in one
+vartools invocation, vs. `LightCurveBatch`'s default of one
+invocation per LC.  When the chain contains a `PerLC` attribute,
+`perlc_vars`, or is a continuation from a `BatchResult`,
+`LightCurveBatch.run` auto-routes to `Pipeline.run_batch` and runs
+the whole batch as one invocation.
+
+Per-LC errors during the per-LC loop are stored on
+`batch_result[i].error` and execution continues:
+
+```python
+for i, r in enumerate(batch_result):
+    if r.ok:
+        print(r.varobjs.LS.Period_1)
+    else:
+        print("FAILED:", r.error)
+```
+
+Slicing a `BatchResult` returns a sub-`BatchResult`:
+
+```python
+sub  = batch_result[1:4]
+even = batch_result[::2]
+```
+
+---
+
+## Library vs subprocess mode
+
+pyvartools picks the execution path automatically.  Library mode
+runs the vartools engine in-process via `libvartoolspipeline.so`
+and skips per-call subprocess startup.  Output is identical
+either way.
+
+Library mode is used unless one of the following forces subprocess
+mode:
+
+- The shared library can't be loaded (not installed, not findable).
+- `nthreads > 1` on a batch method.
+- `timeout=` is set.
+- `resume=True` on a partial `stats_file`.
+- The pipeline contains a `UserCommand` (loaded extension library).
+- `cmd.python(inprocess=False)` (the default) is used inside a
+  library-mode call from a non-trivial host process and would need
+  a subprocess fork that's unsafe; `inprocess=True` avoids this.
+- `VARTOOLS_USE_LIBRARY=0` in the environment.
+
+Library-mode coverage since 1.6 includes `save_*=True` outputs
+(captured via a Pipeline-managed temp dir), `cmd.o(capture=True)`
+(captured directly from C memory, no disk write), per-LC array
+command parameters, `perlc_vars` values entries,
+`cmd.o(outname=PerLC(...))`, carry-forward scalars across chain
+continuations, and the streaming `stats_file=PATH` (without
+`resume`).  The global options `randseed`, `skipmissing`, `jdtol`,
+and `matchstringid` are supported in library mode.
+
+---
+
+## Error handling
+
+`RunError` is raised when:
+
+- vartools exits with non-zero status.
+- The `vartools` binary cannot be found.
+- A `timeout=` is exceeded.
+
+`raise_on_error=False` on a batch method stores the exception in
+`batch.error` and returns a `BatchResult` with an empty `vars`.
+
+For `LightCurveBatch.run`, per-LC failures are stored on each
+`batch[i].error` and the rest of the batch continues regardless of
+`raise_on_error`.
+
+`PipelineValidationError` is raised by `pipe.validate()` and by the
+resume path on a column-layout mismatch; it carries `.stderr` and
+`.argv` for diagnosis.
+
+---
+
+## Output column naming
+
+vartools appends a numeric suffix to each output column equal to the
+0-based position of the command in the pipeline:
+
+```
+LS_Period_1_0    # LS at pipeline index 0, top peak
+LS_Period_1_1    # second LS in the same pipeline, top peak
+BLS_SDE_1_0      # BLS at pipeline index 0, top peak
+RMS_2            # rms at pipeline index 2
+```
+
+Replace the numeric suffix with a literal string by inserting
+`columnsuffix` before a command:
+
+```python
+pipe = (vt.Pipeline()
+        .columnsuffix("short").LS(0.5, 5.0, 0.01)
+        .columnsuffix("long").LS(5.0, 50.0, 0.01))
+result = pipe.run(lc)
+print(result.vars["LS_Period_1_short"], result.vars["LS_Period_1_long"])
+```
+
+---
+
+## Common patterns
+
+### Period search then harmonic subtraction
+
+```python
+import pyvartools as vt
+from pyvartools import commands as cmd
+
+lc = vt.LightCurve.from_file("EXAMPLES/2")
+
+# Fluent: each step a separate invocation
+r = lc.LS(0.5, 10.0, 1e-3).harmonicfilter(period="ls", nharm=2)
+print(r.varobjs.LS.Period_1)
+
+# Pipeline: one invocation, faster for larger chains
+pipe = vt.Pipeline().LS(0.5, 10.0, 1e-3).harmonicfilter(period="ls",
+                                                          nharm=2)
+result = pipe.run(lc)
+```
+
+### Self-contained example with `from_arrays`
+
+```python
+import numpy as np
+import pyvartools as vt
+
+t   = np.linspace(0, 30, 500)
+mag = 10.0 + 0.1 * np.sin(2*np.pi*t / 2.3)
+err = np.full(500, 0.01)
+lc  = vt.LightCurve.from_arrays(t, mag, err, name="synthetic")
+
+result = vt.LS(lc, 0.5, 10.0, 1e-3)
+print(result.varobjs.LS.Period_1)        # ~2.3
+```
+
+### Survey: file-list batch run with checkpointing
+
+```python
+pipe = vt.Pipeline().LS(0.1, 10.0, 0.01, npeaks=1).rms()
+batch = pipe.run_filelist("survey.lst", nthreads=8,
+                          stats_file="survey.stats")
+batch.vars.to_csv("survey.csv", index=False)
+
+# Restart after interruption
+batch2 = pipe.run_filelist("survey.lst", nthreads=8,
+                           stats_file="survey.stats", resume=True)
+```
+
+### Per-LC search bounds
+
+```python
+lcs = [vt.LightCurve.from_file(f"EXAMPLES/{i}") for i in range(1, 6)]
+
+# Two equivalent ways:
+# (a) PerLC on a command parameter — used inside one vartools call
+pipe = vt.Pipeline().LS(minp=vt.PerLC([0.1, 0.3, 0.1, 0.2, 0.3]),
+                          maxp=10.0, subsample=0.01)
+batch = pipe.run_batch(lcs)
+
+# (b) perlc_vars + bare identifier names — equivalent
+pipe = vt.Pipeline().LS("minp", 10.0, 0.01)
+batch = pipe.run_batch(lcs,
+                       perlc_vars={"minp": [0.1, 0.3, 0.1, 0.2, 0.3]})
+```
+
+### Capture the periodogram and the cleaned LC
+
+```python
+from pyvartools import Output
+
+pipe = (vt.Pipeline()
+        .clip(5.0)
+        .LS(0.5, 10.0, 1e-3, save_periodogram=True)
+        .o(capture=True, allcols=True, outname="-"))
+
+result = pipe.run(lc, capture_lc=False)
+pgram   = result.files["LS_periodogram_1"]   # pandas DataFrame
+cleaned = result.files["o"]                  # LightCurve
+```
+
+### Embedded Python callback in library mode
+
+```python
+import numpy as np
+pipe = (vt.Pipeline()
+        .python("y_smooth = np.convolve(mag, np.ones(11)/11, mode='same')",
+                vars="mag,y_smooth",
+                inprocess=True))
+result = pipe.run(lc)
+```
+
+`inprocess=True` shares the caller's `sys.modules` (so `np` is
+already imported in the snippet) and runs the user code in the
+host interpreter rather than a forked subprocess.
+
+### Validate a constructed pipeline
+
+```python
+pipe = vt.Pipeline().LS(0.5, 10.0, 1e-3, npeaks=3).rms()
+try:
+    cols = pipe.validate()
+except vt.PipelineValidationError as exc:
+    print(exc.stderr)
+    raise
+print(cols)   # ['Name', 'LS_Period_1_0', ..., 'RMS_1']
+```
+
+### Combine multi-telescope segments into one LC
+
+```python
+groups = [["telA/1.lc", "telB/1.lc"],
+          ["telA/2.lc", "telB/2.lc"]]
+
+from pyvartools.commands import stitch
+batch = (vt.Pipeline()
+         .expr("mask=0")
+         .stitch("mag", "err", "mask", "lcnum", method="median")
+         .LS(0.5, 10.0, 1e-3)
+         ).run_combinelcs(groups, nthreads=2)
+print(batch.vars)
+```
+
+`run_combinelcs` builds a list file in which each line is a
+comma-joined group; vartools combines each group into one LC
+before the chain runs.
+
+---
+
+## Reserved names and pitfalls
+
+- Variable names reserved by vartools and rejected in `perlc_vars`:
+  `t`, `mag`, `err`, `id`.
+- Plain Python lists are **not** auto-detected as per-LC arrays.
+  Wrap with `PerLC([...])` explicitly.  Lists are accepted for
+  fixed multi-valued parameters such as
+  `MandelAgolTransit(ld_coeffs=[...])`.
+- A `pandas.Series` with a string index is matched to LCs by
+  `lc.name`; with an integer index it's matched by position.
+- `result.lc` is `None` unless `capture_lc=True` was used.
+- Pipeline-stateful commands (`savelc`, `restorelc`,
+  `columnsuffix`, the `ifcmd`/`elifcmd`/`elsecmd`/`ficmd` family,
+  `o`) only work inside a single `Pipeline.run*` invocation; the
+  fluent forms raise `NotImplementedError`.
+- `cmd.o` requires `outname=` for single-LC modes and `outdir=`
+  for batch modes (or `capture=True` to let pyvartools manage a
+  temp path).  Passing `outname=` to a batch run, or `outdir=` to
+  a single-LC run, raises with a message pointing to the right
+  kwarg.
+- `result.varobjs.LS` returns the *single* LS namespace when only
+  one LS appears in the pipeline; `result.varobjs.LS[0]` indexes
+  explicitly when several occurrences must be disambiguated.

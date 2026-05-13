@@ -41,6 +41,7 @@
 #include <time.h>
 #include "outcolumn.h"
 #include "analytic.h"
+#include "vt_param_macros.h"
 #include "mysort.h"
 #include "ifelse.h"
 
@@ -172,7 +173,7 @@
 #define CNUM_COPYLC 49
 #define CNUM_RESAMPLE 50
 #define CNUM_BLSFIXDURTC 51
-#define CNUM_HARMONICFILTER 52
+#define CNUM_FOURIERFILTER 52
 #define CNUM_PYTHON 53
 #define CNUM_RESTORETIMES 54
 #define CNUM_FFT 55
@@ -199,6 +200,7 @@
 #define PERTYPE_FIXCOLUMN 11
 #define PERTYPE_AUTOFIND 12
 #define PERTYPE_EXPR 13
+#define PERTYPE_VAR 14
 
 #define KILLHARM_OUTTYPE_DEFAULT 0
 #define KILLHARM_OUTTYPE_AMPPHASE 1
@@ -260,11 +262,11 @@
 #define VARTOOLS_RESAMPLE_BSPLINE 4
 #define VARTOOLS_RESAMPLE_MULTIPLE 5
 
-#define VARTOOLS_HARMONICFILTER_FULLSPEC 0
-#define VARTOOLS_HARMONICFILTER_HIGHPASS 1
-#define VARTOOLS_HARMONICFILTER_LOWPASS 2
-#define VARTOOLS_HARMONICFILTER_BANDPASS 3
-#define VARTOOLS_HARMONICFILTER_BANDCUT 4
+#define VARTOOLS_FOURIERFILTER_FULLSPEC 0
+#define VARTOOLS_FOURIERFILTER_HIGHPASS 1
+#define VARTOOLS_FOURIERFILTER_LOWPASS 2
+#define VARTOOLS_FOURIERFILTER_BANDPASS 3
+#define VARTOOLS_FOURIERFILTER_BANDCUT 4
 
 #define VARTOOLS_FREQSTEPTYPE_FREQ 0
 #define VARTOOLS_FREQSTEPTYPE_PERIOD 1
@@ -287,9 +289,12 @@
 
 typedef struct {
   double sigclip;
+  VT_PARAM_COMPANIONS(sigclip);
   int *Nclip;
   int iter;
+  VT_PARAM_COMPANIONS(iter);
   int niter;
+  VT_PARAM_COMPANIONS(niter);
   int usemedian;
   int markclip;
   char *clipvarname;
@@ -369,8 +374,11 @@ typedef struct {
 
 typedef struct {
   double start;
+  VT_PARAM_COMPANIONS(start);
   double stop;
+  VT_PARAM_COMPANIONS(stop);
   double step;
+  VT_PARAM_COMPANIONS(step);
   double errsize;
   char outdir[MAXLEN];
   char suffix[10];
@@ -565,9 +573,13 @@ typedef struct {
 
 typedef struct {
   double gain;
+  VT_PARAM_COMPANIONS(gain);
   double SNlimit;
+  VT_PARAM_COMPANIONS(SNlimit);
   int nbeam;
+  VT_PARAM_COMPANIONS(nbeam);
   double maxfreq;
+  VT_PARAM_COMPANIONS(maxfreq);
   int outdspec;
   int finddirtypeaks;
   int outwspec;
@@ -587,7 +599,10 @@ typedef struct {
   int Npeaks_clean;
   int clipiter_dirty, clipiter_clean;
   int useampspec, verboseout;
-  double clip_dirty, clip_clean;
+  double clip_dirty;
+  VT_PARAM_COMPANIONS(clip_dirty);
+  double clip_clean;
+  VT_PARAM_COMPANIONS(clip_clean);
   double *aveper_dirty, *stdper_dirty;
   double *aveper_noclip_dirty, *stdper_noclip_dirty;
   double *aveper_clean, *stdper_clean;
@@ -608,6 +623,9 @@ typedef struct {
   int lastaovindex;
   double **periods;
   double *fixedperiods;
+  int *fixedperiods_source;
+  _Variable **fixedperiods_var;
+  _Expression **fixedperiods_expr;
   int Nper;
   int Nharm;
   int Nsubharm;
@@ -623,8 +641,16 @@ typedef struct {
   int fitonly;
   int outtype;
   char modeloutdir[MAXLEN];
-  char modelsuffix[16];
+  /* 32 bytes fits both legacy ".killharm.model" and the longer
+     ".harmonicfilter.model" emitted when invoked via the new name. */
+  char modelsuffix[32];
   double clip;
+  VT_PARAM_COMPANIONS(clip);
+  /* Output-column prefix selected by the CLI token used to invoke this
+     command: "Killharm" if invoked as -Killharm (legacy), "HarmonicFilter"
+     if invoked as -harmonicfilter (preferred).  Column names are built as
+     "%s_Mean_Mag_%d", column_prefix, cnum etc. */
+  char column_prefix[32];
 } _Killharm;
 
 typedef struct {
@@ -632,10 +658,16 @@ typedef struct {
   int Nharm;
   int Nsubharm;
   double fixperiod;
+  _Variable *fixperiod_var;
+  _Expression *fixperiod_expr;
   double minp;
+  VT_PARAM_COMPANIONS(minp);
   double maxp;
+  VT_PARAM_COMPANIONS(maxp);
   double minf;
+  VT_PARAM_COMPANIONS(minf);
   double maxf;
+  VT_PARAM_COMPANIONS(maxf);
   double **periods;
   double *periodinject;
   int *harm_amptype;
@@ -647,16 +679,28 @@ typedef struct {
   int *subharm_phasetype;
   int *subharm_phaserel;
   double *harm_ampfix;
+  int *harm_ampfix_source;
+  _Variable **harm_ampfix_var;
+  _Expression **harm_ampfix_expr;
   double ***harm_ampspec;
   double *harm_minamp;
   double *harm_maxamp;
   double *harm_phasefix;
+  int *harm_phasefix_source;
+  _Variable **harm_phasefix_var;
+  _Expression **harm_phasefix_expr;
   double ***harm_phasespec;
   double *subharm_ampfix;
+  int *subharm_ampfix_source;
+  _Variable **subharm_ampfix_var;
+  _Expression **subharm_ampfix_expr;
   double ***subharm_ampspec;
   double *subharm_minamp;
   double *subharm_maxamp;
   double *subharm_phasefix;
+  int *subharm_phasefix_source;
+  _Variable **subharm_phasefix_var;
+  _Expression **subharm_phasefix_expr;
   double ***subharm_phasespec;
   double **harm_amp;
   double **harm_phase;
@@ -674,15 +718,24 @@ typedef struct {
   double *paraminject[14];
   double **paramspec[14];
   _Expression *paramexpr[14];
+  _Variable *paramvar[14];
   double paramfix[14];
   double minp;
+  VT_PARAM_COMPANIONS(minp);
   double maxp;
+  VT_PARAM_COMPANIONS(maxp);
   double minf;
+  VT_PARAM_COMPANIONS(minf);
   double maxf;
+  VT_PARAM_COMPANIONS(maxf);
   double minRp;
+  VT_PARAM_COMPANIONS(minRp);
   double maxRp;
+  VT_PARAM_COMPANIONS(maxRp);
   double minMp;
+  VT_PARAM_COMPANIONS(minMp);
   double maxMp;
+  VT_PARAM_COMPANIONS(maxMp);
   int eomegatype;
   int ldtype;
   int omodel;
@@ -694,7 +747,20 @@ typedef struct {
   int pertype;
   int lastlsindex;
   int lastaovindex;
-  double a0, b0, chi0, inclination0, alpha0, psi00, mconst0;
+  double a0;
+  VT_PARAM_COMPANIONS(a0);
+  double b0;
+  VT_PARAM_COMPANIONS(b0);
+  double chi0;
+  VT_PARAM_COMPANIONS(chi0);
+  double inclination0;
+  VT_PARAM_COMPANIONS(inclination0);
+  double alpha0;
+  VT_PARAM_COMPANIONS(alpha0);
+  double psi00;
+  VT_PARAM_COMPANIONS(psi00);
+  double mconst0;
+  VT_PARAM_COMPANIONS(mconst0);
   double **period;
   double *a;
   double *b;
@@ -710,6 +776,8 @@ typedef struct {
   char modeloutdir[MAXLEN];
   char modelsuffix[16];
   double fixedperiod;
+  _Variable *fixedperiod_var;
+  _Expression *fixedperiod_expr;
   OutColumn *linkedcolumn;
 } _Starspot;
 
@@ -843,17 +911,25 @@ typedef struct {
   double **u, **v, *fmin, df;
   int durtype;
   double fixdur;
+  _Variable *fixdur_var;
+  _Expression *fixdur_expr;
   OutColumn *fixdur_linkedcolumn;
   int TCtype;
   double fixTC;
+  _Variable *fixTC_var;
+  _Expression *fixTC_expr;
   OutColumn *fixTC_linkedcolumn;
   double *inputTC, *inputdur;
   int fixdepth;
   int depthtype;
   double fixdepthval;
+  _Variable *fixdepthval_var;
+  _Expression *fixdepthval_expr;
   OutColumn *fixdepth_linkedcolumn;
   int qgresstype;
   double qgressval;
+  _Variable *qgressval_var;
+  _Expression *qgressval_expr;
   OutColumn *fixqgress_linkedcolumn;
   double *inputdepth, *inputqgress;
   double **bper, **bt0, **bpow, **sde, **snval, **depth, **qtran;
@@ -861,13 +937,20 @@ typedef struct {
   int **nt, **Nt, **Nbefore, **Nafter;
   double **i1_ph, **i2_ph;
   int nf, *nf2, Npeak, **i1, **i2, operiodogram;
+  VT_PARAM_COMPANIONS(nf);
   int *sizeuv, rflag;
 #ifdef PARALLEL
   double **p;
+  int *size_p;
 #else
   double *p;
+  int size_p;
 #endif
-  double minper, maxper, timezone;
+  double minper;
+  VT_PARAM_COMPANIONS(minper);
+  double maxper;
+  VT_PARAM_COMPANIONS(maxper);
+  double timezone;
   char outdir[MAXLEN], suffix[14];
   int omodel;
   char modeloutdir[MAXLEN];
@@ -890,20 +973,30 @@ typedef struct {
   double **u, **v;
   int pertype;
   double fixper;
+  _Variable *fixper_var;
+  _Expression *fixper_expr;
   OutColumn *fixper_linkedcolumn;
   int durtype;
   double fixdur;
+  _Variable *fixdur_var;
+  _Expression *fixdur_expr;
   OutColumn *fixdur_linkedcolumn;
   int TCtype;
   double fixTC;
+  _Variable *fixTC_var;
+  _Expression *fixTC_expr;
   OutColumn *fixTC_linkedcolumn;
   double *inputTC, *inputdur, *inputper;
   int fixdepth;
   int depthtype;
   double fixdepthval;
+  _Variable *fixdepthval_var;
+  _Expression *fixdepthval_expr;
   OutColumn *fixdepth_linkedcolumn;
   int qgresstype;
   double qgressval;
+  _Variable *qgressval_var;
+  _Expression *qgressval_expr;
   OutColumn *fixqgress_linkedcolumn;
   double *inputdepth, *inputqgress;
   double *depth, *qtran;
@@ -913,14 +1006,19 @@ typedef struct {
   double timezone;
   int omodel;
   char modeloutdir[MAXLEN];
-  char modelsuffix[23];
+  /* These suffixes used to be sized 23 — too small for the 23-character
+     ".blsfixperdurtc.phcurve" / ".blsfixperdurtc.jdcurve" strings
+     written in parsecommandline.c (they need 24 bytes incl. NUL).
+     Bumped to 32 to leave headroom and avoid the fortify abort when
+     BLSFixPerDurTc is invoked with `ophcurve`/`ojdcurve` set. */
+  char modelsuffix[32];
   int ophcurve;
   char ophcurveoutdir[MAXLEN];
-  char ophcurvesuffix[23];
+  char ophcurvesuffix[32];
   double phmin, phmax, phstep;
   int ojdcurve;
   char ojdcurveoutdir[MAXLEN];
-  char ojdcurvesuffix[23];
+  char ojdcurvesuffix[32];
   double jdstep;
   int correctlc;
   int fittrap;
@@ -936,7 +1034,11 @@ typedef struct {
   int lastblsindex;
   int t0type;
   double fixperiod;
+  _Variable *fixperiod_var;
+  _Expression *fixperiod_expr;
   double fixT0;
+  _Variable *fixT0_var;
+  _Expression *fixT0_expr;
   double phaseTc;
   double **period;
   double **T0;
@@ -949,7 +1051,11 @@ typedef struct {
 
 typedef struct {
   int medflag, binsize_Nbins_flag, Nbins, firstbinflag, tflag;
-  double binsize, firstbin;
+  VT_PARAM_COMPANIONS(Nbins);
+  double binsize;
+  VT_PARAM_COMPANIONS(binsize);
+  double firstbin;
+  VT_PARAM_COMPANIONS(firstbin);
   int Nvar;
   int *binstats;
   double *pctval;
@@ -961,6 +1067,7 @@ typedef struct {
   _Variable *maskvar;
   int T0source;
   double t0fixval;
+  _Variable *t0fixval_var;
   OutColumn *t0_linkedcolumn;
   double *t0listval;
   char *t0exprstring;
@@ -992,7 +1099,34 @@ typedef struct {
   int lastblsfixperindex;
   int frombls, fromblsfixper;
   int refititer;
-  double P0, T00, r0, a0, inc0, bimpact0, sin_i0, e0, omega0, mconst0, ldcoeffs0[4], K0, gamma0;
+  double P0;
+  VT_PARAM_COMPANIONS(P0);
+  double T00;
+  VT_PARAM_COMPANIONS(T00);
+  double r0;
+  VT_PARAM_COMPANIONS(r0);
+  double a0;
+  VT_PARAM_COMPANIONS(a0);
+  double inc0;
+  VT_PARAM_COMPANIONS(inc0);
+  double bimpact0;
+  VT_PARAM_COMPANIONS(bimpact0);
+  double sin_i0;
+  VT_PARAM_COMPANIONS(sin_i0);
+  double e0;
+  VT_PARAM_COMPANIONS(e0);
+  double omega0;
+  VT_PARAM_COMPANIONS(omega0);
+  double mconst0;
+  VT_PARAM_COMPANIONS(mconst0);
+  double ldcoeffs0[4];
+  int ldcoeffs0_source[4];
+  _Variable *ldcoeffs0_var[4];
+  _Expression *ldcoeffs0_expr[4];
+  double K0;
+  VT_PARAM_COMPANIONS(K0);
+  double gamma0;
+  VT_PARAM_COMPANIONS(gamma0);
   int type;
   int nldcoeff;
   double *period;
@@ -1032,12 +1166,16 @@ typedef struct {
 typedef struct {
   double **magstar;
   double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
   double offset;
+  VT_PARAM_COMPANIONS(offset);
 } _DiffFluxtomag;
 
 typedef struct {
   double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
   double offset;
+  VT_PARAM_COMPANIONS(offset);
 } _Fluxtomag;
 
 typedef struct {
@@ -1066,7 +1204,7 @@ typedef struct {
   int usefitmask;
   char *fitmaskvarname;
   _Variable *fitmaskvar;
-  char *outputfitmask;
+  int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
 } _TFA;
@@ -1096,7 +1234,7 @@ typedef struct {
   int usefitmask;
   char *fitmaskvarname;
   _Variable *fitmaskvar;
-  char *outputfitmask;
+  int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
 } _TFA_SR;
@@ -1117,6 +1255,12 @@ typedef struct {
   char columnformat[MAXLEN];
   int Nvar;
   int outfits;
+  /* Set by the "gzip" / "bzip2" keywords on -o: pipe the output
+     light-curve through that compressor.  outgzip implies a trailing
+     .gz on the output filename; outbzip2 implies .bz2.  Mutually
+     exclusive (parser keeps the last one given). */
+  int outgzip;
+  int outbzip2;
   int copyheaderfrominput;
   int logcommandline;
   int noclobber;
@@ -1130,6 +1274,53 @@ typedef struct {
   char **units;
   int namefrominlist;
   char **inputlistoutnames;
+  /* "changesuffix" keyword: strip a trailing changesuffix_remove from
+     the constructed default output basename (if present) and then
+     append changesuffix_add.  Applied after the basename is built and
+     before any fits/gzip/bzip2 suffixes.  Mutually exclusive with the
+     other slot-1 keywords (nameformat / namecommand / namefromlist). */
+  int usechangesuffix;
+  char changesuffix_remove[MAXLEN];
+  char changesuffix_add[MAXLEN];
+  /* When set, writelightcurves emits every currently-registered
+     VARTOOLS_VECTORTYPE_LC variable using its name as the column name and
+     a default printf format chosen per datatype.  Populated in
+     CompileAllExpressions once the variable registry is complete. */
+  int allcols;
+  /* Snapshot of p->NDefinedVariables at the moment the "-o ... allcols"
+     argument was parsed, so the allcols expansion only emits variables
+     that were defined before this -o command (not ones created by later
+     commands on the same command line). */
+  int allcols_nvars_snapshot;
+  /* When set, treat the "-o" argument as an output *directory* (with the
+     per-LC basename derived from p->lcnames) even when running in single-
+     file (-i) mode.  Normally the directory-vs-file distinction follows
+     listflag (set by -l) vs fileflag (set by -i).  This override exists
+     so that the in-process libvartoolspipeline driver, which uses
+     fileflag mode, can still produce per-LC output files when called
+     with a list of light curves -- and is also available to any -o
+     CLI invocation as the "forceoutdirmode" keyword. */
+  int force_outdir_mode;
+  /* When set, this -o command triggers a memcpy of the current LC
+     variables into the matching p->captured[] slot keyed by
+     ``capture_id``.  Activated by either the "capture" keyword
+     (``-o <id> capture``, no file written) or the "capture_id <id>"
+     keyword (``-o <path> ... capture_id <id>``, file written *and*
+     captured).  Used by the libvartoolspipeline driver to satisfy
+     cmd.o(capture=True). */
+  int capture_to_buffer;
+  /* When set together with capture_to_buffer, DoOutputLightCurve
+     snapshots and returns -- no fopen/fwrite.  Cleared (capture_to_
+     buffer still set) means "do the regular file write *and* the
+     snapshot".  Determined at parse time: "capture" keyword sets
+     skip=1 (the -o argument was an id, not a path); "capture_id"
+     keyword sets skip=0 (the -o argument is a real path). */
+  int capture_skip_file;
+  /* The slot key used to address p->captured[].  Always populated
+     when capture_to_buffer is set.  For the "capture" form (skip=1)
+     this is a copy of outdir.  For the "capture_id" form (skip=0)
+     this is the explicit id argument given after the keyword. */
+  char capture_id[MAXLEN];
 } _Outputlcs;
 
 typedef struct {
@@ -1190,6 +1381,7 @@ typedef struct {
   int usemean;
   int replace;
   double time;
+  VT_PARAM_COMPANIONS(time);
 } _MedianFilter;
 
 typedef struct {
@@ -1220,6 +1412,8 @@ typedef struct {
   int f0_source, f1_source, u0_source, t0_source, tmax_source;
   double **f00, **f10, **u00, **t00, **tmax0;
   double f00_fix, f10_fix, u00_fix, t00_fix, tmax0_fix;
+  _Variable *f00_var, *f10_var, *u00_var, *t00_var, *tmax0_var;
+  _Expression *f00_expr, *f10_expr, *u00_expr, *t00_expr, *tmax0_expr;
   OutColumn *f0_linkedcolumn, *f1_linkedcolumn, *u0_linkedcolumn, *t0_linkedcolumn, *tmax_linkedcolumn;
   double *f0, *f1, *u0, *t0, *tmax, *chi2_;
   int f0_initialstep, f1_initialstep, u0_initialstep, t0_initialstep, tmax_initialstep;
@@ -1233,25 +1427,37 @@ typedef struct {
   int noise_type;
 
   double gammaval_fix;
+  _Variable *gammaval_var;
+  _Expression *gammaval_expr;
   double **gammaval;
   int gammaval_type;
   double sig_r_fix;
+  _Variable *sig_r_var;
+  _Expression *sig_r_expr;
   double **sig_r;
   int sig_r_type;
   double sig_w_fix;
+  _Variable *sig_w_var;
+  _Expression *sig_w_expr;
   double **sig_w;
   int sig_w_type;
-  
+
   double **rho_r;
   int rho_r_type;
   double rho_r_fix;
-  
+  _Variable *rho_r_var;
+  _Expression *rho_r_expr;
+
   double **nu_r;
   int nu_r_type;
   double nu_r_fix;
+  _Variable *nu_r_var;
+  _Expression *nu_r_expr;
 
   int bintime_type;
   double bintime_fix;
+  _Variable *bintime_var;
+  _Expression *bintime_expr;
   double **bintime;
 } _AddNoise;
 
@@ -1345,6 +1551,18 @@ typedef struct {
   char lhs_indx_range_startmin;
   char lhs_indx_range_stopmax;
   char initialize_output_var;
+  int lhs_vectortype_override;
+  /* outputcolumn: when set (1) by the optional "outputcolumn" CLI
+     keyword, the value computed by this expression is exposed as an
+     output column in the result table.  Only valid when
+     lhs_vectortype_override is INLIST/SCALAR/CONSTANT (i.e. when the
+     user gave "listvar", "scalar", or "const") — for the default
+     per-observation LC vectortype an output column would be
+     ill-defined, so it is rejected at parse time.  outputcolumn_buffer
+     is the per-LC scratch buffer that backs the column; it is
+     allocated in initcommands.c and written by RunExpressionCommand. */
+  int outputcolumn;
+  double *outputcolumn_buffer;
 } _ExpressionCommand;
 
 typedef struct {
@@ -1370,6 +1588,7 @@ typedef struct {
   _Expression *constantexpression;
   int rejectoutliers;
   double rejsigclip;
+  VT_PARAM_COMPANIONS(rejsigclip);
   int rejuseMAD;
   int rejiterate;
   int rejfixnum;
@@ -1439,12 +1658,18 @@ typedef struct {
   _Expression **constraint_expressions;
 
   double amoeba_tol;
+  VT_PARAM_COMPANIONS(amoeba_tol);
   long amoeba_maxsteps;
+  VT_PARAM_COMPANIONS(amoeba_maxsteps);
 
   long mcmc_Naccept;
+  VT_PARAM_COMPANIONS(mcmc_Naccept);
   long mcmc_Nlinkstotal;
+  VT_PARAM_COMPANIONS(mcmc_Nlinkstotal);
   double mcmc_burninfrac;
+  VT_PARAM_COMPANIONS(mcmc_burninfrac);
   double mcmc_eps;
+  VT_PARAM_COMPANIONS(mcmc_eps);
   char *mcmc_chain_exprliststring;
   char **mcmc_chain_expr_strings;
   char *mcmc_chain_statsliststring;
@@ -1597,14 +1822,20 @@ typedef struct {
 
 typedef struct {
   double cterm;
+  VT_PARAM_COMPANIONS(cterm);
   double maxfreq;
+  VT_PARAM_COMPANIONS(maxfreq);
   double freq_sample_factor;
+  VT_PARAM_COMPANIONS(freq_sample_factor);
   int auto_tau0;
   int auto_tau1;
   int auto_dtau;
   double tau0;
+  VT_PARAM_COMPANIONS(tau0);
   double tau1;
+  VT_PARAM_COMPANIONS(tau1);
   double dtau;
+  VT_PARAM_COMPANIONS(dtau);
   int outfulltransform;
   int outfulltransform_usefits;
   int outfulltransform_usepm3d;
@@ -1754,19 +1985,108 @@ typedef struct {
   
   _Expression *filter_expr;
   char *filter_exprstring;
+  /* User-visible name of the frequency variable referenced in
+     filter_exprstring (default "f").  Substituted at CompileAllExpressions
+     time with a unique internal stump name so multiple -fourierfilter
+     commands in the same pipeline do not collide and so there is no
+     conflict with same-named user variables. */
+  char freq_varname[64];
 
   int calc_full_spec;
 
   int forcefft;
+
+  /* Optional band-edge taper.  taper_type is one of VARTOOLS_FOURIERFILTER_TAPER_*
+     from the enum in fourierfilter.c; NONE means no taper is applied.  The
+     taper is centered on each cut edge of the selected filter mode and spans
+     +/- taper_deltafreq around that edge.  taper_beta is only used by the
+     Kaiser window. */
+  int    taper_type;
+  double taper_deltafreq;
+  double taper_beta;
+
+  /* Optional resample-to-uniform path.  When resample_enabled is set the
+     LC is interpolated onto a uniform grid at spacing resample_delta,
+     FFT-filtered, IFFT-reconstructed, and the filter result interpolated
+     back to the original sample times.  resample_source selects how
+     resample_delta is obtained per LC:
+       VARTOOLS_SOURCE_FIXED        — resample_delta_fix (scalar on CLI)
+       VARTOOLS_SOURCE_INLIST       — resample_delta[lcid] from the list
+       VARTOOLS_SOURCE_PRIORCOLUMN  — from an earlier command's output col
+       VARTOOLS_SOURCE_EVALEXPRESSION — resample_delta_expr
+       -1 (DELMIN)                  — use the minimum dt in this LC
+  */
+  int    resample_enabled;
+  int    resample_source;
+  double resample_delta_fix;
+  double *resample_delta;
+  OutColumn *resample_delta_linkedcolumn;
+  _Expression *resample_delta_expr;
+  char  *resample_delta_exprstring;
+
+  /* Optional gap-break.  When gapbreak_enabled is set the LC is split at
+     any gap >= gap_threshold and each segment is filtered independently;
+     segments are concatenated on output.  gapbreak_source selects how
+     gap_threshold is obtained:
+       VARTOOLS_SOURCE_FIXED        — gapbreak_fix
+       VARTOOLS_SOURCE_PRIORCOLUMN  — from an earlier command's output col
+       VARTOOLS_SOURCE_INLIST       — gapbreak_threshold[lcid]
+       VARTOOLS_SOURCE_EVALEXPRESSION — gapbreak_expr
+       -1 (FRAC_MIN_SEP)  — gapbreak_frac_min * min(dt)
+       -2 (FRAC_MED_SEP)  — gapbreak_frac_med * median(dt)
+       -3 (PERCENTILE_SEP) — percentile(dt, gapbreak_percentile)
+  */
+  int    gapbreak_enabled;
+  int    gapbreak_source;
+  double gapbreak_fix;
+  double gapbreak_frac_min;
+  double gapbreak_frac_med;
+  double gapbreak_percentile;
+  double *gapbreak_threshold;
+  OutColumn *gapbreak_linkedcolumn;
+  _Expression *gapbreak_expr;
+  char  *gapbreak_exprstring;
 
   int ofourier;
   char *ofourier_dir;
   int ofourier_formatflag;
   char *ofourier_format;
 
+  /* Optional "nowarn" flag — when set, suppresses all runtime
+     per-LC warnings emitted by doFourierFilter (non-uniform without
+     resample, within-segment gap vs minfreq, taper overlap, forcefft
+     on non-uniform, resample delta <= 0).  Useful in batch pipelines
+     where the caller has vetted the data and doesn't need the repeated
+     advisories. */
+  int nowarn;
+
+  /* Optional edge-padding for the resample path's FFT.  The FFT
+     implicitly treats the signal as periodic, so if the first and
+     last samples disagree (typical astronomical LCs), the implicit
+     wrap-around produces ringing in the filtered output near the
+     start/end of the segment.  padmode selects how each segment is
+     extended before the FFT and padfrac is the padding length per
+     side, as a fraction of the segment length.  The padding is
+     discarded before interpolating back to the original times.
+       VARTOOLS_FOURIERFILTER_PAD_WRAP     — no padding (default)
+       VARTOOLS_FOURIERFILTER_PAD_REFLECT  — mirror at each edge
+       VARTOOLS_FOURIERFILTER_PAD_ZERO     — zero-extend each edge
+   */
+  int    padmode;
+  double padfrac;
+
   _Variable *freq_var;
 
-} _HarmonicFilter;
+  /* Per-LC output-column storage.  Allocated in initcommands.c once Nlcs
+     is known; written by doFourierFilter at runtime; registered as
+     FourierFilter_<name>_N output columns in outcolumns.c. */
+  double *mean_mag;          /* DC Fourier coefficient (a_0)                  */
+  double *rms_in;            /* RMS of the input light curve                  */
+  double *rms_out;           /* RMS after the filter is applied               */
+  int    *nfreqcalc;         /* number of Fourier frequency bins computed     */
+  int    *nfreqfilt;         /* number of bins inside the filter passband     */
+
+} _FourierFilter;
 
 #ifdef _HAVE_PYTHON
 typedef struct {
@@ -2039,7 +2359,7 @@ typedef struct {
   _WWZ *WWZ;
   _CopyLC *CopyLC;
   _Resample *Resample;
-  _HarmonicFilter *HarmonicFilter;
+  _FourierFilter *FourierFilter;
   _PythonCommand *PythonCommand;
   _RCommand *RCommand;
   _FFT *FFT;
