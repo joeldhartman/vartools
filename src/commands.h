@@ -183,6 +183,7 @@
 #define CNUM_ADDFITSKEYWORD 59
 #define CNUM_SORTLC 60
 #define CNUM_PRINT 61
+#define CNUM_PDM 62
 
 #define TOT_CNUMS 61
 
@@ -2298,6 +2299,58 @@ typedef struct {
 } _PrintCommand;
 
 
+/* -PDM variant identifiers (shared between parser and pdm.c) */
+#define PDM_KIND_STEP        0
+#define PDM_KIND_LINTERP     1
+
+typedef struct {
+  int kind;                /* PDM_KIND_STEP, PDM_KIND_LINTERP, ... */
+  /* Nbin: phase-bin count (binned variants).  May come from a fixed integer,
+   * an existing variable, or an analytic expression -- resolved per-LC. */
+  int Nbin;
+  int *Nbin_vals;
+  int Nbin_source;
+  _Variable *Nbin_var;
+  _Expression *Nbin_expr;
+  /* minp / maxp / subsample / finetune: same var/expr/fixed source machinery. */
+  double minp;
+  double *minp_vals;
+  int minp_source;
+  _Variable *minp_var;
+  _Expression *minp_expr;
+  double maxp;
+  double *maxp_vals;
+  int maxp_source;
+  _Variable *maxp_var;
+  _Expression *maxp_expr;
+  double subsample;
+  double *subsample_vals;
+  int subsample_source;
+  _Variable *subsample_var;
+  _Expression *subsample_expr;
+  double finetune;
+  double *finetune_vals;
+  int finetune_source;
+  _Variable *finetune_var;
+  _Expression *finetune_expr;
+  /* simple scalars */
+  int Npeaks;
+  int operiodogram;        /* 0/1: dump periodogram file per LC */
+  char outdir[MAXLEN];
+  char suffix[8];          /* file suffix, default ".pdm" */
+  int useerr;              /* 1: weight by 1/sig^2 (default); 0: noerr keyword */
+  double clip;             /* sigma-clip factor for the SNR noise estimate (default 5) */
+  int clipiter;            /* 1: iterate clipping until count stable; 0: single pass */
+  /* Per-LC outputs */
+  double **peakperiods;    /* [Nlcs][Npeaks] */
+  double **peakvalues;     /* [Nlcs][Npeaks]  -- theta at each peak */
+  double **peakSNR;        /* [Nlcs][Npeaks] */
+  double **peakFAP;        /* [Nlcs][Npeaks] */
+  double *avetheta;        /* [Nlcs] */
+  double *rmstheta;        /* [Nlcs] */
+} _PDM;
+
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -2367,6 +2420,7 @@ typedef struct {
   _AddFitsKeyword *AddFitsKeyword;
   _SortLC *SortLC;
   _PrintCommand *PrintCommand;
+  _PDM *Pdm;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

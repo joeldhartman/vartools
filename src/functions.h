@@ -474,6 +474,7 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int lc_name_num, int thisindex);
 void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
+void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name_num, int thisindex);
 void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum);
 void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr);
 void parse_setparam_existingvariable(Command *c, char *varname, _Variable **varptr, char vectortype, char datatype);

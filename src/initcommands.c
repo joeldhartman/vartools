@@ -736,6 +736,27 @@ void InitCommands(ProgramData *p, Command *c)
 		}
 	    }
 	  break;
+	case CNUM_PDM:
+	  if((c[i].Pdm->peakperiods   = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakvalues    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakSNR       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakFAP       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->avetheta      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->rmstheta      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->minp_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->maxp_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->subsample_vals= (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->finetune_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->Nbin_vals     = (int *)     malloc(Nlcs * sizeof(int))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++)
+	    if((c[i].Pdm->peakperiods[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakvalues[j]  = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakSNR[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakFAP[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  break;
+
 	case CNUM_HARMAOV:
 	  if((c[i].AovHarm->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].AovHarm->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

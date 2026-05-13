@@ -3477,8 +3477,176 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
+	  cn++;
+	}
+
+      /* -PDM <"step" | "linterp">
+              ["Nbin" <"var" Nbinvar | "expr" Nbinexpr | Nbin>]
+              <"var" minpvar | "expr" minpexpr | minp>
+              <"var" maxpvar | "expr" maxpexpr | maxp>
+              <"var" subsamplevar | "expr" subsampleexpr | subsample>
+              <"var" finetunevar | "expr" finetuneexpr | finetune>
+              Npeaks operiodogram [outdir]
+              ["clip" clip clipiter] ["noerr"]                                 */
+      else if(!strncmp(argv[i],"-PDM",4) && strlen(argv[i]) == 4)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_PDM;
+	  if((c[cn].Pdm = (_PDM *) malloc(sizeof(_PDM))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].Pdm, 0, sizeof(_PDM));
+	  c[cn].Pdm->useerr = 1;
+	  c[cn].Pdm->Nbin = 0;     /* sentinel: use PDM_DEFAULT_NBIN */
+	  c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->clip = 5.0;   /* default 5-sigma iterative clip (matches -aov) */
+	  c[cn].Pdm->clipiter = 1;
+	  sprintf(c[cn].Pdm->suffix, ".pdm");
+	  /* variant token (required) */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "step"))
+	    c[cn].Pdm->kind = PDM_KIND_STEP;
+	  else if(!strcmp(argv[i], "linterp"))
+	    c[cn].Pdm->kind = PDM_KIND_LINTERP;
+	  else {
+	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step' or 'linterp')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* optional Nbin keyword (with var/expr/fixed value) */
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i], "Nbin")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->Nbin_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->Nbin_expr));
+	      }
+	      else {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->Nbin = atoi(argv[i]);
+	      }
+	      i++;
+	    }
+	  }
+	  /* required positionals with var/expr/fixed dispatch */
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->minp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->minp_expr));
+	  } else {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->minp = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->maxp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->maxp_expr));
+	  } else {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->maxp = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->subsample_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->subsample_expr));
+	  } else {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->subsample = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->finetune_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->finetune_expr));
+	  } else {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->finetune = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Pdm->Npeaks = atoi(argv[i]); i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Pdm->operiodogram = atoi(argv[i]);
+	  if(c[cn].Pdm->operiodogram) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].Pdm->outdir, "%s", argv[i]);
+	  }
+	  /* trailing keyword options: clip / noerr (order-insensitive).  FAP is
+	   * always computed analytically; a future `bootstrap` keyword will
+	   * recalibrate m_eff but not the FAP distribution itself. */
+	  for(;;) {
+	    i++;
+	    if(i >= argc) { i--; break; }
+	    if(!strcmp(argv[i], "noerr")) {
+	      c[cn].Pdm->useerr = 0;
+	    }
+	    else if(!strcmp(argv[i], "clip")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Pdm->clip = atof(argv[i]);
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Pdm->clipiter = atoi(argv[i]);
+	    }
+	    else {
+	      i--;
+	      break;
+	    }
+	  }
 	  cn++;
 	}
 

@@ -1314,6 +1314,18 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov), "%9.5f", 1, 0, 0, 0, "RMS_lnAOV_%d", l);
 	    }
 	  break;
+	case CNUM_PDM:
+	  for(i=1;i<=c[l].Pdm->Npeaks;i++)
+	    {
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "PDM_Period_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakvalues),  "%9.5f", 2, 0, 0, 0, i-1, "PDM_Theta_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakSNR),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakFAP),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_NEG_LN_FAP_%d_%d",i,l);
+	    }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta), "%9.5f", 1, 0, 0, 0, "Mean_PDM_Theta_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta), "%9.5f", 1, 0, 0, 0, "RMS_PDM_Theta_%d", l);
+	  break;
+
 	case CNUM_HARMAOV:
 	  for(i=1;i<=c[l].AovHarm->Npeaks;i++)
 	    {
