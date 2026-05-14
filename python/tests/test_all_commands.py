@@ -141,6 +141,125 @@ class TestCLIArgsPeriodicity:
         args = cmd.aov_harm(2, "tspan/200", 10.0, 0.1, 0.01)._to_cli_args()
         assert "expr" in args and "tspan/200" in args
 
+    # ----- PDM (Phase Dispersion Minimization, all 5 variants) -----
+
+    def test_pdm_step_minimal(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01)._to_cli_args()
+        assert args[0] == "-PDM" and args[1] == "step"
+
+    def test_pdm_linterp_minimal(self):
+        args = cmd.PDM("linterp", 0.1, 10.0, 0.1, 0.01)._to_cli_args()
+        assert args[1] == "linterp"
+
+    def test_pdm_multicover_nbin_nc(self):
+        args = cmd.PDM("multicover", 0.1, 10.0, 0.1, 0.01,
+                       nbin=8, nc=2)._to_cli_args()
+        assert args[1] == "multicover"
+        assert "Nbin" in args and "Nc" in args
+        # Canonical order: Nbin must precede Nc
+        assert args.index("Nbin") < args.index("Nc")
+
+    def test_pdm_tophat_dphi(self):
+        args = cmd.PDM("tophat", 0.5, 2.0, 0.5, 0.05, dphi=0.05)._to_cli_args()
+        assert args[1] == "tophat"
+        assert "dphi" in args and "0.05" in args
+
+    def test_pdm_gauss_dphi(self):
+        args = cmd.PDM("gauss", 0.5, 2.0, 0.5, 0.05, dphi=0.07)._to_cli_args()
+        assert args[1] == "gauss"
+        assert args[args.index("dphi") + 1] == "0.07"
+
+    def test_pdm_save_periodogram(self):
+        c = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, save_periodogram=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        # operiodogram=1 followed by outdir
+        assert "/tmp" in args
+
+    def test_pdm_clip_clipiter(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       clip=3, clipiter=1)._to_cli_args()
+        idx = args.index("clip")
+        assert args[idx + 1] == "3" and args[idx + 2] == "1"
+
+    def test_pdm_noerr_whiten(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       noerr=True, whiten=True)._to_cli_args()
+        assert "noerr" in args and "whiten" in args
+        # Canonical order: noerr precedes whiten
+        assert args.index("noerr") < args.index("whiten")
+
+    def test_pdm_bootstrap(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       bootstrap=100)._to_cli_args()
+        idx = args.index("bootstrap")
+        assert args[idx + 1] == "100"
+
+    def test_pdm_maskpoints(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       maskpoints="mymask")._to_cli_args()
+        idx = args.index("maskpoints")
+        assert args[idx + 1] == "mymask"
+
+    def test_pdm_fixperiod_snr_fix(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       fixperiod_snr=1.23)._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "fix" and args[i + 2] == "1.23"
+
+    def test_pdm_fixperiod_snr_pdm_passthrough(self):
+        # Pre-resolution: keyword string passes through.
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       fixperiod_snr="pdm")._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "pdm"
+
+    def test_pdm_varexpr_minp(self):
+        args = cmd.PDM("step", "mymin", 10.0, 0.1, 0.01)._to_cli_args()
+        assert "var" in args and args[args.index("var") + 1] == "mymin"
+
+    def test_pdm_canonical_trailing_order(self):
+        # All trailing keywords together; verify they emerge in the canonical
+        # order matching the strict vartools parser.
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       clip=5, noerr=True, whiten=True,
+                       fixperiod_snr=1.234, bootstrap=50,
+                       maskpoints="mask")._to_cli_args()
+        order_keywords = ["clip", "noerr", "whiten", "fixperiodSNR",
+                          "bootstrap", "maskpoints"]
+        positions = [args.index(k) for k in order_keywords if k in args]
+        assert positions == sorted(positions)
+
+    # ----- PDM constructor validation -----
+
+    def test_pdm_rejects_bad_variant(self):
+        with pytest.raises(ValueError, match="variant"):
+            cmd.PDM("bogus", 0.1, 10.0, 0.1, 0.01)
+
+    def test_pdm_rejects_nbin_with_binless(self):
+        with pytest.raises(ValueError, match="nbin"):
+            cmd.PDM("tophat", 0.1, 10.0, 0.1, 0.01, nbin=8)
+        with pytest.raises(ValueError, match="nbin"):
+            cmd.PDM("gauss", 0.1, 10.0, 0.1, 0.01, nbin=8)
+
+    def test_pdm_rejects_nc_outside_multicover(self):
+        with pytest.raises(ValueError, match="multicover"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, nc=2)
+        with pytest.raises(ValueError, match="multicover"):
+            cmd.PDM("tophat", 0.1, 10.0, 0.1, 0.01, nc=2)
+
+    def test_pdm_rejects_dphi_with_binned(self):
+        with pytest.raises(ValueError, match="dphi"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, dphi=0.05)
+        with pytest.raises(ValueError, match="dphi"):
+            cmd.PDM("multicover", 0.1, 10.0, 0.1, 0.01, dphi=0.05)
+
+    def test_pdm_rejects_bootstrap_zero(self):
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, bootstrap=0)
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, bootstrap=-3)
+
     def test_bls_minimal(self):
         # nfreq= required when density_mode=False ("optimal" is
         # density-mode-only per vartools).
@@ -1923,6 +2042,65 @@ class TestEndToEndPipelines:
             cmd.LS(0.5, 5.0, 1e-3, noGLS=True),
         ]).run(lc)
         assert result.vars is not None
+
+    # -----------------------------------------------------------------------
+    # PDM (Phase Dispersion Minimization)
+    # -----------------------------------------------------------------------
+
+    def test_pdm_linterp_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1, nbin=8),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+        # Theta should be small at a real signal period; loose check.
+        assert result.varobjs.PDM.Theta_1 < 0.5
+
+    def test_pdm_multicover_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("multicover", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    nbin=8, nc=2),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+
+    def test_pdm_tophat_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("tophat", 1.0, 3.0, 0.5, 0.05, npeaks=1, dphi=0.05,
+                    noerr=True),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+        # Binless theta dips deep at the signal period.
+        assert result.varobjs.PDM.Theta_1 < 0.2
+
+    def test_pdm_fixperiod_backref_from_aov(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.aov(0.5, 5.0, 0.1, 0.01, nbin=8),
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    fixperiod_snr="aov"),
+        ]).run(lc)
+        # PDM PeriodFix should appear and equal the aov peak.
+        pdm = result.varobjs.PDM
+        assert hasattr(pdm, "PeriodFix")
+        assert abs(pdm.PeriodFix - result.varobjs.aov.Period_1) < 1e-6
+
+    def test_pdm_to_pdm_backref(self):
+        # Second -PDM uses the first -PDM's peak via fixperiod_snr='pdm'.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("step", 0.5, 5.0, 0.1, 0.01, npeaks=1, nbin=8),
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    fixperiod_snr="pdm"),
+        ]).run(lc)
+        # Two PDM commands → varobjs.PDM is a CommandStatsList wrapping
+        # the two CommandStats entries; indexable by position.
+        pdms = result.varobjs.PDM
+        assert len(pdms) == 2
+        first, second = pdms[0], pdms[1]
+        # Second one's PeriodFix should equal first one's Period_1.
+        assert abs(second.PeriodFix - first.Period_1) < 1e-6
 
     # -----------------------------------------------------------------------
     # Phase-folding

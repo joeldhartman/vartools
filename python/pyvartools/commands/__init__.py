@@ -12,6 +12,7 @@ from .periodicity import (
     LS,
     aov,
     aov_harm,
+    PDM,
     BLS,
     BLSFixPer,
     BLSFixDurTc,
@@ -107,7 +108,7 @@ from .userlibs import (
 __all__ = [
     "VartoolsCommand",
     # periodicity
-    "LS", "aov", "aov_harm", "BLS", "BLSFixPer", "BLSFixDurTc",
+    "LS", "aov", "aov_harm", "PDM", "BLS", "BLSFixPer", "BLSFixDurTc",
     "BLSFixPerDurTc", "autocorrelation", "dftclean", "wwz",
     "GetLSAmpThresh", "Phase",
     # manipulation

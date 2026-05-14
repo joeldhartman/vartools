@@ -271,9 +271,9 @@ def _resolve_period_backref(prev, spec):
     """Resolve a period-spec keyword against *prev*.
 
     Recognised specs: ``"ls"``, ``"aov"`` (matches either -aov or -aov_harm,
-    most-recent wins), ``"bls"``, ``"blsfixper"``, ``"injectharm"``, and
-    ``"fixcolumn <name>"``.  All other strings pass through unchanged (the
-    caller may still want to accept e.g. ``"fix 1.23"``).
+    most-recent wins), ``"pdm"``, ``"bls"``, ``"blsfixper"``, ``"injectharm"``,
+    and ``"fixcolumn <name>"``.  All other strings pass through unchanged
+    (the caller may still want to accept e.g. ``"fix 1.23"``).
 
     Returns a float / PerLC / the original value when the spec isn't a
     recognised back-ref.  Raises ``LookupError`` if a recognised back-ref
@@ -297,6 +297,14 @@ def _resolve_period_backref(prev, spec):
             raise LookupError(
                 "Back-reference 'aov' has no prior -aov or -aov_harm command "
                 "in this chain"
+            )
+        return _coerce_to_numeric(stats.Period_1)
+
+    if s == "pdm":
+        stats = _most_recent_lookup(prev, ["PDM"])
+        if stats is None:
+            raise LookupError(
+                "Back-reference 'pdm' has no prior -PDM command in this chain"
             )
         return _coerce_to_numeric(stats.Period_1)
 

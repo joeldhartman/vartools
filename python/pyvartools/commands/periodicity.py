@@ -291,6 +291,187 @@ class aov_harm(VartoolsCommand):
         return {"periodogram": (".aov_harm", None)}
 
 
+_PDM_VARIANTS = ("step", "linterp", "multicover", "tophat", "gauss")
+_PDM_BINNED_VARIANTS = ("step", "linterp", "multicover")
+_PDM_BINLESS_VARIANTS = ("tophat", "gauss")
+
+
+class PDM(VartoolsCommand):
+    """Phase Dispersion Minimization (PDM) periodogram.
+
+    Stellingwerf-1978 / Schwarzenberg-Czerny-1997 phase-folding statistic.
+    Five algorithm variants (selected via ``variant``): three binned and two
+    binless.
+
+    Parameters
+    ----------
+    variant : {"step", "linterp", "multicover", "tophat", "gauss"}
+        ``step``: classic Stellingwerf fixed-bin theta.
+        ``linterp``: cuvarbase-style linear interpolation between bin means.
+        ``multicover``: Nc shifted bin sets averaged into a single theta.
+        ``tophat``: binless, hard phase-window kernel of half-width ``dphi``.
+        ``gauss``: binless, Gaussian phase kernel of sigma ``dphi``.
+    minp, maxp : float or str
+        Period search range.  Accepts the same number / variable-name /
+        expression forms as :class:`aov`.
+    subsample, finetune : float or str
+        Frequency-grid step and fine-tune resolution.  Accepts var/expr.
+    npeaks : int
+        Number of peaks to report (default 5).
+    nbin : int or str, optional
+        Phase bin count for binned variants (step/linterp) or bins-per-cover
+        for multicover.  Rejected with binless variants.  vartools defaults
+        to 8 when not set.
+    nc : int or str, optional
+        Number of phase-shifted covers for the ``multicover`` variant.
+        Rejected for other variants.  vartools defaults to 2.
+    dphi : float or str, optional
+        Half-width (``tophat``) or sigma (``gauss``) of the phase kernel for
+        binless variants.  Rejected for binned variants.  vartools defaults
+        to 0.05 (cuvarbase convention).
+    save_periodogram : bool or str
+        ``True`` captures the periodogram in memory; pass a path string to
+        write it to disk; ``False`` (default) suppresses.
+    clip : float, optional
+        Sigma-clip factor for the SNR noise estimate.  vartools defaults
+        to 5.
+    clipiter : int, optional
+        0 or 1: disable / enable iterative clipping.  vartools defaults to 1.
+    noerr : bool
+        Force uniform weights instead of 1/sigma^2.
+    whiten : bool
+        Iterative pre-whitening between peaks (subtract step-bin phase model
+        at each peak before searching for the next).
+    fixperiod_snr : float, int, or str, optional
+        Additional theta/SNR/FAP at a specified period.  Forms recognised:
+        ``"aov"`` / ``"ls"`` / ``"pdm"`` / ``"injectharm"`` (back-reference to
+        the most recent prior command of that type in the same pipeline),
+        ``"fixcolumn <name>"``, ``"list [column N]"``, or a numeric value
+        (treated as a literal period).
+    bootstrap : int, optional
+        Enable empirical-CDF FAP via ``Nboot`` shuffled-LC trials.  Replaces
+        the analytic Schwarzenberg-Czerny Beta FAP when set.
+    maskpoints : str, optional
+        Name of an LC vector; points with maskvar > VARTOOLS_MASK_TINY are
+        included, others excluded.
+
+    See Also
+    --------
+    Citations: Stellingwerf 1978 (ApJ 224, 953);
+    Schwarzenberg-Czerny 1997 (ApJ 489, 941);
+    Zalian, Chadid & Stellingwerf 2014 (MNRAS 440, 68).
+    The ``linterp`` variant follows the cuvarbase reference implementation
+    (https://github.com/johnh2o2/cuvarbase) authored by Attila Bodi.
+    """
+
+    _vt_name = "PDM"
+
+    def __init__(
+        self,
+        variant: str,
+        minp: Union[float, str],
+        maxp: Union[float, str],
+        subsample: Union[float, str],
+        finetune: Union[float, str],
+        *,
+        npeaks: int = 5,
+        nbin: Optional[Union[int, str]] = None,
+        nc: Optional[Union[int, str]] = None,
+        dphi: Optional[Union[float, str]] = None,
+        save_periodogram=False,
+        clip: Optional[float] = None,
+        clipiter: Optional[int] = None,
+        noerr: bool = False,
+        whiten: bool = False,
+        fixperiod_snr: Union[float, int, str, None] = None,
+        bootstrap: Optional[int] = None,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        # Constructor-time validation -- mirrors the strict-parser behaviour
+        # in vartools so misuse is caught early at the pyvartools layer.
+        if variant not in _PDM_VARIANTS:
+            raise ValueError(
+                f"PDM variant must be one of {_PDM_VARIANTS!r}, got {variant!r}"
+            )
+        if variant in _PDM_BINLESS_VARIANTS and nbin is not None:
+            raise ValueError(
+                "PDM: 'nbin' is not used by binless variants (tophat/gauss); "
+                "use 'dphi' instead"
+            )
+        if variant != "multicover" and nc is not None:
+            raise ValueError(
+                "PDM: 'nc' is only valid with the multicover variant"
+            )
+        if variant in _PDM_BINNED_VARIANTS and dphi is not None:
+            raise ValueError(
+                "PDM: 'dphi' is only valid with the tophat or gauss variants"
+            )
+        if bootstrap is not None:
+            try:
+                _nboot = int(bootstrap)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"PDM: 'bootstrap' must be a positive integer, got {bootstrap!r}"
+                )
+            if _nboot < 1:
+                raise ValueError(
+                    f"PDM: 'bootstrap' must be >= 1, got {_nboot}"
+                )
+            bootstrap = _nboot
+
+        self.variant = variant
+        self.minp = minp
+        self.maxp = maxp
+        self.subsample = subsample
+        self.finetune = finetune
+        self.npeaks = npeaks
+        self.nbin = nbin
+        self.nc = nc
+        self.dphi = dphi
+        self.save_periodogram = save_periodogram
+        self.clip = clip
+        self.clipiter = clipiter
+        self.noerr = noerr
+        self.whiten = whiten
+        self.fixperiod_snr = fixperiod_snr
+        self.bootstrap = bootstrap
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        outdir = getattr(self, "_outdir", ".")
+        args = ["-PDM", self.variant]
+        # Variant-specific keyword params (order: Nbin, Nc, dphi).
+        if self.nbin is not None:
+            args += ["Nbin"] + _varexpr(self.nbin)
+        if self.nc is not None:
+            args += ["Nc"] + _varexpr(self.nc)
+        if self.dphi is not None:
+            args += ["dphi"] + _varexpr(self.dphi)
+        # Required positionals.
+        args += (_varexpr(self.minp) + _varexpr(self.maxp)
+                 + _varexpr(self.subsample) + _varexpr(self.finetune)
+                 + [str(self.npeaks)])
+        args += _outtoken(self.save_periodogram, outdir)
+        # Trailing keywords in the canonical (strict-parser) order:
+        # clip / noerr / whiten / fixperiodSNR / bootstrap / maskpoints.
+        if self.clip is not None:
+            args += ["clip", str(self.clip), str(self.clipiter if self.clipiter is not None else 1)]
+        args += _bool("noerr", self.noerr)
+        args += _bool("whiten", self.whiten)
+        args += _fixperiodsnr_tokens(self.fixperiod_snr)
+        if self.bootstrap is not None:
+            args += ["bootstrap", str(int(self.bootstrap))]
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
+
+    def _output_file_specs(self):
+        return {"periodogram": (".pdm", None)}
+
+
 class BLS(VartoolsCommand):
     """Box-Least-Squares transit search.
 
