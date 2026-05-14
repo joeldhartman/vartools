@@ -260,7 +260,7 @@ echo "$testnumber. Testing -PDM step example (whiten + clip + fixperiodSNR)" > /
 cat > $testc <<EOF
 ./vartools -i EXAMPLES/2 -oneline -ascii \\
     -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \\
-        whiten clip 5. 1 fixperiodSNR fix 1.23
+        clip 5. 1 whiten fixperiodSNR fix 1.23
 EOF
 
 cat > $goodout <<EOF
@@ -304,7 +304,7 @@ EOF
 
 $VARTOOLS -i EXAMPLES/2 -oneline -ascii \
     -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \
-        whiten clip 5. 1 fixperiodSNR fix 1.23 \
+        clip 5. 1 whiten fixperiodSNR fix 1.23 \
 > $testout
 
 lastcode=$?

@@ -156,11 +156,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t<\"var\" subsamplevar | \"expr\" subsampleexpr | subsample>\n");
       printtostring(s,"\t<\"var\" finetunevar | \"expr\" finetuneexpr | finetune>\n");
       printtostring(s,"\tNpeaks operiodogram [outdir]\n");
-      printtostring(s,"\t[\"clip\" clip clipiter] [\"noerr\"] [\"maskpoints\" maskvar]\n");
-      printtostring(s,"\t[\"whiten\"] [\"bootstrap\" Nboot]\n");
+      printtostring(s,"\t[\"clip\" clip clipiter] [\"noerr\"] [\"whiten\"]\n");
       printtostring(s,"\t[\"fixperiodSNR\" <\"aov\" | \"ls\" | \"pdm\" | \"injectharm\" | \"fix\" period\n");
       printtostring(s,"\t\t| \"list\" [\"column\" col]\n");
       printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>>]\n");
+      printtostring(s,"\t[\"bootstrap\" Nboot] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-aov_harm",9) && strlen(c) == 9))
