@@ -757,6 +757,15 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Pdm->peakSNR[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
 	       (c[i].Pdm->peakFAP[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
 	      vt_error(ERR_MEMALLOC);
+	  if(c[i].Pdm->whiten) {
+	    if((c[i].Pdm->avetheta_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Pdm->rmstheta_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((c[i].Pdm->avetheta_whiten[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+		 (c[i].Pdm->rmstheta_whiten[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
 	  if(c[i].Pdm->fixperiodSNR) {
 	    if((c[i].Pdm->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	       (c[i].Pdm->fixperiodSNR_peakSNR    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

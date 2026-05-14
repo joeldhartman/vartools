@@ -1321,9 +1321,15 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakvalues),  "%9.5f", 2, 0, 0, 0, i-1, "PDM_Theta_%d_%d",i,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakSNR),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_SNR_%d_%d",i,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakFAP),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_NEG_LN_FAP_%d_%d",i,l);
+	      if(c[l].Pdm->whiten) {
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta_whiten), "%9.5f", 2, 0, 0, 0, i-1, "Mean_PDM_Theta_%d_%d", i, l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta_whiten), "%9.5f", 2, 0, 0, 0, i-1, "RMS_PDM_Theta_%d_%d", i, l);
+	      }
 	    }
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta), "%9.5f", 1, 0, 0, 0, "Mean_PDM_Theta_%d", l);
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta), "%9.5f", 1, 0, 0, 0, "RMS_PDM_Theta_%d", l);
+	  if(!c[l].Pdm->whiten) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta), "%9.5f", 1, 0, 0, 0, "Mean_PDM_Theta_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta), "%9.5f", 1, 0, 0, 0, "RMS_PDM_Theta_%d", l);
+	  }
 	  if(c[l].Pdm->fixperiodSNR) {
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_periods),   "%14.8f", 2, 0, 0, 0, 0, "PDM_PeriodFix_%d", l);
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakvalues), "%9.5f", 1, 0, 0, 0, "PDM_Theta_PeriodFix_%d", l);

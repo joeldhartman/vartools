@@ -159,6 +159,59 @@ static int pdm_isDifferentPeriods(double p1, double p2, double T)
   return 1;
 }
 
+/* ---- Whitening helper ---- */
+
+/* Subtract the (weighted) bin-mean phase model at `period` from mag in-place,
+ * using `Nbin` step bins.  Used between whiten cycles in findPeaks_pdm.
+ *
+ * For non-step variants this is a deliberate simplification: -aov_harm follows
+ * the same convention (always whiten with bin means, regardless of the
+ * statistic used for periodogram peak detection). */
+static void whitenlc_pdm(int N, double *t, double *mag, double *w,
+                         double period, int Nbin)
+{
+  int i, ibin;
+  double X, dph;
+  double *binsumw, *binsumwy, *binmean;
+  unsigned long *binN;
+
+  if (Nbin < 2) Nbin = 2;
+  binsumw  = (double *)        calloc(Nbin, sizeof(double));
+  binsumwy = (double *)        calloc(Nbin, sizeof(double));
+  binmean  = (double *)        calloc(Nbin, sizeof(double));
+  binN     = (unsigned long *) calloc(Nbin, sizeof(unsigned long));
+  if (binsumw == NULL || binsumwy == NULL || binmean == NULL || binN == NULL)
+    vt_error(ERR_MEMALLOC);
+
+  for (i = 0; i < N; i++) {
+    if (isnan(mag[i])) continue;
+    if (w[i] <= 0.0) continue;
+    dph = t[i] / period;
+    X = dph - floor(dph);
+    ibin = (int)(Nbin * X);
+    if (ibin >= Nbin) ibin = Nbin - 1;
+    if (ibin < 0) ibin = 0;
+    binsumw[ibin]  += w[i];
+    binsumwy[ibin] += w[i] * mag[i];
+    binN[ibin]++;
+  }
+  for (i = 0; i < Nbin; i++)
+    binmean[i] = (binN[i] >= PDM_CTMIN && binsumw[i] > 0.0)
+                 ? binsumwy[i] / binsumw[i] : 0.0;
+
+  for (i = 0; i < N; i++) {
+    if (isnan(mag[i])) continue;
+    dph = t[i] / period;
+    X = dph - floor(dph);
+    ibin = (int)(Nbin * X);
+    if (ibin >= Nbin) ibin = Nbin - 1;
+    if (ibin < 0) ibin = 0;
+    mag[i] -= binmean[ibin];
+  }
+
+  free(binsumw); free(binsumwy); free(binmean); free(binN);
+}
+
 /* ---- Core theta evaluator ---- */
 
 /* Returns theta at a single test period.
@@ -380,6 +433,114 @@ static void pdm_periodogram(int kind, int N, double *t, double *mag, double *w,
                                periods[k], Nb, Nc, dphi, h);
 }
 
+/* ---- Bootstrap FAP calibration (mirrors -LS's bounded-statistic branch) ----
+ *
+ * Generates Nboot shuffled-LC realisations (sampling with replacement, like
+ * -LS), computes a periodogram for each, records the minimum theta.  The
+ * sorted log10(theta_min) values form an empirical reference distribution;
+ * we fit a degree-1 polynomial to log10(FAP) vs log10(theta) in the most-
+ * extreme 10% tail to extrapolate the FAP for peaks beyond the bootstrap
+ * range.  This is the analog of -LS's polynomial extrapolation, with the
+ * log-log transformation appropriate for a Beta-distributed statistic
+ * (P(theta <= t) ~ t^((N-Nb)/2) for small theta under H_0). */
+static void pdm_bootstrap_calibrate(
+    int kind, int N, double *t, double *mag, double *w,
+    int Nb, int Nc, double dphi,
+    int Nperiod, double *periods, _PDMHistType *h,
+    int Nboot,
+    double *bootstrapdist /* [Nboot] -- on exit holds sorted log10(theta_min) */,
+    double *fitcoeffs    /* [2]     -- log10_FAP = c0 + c1 * log10_theta tail fit */)
+{
+  int trial, i, j, k;
+  double *mag_shuf, *w_shuf, *pgram, *bprobs;
+  double sumw, mu_s, var_s;
+
+  mag_shuf = (double *) malloc(N * sizeof(double));
+  w_shuf   = (double *) malloc(N * sizeof(double));
+  pgram    = (double *) malloc(Nperiod * sizeof(double));
+  bprobs   = (double *) malloc(Nboot * sizeof(double));
+  if (mag_shuf == NULL || w_shuf == NULL || pgram == NULL || bprobs == NULL)
+    vt_error(ERR_MEMALLOC);
+
+  for (trial = 0; trial < Nboot; trial++) {
+    /* Shuffle with replacement (matches -LS's randlong-based sampler). */
+    for (j = 0; j < N; j++) {
+      long klong = randlong(N - 1);
+      mag_shuf[j] = mag[klong];
+      w_shuf[j]   = w[klong];
+    }
+    /* Renormalise weights and recompute the shuffled mu / var. */
+    sumw = 0.0;
+    for (j = 0; j < N; j++) sumw += w_shuf[j];
+    if (!(sumw > 0.0)) { bootstrapdist[trial] = 1.0; continue; }
+    for (j = 0; j < N; j++) w_shuf[j] /= sumw;
+    mu_s = 0.0;
+    for (j = 0; j < N; j++) mu_s += w_shuf[j] * mag_shuf[j];
+    var_s = 0.0;
+    for (j = 0; j < N; j++) {
+      double dy = mag_shuf[j] - mu_s;
+      var_s += w_shuf[j] * dy * dy;
+    }
+    if (var_s < PDM_MINVAR) { bootstrapdist[trial] = 1.0; continue; }
+
+    pdm_periodogram(kind, N, t, mag_shuf, w_shuf, mu_s, var_s,
+                    Nb, Nc, dphi, Nperiod, periods, pgram, h);
+
+    /* Record the most extreme (smallest) theta over the search range. */
+    double tmin = 1.0;
+    for (i = 0; i < Nperiod; i++) {
+      double v = pgram[i];
+      if (v < PDM_ERROR_SCORE && v * 0.0 == 0.0)
+        if (v < tmin) tmin = v;
+    }
+    bootstrapdist[trial] = tmin;
+  }
+
+  /* Sort ascending (small theta = front = most extreme). */
+  mysort1(Nboot, bootstrapdist);
+
+  /* log-transform; floor at PDM_MINVAR to keep log finite. */
+  for (k = 0; k < Nboot; k++) {
+    if (bootstrapdist[k] < PDM_MINVAR) bootstrapdist[k] = PDM_MINVAR;
+    bootstrapdist[k] = log10(bootstrapdist[k]);
+  }
+
+  /* Empirical log10(FAP) at the k-th sorted entry = log10((k+1)/Nboot). */
+  for (k = 0; k < Nboot; k++)
+    bprobs[k] = log10((double)(k + 1) / (double)Nboot);
+
+  /* Fit a degree-1 polynomial to the most-extreme 10% tail (smallest theta
+   * = front of the sorted array).  log10_FAP = c0 + c1 * log10_theta. */
+  {
+    int nfit = (int) floor(0.1 * (double)Nboot);
+    if (nfit < 2) nfit = 2;
+    if (nfit > Nboot) nfit = Nboot;
+    fitpoly(nfit, bootstrapdist, bprobs, NULL, 1, 0, fitcoeffs, NULL);
+  }
+
+  free(mag_shuf); free(w_shuf); free(pgram); free(bprobs);
+}
+
+/* Look up empirical log10(FAP) for theta_peak.  bootstrapdist is sorted
+ * ascending log10(theta) values.  Returns log10(FAP) for that theta;
+ * the caller converts to NEG_LN_FAP. */
+static double pdm_bootstrap_log10fap(double theta_peak, int Nboot,
+                                     double *bootstrapdist_log,
+                                     double *fitcoeffs)
+{
+  double lt;
+  int ind;
+  if (theta_peak < PDM_MINVAR) theta_peak = PDM_MINVAR;
+  if (theta_peak > 1.0) theta_peak = 1.0;
+  lt = log10(theta_peak);
+  ind = findX(bootstrapdist_log, lt, 0, Nboot);
+  if (ind == 0) {
+    /* theta more extreme than any bootstrap trial -- extrapolate via tail fit */
+    return fitcoeffs[0] + fitcoeffs[1] * lt;
+  }
+  return log10((double) ind / (double) Nboot);
+}
+
 /* ---- Find Npeaks lowest-theta periods, with fine-tune + multiple check ---- */
 
 void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
@@ -390,6 +551,8 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    double *peakFAP,
                    double clip, int clipiter,
                    double *ave_theta, double *rms_theta,
+                   double *ave_theta_whiten, double *rms_theta_whiten,
+                   int whiten, int bootstrap_Nboot,
                    int outflag, char *outname, int ascii,
                    int fixperiodSNR_on, double fixperiodSNR_period,
                    double *fixperiodSNR_value, double *fixperiodSNR_SNR,
@@ -410,6 +573,11 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
   long double Sum, Sumsqr;
   FILE *outfile = NULL;
   _PDMHistType h = {0};
+  /* Bootstrap state (allocated only if bootstrap_Nboot > 0). */
+  double *bootstrapdist = NULL;
+  double bootstrap_fitcoeffs[2] = {0.0, 0.0};
+  /* Whiten state (allocated only if whiten=1). */
+  double **periodogram_whiten = NULL;
 
   /* Empty / trivial light curve -> fill zeros and bail. */
   if (N <= 1) {
@@ -541,6 +709,22 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
   if (subsample > 1.0) m_eff = (int)((double)m_eff / subsample);
   if (m_eff < 1) m_eff = 1;
   negln_m_eff = -log((double)m_eff);
+
+  /* Bootstrap calibration: run Nboot shuffled-LC trials BEFORE any whitening
+   * (the H_0 distribution is determined by the original LC's time sampling
+   * and noise structure).  Stays NULL when bootstrap is off. */
+  if (bootstrap_Nboot > 0) {
+    bootstrapdist = (double *) malloc(bootstrap_Nboot * sizeof(double));
+    if (bootstrapdist == NULL) vt_error(ERR_MEMALLOC);
+    pdm_bootstrap_calibrate(kind, Nused, t, mag, w, Nbin, Nc, dphi,
+                            Nperiod, periods, &h, bootstrap_Nboot,
+                            bootstrapdist, bootstrap_fitcoeffs);
+  }
+
+  a_ = 0.5 * ((double)(Nbin - 1));
+  b_ = 0.5 * ((double)(Nused - Nbin));
+
+  if (!whiten) {
 
   /* Compute periodogram */
   pdm_periodogram(kind, Nused, t, mag, w, mu_total, var_total,
@@ -760,7 +944,15 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
       /* For PDM the peak is a *minimum* of theta, so the SNR sign convention is
        * (mean - peak)/rms : positive when the peak dips below the mean. */
       peakSNR[j] = (ave_per - thetapeaks[j]) / std_per;
-      if (b_ > 0.0 && a_ > 0.0) {
+      if (bootstrap_Nboot > 0) {
+        /* Empirical FAP from the bootstrap distribution (log-log polynomial
+         * tail extrapolation; mirrors -LS for bounded statistics).  Converts
+         * the log10 result to NEG_LN_FAP = -ln(FAP) = -ln(10) * log10(FAP). */
+        double l10 = pdm_bootstrap_log10fap(thetapeaks[j], bootstrap_Nboot,
+                                            bootstrapdist, bootstrap_fitcoeffs);
+        peakFAP[j] = -log(10.0) * l10;
+      }
+      else if (b_ > 0.0 && a_ > 0.0) {
         double x = 1.0 - thetapeaks[j];
         if (x < 0.0) x = 0.0;
         if (x > 1.0) x = 1.0;
@@ -784,6 +976,203 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  } else {
+    /* ---- whiten branch: iterate Npeaks times, whitening the LC between
+     * cycles using the step-bin mean model.  Each cycle gets its own
+     * mean/rms (with clipping) for SNR, stored in the per-cycle arrays
+     * ave_theta_whiten[peakiter] / rms_theta_whiten[peakiter]. */
+    int peakiter;
+    int Nperiod_w = Nperiod;
+    periodogram_whiten = (double **) malloc(Npeaks * sizeof(double *));
+    if (periodogram_whiten == NULL) vt_error(ERR_MEMALLOC);
+    for (i = 0; i < Npeaks; i++) {
+      periodogram_whiten[i] = (double *) malloc(Nperiod * sizeof(double));
+      if (periodogram_whiten[i] == NULL) vt_error(ERR_MEMALLOC);
+    }
+
+    /* Initial periodogram (cycle 0) on the unwhitened LC. */
+    pdm_periodogram(kind, Nused, t, mag, w, mu_total, var_total,
+                    Nbin, Nc, dphi, Nperiod_w, periods, periodogram_whiten[0], &h);
+
+    for (peakiter = 0; peakiter < Npeaks; peakiter++) {
+      double cyc_ave = 0.5, cyc_std = 1.0;
+      int Ngood_cyc = 0;
+      long double Sum_cyc = 0.0, Sumsqr_cyc = 0.0;
+
+      /* mean/rms of this cycle's periodogram, with the same iterative
+       * sigma-clipping used in the single-pass path. */
+      for (i = 0; i < Nperiod_w; i++) {
+        double v = periodogram_whiten[peakiter][i];
+        if (v < PDM_ERROR_SCORE && v * 0.0 == 0.0) {
+          Sum_cyc    += (long double) v;
+          Sumsqr_cyc += (long double)(v * v);
+          Ngood_cyc++;
+        }
+      }
+      if (Ngood_cyc > 0) {
+        Sum_cyc /= Ngood_cyc; Sumsqr_cyc /= Ngood_cyc;
+        cyc_ave = (double) Sum_cyc;
+        cyc_std = sqrt((double)(Sumsqr_cyc - Sum_cyc * Sum_cyc));
+        if (!(cyc_std > 0.0)) cyc_std = 1.0;
+      }
+      if (clip > 0.0 && Ngood_cyc > 0) {
+        int nthis = 0, nlast;
+        do {
+          nlast = nthis; nthis = 0;
+          Sum_cyc = 0.0; Sumsqr_cyc = 0.0;
+          int Ngood2 = 0;
+          for (i = 0; i < Nperiod_w; i++) {
+            double v = periodogram_whiten[peakiter][i];
+            if (v < PDM_ERROR_SCORE && v * 0.0 == 0.0) {
+              if (v > cyc_ave - clip * cyc_std) {
+                Sum_cyc += (long double) v;
+                Sumsqr_cyc += (long double)(v * v);
+                Ngood2++;
+              } else {
+                nthis++;
+              }
+            }
+          }
+          if (Ngood2 > 0) {
+            Sum_cyc /= Ngood2; Sumsqr_cyc /= Ngood2;
+            cyc_ave = (double) Sum_cyc;
+            cyc_std = sqrt((double)(Sumsqr_cyc - Sum_cyc * Sum_cyc));
+            if (!(cyc_std > 0.0)) cyc_std = 1.0;
+          }
+        } while (clipiter && nthis > nlast);
+      }
+      if (ave_theta_whiten != NULL) ave_theta_whiten[peakiter] = cyc_ave;
+      if (rms_theta_whiten != NULL) rms_theta_whiten[peakiter] = cyc_std;
+
+      /* Find the best (min-theta) period in this cycle. */
+      double best = PDM_ERROR_SCORE;
+      double best_p = -1.0;
+      for (i = 0; i < Nperiod_w; i++) {
+        double v = periodogram_whiten[peakiter][i];
+        if (v < PDM_ERROR_SCORE && v * 0.0 == 0.0)
+          if (v < best) { best = v; best_p = periods[i]; }
+      }
+      perpeaks[peakiter]   = best_p;
+      thetapeaks[peakiter] = best;
+
+      /* Fine-tune scan around the peak. */
+      if (best_p > 0.0) {
+        smallfreqstep = finetune / T;
+        freq    = dmin((1.0 / best_p) + freqstep, 1.0 / minP);
+        minfreq = dmax((1.0 / best_p) - freqstep, 1.0 / maxP);
+        while (freq >= minfreq) {
+          testperiod = 1.0 / freq;
+          score = pdm_theta(kind, Nused, t, mag, w, mu_total, var_total,
+                            testperiod, Nbin, Nc, dphi, &h);
+          if (score < PDM_ERROR_SCORE && score * 0.0 == 0.0)
+            if (score < thetapeaks[peakiter]) {
+              thetapeaks[peakiter] = score;
+              perpeaks[peakiter]   = testperiod;
+            }
+          freq -= smallfreqstep;
+        }
+        /* Period-multiple check. */
+        bestscore = thetapeaks[peakiter]; ismultiple = 0; abest = bbest = 1;
+        for (a = 1; a <= PDM_MAX_DOUBLE_CHECK_MULTIPLE; a++)
+          for (b = 1; b <= PDM_MAX_DOUBLE_CHECK_MULTIPLE; b++)
+            if (a != b) {
+              testperiod = perpeaks[peakiter] * a / b;
+              if (testperiod > minP && testperiod < maxP) {
+                score = pdm_theta(kind, Nused, t, mag, w, mu_total, var_total,
+                                  testperiod, Nbin, Nc, dphi, &h);
+                if (score < PDM_ERROR_SCORE && score * 0.0 == 0.0)
+                  if (score < bestscore) {
+                    ismultiple = 1; abest = a; bbest = b; bestscore = score;
+                  }
+              }
+            }
+        if (ismultiple) {
+          perpeaks[peakiter]   = perpeaks[peakiter] * abest / bbest;
+          thetapeaks[peakiter] = bestscore;
+        }
+      }
+
+      /* SNR + FAP for this peak using THIS cycle's noise estimate. */
+      if (thetapeaks[peakiter] < PDM_ERROR_SCORE) {
+        peakSNR[peakiter] = (cyc_ave - thetapeaks[peakiter]) / cyc_std;
+        if (bootstrap_Nboot > 0) {
+          double l10 = pdm_bootstrap_log10fap(thetapeaks[peakiter], bootstrap_Nboot,
+                                              bootstrapdist, bootstrap_fitcoeffs);
+          peakFAP[peakiter] = -log(10.0) * l10;
+        }
+        else if (b_ > 0.0 && a_ > 0.0) {
+          double x = 1.0 - thetapeaks[peakiter];
+          if (x < 0.0) x = 0.0;
+          if (x > 1.0) x = 1.0;
+          peakFAP[peakiter] = negln_m_eff - log1minusbetai(a_, b_, x);
+        } else {
+          peakFAP[peakiter] = 0.0;
+        }
+      } else {
+        perpeaks[peakiter]   = -1.0;
+        thetapeaks[peakiter] = 1.0;
+        peakSNR[peakiter]    = 0.0;
+        peakFAP[peakiter]    = 0.0;
+      }
+
+      /* Whiten the LC at the peak period; recompute periodogram for next cycle. */
+      if (peakiter < Npeaks - 1 && perpeaks[peakiter] > 0.0) {
+        whitenlc_pdm(Nused, t, mag, w, perpeaks[peakiter], Nbin);
+        /* Recompute global mu / var on the whitened LC (mean is now ~0). */
+        mu_total = 0.0;
+        for (i = 0; i < Nused; i++) mu_total += w[i] * mag[i];
+        var_total = 0.0;
+        for (i = 0; i < Nused; i++) {
+          double dy = mag[i] - mu_total;
+          var_total += w[i] * dy * dy;
+        }
+        if (var_total < PDM_MINVAR) {
+          /* LC is now flat; remaining cycles can't find anything. */
+          for (i = 0; i < Nperiod_w; i++)
+            periodogram_whiten[peakiter + 1][i] = 1.0;
+        } else {
+          pdm_periodogram(kind, Nused, t, mag, w, mu_total, var_total,
+                          Nbin, Nc, dphi, Nperiod_w, periods, periodogram_whiten[peakiter + 1], &h);
+        }
+      }
+    }
+
+    /* Optional multi-column periodogram dump. */
+    if (outflag) {
+      if ((outfile = fopen(outname, "w")) == NULL) {
+        fprintf(stderr, "Cannot write periodogram to %s\n", outname);
+        exit(3);
+      }
+      if (ascii) {
+        fprintf(outfile, "#Period");
+        for (j = 0; j < Npeaks; j++) fprintf(outfile, " PDM_WhitenCycle_%d", j);
+        fprintf(outfile, "\n");
+        for (i = 0; i < Nperiod_w; i++) {
+          double v0 = periodogram_whiten[0][i];
+          if (!(v0 < PDM_ERROR_SCORE && v0 * 0.0 == 0.0)) continue;
+          fprintf(outfile, "%f", periods[i]);
+          for (j = 0; j < Npeaks; j++)
+            fprintf(outfile, " %f", periodogram_whiten[j][i]);
+          fprintf(outfile, "\n");
+        }
+      } else {
+        fwrite(&Nperiod_w, 4, 1, outfile);
+        fwrite(periods, 8, Nperiod_w, outfile);
+        for (j = 0; j < Npeaks; j++) {
+          double av = (ave_theta_whiten != NULL ? ave_theta_whiten[j] : 0.0);
+          double rm = (rms_theta_whiten != NULL ? rms_theta_whiten[j] : 1.0);
+          fwrite(&av, 8, 1, outfile);
+          fwrite(&rm, 8, 1, outfile);
+          fwrite(periodogram_whiten[j], 8, Nperiod_w, outfile);
+        }
+      }
+      fclose(outfile);
+    }
+
+    *ave_theta = (ave_theta_whiten != NULL ? ave_theta_whiten[0] : 0.5);
+    *rms_theta = (rms_theta_whiten != NULL ? rms_theta_whiten[0] : 1.0);
+  }
+
   /* fixperiodSNR: evaluate theta/SNR/FAP at a caller-supplied period (resolved
    * upstream from -aov/-ls/-pdm/-Injectharm/fix/list/fixcolumn).  Uses the
    * same ave/std-of-periodogram noise estimate (after clipping) as the peak
@@ -800,7 +1189,12 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
       if (t_fix < PDM_ERROR_SCORE && t_fix * 0.0 == 0.0) {
         *fixperiodSNR_value = t_fix;
         *fixperiodSNR_SNR = (ave_per - t_fix) / std_per;
-        if (b_ > 0.0 && a_ > 0.0) {
+        if (bootstrap_Nboot > 0) {
+          double l10 = pdm_bootstrap_log10fap(t_fix, bootstrap_Nboot,
+                                              bootstrapdist, bootstrap_fitcoeffs);
+          *fixperiodSNR_FAP = -log(10.0) * l10;
+        }
+        else if (b_ > 0.0 && a_ > 0.0) {
           double x = 1.0 - t_fix;
           if (x < 0.0) x = 0.0;
           if (x > 1.0) x = 1.0;
@@ -819,6 +1213,11 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
   free(t); free(mag); free(w);
   free(periods); free(periodogram);
   pdm_hist_free(&h);
+  if (bootstrapdist != NULL) free(bootstrapdist);
+  if (periodogram_whiten != NULL) {
+    for (i = 0; i < Npeaks; i++) free(periodogram_whiten[i]);
+    free(periodogram_whiten);
+  }
 }
 
 /* ---- Entry point invoked from processcommand.c ---- */
@@ -940,6 +1339,9 @@ void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name
                 Pdm->peakSNR[lcnum], Pdm->peakFAP[lcnum],
                 Pdm->clip, Pdm->clipiter,
                 &Pdm->avetheta[lcnum], &Pdm->rmstheta[lcnum],
+                (Pdm->whiten ? Pdm->avetheta_whiten[lcnum] : NULL),
+                (Pdm->whiten ? Pdm->rmstheta_whiten[lcnum] : NULL),
+                Pdm->whiten, Pdm->bootstrap_Nboot,
                 Pdm->operiodogram, outname, p->ascii,
                 fix_on, fix_period, fix_value_ptr, fix_SNR_ptr, fix_FAP_ptr,
                 Pdm->usemask, Pdm->maskvar, lcnum, lc_name_num);

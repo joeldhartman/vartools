@@ -2382,6 +2382,17 @@ typedef struct {
    * are included, others excluded.  Mirrors -aov's keyword. */
   int usemask;
   _Variable *maskvar;
+  /* whiten: iterative pre-whitening between peaks (model = step bin means at
+   * the peak period; subtracted from the LC before recomputing the
+   * periodogram for the next peak).  Mirrors -aov's keyword. */
+  int whiten;
+  double **avetheta_whiten;   /* [Nlcs][Npeaks] -- per-cycle periodogram mean */
+  double **rmstheta_whiten;   /* [Nlcs][Npeaks] -- per-cycle periodogram rms */
+  /* bootstrap: empirical FAP calibration via Nboot shuffled-LC trials.
+   * 0 = off; >0 = enabled with that many trials.  When on, the analytic
+   * SCz Beta FAP is replaced by an empirical CDF + log-log polynomial
+   * tail extrapolation (mirrors -LS's bounded-statistic branch). */
+  int bootstrap_Nboot;
 } _PDM;
 
 

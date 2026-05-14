@@ -3509,6 +3509,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->usemask = 0;
 	  c[cn].Pdm->maskvar = NULL;
+	  c[cn].Pdm->whiten = 0;
+	  c[cn].Pdm->bootstrap_Nboot = 0;
 	  c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
@@ -3723,6 +3725,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(i >= argc) listcommands(argv[iterm], p);
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->maskvar),
 					      VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	    }
+	    else if(!strcmp(argv[i], "whiten")) {
+	      c[cn].Pdm->whiten = 1;
+	    }
+	    else if(!strcmp(argv[i], "bootstrap")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Pdm->bootstrap_Nboot = atoi(argv[i]);
+	      if(c[cn].Pdm->bootstrap_Nboot < 1) {
+		fprintf(stderr, "-PDM: bootstrap Nboot must be >= 1\n");
+		listcommands(argv[iterm], p);
+	      }
 	    }
 	    else if(!strcmp(argv[i], "fixperiodSNR")) {
 	      /* fixperiodSNR <"aov" | "ls" | "pdm" | "injectharm" | "fix" P
