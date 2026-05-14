@@ -3505,6 +3505,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->Nc = 1;       /* updated to 2 when variant=multicover */
 	  c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->dphi = 0.05;  /* cuvarbase default for tophat/gauss */
+	  c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->usemask = 0;
+	  c[cn].Pdm->maskvar = NULL;
 	  c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
@@ -3528,8 +3532,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    c[cn].Pdm->kind = PDM_KIND_MULTICOVER;
 	    c[cn].Pdm->Nc = 2;   /* multicover default per SCz/S78 canonical */
 	  }
+	  else if(!strcmp(argv[i], "tophat"))
+	    c[cn].Pdm->kind = PDM_KIND_TOPHAT;
+	  else if(!strcmp(argv[i], "gauss"))
+	    c[cn].Pdm->kind = PDM_KIND_GAUSS;
 	  else {
-	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step', 'linterp', or 'multicover')\n", argv[i]);
+	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step', 'linterp', 'multicover', 'tophat', or 'gauss')\n", argv[i]);
 	    listcommands(argv[iterm], p);
 	  }
 	  /* Optional Nbin (with var/expr/fixed) and -- for multicover -- Nc.
@@ -3581,6 +3589,32 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      else {
 		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
 		c[cn].Pdm->Nc = atoi(argv[i]);
+	      }
+	      i++;
+	    }
+	    else if(!strcmp(argv[i], "dphi")) {
+	      if(c[cn].Pdm->kind != PDM_KIND_TOPHAT && c[cn].Pdm->kind != PDM_KIND_GAUSS) {
+		fprintf(stderr, "-PDM: 'dphi' keyword is only valid with the tophat or gauss variants\n");
+		listcommands(argv[iterm], p);
+	      }
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->dphi_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->dphi_expr));
+	      }
+	      else {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->dphi = atof(argv[i]);
 	      }
 	      i++;
 	    }
@@ -3682,6 +3716,13 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i++;
 	      if(i >= argc) listcommands(argv[iterm], p);
 	      c[cn].Pdm->clipiter = atoi(argv[i]);
+	    }
+	    else if(!strcmp(argv[i], "maskpoints")) {
+	      c[cn].Pdm->usemask = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->maskvar),
+					      VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    }
 	    else if(!strcmp(argv[i], "fixperiodSNR")) {
 	      /* fixperiodSNR <"aov" | "ls" | "pdm" | "injectharm" | "fix" P

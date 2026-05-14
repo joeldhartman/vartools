@@ -748,7 +748,8 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].Pdm->subsample_vals= (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Pdm->finetune_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Pdm->Nbin_vals     = (int *)     malloc(Nlcs * sizeof(int))) == NULL ||
-	     (c[i].Pdm->Nc_vals       = (int *)     malloc(Nlcs * sizeof(int))) == NULL)
+	     (c[i].Pdm->Nc_vals       = (int *)     malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].Pdm->dphi_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  for(j=0;j<Nlcs;j++)
 	    if((c[i].Pdm->peakperiods[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||

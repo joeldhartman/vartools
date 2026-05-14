@@ -2304,6 +2304,8 @@ typedef struct {
 #define PDM_KIND_STEP        0
 #define PDM_KIND_LINTERP     1
 #define PDM_KIND_MULTICOVER  2
+#define PDM_KIND_TOPHAT      3
+#define PDM_KIND_GAUSS       4
 
 typedef struct {
   int kind;                /* PDM_KIND_STEP, PDM_KIND_LINTERP, ... */
@@ -2342,6 +2344,13 @@ typedef struct {
   int Nc_source;
   _Variable *Nc_var;
   _Expression *Nc_expr;
+  /* dphi: phase-window half-width (tophat) or Gaussian kernel sigma (gauss).
+   * Only used by the binless variants; defaults to 0.05 (cuvarbase). */
+  double dphi;
+  double *dphi_vals;
+  int dphi_source;
+  _Variable *dphi_var;
+  _Expression *dphi_expr;
   /* simple scalars */
   int Npeaks;
   int operiodogram;        /* 0/1: dump periodogram file per LC */
@@ -2369,6 +2378,10 @@ typedef struct {
   double *fixperiodSNR_peakSNR;      /* [Nlcs] */
   double *fixperiodSNR_peakFAP;      /* [Nlcs] */
   OutColumn *fixperiodSNR_linkedcolumn;
+  /* maskpoints: optional LC vector; points with maskvar > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -aov's keyword. */
+  int usemask;
+  _Variable *maskvar;
 } _PDM;
 
 
