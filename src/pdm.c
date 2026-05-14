@@ -980,9 +980,20 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     /* ---- whiten branch: iterate Npeaks times, whitening the LC between
      * cycles using the step-bin mean model.  Each cycle gets its own
      * mean/rms (with clipping) for SNR, stored in the per-cycle arrays
-     * ave_theta_whiten[peakiter] / rms_theta_whiten[peakiter]. */
+     * ave_theta_whiten[peakiter] / rms_theta_whiten[peakiter].
+     *
+     * To keep fixperiodSNR (which runs after this branch) honest, we save
+     * the original mag and restore it at the end -- the fixed-period
+     * evaluation runs against the ORIGINAL LC, not the progressively
+     * whitened one. */
     int peakiter;
     int Nperiod_w = Nperiod;
+    double *mag_orig    = (double *) malloc(Nused * sizeof(double));
+    double mu_total_orig  = mu_total;
+    double var_total_orig = var_total;
+    if (mag_orig == NULL) vt_error(ERR_MEMALLOC);
+    memcpy(mag_orig, mag, Nused * sizeof(double));
+
     periodogram_whiten = (double **) malloc(Npeaks * sizeof(double *));
     if (periodogram_whiten == NULL) vt_error(ERR_MEMALLOC);
     for (i = 0; i < Npeaks; i++) {
@@ -1171,6 +1182,16 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
 
     *ave_theta = (ave_theta_whiten != NULL ? ave_theta_whiten[0] : 0.5);
     *rms_theta = (rms_theta_whiten != NULL ? rms_theta_whiten[0] : 1.0);
+
+    /* Restore the original LC for fixperiodSNR; seed ave_per/std_per from
+     * cycle 0 so the SNR_PeriodFix uses the original-LC noise estimate. */
+    memcpy(mag, mag_orig, Nused * sizeof(double));
+    mu_total  = mu_total_orig;
+    var_total = var_total_orig;
+    ave_per   = (ave_theta_whiten != NULL ? ave_theta_whiten[0] : 0.5);
+    std_per   = (rms_theta_whiten != NULL ? rms_theta_whiten[0] : 1.0);
+    if (!(std_per > 0.0)) std_per = 1.0;
+    free(mag_orig);
   }
 
   /* fixperiodSNR: evaluate theta/SNR/FAP at a caller-supplied period (resolved

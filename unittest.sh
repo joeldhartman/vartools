@@ -253,6 +253,185 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -PDM step + whiten + clip + fixperiodSNR (kitchen-sink for the binned variant)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM step example (whiten + clip + fixperiodSNR)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \\
+        whiten clip 5. 1 fixperiodSNR fix 1.23
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+PDM_Period_1_0             =     1.23533969
+PDM_Theta_1_0              =   0.00924
+PDM_SNR_1_0                =  17.34740
+PDM_NEG_LN_FAP_1_0         = 7655.01690
+Mean_PDM_Theta_1_0         =   0.95429
+RMS_PDM_Theta_1_0          =   0.05448
+PDM_Period_2_0             =     0.13004042
+PDM_Theta_2_0              =   0.79184
+PDM_SNR_2_0                =  10.52973
+PDM_NEG_LN_FAP_2_0         = 340.59775
+Mean_PDM_Theta_2_0         =   0.96843
+RMS_PDM_Theta_2_0          =   0.01677
+PDM_Period_3_0             =     0.17645313
+PDM_Theta_3_0              =   0.74397
+PDM_SNR_3_0                =  20.50809
+PDM_NEG_LN_FAP_3_0         = 441.50584
+Mean_PDM_Theta_3_0         =   0.97310
+RMS_PDM_Theta_3_0          =   0.01117
+PDM_Period_4_0             =     0.19005658
+PDM_Theta_4_0              =   0.91817
+PDM_SNR_4_0                =   7.94554
+PDM_NEG_LN_FAP_4_0         = 104.76114
+Mean_PDM_Theta_4_0         =   0.98038
+RMS_PDM_Theta_4_0          =   0.00783
+PDM_Period_5_0             =     0.12052869
+PDM_Theta_5_0              =   0.92055
+PDM_SNR_5_0                =   7.73065
+PDM_NEG_LN_FAP_5_0         = 100.74758
+Mean_PDM_Theta_5_0         =   0.98137
+RMS_PDM_Theta_5_0          =   0.00787
+PDM_PeriodFix_0            =     1.23000000
+PDM_Theta_PeriodFix_0      =   0.03426
+PDM_SNR_PeriodFix_0        =  16.88817
+PDM_NEG_LN_FAP_PeriodFix_0 = 5498.14215
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \
+        whiten clip 5. 1 fixperiodSNR fix 1.23 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM linterp (cuvarbase-style linear interpolation)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM linterp example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23484930
+PDM_Theta_1_0      =   0.00773
+PDM_SNR_1_0        =  24.97418
+PDM_NEG_LN_FAP_1_0 = 8012.48195
+PDM_Period_2_0     =     1.23430983
+PDM_Theta_2_0      =   0.01010
+PDM_SNR_2_0        =  24.91255
+PDM_NEG_LN_FAP_2_0 = 7570.32796
+PDM_Period_3_0     =     2.45132558
+PDM_Theta_3_0      =   0.20313
+PDM_SNR_3_0        =  19.89609
+PDM_NEG_LN_FAP_3_0 = 2611.44998
+Mean_PDM_Theta_0   =   0.96871
+RMS_PDM_Theta_0    =   0.03848
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM multicover Nb=8 Nc=2 (Stellingwerf 1978 phase-shifted bin sets)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM multicover example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM multicover Nbin 8 Nc 2 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23533969
+PDM_Theta_1_0      =   0.04357
+PDM_SNR_1_0        =  23.61100
+PDM_NEG_LN_FAP_1_0 = 5154.89177
+PDM_Period_2_0     =     1.23430983
+PDM_Theta_2_0      =   0.04591
+PDM_SNR_2_0        =  23.55128
+PDM_NEG_LN_FAP_2_0 = 5068.44906
+PDM_Period_3_0     =     1.23421090
+PDM_Theta_3_0      =   0.04669
+PDM_SNR_3_0        =  23.53139
+PDM_NEG_LN_FAP_3_0 = 5040.62996
+Mean_PDM_Theta_0   =   0.96872
+RMS_PDM_Theta_0    =   0.03918
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM multicover Nbin 8 Nc 2 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM tophat (binless variant; narrow period range to keep O(N^2) tractable)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM tophat example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM tophat dphi 0.05 0.5 2. 0.5 0.05 2 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23616481
+PDM_Theta_1_0      =   0.00518
+PDM_SNR_1_0        =   6.04755
+PDM_NEG_LN_FAP_1_0 = 8677.09428
+PDM_Period_2_0     =     1.24334228
+PDM_Theta_2_0      =   0.07385
+PDM_SNR_2_0        =   5.55584
+PDM_NEG_LN_FAP_2_0 = 4285.07168
+Mean_PDM_Theta_0   =   0.84974
+RMS_PDM_Theta_0    =   0.13965
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM tophat dphi 0.05 0.5 2. 0.5 0.05 2 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -autcorrelation example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -autocorrelation example 1" > /dev/stderr
