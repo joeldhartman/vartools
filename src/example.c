@@ -115,6 +115,40 @@ void example(char *c, ProgramData *p)
 		    "Runs the harmonic-fitting AoV period-finding algorithm on the light curve EXAMPLES/2. 1 harmonic is used (i.e. the model is a simple sine-curve). Periods between 0.1 and 10.0 days are searched. The coarse search is done at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case). The fine search around the peaks is done at a frequency resolution of 0.01/T. The top 2 peaks are identified, between each cycle the best-fit signal is removed and the periodogram is regenerated. The periodogram is output to the directory EXAMPLES/OUTDIR1. The filename will be 2.aov_harm. An iterative 5-sigma clipping is applied when identifying peaks in the periodogram.\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-PDM",4) && strlen(c) == 4)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM linterp Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \\\n");
+      printtostring(&s,
+		    "\t\tclip 5. 1 whiten\n\n");
+      printtostring(&s,
+		    "Runs the Phase Dispersion Minimization (PDM) period-finding algorithm on the light curve EXAMPLES/2 using the \"linterp\" variant (linear interpolation between bin means at the bin centres; this is the cuvarbase default).  20 phase-bins are used.  Periods between 0.1 and 10.0 days are searched.  The coarse search is done at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case).  The fine search around the peaks is done at a frequency resolution of 0.01/T.  The top 5 peaks are identified; between each cycle the best-fit phase-bin model is subtracted from the light curve and the periodogram is regenerated.  The periodogram is output to the directory EXAMPLES/OUTDIR1 (filename 2.pdm) with one column per whitening cycle.  An iterative 5-sigma clipping is applied when computing the periodogram mean/RMS used for the SNR.  PDM_Theta_N_M reports the theta statistic for each peak (lower = stronger signal); PDM_NEG_LN_FAP_N_M reports the negative natural logarithm of the analytic Schwarzenberg-Czerny 1997 false-alarm probability with an effective-trials-factor correction.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM multicover Nbin 8 Nc 4 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Same search but using the \"multicover\" variant: 8 phase bins per cover and 4 phase-shifted bin sets (shift by 1/(Nbin*Nc) between covers).  Theta is the per-cover average, which reduces the bin-edge sensitivity of the step variant at the cost of an increased computation time.  Schwarzenberg-Czerny 1997 explicitly notes that the analytic FAP distribution is unknown for Nc > 1; for multicover the reported PDM_NEG_LN_FAP_N_M is the single-cover Beta((N-Nb)/2, (Nb-1)/2) value evaluated on the multicover theta -- conservative.  Use the \"bootstrap\" keyword (see below) for an empirical FAP calibration.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM tophat dphi 0.05 0.5 2.0 0.5 0.05 2 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Same idea but with the \"tophat\" binless variant: for each point the per-point model is the weighted mean of phase-neighbours within a window of half-width dphi=0.05.  There is no fixed bin grid.  Periods between 0.5 and 2.0 days are searched here (a narrower range than the binned variants above because the binless model costs O(N^2) per trial frequency).  The \"gauss\" variant works the same way but uses a Gaussian phase kernel of sigma dphi instead of a hard window.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -randseed 1 \\\n");
+      printtostring(&s,
+		    "\t-PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 0 \\\n");
+      printtostring(&s,
+		    "\t\tbootstrap 2000\n\n");
+      printtostring(&s,
+		    "Same linterp search, but with the FAP recalibrated empirically via 2000 shuffled-light-curve bootstrap trials (sampling magnitudes with replacement, mirroring -LS's bootstrap method).  PDM_NEG_LN_FAP_N_M is then read from the bootstrap distribution rather than the Schwarzenberg-Czerny analytic Beta; for peaks more extreme than any bootstrap trial a log-log polynomial fit to the most-extreme 10% of the bootstrap distribution is used to extrapolate.  Bootstrap can be used to calibrate the FAP -- in practice it may be too slow for large analysis projects.  The \"-randseed\" option fixes the RNG seed for reproducibility.\n\n");
+      printtostring(&s,
+		    "Cite Stellingwerf, R. F. 1978, ApJ, 224, 953 and Schwarzenberg-Czerny, A. 1997, ApJ, 489, 941 if you use this command.  The \"linterp\" variant follows the implementation in cuvarbase (https://github.com/johnh2o2/cuvarbase, package developed by John Hoffman, the linterp PDM contribution was written by Attila Bodi).\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-autocorrelation",16) && strlen(c) == 16)
     {
       printtostring(&s,
