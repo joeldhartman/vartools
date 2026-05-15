@@ -477,6 +477,11 @@ void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum,
 void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name_num, int thisindex);
 void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name_num, int thisindex);
 int  ftp_load_template_file(const char *path, double **cn_out, double **sn_out);
+int  ftp_load_template_fitlc(const char *lc_path, const char *format,
+                              const char *t_col_str, const char *mag_col_str,
+                              const char *err_col_str,
+                              int Nharm, double period,
+                              double **cn_out, double **sn_out);
 void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                    int H, double *cn, double *sn,
                    int useerr, int allow_neg_amp,

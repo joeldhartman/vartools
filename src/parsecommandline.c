@@ -3878,23 +3878,66 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_FIXED;
 	  sprintf(c[cn].Ftp->suffix, ".ftp");
 
-	  /* Required template source: "file" PATH (Phase A only mode) */
+	  /* Required template source.
+	   *   "file" PATH                                      -> Phase A
+	   *   "fitlc" lc_path <"ascii" t_col mag_col err_col
+	   *                    | "fits" t_name mag_name err_name>
+	   *           Nharm period                             -> Phase B.1
+	   * Additional sources (filelist, inline) arrive in subsequent phases.
+	   */
 	  i++;
 	  if(i >= argc) listcommands(argv[iterm], p);
-	  if(strcmp(argv[i], "file") != 0) {
-	    fprintf(stderr, "-FTP: expected template source 'file' (got '%s'); "
-	                    "additional template sources arrive in a later release\n",
+	  if(!strcmp(argv[i], "file")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->template_path = strdup(argv[i]);
+	    c[cn].Ftp->H = ftp_load_template_file(argv[i],
+	                                           &(c[cn].Ftp->cn),
+	                                           &(c[cn].Ftp->sn));
+	    if(c[cn].Ftp->H <= 0) {
+	      /* ftp_load_template_file already wrote a diagnostic. */
+	      listcommands(argv[iterm], p);
+	    }
+	  } else if(!strcmp(argv[i], "fitlc")) {
+	    char *lc_path, *format, *t_col_str, *mag_col_str, *err_col_str;
+	    int   Nharm;
+	    double period_lit;
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    lc_path = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    format = argv[i];
+	    if(strcmp(format, "ascii") != 0 && strcmp(format, "fits") != 0) {
+	      fprintf(stderr, "-FTP fitlc: format must be 'ascii' or 'fits'; got '%s'\n", format);
+	      listcommands(argv[iterm], p);
+	    }
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    t_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    mag_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    err_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    Nharm = atoi(argv[i]);
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    period_lit = atof(argv[i]);
+	    /* Build a synthetic template_path tag for diagnostics. */
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "fitlc:%s@P=%.10g[H=%d]", lc_path, period_lit, Nharm);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    c[cn].Ftp->H = ftp_load_template_fitlc(lc_path, format,
+	                                            t_col_str, mag_col_str, err_col_str,
+	                                            Nharm, period_lit,
+	                                            &(c[cn].Ftp->cn),
+	                                            &(c[cn].Ftp->sn));
+	    if(c[cn].Ftp->H <= 0) {
+	      /* ftp_load_template_fitlc already wrote a diagnostic. */
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    fprintf(stderr, "-FTP: expected template source 'file' or 'fitlc' (got '%s')\n",
 	            argv[i]);
-	    listcommands(argv[iterm], p);
-	  }
-	  i++;
-	  if(i >= argc) listcommands(argv[iterm], p);
-	  c[cn].Ftp->template_path = strdup(argv[i]);
-	  c[cn].Ftp->H = ftp_load_template_file(argv[i],
-	                                         &(c[cn].Ftp->cn),
-	                                         &(c[cn].Ftp->sn));
-	  if(c[cn].Ftp->H <= 0) {
-	    /* ftp_load_template_file already wrote a diagnostic. */
 	    listcommands(argv[iterm], p);
 	  }
 

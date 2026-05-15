@@ -192,6 +192,428 @@ int ftp_load_template_file(const char *path, double **cn_out, double **sn_out)
   return H;
 }
 
+/* ---- ASCII light-curve reader (for the "fitlc" template-source mode) ----
+ *
+ * Reads three columns by 1-indexed position from a whitespace-separated
+ * ASCII file.  Lines beginning with '#' and blank lines are skipped.
+ *
+ *   t_col, mag_col:  required (>= 1).
+ *   err_col:         0 means "no error column, do an unweighted fit".
+ *
+ * Returns N on success (caller frees *t_out, *mag_out, *err_out); returns 0
+ * on parse error or empty file. */
+static int ftp_read_lc_ascii(const char *path,
+                              int t_col, int mag_col, int err_col,
+                              double **t_out, double **mag_out,
+                              double **err_out, int *N_out)
+{
+  FILE *fp;
+  char *line = NULL;
+  size_t linelen = 0;
+  ssize_t got;
+  int N_alloc = 1024, N = 0;
+  double *t = NULL, *mag = NULL, *err = NULL;
+  int max_col;
+
+  *t_out = *mag_out = *err_out = NULL;
+  *N_out = 0;
+
+  if (t_col < 1 || mag_col < 1) {
+    fprintf(stderr, "-FTP fitlc ascii: t_col and mag_col must be >= 1 "
+                    "(1-indexed); got t_col=%d, mag_col=%d\n", t_col, mag_col);
+    return 0;
+  }
+  if (err_col < 0) err_col = 0;
+  max_col = t_col;
+  if (mag_col > max_col) max_col = mag_col;
+  if (err_col > max_col) max_col = err_col;
+
+  if ((fp = fopen(path, "r")) == NULL) {
+    fprintf(stderr, "-FTP fitlc ascii: cannot open '%s' for reading\n", path);
+    return 0;
+  }
+
+  t   = (double *) malloc(N_alloc * sizeof(double));
+  mag = (double *) malloc(N_alloc * sizeof(double));
+  if (err_col > 0) err = (double *) malloc(N_alloc * sizeof(double));
+  if (t == NULL || mag == NULL || (err_col > 0 && err == NULL)) {
+    fclose(fp);
+    if (t) free(t); if (mag) free(mag); if (err) free(err);
+    return 0;
+  }
+
+  while ((got = getline(&line, &linelen, fp)) != -1) {
+    char *tok, *saveptr = NULL;
+    int col = 1;
+    double t_val = 0.0, mag_val = 0.0, err_val = 1.0;
+    int got_t = 0, got_mag = 0, got_err = (err_col == 0 ? 1 : 0);
+    char *q = line;
+    while (*q && isspace((unsigned char)*q)) q++;
+    if (*q == '\0' || *q == '#') continue;
+
+    tok = strtok_r(line, " \t\n\r", &saveptr);
+    while (tok != NULL && col <= max_col) {
+      if (col == t_col)   { t_val   = atof(tok); got_t = 1; }
+      if (col == mag_col) { mag_val = atof(tok); got_mag = 1; }
+      if (err_col > 0 && col == err_col) { err_val = atof(tok); got_err = 1; }
+      tok = strtok_r(NULL, " \t\n\r", &saveptr);
+      col++;
+    }
+    if (!got_t || !got_mag || !got_err) continue;
+
+    if (N >= N_alloc) {
+      N_alloc *= 2;
+      t   = (double *) realloc(t,   N_alloc * sizeof(double));
+      mag = (double *) realloc(mag, N_alloc * sizeof(double));
+      if (err) err = (double *) realloc(err, N_alloc * sizeof(double));
+      if (t == NULL || mag == NULL || (err_col > 0 && err == NULL)) {
+        if (line) free(line); fclose(fp);
+        if (t) free(t); if (mag) free(mag); if (err) free(err);
+        return 0;
+      }
+    }
+    t[N]   = t_val;
+    mag[N] = mag_val;
+    if (err) err[N] = err_val;
+    N++;
+  }
+  if (line) free(line);
+  fclose(fp);
+
+  if (N == 0) {
+    fprintf(stderr, "-FTP fitlc ascii: no usable rows in '%s'\n", path);
+    free(t); free(mag); if (err) free(err);
+    return 0;
+  }
+
+  *t_out   = t;
+  *mag_out = mag;
+  *err_out = err;     /* NULL when err_col == 0 */
+  *N_out   = N;
+  return N;
+}
+
+/* ---- FITS light-curve reader (for the "fitlc" template-source mode) ----
+ *
+ * Reads three columns by name from a FITS binary-table extension.  Behaves
+ * the same as ftp_read_lc_ascii on success.  When err_name is NULL, the
+ * empty string, or the literal string "none" (case-insensitive), no error
+ * column is read and *err_out is set to NULL (unweighted fit).
+ *
+ * Compiled out when vartools was built without cfitsio support; the
+ * stub returns 0 with a clear error so the parser fails fast. */
+#ifdef USECFITSIO
+#include "fitsio.h"
+#endif
+static int ftp_read_lc_fits(const char *path,
+                              const char *t_name, const char *mag_name,
+                              const char *err_name,
+                              double **t_out, double **mag_out,
+                              double **err_out, int *N_out)
+{
+#ifdef USECFITSIO
+  fitsfile *infile = NULL;
+  int status = 0, hdutype = 0, hdunum = 0;
+  long nrows = 0;
+  int t_colnum = 0, mag_colnum = 0, err_colnum = 0;
+  double *t = NULL, *mag = NULL, *err = NULL;
+  int has_err;
+  int anynul = 0;
+
+  *t_out = *mag_out = *err_out = NULL;
+  *N_out = 0;
+
+  has_err = (err_name != NULL && err_name[0] != '\0' &&
+             strcasecmp(err_name, "none") != 0);
+
+  if (fits_open_file(&infile, path, READONLY, &status)) {
+    fprintf(stderr, "-FTP fitlc fits: cannot open '%s' (cfitsio status %d)\n",
+            path, status);
+    return 0;
+  }
+
+  /* Move to the first table HDU if currently at the primary HDU. */
+  if (fits_get_hdu_num(infile, &hdunum) == 1) {
+    fits_movabs_hdu(infile, 2, &hdutype, &status);
+  } else {
+    fits_get_hdu_type(infile, &hdutype, &status);
+  }
+  if (hdutype == IMAGE_HDU) {
+    fprintf(stderr, "-FTP fitlc fits: '%s' has an image HDU where a table was expected\n", path);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+
+  fits_get_num_rows(infile, &nrows, &status);
+  if (nrows <= 0) {
+    fprintf(stderr, "-FTP fitlc fits: '%s' has zero rows\n", path);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+
+  fits_get_colnum(infile, 0, (char *) t_name, &t_colnum, &status);
+  if (status == COL_NOT_FOUND) {
+    fprintf(stderr, "-FTP fitlc fits: column '%s' not found in '%s'\n", t_name, path);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+  status = 0;
+  fits_get_colnum(infile, 0, (char *) mag_name, &mag_colnum, &status);
+  if (status == COL_NOT_FOUND) {
+    fprintf(stderr, "-FTP fitlc fits: column '%s' not found in '%s'\n", mag_name, path);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+  if (has_err) {
+    status = 0;
+    fits_get_colnum(infile, 0, (char *) err_name, &err_colnum, &status);
+    if (status == COL_NOT_FOUND) {
+      fprintf(stderr, "-FTP fitlc fits: column '%s' not found in '%s'\n", err_name, path);
+      fits_close_file(infile, &status);
+      return 0;
+    }
+  }
+  status = 0;
+
+  t   = (double *) malloc(nrows * sizeof(double));
+  mag = (double *) malloc(nrows * sizeof(double));
+  if (has_err) err = (double *) malloc(nrows * sizeof(double));
+  if (t == NULL || mag == NULL || (has_err && err == NULL)) {
+    if (t) free(t); if (mag) free(mag); if (err) free(err);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+
+  fits_read_col(infile, TDOUBLE, t_colnum,   1, 1, nrows, NULL, t,   &anynul, &status);
+  fits_read_col(infile, TDOUBLE, mag_colnum, 1, 1, nrows, NULL, mag, &anynul, &status);
+  if (has_err)
+    fits_read_col(infile, TDOUBLE, err_colnum, 1, 1, nrows, NULL, err, &anynul, &status);
+
+  if (status) {
+    fprintf(stderr, "-FTP fitlc fits: cfitsio read error (status=%d) on '%s'\n", status, path);
+    free(t); free(mag); if (err) free(err);
+    fits_close_file(infile, &status);
+    return 0;
+  }
+
+  fits_close_file(infile, &status);
+
+  *t_out   = t;
+  *mag_out = mag;
+  *err_out = err;
+  *N_out   = (int) nrows;
+  return (int) nrows;
+#else
+  (void) path; (void) t_name; (void) mag_name; (void) err_name;
+  (void) t_out; (void) mag_out; (void) err_out; (void) N_out;
+  fprintf(stderr, "-FTP fitlc fits: vartools was built without cfitsio "
+                  "support; cannot read FITS files\n");
+  return 0;
+#endif
+}
+
+/* ---- Linear least-squares fit of a Fourier series to an LC ----
+ *
+ * Fits the model
+ *     mag(t) ~= c0 + sum_{n=1..H_total} [c_n cos(n omega t) + s_n sin(n omega t)]
+ * with omega = 2*pi/period and H_total = Nharm + 1, by solving the
+ * (2*H_total + 1) x (2*H_total + 1) normal-equations system M^T W M theta
+ * = M^T W y via gaussj.  Weights are w_i = 1/sigma_i^2 if err is non-NULL
+ * and sigma_i > 0; uniform otherwise.
+ *
+ * Convention: "Nharm" follows -harmonicfilter / -Injectharm and counts
+ * the harmonics ABOVE the fundamental.  Nharm = 0 fits only the
+ * fundamental (one sin + one cos); Nharm = N fits the fundamental plus N
+ * extra harmonics (N+1 sin + N+1 cos).  Total sinusoidal terms = 2*(Nharm+1).
+ *
+ * The constant term c0 is fitted (so the cosine/sine amplitudes are not
+ * biased by the LC mean) but is then dropped: the FTP template is zero-mean
+ * by construction.  After extraction, cn[] and sn[] are normalised so that
+ * the half peak-to-peak amplitude of the model
+ *     M(phi) = sum_n [c_n cos(2 pi n phi) + s_n sin(2 pi n phi)]
+ * is 1, evaluated on a 1024-point uniform phase grid.
+ *
+ * Returns H_total = Nharm + 1 on success (writes *cn_out, *sn_out as
+ * fresh allocations of length H_total); returns 0 on degenerate input or
+ * solver failure. */
+#define FTP_FITLC_NPHASE 1024
+static int ftp_fit_harmonics(const double *t, const double *mag, const double *err,
+                               int N, int Nharm, double period,
+                               double **cn_out, double **sn_out)
+{
+  int p, i, j, k;
+  int Nused = 0;
+  int H_total;
+  double omega;
+  double *Adata = NULL, **A = NULL;
+  double *Bdata = NULL, **B = NULL;
+  double *row = NULL;
+  double *cn = NULL, *sn = NULL;
+  double model_min = 0.0, model_max = 0.0, half_amp;
+
+  *cn_out = *sn_out = NULL;
+
+  if (Nharm < 0) {
+    fprintf(stderr, "-FTP fitlc: Nharm must be >= 0 (Nharm counts harmonics above the fundamental; "
+                    "Nharm=0 fits only the fundamental); got %d\n", Nharm);
+    return 0;
+  }
+  if (!(period > 0.0)) {
+    fprintf(stderr, "-FTP fitlc: period must be > 0; got %g\n", period);
+    return 0;
+  }
+  H_total = Nharm + 1;
+  p = 2 * H_total + 1;
+  omega = 2.0 * M_PI / period;
+
+  /* Allocate normal-equations system, contiguous backing for cache locality. */
+  Adata = (double *) calloc(p * p, sizeof(double));
+  A     = (double **) malloc(p * sizeof(double *));
+  Bdata = (double *) calloc(p * 1, sizeof(double));
+  B     = (double **) malloc(p * sizeof(double *));
+  row   = (double *) malloc(p * sizeof(double));
+  if (Adata == NULL || A == NULL || Bdata == NULL || B == NULL || row == NULL)
+    vt_error(ERR_MEMALLOC);
+  for (i = 0; i < p; i++) { A[i] = Adata + i * p; B[i] = Bdata + i; }
+
+  /* Accumulate. */
+  for (i = 0; i < N; i++) {
+    double wi, yi, x, ccurr, scurr, cprev, sprev, two_cos_x;
+    if (isnan(mag[i])) continue;
+    if (err != NULL) {
+      if (!(err[i] > 0.0) || isnan(err[i])) continue;
+      wi = 1.0 / (err[i] * err[i]);
+    } else {
+      wi = 1.0;
+    }
+    yi = mag[i];
+    x  = omega * t[i];
+
+    row[0] = 1.0;
+    ccurr = cos(x); scurr = sin(x);
+    row[1] = ccurr;
+    row[2] = scurr;
+    cprev = 1.0; sprev = 0.0;
+    two_cos_x = 2.0 * ccurr;
+    for (k = 2; k <= H_total; k++) {
+      double cnext = two_cos_x * ccurr - cprev;
+      double snext = two_cos_x * scurr - sprev;
+      row[2*k - 1] = cnext;
+      row[2*k]     = snext;
+      cprev = ccurr; sprev = scurr;
+      ccurr = cnext; scurr = snext;
+    }
+
+    for (j = 0; j < p; j++) {
+      A[j][j] += wi * row[j] * row[j];
+      for (k = j + 1; k < p; k++) {
+        double v = wi * row[j] * row[k];
+        A[j][k] += v;
+        A[k][j] += v;
+      }
+      B[j][0] += wi * yi * row[j];
+    }
+    Nused++;
+  }
+  free(row);
+
+  if (Nused < p) {
+    fprintf(stderr, "-FTP fitlc: %d usable points but %d are needed for a "
+                    "Nharm=%d fit (fundamental + %d extra harmonics, %d free parameters; "
+                    "reduce Nharm or use a longer LC)\n",
+            Nused, p, Nharm, Nharm, p);
+    free(Adata); free(A); free(Bdata); free(B);
+    return 0;
+  }
+
+  if (gaussj(A, p, B, 1)) {
+    fprintf(stderr, "-FTP fitlc: linear-system solver (gaussj) failed; "
+                    "the design matrix is singular -- check for "
+                    "duplicate timestamps or an LC that does not span the period\n");
+    free(Adata); free(A); free(Bdata); free(B);
+    return 0;
+  }
+
+  cn = (double *) malloc(H_total * sizeof(double));
+  sn = (double *) malloc(H_total * sizeof(double));
+  if (cn == NULL || sn == NULL) vt_error(ERR_MEMALLOC);
+  /* Drop c0 = B[0][0]; the FTP template is zero-mean by construction. */
+  for (k = 0; k < H_total; k++) {
+    cn[k] = B[2*k + 1][0];
+    sn[k] = B[2*k + 2][0];
+  }
+  free(Adata); free(A); free(Bdata); free(B);
+
+  /* Normalise so that the half peak-to-peak amplitude of the model is 1. */
+  for (i = 0; i < FTP_FITLC_NPHASE; i++) {
+    double phi = (double) i / (double) FTP_FITLC_NPHASE;
+    double m_val = 0.0;
+    double tau   = 2.0 * M_PI * phi;
+    for (k = 1; k <= H_total; k++) {
+      m_val += cn[k - 1] * cos(k * tau) + sn[k - 1] * sin(k * tau);
+    }
+    if (i == 0 || m_val < model_min) model_min = m_val;
+    if (i == 0 || m_val > model_max) model_max = m_val;
+  }
+  half_amp = 0.5 * (model_max - model_min);
+  if (!(half_amp > 0.0)) {
+    fprintf(stderr, "-FTP fitlc: fitted model has zero peak-to-peak amplitude "
+                    "(degenerate fit -- LC has no power at the specified period?)\n");
+    free(cn); free(sn);
+    return 0;
+  }
+  for (k = 0; k < H_total; k++) {
+    cn[k] /= half_amp;
+    sn[k] /= half_amp;
+  }
+
+  *cn_out = cn;
+  *sn_out = sn;
+  return H_total;
+}
+
+/* ---- Top-level fitlc orchestrator ----
+ *
+ * Loads an LC from disk, fits a Fourier series at the given period, drops
+ * the mean and amplitude-normalises the result, and returns the cn/sn
+ * arrays ready for use as an FTP template.  Format token is
+ * "ascii" (1-indexed integer column numbers) or "fits" (string column
+ * names; cfitsio backend).  Mirrors ftp_load_template_file's contract. */
+int ftp_load_template_fitlc(const char *lc_path, const char *format,
+                              const char *t_col_str,
+                              const char *mag_col_str,
+                              const char *err_col_str,
+                              int Nharm, double period,
+                              double **cn_out, double **sn_out)
+{
+  double *t = NULL, *mag = NULL, *err = NULL;
+  int N = 0;
+  int H_out;
+
+  *cn_out = *sn_out = NULL;
+
+  if (!strcmp(format, "ascii")) {
+    int t_col   = atoi(t_col_str);
+    int mag_col = atoi(mag_col_str);
+    int err_col = atoi(err_col_str);     /* 0 means no err column */
+    if (!ftp_read_lc_ascii(lc_path, t_col, mag_col, err_col,
+                            &t, &mag, &err, &N))
+      return 0;
+  } else if (!strcmp(format, "fits")) {
+    if (!ftp_read_lc_fits(lc_path, t_col_str, mag_col_str, err_col_str,
+                           &t, &mag, &err, &N))
+      return 0;
+  } else {
+    fprintf(stderr, "-FTP fitlc: format must be 'ascii' or 'fits'; got '%s'\n", format);
+    return 0;
+  }
+
+  H_out = ftp_fit_harmonics(t, mag, err, N, Nharm, period, cn_out, sn_out);
+
+  free(t); free(mag); if (err) free(err);
+  return H_out;
+}
+
 /* ---- Period-similarity helper (mirror aov.c / pdm.c) ---- */
 
 static int ftp_isDifferentPeriods(double p1, double p2, double T)
