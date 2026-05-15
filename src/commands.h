@@ -2450,6 +2450,22 @@ typedef struct {
   double **avepower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped mean */
   double **rmspower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped rms */
 
+  /* fixperiodSNR: evaluate FTP power / SNR / theta_2 / negamp at a
+   * caller-specified period (taken from a prior periodogram command, a
+   * literal, an input-list column, or a fixcolumn back-reference).
+   * Mirrors -aov / -PDM's fixperiodSNR.  Runs against the ORIGINAL LC
+   * (the whiten branch restores mag_orig before this is evaluated). */
+  int        fixperiodSNR;
+  int        fixperiodSNR_pertype;
+  int        fixperiodSNR_lastaovindex;
+  double     fixperiodSNR_fixedperiod;
+  double   **fixperiodSNR_periods;       /* [Nlcs][1] -- the resolved period */
+  double    *fixperiodSNR_peakvalues;    /* [Nlcs] -- FTP power at fixed period */
+  double    *fixperiodSNR_peakSNR;       /* [Nlcs] */
+  int       *fixperiodSNR_peakNegAmp;    /* [Nlcs] */
+  double    *fixperiodSNR_peakTheta;     /* [Nlcs] */
+  OutColumn *fixperiodSNR_linkedcolumn;
+
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
   int allow_neg_amp;

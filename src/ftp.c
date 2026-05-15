@@ -2421,6 +2421,9 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     int usemask, _Variable *maskvar,
                     int whiten,
                     double *ave_power_whiten, double *rms_power_whiten,
+                    int fix_on, double fix_period,
+                    double *fix_power_ptr, double *fix_SNR_ptr,
+                    int    *fix_negamp_ptr, double *fix_theta_ptr,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -2829,6 +2832,35 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     *avePower = (ave_power_whiten != NULL ? ave_power_whiten[0] : 0.0);
     *rmsPower = (rms_power_whiten != NULL ? rms_power_whiten[0] : 1.0);
 
+    /* fixperiodSNR: evaluate FTP power at the resolved fix period.  Uses
+     * cycle 0's clipped mean/RMS for the SNR (the original-LC noise estimate;
+     * the LC has been restored to mag_orig above). */
+    if (fix_on) {
+      double th_fix; int sgn_fix;
+      double P_fix;
+      if (fix_period <= 0.0) {
+        if (fix_power_ptr)  *fix_power_ptr = 0.0;
+        if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
+        if (fix_negamp_ptr) *fix_negamp_ptr = 0;
+        if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+      } else {
+        P_fix = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
+                                allow_neg_amp, &sc, method, ps_ptr,
+                                fix_period, &th_fix, &sgn_fix);
+        if (P_fix >= 0.0 && P_fix * 0.0 == 0.0) {
+          if (fix_power_ptr)  *fix_power_ptr = P_fix;
+          if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - *avePower) / *rmsPower;
+          if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
+          if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
+        } else {
+          if (fix_power_ptr)  *fix_power_ptr = 0.0;
+          if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
+          if (fix_negamp_ptr) *fix_negamp_ptr = 0;
+          if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+        }
+      }
+    }
+
     /* Verify-mode summary. */
     if (method == FTP_METHOD_VERIFY && vs.n_verified > 0) {
       fprintf(stderr,
@@ -3168,6 +3200,35 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* fixperiodSNR (non-whiten path): evaluate FTP power at fix_period
+   * against the ORIGINAL LC using the main periodogram's clipped
+   * mean/RMS for the SNR. */
+  if (fix_on) {
+    double th_fix; int sgn_fix;
+    double P_fix;
+    if (fix_period <= 0.0) {
+      if (fix_power_ptr)  *fix_power_ptr = 0.0;
+      if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
+      if (fix_negamp_ptr) *fix_negamp_ptr = 0;
+      if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+    } else {
+      P_fix = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
+                              allow_neg_amp, &sc, method, ps_ptr,
+                              fix_period, &th_fix, &sgn_fix);
+      if (P_fix >= 0.0 && P_fix * 0.0 == 0.0) {
+        if (fix_power_ptr)  *fix_power_ptr = P_fix;
+        if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - ave_per) / std_per;
+        if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
+        if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
+      } else {
+        if (fix_power_ptr)  *fix_power_ptr = 0.0;
+        if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
+        if (fix_negamp_ptr) *fix_negamp_ptr = 0;
+        if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+      }
+    }
+  }
+
   /* Verify-mode summary: emit stats so the user knows the poly path is
    * agreeing with brute-force to within tolerance.  Per-LC summary line
    * so multi-LC runs don't drown the output. */
@@ -3192,7 +3253,10 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
 {
   char outname[MAXLEN];
   int i1, i2;
-  (void) c; (void) thisindex;   /* not yet used; reserved for fixperiodSNR backref */
+  int    fix_on = 0;
+  double fix_period = 1.0;
+  double *fix_power_ptr = NULL, *fix_SNR_ptr = NULL, *fix_theta_ptr = NULL;
+  int    *fix_negamp_ptr = NULL;
 
   if (Ftp->operiodogram) {
     i1 = 0; i2 = 0;
@@ -3291,6 +3355,51 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
   else
     Ftp->finetune_vals[lcnum] = Ftp->finetune;
 
+  /* Resolve the fixperiodSNR period source (mirrors aov.c / pdm.c). */
+  if (Ftp->fixperiodSNR) {
+    fix_on = 1;
+    switch (Ftp->fixperiodSNR_pertype) {
+      case PERTYPE_AOV:
+        i1 = Ftp->fixperiodSNR_lastaovindex;
+        if (c[i1 - thisindex].cnum == CNUM_AOV)
+          Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Aov->peakperiods[lcnum][0];
+        else if (c[i1 - thisindex].cnum == CNUM_HARMAOV)
+          Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].AovHarm->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_LS:
+        i1 = Ftp->fixperiodSNR_lastaovindex;
+        Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Ls->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_PDM:
+        i1 = Ftp->fixperiodSNR_lastaovindex;
+        Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Pdm->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_FTP:
+        i1 = Ftp->fixperiodSNR_lastaovindex;
+        Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Ftp->peakperiods[lcnum][0];
+        break;
+      case PERTYPE_INJECTHARM:
+        i1 = Ftp->fixperiodSNR_lastaovindex;
+        Ftp->fixperiodSNR_periods[lcnum][0] = c[i1 - thisindex].Injectharm->periodinject[lcnum];
+        break;
+      case PERTYPE_FIX:
+        Ftp->fixperiodSNR_periods[lcnum][0] = Ftp->fixperiodSNR_fixedperiod;
+        break;
+      case PERTYPE_FIXCOLUMN:
+        getoutcolumnvalue(Ftp->fixperiodSNR_linkedcolumn, lcnum, lc_name_num,
+                          VARTOOLS_TYPE_DOUBLE, &(Ftp->fixperiodSNR_periods[lcnum][0]));
+        break;
+      default:
+        /* PERTYPE_SPECIFIED (list-column): pre-loaded by inputlist parsing */
+        break;
+    }
+    fix_period      = Ftp->fixperiodSNR_periods[lcnum][0];
+    fix_power_ptr   = &(Ftp->fixperiodSNR_peakvalues[lcnum]);
+    fix_SNR_ptr     = &(Ftp->fixperiodSNR_peakSNR[lcnum]);
+    fix_negamp_ptr  = &(Ftp->fixperiodSNR_peakNegAmp[lcnum]);
+    fix_theta_ptr   = &(Ftp->fixperiodSNR_peakTheta[lcnum]);
+  }
+
   findPeaks_ftp(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum],
                 Ftp->H, Ftp->cn, Ftp->sn,
                 Ftp->useerr, Ftp->allow_neg_amp,
@@ -3309,5 +3418,7 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 Ftp->whiten,
                 (Ftp->whiten ? Ftp->avepower_whiten[lcnum] : NULL),
                 (Ftp->whiten ? Ftp->rmspower_whiten[lcnum] : NULL),
+                fix_on, fix_period,
+                fix_power_ptr, fix_SNR_ptr, fix_negamp_ptr, fix_theta_ptr,
                 lcnum, lc_name_num);
 }

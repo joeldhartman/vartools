@@ -4168,6 +4168,102 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  }
 
+	  /* "fixperiodSNR" <"aov" | "ls" | "pdm" | "ftp" | "injectharm" | "fix" P
+	   *                 | "list" ["column" col] | "fixcolumn" <name|num>> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "fixperiodSNR")) {
+	    c[cn].Ftp->fixperiodSNR = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "aov")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_AOV;
+	      m = -1;
+	      for(l = 0; l < cn; l++)
+		if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR aov: no prior -aov / -aov_harm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "ls")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_LS;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR ls: no prior -LS command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "pdm")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_PDM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR pdm: no prior -PDM command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "ftp")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FTP;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_FTP) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR ftp: no prior -FTP command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "injectharm")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_INJECTHARM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR injectharm: no prior -Injectharm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "fix")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FIX;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Ftp->fixperiodSNR_fixedperiod = atof(argv[i]);
+	    }
+	    else if(!strcmp(argv[i], "list")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_SPECIFIED;
+	      k = 0;
+	      i++;
+	      if(i < argc) {
+		if(!strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+		  i++;
+		  if(i < argc) k = atoi(argv[i]);
+		  else listcommands(argv[iterm], p);
+		} else i--;
+	      } else i--;
+	      RegisterDataFromInputList(p,
+					(void *) (&(c[cn].Ftp->fixperiodSNR_periods)),
+					VARTOOLS_TYPE_DOUBLE,
+					1, cn, 0, 0, NULL, k,
+					"FTP_FIXPERIODSNR_PERIOD");
+	    }
+	    else if(!strcmp(argv[i], "fixcolumn")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FIXCOLUMN;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      increaselinkedcols(p, &(c[cn].Ftp->fixperiodSNR_linkedcolumn), argv[i], cn);
+	    }
+	    else {
+	      fprintf(stderr, "-FTP fixperiodSNR: unrecognised source '%s' "
+	                      "(expected aov/ls/pdm/ftp/injectharm/fix/list/fixcolumn)\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
 	  /* "maskpoints" maskvar -- exclude points with maskvar <= VARTOOLS_MASK_TINY */
 	  i++;
 	  if(i < argc && !strcmp(argv[i], "maskpoints")) {

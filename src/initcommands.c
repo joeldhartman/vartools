@@ -810,6 +810,20 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].Ftp->rmspower_whiten[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
 		vt_error(ERR_MEMALLOC);
 	  }
+	  if(c[i].Ftp->fixperiodSNR) {
+	    if((c[i].Ftp->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakSNR    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakNegAmp = (int *)    malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakTheta  = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(c[i].Ftp->fixperiodSNR_pertype != PERTYPE_SPECIFIED) {
+	      if((c[i].Ftp->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	      for(j=0;j<Nlcs;j++)
+		if((c[i].Ftp->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	    }
+	  }
 	  break;
 
 	case CNUM_HARMAOV:
