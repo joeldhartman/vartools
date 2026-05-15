@@ -444,6 +444,7 @@ LIBCFITSIO = @LIBCFITSIO@
 LIBCSPICE = @LIBCSPICE@
 LIBGSL = @LIBGSL@
 LIBLTDL = @LIBLTDL@
+LIBNFFT = @LIBNFFT@
 LIBOBJS = @LIBOBJS@
 LIBPTHREAD = @LIBPTHREAD@
 LIBS = @LIBS@
@@ -596,8 +597,8 @@ libvartoolspipeline_la_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) \
 
 libvartoolspipeline_la_LDFLAGS = -version-info 1:0:0
 libvartoolspipeline_la_LIBADD = libvartools.la $(LIBCFITSIO) $(LIBGSL) \
-	$(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL) $(am__append_3) \
-	$(am__append_5)
+	$(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL) \
+	$(am__append_3) $(am__append_5)
 libvartoolspipeline_la_DEPENDENCIES = libvartools.la $(am__append_4) \
 	$(am__append_6)
 vartools_SOURCES = main.c \
@@ -607,8 +608,8 @@ vartools_SOURCES = main.c \
 
 vartools_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 vartools_LDADD = libvartoolspipeline.la libvartools.la $(am__append_7) \
-	$(am__append_9) $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) \
-	$(LIBCSPICE) $(LIBLTDL)
+	$(am__append_9) $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) \
+	$(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
 vartools_DEPENDENCIES = $(LTDLDEPS) libvartoolspipeline.la \
 	libvartools.la $(am__append_8) $(am__append_10)
 all: all-am

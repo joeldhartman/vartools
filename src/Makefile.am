@@ -44,7 +44,7 @@ libvartoolspipeline_la_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) \
  -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 libvartoolspipeline_la_LDFLAGS = -version-info 1:0:0
 libvartoolspipeline_la_LIBADD = libvartools.la \
- $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+ $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
 libvartoolspipeline_la_DEPENDENCIES = libvartools.la
 if PYTHON_USE
 libvartoolspipeline_la_LIBADD += libvartoolsrunpython.la
@@ -71,4 +71,4 @@ if R_USE
 vartools_LDADD += libvartoolsrunR.la
 vartools_DEPENDENCIES += libvartoolsrunR.la
 endif
-vartools_LDADD += $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+vartools_LDADD += $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)

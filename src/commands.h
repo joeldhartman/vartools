@@ -2430,6 +2430,7 @@ typedef struct {
   char  **template_filenames;  /* [Nlcs], populated by RegisterDataFromInputList */
 
   int     method;              /* 0=brute (default), 1=poly, 2=verify(both + cmp) */
+  int     sums_mode;           /* 0=direct, 1=nfft, 2=auto (NFFT if compiled, default) */
 
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */

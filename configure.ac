@@ -137,6 +137,32 @@ AS_IF([test "x$with_gsl" != xno],
 
 AM_CONDITIONAL([HAVE_GSL], [ test "x$LIBGSL" != x ])
 
+dnl Optional NFFT3 (with FFTW3) for batched non-equispaced FFT in -FTP.
+dnl Default check (libnfft3-dev installs libnfft3 and pulls in libfftw3).
+AC_ARG_WITH([nfft],
+  [AS_HELP_STRING([--with-nfft],
+    [enable NFFT-accelerated -FTP sums via libnfft3 + libfftw3 @<:@default=check@:>@])],
+  [],
+  [with_nfft=check])
+
+LIBNFFT=
+AS_IF([test "x$with_nfft" != xno],
+  [AC_CHECK_HEADER([nfft3.h],
+    [AC_CHECK_LIB([nfft3], [nfft_init_1d],
+      [AC_SUBST([LIBNFFT], ["-lnfft3 -lfftw3"])
+       AC_DEFINE([HAVE_NFFT3], [1],
+                 [Define if you have libnfft3 and libfftw3])
+      ],
+      [if test "x$with_nfft" != xcheck ; then
+         AC_MSG_FAILURE(
+           [--with-nfft was given, but libnfft3 link test failed])
+       fi],[-lfftw3])],
+    [if test "x$with_nfft" != xcheck ; then
+       AC_MSG_FAILURE(
+         [--with-nfft was given, but nfft3.h header not found])
+     fi])])
+AM_CONDITIONAL([HAVE_NFFT3], [ test "x$LIBNFFT" != x ])
+
 AC_CHECK_LIB([pthread], [pthread_create],
   [AC_SUBST([LIBPTHREAD], ["-lpthread"])
    AC_DEFINE([HAVE_PTHREAD], [1], [Define if you have lpthread])],

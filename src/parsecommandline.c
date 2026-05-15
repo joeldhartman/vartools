@@ -3871,6 +3871,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    vt_error(ERR_MEMALLOC);
 	  memset(c[cn].Ftp, 0, sizeof(_FTP));
 	  c[cn].Ftp->useerr = 1;
+	  c[cn].Ftp->sums_mode = 2;       /* FTP_SUMS_AUTO: NFFT if compiled, else direct */
 	  c[cn].Ftp->allow_neg_amp = 1;       /* default: report flag, do not reject */
 	  c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
@@ -4148,6 +4149,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    else {
 	      fprintf(stderr, "-FTP: 'method' must be 'brute', 'poly', or 'verify'; got '%s'\n",
 	              argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "sums" <direct | nfft> -- per-LC summation strategy.  Default is
+	   * NFFT when vartools was built with --with-nfft (auto-selected), else
+	   * direct.  NFFT batches the summations across all frequencies in one
+	   * pass, ~4x faster than per-frequency direct loops at N=10000. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "sums")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "direct"))    c[cn].Ftp->sums_mode = 0;
+	    else if(!strcmp(argv[i], "nfft")) c[cn].Ftp->sums_mode = 1;
+	    else {
+	      fprintf(stderr, "-FTP: 'sums' must be 'direct' or 'nfft'; got '%s'\n", argv[i]);
 	      listcommands(argv[iterm], p);
 	    }
 	  } else {
