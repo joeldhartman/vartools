@@ -1318,6 +1318,20 @@ typedef struct {
   double *K_aada; double *K_aadb; double *K_abda;
   double *K_abdb; double *K_bbda; double *K_bbdb;
 
+  /* Root tracking across frequencies.  At nearby frequencies, the roots
+   * of the optimality polynomial move smoothly.  Instead of running a
+   * full gsl_poly_complex_solve at every frequency, we Newton-refine
+   * the previous frequency's roots against the current polynomial.  A
+   * full eigensolve runs at frequency 0 and periodically thereafter
+   * (every full_every frequencies) to recover any roots that drifted
+   * out of the [-1, 1] interval or that emerged from complex collisions. */
+  int     prev_roots_valid;    /* 1 if prev_real_roots has been populated */
+  int     prev_n_real;         /* number of real roots in [-1, 1] from last freq */
+  double *prev_real_roots;     /* size L_cap, real-root b values */
+  int     freqs_since_full;    /* counter; reset to 0 when we full-eigensolve */
+  int     full_every;          /* full eigensolve every N frequencies */
+  double *Fprime_coefs;        /* derivative of root_poly, size L_cap */
+
   /* gsl_poly_complex_solve output buffer: 2*(L_cap-1) doubles for re/im pairs. */
   double *roots_packed;
   gsl_poly_complex_workspace *gsl_ws;
@@ -1409,6 +1423,16 @@ static void ftp_poly_state_alloc(_FTPPolyState *ps, int H)
         ps->K_bbda == NULL || ps->K_bbdb == NULL)
       vt_error(ERR_MEMALLOC);
   }
+
+  /* Root-tracking state. */
+  ps->prev_roots_valid = 0;
+  ps->prev_n_real = 0;
+  ps->prev_real_roots = (double *) calloc(L_cap, sizeof(double));
+  ps->Fprime_coefs    = (double *) calloc(L_cap, sizeof(double));
+  ps->freqs_since_full = 0;
+  ps->full_every       = 50;        /* re-eigensolve every 50 frequencies */
+  if (ps->prev_real_roots == NULL || ps->Fprime_coefs == NULL)
+    vt_error(ERR_MEMALLOC);
 }
 
 static void ftp_poly_state_free(_FTPPolyState *ps)
@@ -1432,6 +1456,7 @@ static void ftp_poly_state_free(_FTPPolyState *ps)
   free(ps->T_BBdBp); free(ps->T_BBdBq);
   free(ps->K_aada); free(ps->K_aadb); free(ps->K_abda);
   free(ps->K_abdb); free(ps->K_bbda); free(ps->K_bbdb);
+  free(ps->prev_real_roots); free(ps->Fprime_coefs);
   memset(ps, 0, sizeof(*ps));
 }
 
@@ -1628,8 +1653,13 @@ static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
    *     Pp_or_Pq[l] += sum_{i,j,k} T[i,j,k,l] * K[i,j,k]
    * which costs O(H^3 * L_T).  Six p-contractions and six q-contractions
    * with H^3 * L_T flops each gives a per-frequency total of O(H^4) for
-   * the polynomial coefficient construction (vs O(H^5) for the
-   * per-frequency PP triple-product approach this replaces). */
+   * the polynomial coefficient construction.
+   *
+   * Attempting to fuse the 12 contractions into a single outer-ijk loop
+   * with 12 fan-in streams turned out to be slightly slower (register
+   * pressure prevents the compiler from vectorising the inner ll loop
+   * as effectively as the original 1-in/1-out pattern), so we keep the
+   * 12 separate passes. */
   {
     int L_T = ps->L_T;
     int H3 = H * H * H;
@@ -1648,12 +1678,18 @@ static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
       { ps->T_BBdAq, ps->K_bbda, ps->Pq },
       { ps->T_BBdBq, ps->K_bbdb, ps->Pq },
     };
+    /* Each contraction is target[l] += sum_{ijk} T[ijk, l] * K[ijk].
+     * Tried cblas_dgemv (matrix-vector product); on systems linked
+     * against the reference libgslcblas (Debian/Ubuntu default) it's
+     * SLOWER than the hand-rolled gcc-vectorised loop because the
+     * reference cblas isn't SIMD-tuned.  Stick with the hand-rolled
+     * loop; users wanting more can swap in an optimised BLAS at link
+     * time. */
     for (triplet = 0; triplet < 12; triplet++) {
-      double *T = contracts[triplet].T;
-      double *K = contracts[triplet].K;
-      double *target = contracts[triplet].target;
+      const double * __restrict__ T = contracts[triplet].T;
+      const double * __restrict__ K = contracts[triplet].K;
+      double       * __restrict__ target = contracts[triplet].target;
       int ijk;
-      /* Inner loop: for each (i,j,k), add K[ijk] * T[ijk, :] to target[]. */
       for (ijk = 0; ijk < H3; ijk++) {
         double Kijk = K[ijk];
         const double *Tijk = &T[ijk * L_T];
@@ -1696,78 +1732,120 @@ static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
     ps->root_poly_len = F_len;
   }
 
-  /* Find roots via gsl_poly_complex_solve. */
+  /* Find roots: try Newton refinement from the previous frequency's roots
+   * if available; fall back to a full eigensolve at frequency 0, every
+   * full_every frequencies, or when Newton fails. */
   {
     int nroots = ps->root_poly_len - 1;
-    int gsl_status;
     int r;
     double best_P = 0.0;
     double best_theta = 0.0;
     int best_sign = 1;
+    int do_full = 0;
+    int n_real_now = 0;
+    double *real_roots_now = ps->scratch1;     /* reuse scratch1 buffer */
+
     if (nroots < 1) {
       if (theta_out) *theta_out = 0.0;
       if (sign_out)  *sign_out = 1;
       return 0.0;
     }
-    /* gsl_poly_complex_solve requires the leading coefficient nonzero;
-     * if it's tiny, fall back to brute-force semantics by returning 0. */
     if (fabs(ps->root_poly[nroots]) < 1.0e-30) {
       if (theta_out) *theta_out = 0.0;
       if (sign_out)  *sign_out = 1;
       return 0.0;
     }
-    /* gsl_poly_complex_solve requires the workspace's allocated size to
-     * match the polynomial size EXACTLY (it checks w->nc != n-1).  After
-     * trimming trailing zeros above, our nroots may vary per frequency,
-     * so reallocate whenever the size changes. */
-    if (nroots + 1 != ps->gsl_ws_cap) {
-      gsl_poly_complex_workspace_free(ps->gsl_ws);
-      ps->gsl_ws = gsl_poly_complex_workspace_alloc((size_t) (nroots + 1));
-      ps->gsl_ws_cap = nroots + 1;
-      if (ps->gsl_ws == NULL) vt_error(ERR_MEMALLOC);
+
+    /* Build derivative of root_poly for Newton iterations. */
+    {
+      int Fp_len = ftp_poly_deriv ? 1 : 0;       /* (suppress warning) */
+      (void) Fp_len;
+      ftp_poly_deriv(ps->Fprime_coefs, L_cap, ps->root_poly, ps->root_poly_len);
     }
-    gsl_status = gsl_poly_complex_solve(ps->root_poly, (size_t) (nroots + 1),
-                                         ps->gsl_ws, ps->roots_packed);
-    if (gsl_status != GSL_SUCCESS) {
-      /* QR failed; bail.  ftp_periodogram_method's fallback then runs
-       * brute-force at this frequency. */
-      if (theta_out) *theta_out = 0.0;
-      if (sign_out)  *sign_out = 1;
-      return -1.0;       /* sentinel: trigger fallback */
-    }
-    /* Walk roots: keep real roots with |Re| <= 1 (project), then try
-     * both sgn ∈ {+1, -1} for each, evaluate P, pick max.  Always
-     * include the endpoints b = -1 and b = +1 as candidates. */
-    for (r = 0; r < nroots; r++) {
-      double br = ps->roots_packed[2 * r];
-      double bi = ps->roots_packed[2 * r + 1];
-      double b;
-      int s;
-      if (fabs(bi) > 1.0e-5) continue;                /* not real enough */
-      if (br > 1.0)  br = 1.0;
-      if (br < -1.0) br = -1.0;
-      b = br;
-      for (s = -1; s <= 1; s += 2) {
-        double theta_2 = acos(b);
-        int sign_eff;
-        double P_cand;
-        if (s < 0) theta_2 = 2.0 * M_PI - theta_2;
-        P_cand = ftp_eval_P(H, theta_2, cn, sn, YC, YS, CC, CS, SS, YY,
-                             scratch_A, scratch_B, &sign_eff);
-        if (!allow_neg_amp && sign_eff < 0) continue;
-        if (P_cand > best_P) {
-          best_P = P_cand;
-          best_theta = theta_2;
-          best_sign = sign_eff;
+
+    /* Decide whether to do a full eigensolve. */
+    if (!ps->prev_roots_valid || ps->freqs_since_full >= ps->full_every) {
+      do_full = 1;
+    } else {
+      /* Newton refinement from previous frequency's roots. */
+      int Fp_eff_len = (ps->root_poly_len > 0) ? (ps->root_poly_len - 1) : 0;
+      int max_iters = 15;
+      double tol = 1.0e-13;
+      for (r = 0; r < ps->prev_n_real; r++) {
+        double b = ps->prev_real_roots[r];
+        int iter, converged = 0;
+        for (iter = 0; iter < max_iters; iter++) {
+          double F_val  = gsl_poly_eval(ps->root_poly,    ps->root_poly_len, b);
+          double Fp_val = gsl_poly_eval(ps->Fprime_coefs, Fp_eff_len,         b);
+          double delta;
+          if (fabs(Fp_val) < 1.0e-200) { break; }
+          delta = F_val / Fp_val;
+          b -= delta;
+          if (b < -1.5 || b > 1.5) { break; }    /* escaped feasible region */
+          if (fabs(delta) < tol)   { converged = 1; break; }
         }
+        if (!converged || b < -1.0 - 1.0e-6 || b > 1.0 + 1.0e-6) {
+          /* This root went bad -- fall back to full eigensolve. */
+          do_full = 1;
+          break;
+        }
+        if (b > 1.0)  b = 1.0;
+        if (b < -1.0) b = -1.0;
+        real_roots_now[n_real_now++] = b;
       }
     }
-    /* Endpoints. */
+
+    if (do_full) {
+      int gsl_status;
+      if (nroots + 1 != ps->gsl_ws_cap) {
+        gsl_poly_complex_workspace_free(ps->gsl_ws);
+        ps->gsl_ws = gsl_poly_complex_workspace_alloc((size_t) (nroots + 1));
+        ps->gsl_ws_cap = nroots + 1;
+        if (ps->gsl_ws == NULL) vt_error(ERR_MEMALLOC);
+      }
+      gsl_status = gsl_poly_complex_solve(ps->root_poly, (size_t) (nroots + 1),
+                                           ps->gsl_ws, ps->roots_packed);
+      if (gsl_status != GSL_SUCCESS) {
+        if (theta_out) *theta_out = 0.0;
+        if (sign_out)  *sign_out  = 1;
+        return -1.0;
+      }
+      n_real_now = 0;
+      for (r = 0; r < nroots; r++) {
+        double br = ps->roots_packed[2 * r];
+        double bi = ps->roots_packed[2 * r + 1];
+        if (fabs(bi) > 1.0e-5) continue;
+        if (br > 1.0)  br = 1.0;
+        if (br < -1.0) br = -1.0;
+        real_roots_now[n_real_now++] = br;
+      }
+      ps->freqs_since_full = 0;
+    } else {
+      ps->freqs_since_full++;
+    }
+
+    /* Evaluate P at each real root and each endpoint, both sgns; pick max. */
     {
       double bz[2] = { -1.0, 1.0 };
-      int bi2;
+      int bi2, rr, s;
+      for (rr = 0; rr < n_real_now; rr++) {
+        double b = real_roots_now[rr];
+        for (s = -1; s <= 1; s += 2) {
+          double theta_2 = acos(b);
+          int sign_eff;
+          double P_cand;
+          if (s < 0) theta_2 = 2.0 * M_PI - theta_2;
+          P_cand = ftp_eval_P(H, theta_2, cn, sn, YC, YS, CC, CS, SS, YY,
+                               scratch_A, scratch_B, &sign_eff);
+          if (!allow_neg_amp && sign_eff < 0) continue;
+          if (P_cand > best_P) {
+            best_P = P_cand;
+            best_theta = theta_2;
+            best_sign = sign_eff;
+          }
+        }
+      }
       for (bi2 = 0; bi2 < 2; bi2++) {
-        int s;
         for (s = -1; s <= 1; s += 2) {
           double theta_2 = acos(bz[bi2]);
           int sign_eff;
@@ -1784,6 +1862,16 @@ static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
         }
       }
     }
+
+    /* Save real roots for next frequency's Newton refinement. */
+    {
+      int rr;
+      for (rr = 0; rr < n_real_now; rr++)
+        ps->prev_real_roots[rr] = real_roots_now[rr];
+      ps->prev_n_real = n_real_now;
+      ps->prev_roots_valid = 1;
+    }
+
     if (theta_out) *theta_out = best_theta;
     if (sign_out)  *sign_out  = best_sign;
     return best_P;
