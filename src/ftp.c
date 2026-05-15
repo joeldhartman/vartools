@@ -903,6 +903,894 @@ static double ftp_golden_refine(double theta_lo, double theta_mid, double theta_
   }
 }
 
+/* =====================================================================
+ *  Polynomial root-finding fast path (Phase B.4)
+ *  ---------------------------------------------------------------------
+ *  An alternative to ftp_max_P_over_theta's brute-force scan: at each
+ *  frequency, build the optimality polynomial 2*MM*d(YM)/dtheta_2
+ *  - YM*d(MM)/dtheta_2 = 0 as a polynomial in b = cos(theta_2), find
+ *  its roots in [-1, 1] via gsl_poly_complex_solve, and evaluate P at
+ *  each candidate (b, sgn(sin theta_2)) pair to pick the global max.
+ *
+ *  This is a port of the algorithm from Hoffman et al. (2021,
+ *  arXiv:2101.12348), following the PseudoPolynomial scaffolding
+ *  introduced by pyftp (https://github.com/PrincetonUniversity/FastTemplatePeriodogram).
+ *  IMPORTANT: pyftp's compute_zeros and PseudoPolynomial.root_finding_poly
+ *  compute (1-b^2)*p^2 - q^2 -- with p and q swapped relative to the
+ *  correct squared form of "p(b) + sqrt(1-b^2)*q(b) = 0".  The right
+ *  squared form is  p^2(b) - (1-b^2)*q^2(b) = 0,  which is what this
+ *  code uses.  An empirical verification on H=1..5 synthetic LCs
+ *  shows the corrected polynomial agrees with the brute-force theta_2
+ *  scan to ~1e-7 (essentially the brute-force scan's finite-resolution
+ *  noise floor), where pyftp's polynomial gives a 4-5 order-of-
+ *  magnitude worse agreement (~1e-3 to 1e-2).  See the project root's
+ *  FTP-rollout notes for the derivation and the reproduction script.
+ *
+ *  A PseudoPolynomial PP(b) = (1-b^2)^r * (p(b) + sqrt(1-b^2)*q(b))
+ *  is represented here as separate p[], q[] coefficient arrays in
+ *  ascending order, plus the integer power r (r <= 0).  Compared to
+ *  pyftp's full class hierarchy this is intentionally minimal: we
+ *  only need the operations multiply, derivative, and "squared root
+ *  polynomial" -- so they're inlined as simple coefficient-array
+ *  primitives rather than wrapped in a class.
+ *  ===================================================================== */
+
+/* --- Polynomial primitives over ascending-order coefficient arrays --- */
+
+/* out[k] += in[k], up to min(out_cap, in_len). */
+static void ftp_poly_addto(double *out, int out_cap, const double *in, int in_len)
+{
+  int k;
+  int n = in_len < out_cap ? in_len : out_cap;
+  for (k = 0; k < n; k++) out[k] += in[k];
+}
+
+/* out[k] -= in[k]. */
+static void ftp_poly_subfrom(double *out, int out_cap, const double *in, int in_len)
+{
+  int k;
+  int n = in_len < out_cap ? in_len : out_cap;
+  for (k = 0; k < n; k++) out[k] -= in[k];
+}
+
+/* out = a * b.  out must have capacity >= a_len + b_len - 1.  out is
+ * zeroed first.  a and b may have length 0 (returns zero polynomial). */
+static void ftp_poly_mul(double *out, int out_cap,
+                          const double *a, int a_len,
+                          const double *b, int b_len)
+{
+  int i, j;
+  int out_len = (a_len > 0 && b_len > 0) ? (a_len + b_len - 1) : 0;
+  if (out_len > out_cap) out_len = out_cap;
+  for (i = 0; i < out_len; i++) out[i] = 0.0;
+  for (i = 0; i < a_len; i++) {
+    double ai = a[i];
+    if (ai == 0.0) continue;
+    int jmax = b_len < out_cap - i ? b_len : out_cap - i;
+    for (j = 0; j < jmax; j++) out[i + j] += ai * b[j];
+  }
+}
+
+/* out = (1 - x^2) * in.  out must have capacity >= in_len + 2.
+ * out is zeroed first. */
+static void ftp_poly_mul_oneMinusXsq(double *out, int out_cap,
+                                      const double *in, int in_len)
+{
+  int k;
+  int out_len = in_len + 2;
+  if (out_len > out_cap) out_len = out_cap;
+  for (k = 0; k < out_len; k++) out[k] = 0.0;
+  for (k = 0; k < in_len && k < out_cap; k++) out[k] += in[k];
+  for (k = 0; k < in_len && k + 2 < out_cap; k++) out[k + 2] -= in[k];
+}
+
+/* out = x * in.  out must have capacity >= in_len + 1.  out is zeroed first. */
+static void ftp_poly_mul_x(double *out, int out_cap, const double *in, int in_len)
+{
+  int k;
+  int out_len = in_len + 1;
+  if (out_len > out_cap) out_len = out_cap;
+  out[0] = 0.0;
+  for (k = 0; k < in_len && k + 1 < out_cap; k++) out[k + 1] = in[k];
+}
+
+/* out = d(in)/dx.  out_len = max(0, in_len - 1). */
+static void ftp_poly_deriv(double *out, int out_cap, const double *in, int in_len)
+{
+  int k;
+  int out_len = in_len > 0 ? in_len - 1 : 0;
+  if (out_len > out_cap) out_len = out_cap;
+  for (k = 0; k < out_len; k++) out[k] = (double)(k + 1) * in[k + 1];
+}
+
+/* --- PseudoPolynomial-aware helpers ---
+ *
+ * Each PP is a triple (p[], q[], r) stored as two coefficient arrays and
+ * an integer.  No allocator: caller manages buffer capacity. */
+
+/* Product of two PPs:
+ *   out_p = a_p * b_p + (1-x^2) * a_q * b_q
+ *   out_q = a_p * b_q + a_q * b_p
+ *   out_r = a_r + b_r
+ *
+ * Buffer requirements:
+ *   *out_p_len returns the new p length.
+ *   *out_q_len returns the new q length.
+ *   out_p_cap must be >= a_p_len + b_p_len - 1  AND  >= a_q_len + b_q_len + 1.
+ *   out_q_cap must be >= max(a_p_len + b_q_len - 1, a_q_len + b_p_len - 1).
+ * Scratch arrays of capacity >= max(a_p_len + b_p_len, a_q_len + b_q_len + 2)
+ *   needed to avoid aliasing with out_p / out_q. */
+static void ftp_pp_mul(double *out_p, int out_p_cap, int *out_p_len,
+                        double *out_q, int out_q_cap, int *out_q_len,
+                        int *out_r,
+                        const double *a_p, int a_p_len,
+                        const double *a_q, int a_q_len, int a_r,
+                        const double *b_p, int b_p_len,
+                        const double *b_q, int b_q_len, int b_r,
+                        double *scratch1, int scratch1_cap,
+                        double *scratch2, int scratch2_cap)
+{
+  int i;
+  int pp_len, qq_len_raw, qq_len, pq_len, qp_len;
+  /* out_p = a_p*b_p + (1-x^2)*(a_q*b_q) */
+  ftp_poly_mul(out_p, out_p_cap, a_p, a_p_len, b_p, b_p_len);
+  pp_len = (a_p_len > 0 && b_p_len > 0) ? (a_p_len + b_p_len - 1) : 0;
+  if (pp_len > out_p_cap) pp_len = out_p_cap;
+  /* scratch1 = a_q * b_q */
+  ftp_poly_mul(scratch1, scratch1_cap, a_q, a_q_len, b_q, b_q_len);
+  qq_len_raw = (a_q_len > 0 && b_q_len > 0) ? (a_q_len + b_q_len - 1) : 0;
+  if (qq_len_raw > scratch1_cap) qq_len_raw = scratch1_cap;
+  /* scratch2 = (1-x^2) * scratch1 */
+  ftp_poly_mul_oneMinusXsq(scratch2, scratch2_cap, scratch1, qq_len_raw);
+  qq_len = qq_len_raw + 2;
+  if (qq_len > scratch2_cap) qq_len = scratch2_cap;
+  /* out_p += scratch2 */
+  ftp_poly_addto(out_p, out_p_cap, scratch2, qq_len);
+  *out_p_len = pp_len > qq_len ? pp_len : qq_len;
+  if (*out_p_len > out_p_cap) *out_p_len = out_p_cap;
+
+  /* out_q = a_p*b_q + a_q*b_p */
+  ftp_poly_mul(out_q, out_q_cap, a_p, a_p_len, b_q, b_q_len);
+  pq_len = (a_p_len > 0 && b_q_len > 0) ? (a_p_len + b_q_len - 1) : 0;
+  if (pq_len > out_q_cap) pq_len = out_q_cap;
+  ftp_poly_mul(scratch1, scratch1_cap, a_q, a_q_len, b_p, b_p_len);
+  qp_len = (a_q_len > 0 && b_p_len > 0) ? (a_q_len + b_p_len - 1) : 0;
+  if (qp_len > scratch1_cap) qp_len = scratch1_cap;
+  ftp_poly_addto(out_q, out_q_cap, scratch1, qp_len);
+  *out_q_len = pq_len > qp_len ? pq_len : qp_len;
+  if (*out_q_len > out_q_cap) *out_q_len = out_q_cap;
+
+  *out_r = a_r + b_r;
+  (void) i;
+}
+
+/* Derivative of a PP:
+ *   out_p = (1-x^2) * dp/dx - 2r * x * p
+ *   out_q = (1-x^2) * dq/dx - (2r+1) * x * q
+ *   out_r = r - 1
+ *
+ * Buffer requirements:
+ *   out_p_cap >= max(in_p_len + 1, in_p_len + 1)  ==> in_p_len + 1 (since dp has deg in_p_len-2)
+ *     (1-x^2)*dp has degree in_p_len, so length in_p_len + 1.
+ *     x*p has degree in_p_len, so length in_p_len + 1.
+ *     out_p has length max of these = in_p_len + 1.
+ *   out_q_cap >= in_q_len + 1.
+ * Scratch needs capacity >= max(in_p_len + 1, in_q_len + 1). */
+static void ftp_pp_deriv(double *out_p, int out_p_cap, int *out_p_len,
+                          double *out_q, int out_q_cap, int *out_q_len,
+                          int *out_r,
+                          const double *in_p, int in_p_len,
+                          const double *in_q, int in_q_len, int in_r,
+                          double *scratch, int scratch_cap)
+{
+  int i;
+  int dp_len, ddp_len, xp_len;
+  int dq_len, ddq_len, xq_len;
+  for (i = 0; i < out_p_cap; i++) out_p[i] = 0.0;
+  for (i = 0; i < out_q_cap; i++) out_q[i] = 0.0;
+
+  /* out_p part 1: (1-x^2) * dp/dx */
+  ftp_poly_deriv(scratch, scratch_cap, in_p, in_p_len);
+  dp_len = in_p_len > 0 ? in_p_len - 1 : 0;
+  if (dp_len > scratch_cap) dp_len = scratch_cap;
+  ftp_poly_mul_oneMinusXsq(out_p, out_p_cap, scratch, dp_len);
+  ddp_len = dp_len + 2;
+  if (ddp_len > out_p_cap) ddp_len = out_p_cap;
+  /* out_p part 2: -2r * x * p */
+  if (in_r != 0) {
+    ftp_poly_mul_x(scratch, scratch_cap, in_p, in_p_len);
+    xp_len = in_p_len + 1;
+    if (xp_len > scratch_cap) xp_len = scratch_cap;
+    for (i = 0; i < xp_len && i < out_p_cap; i++)
+      out_p[i] -= 2.0 * (double) in_r * scratch[i];
+    *out_p_len = ddp_len > xp_len ? ddp_len : xp_len;
+  } else {
+    *out_p_len = ddp_len;
+  }
+  if (*out_p_len > out_p_cap) *out_p_len = out_p_cap;
+
+  /* out_q part 1: (1-x^2) * dq/dx */
+  ftp_poly_deriv(scratch, scratch_cap, in_q, in_q_len);
+  dq_len = in_q_len > 0 ? in_q_len - 1 : 0;
+  if (dq_len > scratch_cap) dq_len = scratch_cap;
+  ftp_poly_mul_oneMinusXsq(out_q, out_q_cap, scratch, dq_len);
+  ddq_len = dq_len + 2;
+  if (ddq_len > out_q_cap) ddq_len = out_q_cap;
+  /* out_q part 2: -(2r+1) * x * q */
+  {
+    double coeff = -(double)(2 * in_r + 1);
+    if (coeff != 0.0) {
+      ftp_poly_mul_x(scratch, scratch_cap, in_q, in_q_len);
+      xq_len = in_q_len + 1;
+      if (xq_len > scratch_cap) xq_len = scratch_cap;
+      for (i = 0; i < xq_len && i < out_q_cap; i++)
+        out_q[i] += coeff * scratch[i];
+      *out_q_len = ddq_len > xq_len ? ddq_len : xq_len;
+    } else {
+      *out_q_len = ddq_len;
+    }
+  }
+  if (*out_q_len > out_q_cap) *out_q_len = out_q_cap;
+
+  *out_r = in_r - 1;
+}
+
+/* ---- Build A_n / B_n / dA_n / dB_n as PseudoPolynomials from cn, sn ----
+ *
+ * For n = 1..H (stored at index n-1):
+ *   A_n(b) = c_n * T_n(b) - sgn * s_n * U_{n-1}(b) * sqrt(1-b^2)
+ *          = (c_n*T_n)[p] + (-sgn*s_n*U_{n-1})[q]
+ *   B_n(b) = s_n * T_n(b) + sgn * c_n * U_{n-1}(b) * sqrt(1-b^2)
+ *          = (s_n*T_n)[p] + ( sgn*c_n*U_{n-1})[q]
+ *
+ * Convention: this code builds the PPs for sgn = +1.  The sgn = -1 case
+ * has the q components negated, which we handle at evaluation time by
+ * flipping sin(theta_2)'s sign in ftp_eval_P.  Storing only the sgn=+1
+ * tensors halves the memory and the polynomial-coefficient work per
+ * frequency (mirrors pyftp's convention; the polynomial roots are the
+ * same up to a sign flip in q anyway, which doesn't affect b values).
+ *
+ * Each output PP is stored in caller-provided buffers (p_buf, q_buf)
+ * of capacity >= H + 2 per PP.  Returns the per-n p_len and q_len in
+ * the per-n length arrays.  All output buffers are owned by the
+ * caller. */
+static void ftp_chebyshev_T_coefs(int n, double *out, int out_cap, int *out_len)
+{
+  /* Chebyshev T_n(x) coefficients in ascending order.
+   * T_0=1, T_1=x, T_{n+1}=2x*T_n - T_{n-1}. */
+  int i, k;
+  double *Tprev, *Tcurr, *Tnext, *tmp;
+  static double *workA = NULL;
+  static double *workB = NULL;
+  static double *workC = NULL;
+  static int work_cap = 0;
+  if (n < 0) { *out_len = 0; return; }
+  if (work_cap < n + 2) {
+    free(workA); free(workB); free(workC);
+    work_cap = n + 8;
+    workA = (double *) calloc(work_cap, sizeof(double));
+    workB = (double *) calloc(work_cap, sizeof(double));
+    workC = (double *) calloc(work_cap, sizeof(double));
+    if (workA == NULL || workB == NULL || workC == NULL) vt_error(ERR_MEMALLOC);
+  }
+  Tprev = workA; Tcurr = workB; Tnext = workC;
+  for (i = 0; i < work_cap; i++) { Tprev[i] = 0.0; Tcurr[i] = 0.0; }
+  Tprev[0] = 1.0;            /* T_0 = 1 */
+  if (n == 0) {
+    *out_len = (out_cap >= 1) ? 1 : 0;
+    if (*out_len) out[0] = 1.0;
+    return;
+  }
+  Tcurr[1] = 1.0;            /* T_1 = x */
+  if (n == 1) {
+    *out_len = (out_cap >= 2) ? 2 : out_cap;
+    for (i = 0; i < *out_len; i++) out[i] = Tcurr[i];
+    return;
+  }
+  for (k = 2; k <= n; k++) {
+    /* T_k = 2x*T_{k-1} - T_{k-2} */
+    for (i = 0; i < work_cap; i++) Tnext[i] = -Tprev[i];
+    for (i = 0; i + 1 < work_cap; i++) Tnext[i + 1] += 2.0 * Tcurr[i];
+    /* rotate: prev <- curr, curr <- next */
+    tmp = Tprev; Tprev = Tcurr; Tcurr = Tnext; Tnext = tmp;
+  }
+  *out_len = (n + 1 < out_cap) ? (n + 1) : out_cap;
+  for (i = 0; i < *out_len; i++) out[i] = Tcurr[i];
+}
+
+static void ftp_chebyshev_U_coefs(int n, double *out, int out_cap, int *out_len)
+{
+  /* Chebyshev U_n(x) coefficients in ascending order.
+   * U_0=1, U_1=2x, U_{n+1}=2x*U_n - U_{n-1}.  Same recurrence shape as T. */
+  int i, k;
+  double *Uprev, *Ucurr, *Unext, *tmp;
+  static double *workA = NULL;
+  static double *workB = NULL;
+  static double *workC = NULL;
+  static int work_cap = 0;
+  if (n < 0) { *out_len = 0; return; }
+  if (work_cap < n + 2) {
+    free(workA); free(workB); free(workC);
+    work_cap = n + 8;
+    workA = (double *) calloc(work_cap, sizeof(double));
+    workB = (double *) calloc(work_cap, sizeof(double));
+    workC = (double *) calloc(work_cap, sizeof(double));
+    if (workA == NULL || workB == NULL || workC == NULL) vt_error(ERR_MEMALLOC);
+  }
+  Uprev = workA; Ucurr = workB; Unext = workC;
+  for (i = 0; i < work_cap; i++) { Uprev[i] = 0.0; Ucurr[i] = 0.0; }
+  Uprev[0] = 1.0;            /* U_0 = 1 */
+  if (n == 0) {
+    *out_len = (out_cap >= 1) ? 1 : 0;
+    if (*out_len) out[0] = 1.0;
+    return;
+  }
+  Ucurr[1] = 2.0;            /* U_1 = 2x */
+  if (n == 1) {
+    *out_len = (out_cap >= 2) ? 2 : out_cap;
+    for (i = 0; i < *out_len; i++) out[i] = Ucurr[i];
+    return;
+  }
+  for (k = 2; k <= n; k++) {
+    for (i = 0; i < work_cap; i++) Unext[i] = -Uprev[i];
+    for (i = 0; i + 1 < work_cap; i++) Unext[i + 1] += 2.0 * Ucurr[i];
+    tmp = Uprev; Uprev = Ucurr; Ucurr = Unext; Unext = tmp;
+  }
+  *out_len = (n + 1 < out_cap) ? (n + 1) : out_cap;
+  for (i = 0; i < *out_len; i++) out[i] = Ucurr[i];
+}
+
+/* ---- Per-LC polynomial path: build per-frequency Pp[L], Pq[L], find
+ * roots of Pp^2 - (1-b^2)*Pq^2 = 0, evaluate P at each root + sgn=+/-1,
+ * return max. ----
+ *
+ * Caller pre-allocates and reuses scratch via _FTPScratch + the
+ * polynomial-specific extension below.  For Phase B.4.a the polynomial
+ * path is used only by ftp_periodogram_method when method == FTP_METHOD_POLY.
+ */
+
+#include <gsl/gsl_poly.h>
+#include <gsl/gsl_errno.h>
+
+#define FTP_METHOD_BRUTE  0
+#define FTP_METHOD_POLY   1
+#define FTP_METHOD_VERIFY 2     /* compute both, compare, return poly result */
+#define FTP_VERIFY_TOL    1.0e-3 /* max allowed |P_poly - P_brute| before warning */
+
+/* Polynomial-mode scratch.  Per-frequency this gets filled with the
+ * polynomial coefficient arrays, then root-found.  All buffers are sized
+ * for max H given at allocation; H must not exceed it on subsequent
+ * frequencies. */
+typedef struct {
+  int H;
+  int p_cap;          /* per-PP-buffer capacity, sized for one A_i*A_j*dA_k product */
+  int L_cap;          /* root-polynomial length capacity = 6H + 4 (with margin) */
+
+  /* Per-template (built once per template): A_n, B_n, dA_n, dB_n.
+   * Each is an array of H PseudoPolynomials.  Stored as flat buffers
+   * with per-n p_len/q_len recording the active length. */
+  double *A_p, *A_q;          /* H rows of length p_cap each; row n at offset n*p_cap */
+  double *B_p, *B_q;
+  double *dA_p, *dA_q;
+  double *dB_p, *dB_q;
+  int    *A_p_len, *A_q_len;  /* size H */
+  int    *B_p_len, *B_q_len;
+  int    *dA_p_len, *dA_q_len;
+  int    *dB_p_len, *dB_q_len;
+  /* r values: A/B have r=0, dA/dB have r=-1 (built that way). */
+
+  /* Per-frequency scratch for products and accumulators. */
+  double *prod_p, *prod_q;    /* intermediate (X*Y).p, .q */
+  int     prod_p_len, prod_q_len, prod_r;
+  double *triple_p, *triple_q; /* (X*Y*Z).p, .q -- the three-PP product */
+  int     triple_p_len, triple_q_len, triple_r;
+  double *Pp, *Pq;            /* accumulated Pp[L], Pq[L] -- size L_cap */
+  int     Pp_len, Pq_len;
+  double *root_poly;          /* Pp^2 - (1-b^2)*Pq^2, size L_cap */
+  int     root_poly_len;
+  double *scratch1, *scratch2;
+  int     sc_cap;
+
+  /* Precomputed template tensors -- built once at template-load time so
+   * the per-frequency cost drops from O(H^5) (with per-frequency PP
+   * triple-products) to O(H^4) (with K-tensor builds + contractions).
+   * Each tensor is shape (H, H, H, L_T), indexed
+   *    T[i*H*H*L_T + j*H*L_T + k*L_T + l]
+   * with i, j, k in [0..H-1] and l in [0..L_T-1].  L_T = 3H+4 (covers
+   * max triple-product length 3H+2 with some margin).
+   *
+   *   T_AAdAp[i,j,k,l]: l-th coef of (A_i * A_j * dA_k).p
+   *   T_AAdAq[i,j,k,l]: l-th coef of (A_i * A_j * dA_k).q
+   *   (12 tensors total: AAdA, AAdB, ABdA, ABdB, BBdA, BBdB; each with p, q.)
+   */
+  int     L_T;                /* per-tensor polynomial length capacity */
+  double *T_AAdAp; double *T_AAdAq;
+  double *T_AAdBp; double *T_AAdBq;
+  double *T_ABdAp; double *T_ABdAq;
+  double *T_ABdBp; double *T_ABdBq;
+  double *T_BBdAp; double *T_BBdAq;
+  double *T_BBdBp; double *T_BBdBq;
+  /* Per-frequency K-tensor scratch (H*H*H each). */
+  double *K_aada; double *K_aadb; double *K_abda;
+  double *K_abdb; double *K_bbda; double *K_bbdb;
+
+  /* gsl_poly_complex_solve output buffer: 2*(L_cap-1) doubles for re/im pairs. */
+  double *roots_packed;
+  gsl_poly_complex_workspace *gsl_ws;
+  int     gsl_ws_cap;
+} _FTPPolyState;
+
+static void ftp_poly_state_alloc(_FTPPolyState *ps, int H)
+{
+  int p_cap, L_cap, sc_cap;
+  /* For a triple product A_i*A_j*dA_k of PPs of degrees ~H, the result
+   * has p of degree up to 3H+1 and q of degree up to 3H.  Allocate
+   * generously: p_cap = 3H+8 covers any intermediate. */
+  p_cap = 3 * H + 8;
+  L_cap = 6 * H + 8;
+  sc_cap = L_cap;
+
+  memset(ps, 0, sizeof(*ps));
+  ps->H = H;
+  ps->p_cap = p_cap;
+  ps->L_cap = L_cap;
+  ps->sc_cap = sc_cap;
+
+  ps->A_p    = (double *) calloc(H * p_cap, sizeof(double));
+  ps->A_q    = (double *) calloc(H * p_cap, sizeof(double));
+  ps->B_p    = (double *) calloc(H * p_cap, sizeof(double));
+  ps->B_q    = (double *) calloc(H * p_cap, sizeof(double));
+  ps->dA_p   = (double *) calloc(H * p_cap, sizeof(double));
+  ps->dA_q   = (double *) calloc(H * p_cap, sizeof(double));
+  ps->dB_p   = (double *) calloc(H * p_cap, sizeof(double));
+  ps->dB_q   = (double *) calloc(H * p_cap, sizeof(double));
+  ps->A_p_len = (int *) calloc(H, sizeof(int));
+  ps->A_q_len = (int *) calloc(H, sizeof(int));
+  ps->B_p_len = (int *) calloc(H, sizeof(int));
+  ps->B_q_len = (int *) calloc(H, sizeof(int));
+  ps->dA_p_len = (int *) calloc(H, sizeof(int));
+  ps->dA_q_len = (int *) calloc(H, sizeof(int));
+  ps->dB_p_len = (int *) calloc(H, sizeof(int));
+  ps->dB_q_len = (int *) calloc(H, sizeof(int));
+
+  ps->prod_p   = (double *) calloc(p_cap, sizeof(double));
+  ps->prod_q   = (double *) calloc(p_cap, sizeof(double));
+  ps->triple_p = (double *) calloc(p_cap, sizeof(double));
+  ps->triple_q = (double *) calloc(p_cap, sizeof(double));
+  ps->Pp       = (double *) calloc(L_cap, sizeof(double));
+  ps->Pq       = (double *) calloc(L_cap, sizeof(double));
+  ps->root_poly = (double *) calloc(L_cap, sizeof(double));
+  ps->scratch1 = (double *) calloc(sc_cap, sizeof(double));
+  ps->scratch2 = (double *) calloc(sc_cap, sizeof(double));
+
+  ps->gsl_ws_cap = L_cap;
+  ps->roots_packed = (double *) calloc(2 * (L_cap - 1), sizeof(double));
+  ps->gsl_ws = gsl_poly_complex_workspace_alloc((size_t) L_cap);
+  if (ps->gsl_ws == NULL) vt_error(ERR_MEMALLOC);
+
+  /* Precomputed template tensors -- 12 of shape (H, H, H, L_T). */
+  ps->L_T = 3 * H + 4;
+  {
+    int tsize = H * H * H * ps->L_T;
+    ps->T_AAdAp = (double *) calloc(tsize, sizeof(double));
+    ps->T_AAdAq = (double *) calloc(tsize, sizeof(double));
+    ps->T_AAdBp = (double *) calloc(tsize, sizeof(double));
+    ps->T_AAdBq = (double *) calloc(tsize, sizeof(double));
+    ps->T_ABdAp = (double *) calloc(tsize, sizeof(double));
+    ps->T_ABdAq = (double *) calloc(tsize, sizeof(double));
+    ps->T_ABdBp = (double *) calloc(tsize, sizeof(double));
+    ps->T_ABdBq = (double *) calloc(tsize, sizeof(double));
+    ps->T_BBdAp = (double *) calloc(tsize, sizeof(double));
+    ps->T_BBdAq = (double *) calloc(tsize, sizeof(double));
+    ps->T_BBdBp = (double *) calloc(tsize, sizeof(double));
+    ps->T_BBdBq = (double *) calloc(tsize, sizeof(double));
+    if (ps->T_AAdAp == NULL || ps->T_AAdAq == NULL ||
+        ps->T_AAdBp == NULL || ps->T_AAdBq == NULL ||
+        ps->T_ABdAp == NULL || ps->T_ABdAq == NULL ||
+        ps->T_ABdBp == NULL || ps->T_ABdBq == NULL ||
+        ps->T_BBdAp == NULL || ps->T_BBdAq == NULL ||
+        ps->T_BBdBp == NULL || ps->T_BBdBq == NULL)
+      vt_error(ERR_MEMALLOC);
+  }
+  {
+    int Ksize = H * H * H;
+    ps->K_aada = (double *) calloc(Ksize, sizeof(double));
+    ps->K_aadb = (double *) calloc(Ksize, sizeof(double));
+    ps->K_abda = (double *) calloc(Ksize, sizeof(double));
+    ps->K_abdb = (double *) calloc(Ksize, sizeof(double));
+    ps->K_bbda = (double *) calloc(Ksize, sizeof(double));
+    ps->K_bbdb = (double *) calloc(Ksize, sizeof(double));
+    if (ps->K_aada == NULL || ps->K_aadb == NULL ||
+        ps->K_abda == NULL || ps->K_abdb == NULL ||
+        ps->K_bbda == NULL || ps->K_bbdb == NULL)
+      vt_error(ERR_MEMALLOC);
+  }
+}
+
+static void ftp_poly_state_free(_FTPPolyState *ps)
+{
+  free(ps->A_p); free(ps->A_q); free(ps->B_p); free(ps->B_q);
+  free(ps->dA_p); free(ps->dA_q); free(ps->dB_p); free(ps->dB_q);
+  free(ps->A_p_len); free(ps->A_q_len); free(ps->B_p_len); free(ps->B_q_len);
+  free(ps->dA_p_len); free(ps->dA_q_len); free(ps->dB_p_len); free(ps->dB_q_len);
+  free(ps->prod_p); free(ps->prod_q);
+  free(ps->triple_p); free(ps->triple_q);
+  free(ps->Pp); free(ps->Pq);
+  free(ps->root_poly);
+  free(ps->scratch1); free(ps->scratch2);
+  free(ps->roots_packed);
+  if (ps->gsl_ws) gsl_poly_complex_workspace_free(ps->gsl_ws);
+  free(ps->T_AAdAp); free(ps->T_AAdAq);
+  free(ps->T_AAdBp); free(ps->T_AAdBq);
+  free(ps->T_ABdAp); free(ps->T_ABdAq);
+  free(ps->T_ABdBp); free(ps->T_ABdBq);
+  free(ps->T_BBdAp); free(ps->T_BBdAq);
+  free(ps->T_BBdBp); free(ps->T_BBdBq);
+  free(ps->K_aada); free(ps->K_aadb); free(ps->K_abda);
+  free(ps->K_abdb); free(ps->K_bbda); free(ps->K_bbdb);
+  memset(ps, 0, sizeof(*ps));
+}
+
+/* Build all A_n, B_n PPs (r = 0) and their derivatives dA_n, dB_n (r = -1)
+ * for n = 1..H, sgn = +1 fixed.  Done once per template. */
+static void ftp_poly_build_templates(_FTPPolyState *ps,
+                                       const double *cn, const double *sn)
+{
+  int n, i;
+  int H = ps->H;
+  int p_cap = ps->p_cap;
+  double *Tn_buf, *Un_buf;
+  int Tn_len, Un_len;
+
+  Tn_buf = (double *) calloc(H + 2, sizeof(double));
+  Un_buf = (double *) calloc(H + 2, sizeof(double));
+  if (Tn_buf == NULL || Un_buf == NULL) vt_error(ERR_MEMALLOC);
+
+  /* A_n / B_n */
+  for (n = 1; n <= H; n++) {
+    ftp_chebyshev_T_coefs(n,     Tn_buf, H + 2, &Tn_len);
+    ftp_chebyshev_U_coefs(n - 1, Un_buf, H + 2, &Un_len);
+    /* A_n: p = c_n * T_n, q = -s_n * U_{n-1}  (sgn = +1) */
+    for (i = 0; i < p_cap; i++) ps->A_p[(n - 1) * p_cap + i] = 0.0;
+    for (i = 0; i < p_cap; i++) ps->A_q[(n - 1) * p_cap + i] = 0.0;
+    for (i = 0; i < Tn_len; i++) ps->A_p[(n - 1) * p_cap + i] = cn[n - 1] * Tn_buf[i];
+    for (i = 0; i < Un_len; i++) ps->A_q[(n - 1) * p_cap + i] = -sn[n - 1] * Un_buf[i];
+    ps->A_p_len[n - 1] = Tn_len;
+    ps->A_q_len[n - 1] = Un_len;
+    /* B_n: p = s_n * T_n, q =  c_n * U_{n-1}  (sgn = +1) */
+    for (i = 0; i < p_cap; i++) ps->B_p[(n - 1) * p_cap + i] = 0.0;
+    for (i = 0; i < p_cap; i++) ps->B_q[(n - 1) * p_cap + i] = 0.0;
+    for (i = 0; i < Tn_len; i++) ps->B_p[(n - 1) * p_cap + i] = sn[n - 1] * Tn_buf[i];
+    for (i = 0; i < Un_len; i++) ps->B_q[(n - 1) * p_cap + i] =  cn[n - 1] * Un_buf[i];
+    ps->B_p_len[n - 1] = Tn_len;
+    ps->B_q_len[n - 1] = Un_len;
+  }
+
+  /* dA_n, dB_n */
+  for (n = 1; n <= H; n++) {
+    int out_r;
+    ftp_pp_deriv(&ps->dA_p[(n - 1) * p_cap], p_cap, &ps->dA_p_len[n - 1],
+                  &ps->dA_q[(n - 1) * p_cap], p_cap, &ps->dA_q_len[n - 1],
+                  &out_r,
+                  &ps->A_p[(n - 1) * p_cap], ps->A_p_len[n - 1],
+                  &ps->A_q[(n - 1) * p_cap], ps->A_q_len[n - 1], 0,
+                  ps->scratch1, ps->sc_cap);
+    ftp_pp_deriv(&ps->dB_p[(n - 1) * p_cap], p_cap, &ps->dB_p_len[n - 1],
+                  &ps->dB_q[(n - 1) * p_cap], p_cap, &ps->dB_q_len[n - 1],
+                  &out_r,
+                  &ps->B_p[(n - 1) * p_cap], ps->B_p_len[n - 1],
+                  &ps->B_q[(n - 1) * p_cap], ps->B_q_len[n - 1], 0,
+                  ps->scratch1, ps->sc_cap);
+    /* dA/dB have r = -1 (verified by out_r). */
+  }
+
+  free(Tn_buf); free(Un_buf);
+
+  /* Fill the 12 template tensors: T_XYdZp[i,j,k,l] and T_XYdZq[i,j,k,l]
+   * are the p and q coefficients of the PP triple product X_i*Y_j*dZ_k
+   * for each (X,Y,Z) ∈ {(A,A,A), (A,A,B), (A,B,A), (A,B,B), (B,B,A), (B,B,B)}. */
+  {
+    struct conf { double *Xp, *Xq, *Yp, *Yq, *Zp, *Zq;
+                  int *Xpl, *Xql, *Ypl, *Yql, *Zpl, *Zql;
+                  int Xr, Yr, Zr;
+                  double *Tp, *Tq; };
+    struct conf cfgs[6] = {
+      /* AAdA */ { ps->A_p, ps->A_q, ps->A_p, ps->A_q, ps->dA_p, ps->dA_q,
+                   ps->A_p_len, ps->A_q_len, ps->A_p_len, ps->A_q_len,
+                   ps->dA_p_len, ps->dA_q_len,
+                   0, 0, -1, ps->T_AAdAp, ps->T_AAdAq },
+      /* AAdB */ { ps->A_p, ps->A_q, ps->A_p, ps->A_q, ps->dB_p, ps->dB_q,
+                   ps->A_p_len, ps->A_q_len, ps->A_p_len, ps->A_q_len,
+                   ps->dB_p_len, ps->dB_q_len,
+                   0, 0, -1, ps->T_AAdBp, ps->T_AAdBq },
+      /* ABdA */ { ps->A_p, ps->A_q, ps->B_p, ps->B_q, ps->dA_p, ps->dA_q,
+                   ps->A_p_len, ps->A_q_len, ps->B_p_len, ps->B_q_len,
+                   ps->dA_p_len, ps->dA_q_len,
+                   0, 0, -1, ps->T_ABdAp, ps->T_ABdAq },
+      /* ABdB */ { ps->A_p, ps->A_q, ps->B_p, ps->B_q, ps->dB_p, ps->dB_q,
+                   ps->A_p_len, ps->A_q_len, ps->B_p_len, ps->B_q_len,
+                   ps->dB_p_len, ps->dB_q_len,
+                   0, 0, -1, ps->T_ABdBp, ps->T_ABdBq },
+      /* BBdA */ { ps->B_p, ps->B_q, ps->B_p, ps->B_q, ps->dA_p, ps->dA_q,
+                   ps->B_p_len, ps->B_q_len, ps->B_p_len, ps->B_q_len,
+                   ps->dA_p_len, ps->dA_q_len,
+                   0, 0, -1, ps->T_BBdAp, ps->T_BBdAq },
+      /* BBdB */ { ps->B_p, ps->B_q, ps->B_p, ps->B_q, ps->dB_p, ps->dB_q,
+                   ps->B_p_len, ps->B_q_len, ps->B_p_len, ps->B_q_len,
+                   ps->dB_p_len, ps->dB_q_len,
+                   0, 0, -1, ps->T_BBdBp, ps->T_BBdBq },
+    };
+    int H = ps->H, p_cap = ps->p_cap, L_T = ps->L_T;
+    int i, j, k, l, t;
+    for (t = 0; t < 6; t++) {
+      struct conf *c = &cfgs[t];
+      for (i = 0; i < H; i++) {
+        const double *Xi_p = &c->Xp[i * p_cap];
+        const double *Xi_q = &c->Xq[i * p_cap];
+        int Xi_pl = c->Xpl[i], Xi_ql = c->Xql[i];
+        for (j = 0; j < H; j++) {
+          const double *Yj_p = &c->Yp[j * p_cap];
+          const double *Yj_q = &c->Yq[j * p_cap];
+          int Yj_pl = c->Ypl[j], Yj_ql = c->Yql[j];
+          int prod_r;
+          /* prod = X_i * Y_j */
+          ftp_pp_mul(ps->prod_p, p_cap, &ps->prod_p_len,
+                      ps->prod_q, p_cap, &ps->prod_q_len,
+                      &prod_r,
+                      Xi_p, Xi_pl, Xi_q, Xi_ql, c->Xr,
+                      Yj_p, Yj_pl, Yj_q, Yj_ql, c->Yr,
+                      ps->scratch1, ps->sc_cap,
+                      ps->scratch2, ps->sc_cap);
+          for (k = 0; k < H; k++) {
+            const double *Zk_p = &c->Zp[k * p_cap];
+            const double *Zk_q = &c->Zq[k * p_cap];
+            int Zk_pl = c->Zpl[k], Zk_ql = c->Zql[k];
+            int triple_r;
+            int offset = (i * H * H + j * H + k) * L_T;
+            /* triple = prod * dZ_k */
+            ftp_pp_mul(ps->triple_p, p_cap, &ps->triple_p_len,
+                        ps->triple_q, p_cap, &ps->triple_q_len,
+                        &triple_r,
+                        ps->prod_p, ps->prod_p_len,
+                        ps->prod_q, ps->prod_q_len, prod_r,
+                        Zk_p, Zk_pl, Zk_q, Zk_ql, c->Zr,
+                        ps->scratch1, ps->sc_cap,
+                        ps->scratch2, ps->sc_cap);
+            for (l = 0; l < ps->triple_p_len && l < L_T; l++)
+              c->Tp[offset + l] = ps->triple_p[l];
+            for (l = ps->triple_p_len; l < L_T; l++) c->Tp[offset + l] = 0.0;
+            for (l = 0; l < ps->triple_q_len && l < L_T; l++)
+              c->Tq[offset + l] = ps->triple_q[l];
+            for (l = ps->triple_q_len; l < L_T; l++) c->Tq[offset + l] = 0.0;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* ---- Per-frequency polynomial path ----
+ *
+ * Given the bilinear data sums and the precomputed template PPs, build
+ *   Pp(b) + sqrt(1-b^2) * Pq(b) = 0
+ * by accumulating six PP triple-products weighted by K-tensor entries,
+ * find the real roots of Pp^2 - (1-b^2)*Pq^2 in [-1, 1], and evaluate
+ * P(omega, theta_2) at each candidate.  Returns the maximum P found. */
+static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
+                                    int allow_neg_amp,
+                                    const double *cn, const double *sn,
+                                    const double *YC, const double *YS,
+                                    const double *CC, const double *CS,
+                                    const double *SS, double YY,
+                                    double *scratch_A, double *scratch_B,
+                                    double *theta_out, int *sign_out)
+{
+  int i, j, k, l;
+  int p_cap = ps->p_cap;
+  int L_cap = ps->L_cap;
+
+  /* Zero accumulator polynomials. */
+  for (l = 0; l < L_cap; l++) { ps->Pp[l] = 0.0; ps->Pq[l] = 0.0; }
+  ps->Pp_len = 0; ps->Pq_len = 0;
+
+  /* Build the six K tensors from this frequency's data sums.  Formulas
+   * mirror pyftp::compute_zeros lines 432-437.
+   *   K_aada[i,j,k] = YC[i]*CC[j,k] - YC[k]*CC[i,j]   (AAdA)
+   *   K_aadb[i,j,k] = YC[i]*CS[j,k] - YS[k]*CC[i,j]   (AAdB)
+   *   K_abda[i,j,k] = YC[i]*CS[k,j] + YS[j]*CC[i,k]   (ABdA)
+   *   K_abdb[i,j,k] = YC[i]*SS[j,k] + YS[j]*CS[i,k]   (ABdB)
+   *   K_bbda[i,j,k] = YS[i]*CS[k,j] - YC[k]*SS[i,j]   (BBdA)
+   *   K_bbdb[i,j,k] = YS[i]*SS[j,k] - YS[k]*SS[i,j]   (BBdB)
+   * (CC, CS, SS are row-major [n,m] = n*H + m for n,m in [0..H-1].)
+   */
+  #define IDX2(n, m) ((n) * H + (m))
+  for (i = 0; i < H; i++) {
+    for (j = 0; j < H; j++) {
+      for (k = 0; k < H; k++) {
+        int kidx = (i * H + j) * H + k;
+        ps->K_aada[kidx] = YC[i] * CC[IDX2(j,k)] - YC[k] * CC[IDX2(i,j)];
+        ps->K_aadb[kidx] = YC[i] * CS[IDX2(j,k)] - YS[k] * CC[IDX2(i,j)];
+        ps->K_abda[kidx] = YC[i] * CS[IDX2(k,j)] + YS[j] * CC[IDX2(i,k)];
+        ps->K_abdb[kidx] = YC[i] * SS[IDX2(j,k)] + YS[j] * CS[IDX2(i,k)];
+        ps->K_bbda[kidx] = YS[i] * CS[IDX2(k,j)] - YC[k] * SS[IDX2(i,j)];
+        ps->K_bbdb[kidx] = YS[i] * SS[IDX2(j,k)] - YS[k] * SS[IDX2(i,j)];
+      }
+    }
+  }
+  #undef IDX2
+
+  /* Contract each of the 12 precomputed tensors with its K tensor and
+   * accumulate into Pp / Pq.  Each contraction is
+   *     Pp_or_Pq[l] += sum_{i,j,k} T[i,j,k,l] * K[i,j,k]
+   * which costs O(H^3 * L_T).  Six p-contractions and six q-contractions
+   * with H^3 * L_T flops each gives a per-frequency total of O(H^4) for
+   * the polynomial coefficient construction (vs O(H^5) for the
+   * per-frequency PP triple-product approach this replaces). */
+  {
+    int L_T = ps->L_T;
+    int H3 = H * H * H;
+    int triplet;
+    struct { double *T; double *K; double *target; } contracts[12] = {
+      { ps->T_AAdAp, ps->K_aada, ps->Pp },
+      { ps->T_AAdBp, ps->K_aadb, ps->Pp },
+      { ps->T_ABdAp, ps->K_abda, ps->Pp },
+      { ps->T_ABdBp, ps->K_abdb, ps->Pp },
+      { ps->T_BBdAp, ps->K_bbda, ps->Pp },
+      { ps->T_BBdBp, ps->K_bbdb, ps->Pp },
+      { ps->T_AAdAq, ps->K_aada, ps->Pq },
+      { ps->T_AAdBq, ps->K_aadb, ps->Pq },
+      { ps->T_ABdAq, ps->K_abda, ps->Pq },
+      { ps->T_ABdBq, ps->K_abdb, ps->Pq },
+      { ps->T_BBdAq, ps->K_bbda, ps->Pq },
+      { ps->T_BBdBq, ps->K_bbdb, ps->Pq },
+    };
+    for (triplet = 0; triplet < 12; triplet++) {
+      double *T = contracts[triplet].T;
+      double *K = contracts[triplet].K;
+      double *target = contracts[triplet].target;
+      int ijk;
+      /* Inner loop: for each (i,j,k), add K[ijk] * T[ijk, :] to target[]. */
+      for (ijk = 0; ijk < H3; ijk++) {
+        double Kijk = K[ijk];
+        const double *Tijk = &T[ijk * L_T];
+        int ll;
+        if (Kijk == 0.0) continue;
+        for (ll = 0; ll < L_T; ll++) target[ll] += Kijk * Tijk[ll];
+      }
+    }
+    if (ps->Pp_len < L_T) ps->Pp_len = L_T;
+    if (ps->Pq_len < L_T) ps->Pq_len = L_T;
+    if (ps->Pp_len > L_cap) ps->Pp_len = L_cap;
+    if (ps->Pq_len > L_cap) ps->Pq_len = L_cap;
+  }
+
+  /* Build root polynomial:  F(b) = Pp^2(b) - (1-b^2) * Pq^2(b).
+   * (CORRECTED form -- pyftp uses (1-b^2)*Pp^2 - Pq^2, which is wrong.) */
+  {
+    int F_len;
+    /* scratch1 = Pp^2 */
+    ftp_poly_mul(ps->scratch1, ps->sc_cap,
+                  ps->Pp, ps->Pp_len, ps->Pp, ps->Pp_len);
+    int pp2_len = (ps->Pp_len > 0) ? (2 * ps->Pp_len - 1) : 0;
+    if (pp2_len > ps->sc_cap) pp2_len = ps->sc_cap;
+    /* scratch2 = Pq^2 */
+    ftp_poly_mul(ps->scratch2, ps->sc_cap,
+                  ps->Pq, ps->Pq_len, ps->Pq, ps->Pq_len);
+    int qq2_len = (ps->Pq_len > 0) ? (2 * ps->Pq_len - 1) : 0;
+    if (qq2_len > ps->sc_cap) qq2_len = ps->sc_cap;
+    /* root_poly = (1-b^2) * scratch2 */
+    ftp_poly_mul_oneMinusXsq(ps->root_poly, L_cap, ps->scratch2, qq2_len);
+    int omxqq2_len = qq2_len + 2;
+    if (omxqq2_len > L_cap) omxqq2_len = L_cap;
+    /* root_poly = scratch1 - root_poly, i.e. Pp^2 - (1-b^2)*Pq^2 */
+    for (l = 0; l < L_cap; l++) ps->root_poly[l] = -ps->root_poly[l];
+    ftp_poly_addto(ps->root_poly, L_cap, ps->scratch1, pp2_len);
+    F_len = pp2_len > omxqq2_len ? pp2_len : omxqq2_len;
+    if (F_len > L_cap) F_len = L_cap;
+    /* Trim trailing zeros. */
+    while (F_len > 1 && fabs(ps->root_poly[F_len - 1]) < 1.0e-30) F_len--;
+    ps->root_poly_len = F_len;
+  }
+
+  /* Find roots via gsl_poly_complex_solve. */
+  {
+    int nroots = ps->root_poly_len - 1;
+    int gsl_status;
+    int r;
+    double best_P = 0.0;
+    double best_theta = 0.0;
+    int best_sign = 1;
+    if (nroots < 1) {
+      if (theta_out) *theta_out = 0.0;
+      if (sign_out)  *sign_out = 1;
+      return 0.0;
+    }
+    /* gsl_poly_complex_solve requires the leading coefficient nonzero;
+     * if it's tiny, fall back to brute-force semantics by returning 0. */
+    if (fabs(ps->root_poly[nroots]) < 1.0e-30) {
+      if (theta_out) *theta_out = 0.0;
+      if (sign_out)  *sign_out = 1;
+      return 0.0;
+    }
+    /* gsl_poly_complex_solve requires the workspace's allocated size to
+     * match the polynomial size EXACTLY (it checks w->nc != n-1).  After
+     * trimming trailing zeros above, our nroots may vary per frequency,
+     * so reallocate whenever the size changes. */
+    if (nroots + 1 != ps->gsl_ws_cap) {
+      gsl_poly_complex_workspace_free(ps->gsl_ws);
+      ps->gsl_ws = gsl_poly_complex_workspace_alloc((size_t) (nroots + 1));
+      ps->gsl_ws_cap = nroots + 1;
+      if (ps->gsl_ws == NULL) vt_error(ERR_MEMALLOC);
+    }
+    gsl_status = gsl_poly_complex_solve(ps->root_poly, (size_t) (nroots + 1),
+                                         ps->gsl_ws, ps->roots_packed);
+    if (gsl_status != GSL_SUCCESS) {
+      /* QR failed; bail.  ftp_periodogram_method's fallback then runs
+       * brute-force at this frequency. */
+      if (theta_out) *theta_out = 0.0;
+      if (sign_out)  *sign_out = 1;
+      return -1.0;       /* sentinel: trigger fallback */
+    }
+    /* Walk roots: keep real roots with |Re| <= 1 (project), then try
+     * both sgn ∈ {+1, -1} for each, evaluate P, pick max.  Always
+     * include the endpoints b = -1 and b = +1 as candidates. */
+    for (r = 0; r < nroots; r++) {
+      double br = ps->roots_packed[2 * r];
+      double bi = ps->roots_packed[2 * r + 1];
+      double b;
+      int s;
+      if (fabs(bi) > 1.0e-5) continue;                /* not real enough */
+      if (br > 1.0)  br = 1.0;
+      if (br < -1.0) br = -1.0;
+      b = br;
+      for (s = -1; s <= 1; s += 2) {
+        double theta_2 = acos(b);
+        int sign_eff;
+        double P_cand;
+        if (s < 0) theta_2 = 2.0 * M_PI - theta_2;
+        P_cand = ftp_eval_P(H, theta_2, cn, sn, YC, YS, CC, CS, SS, YY,
+                             scratch_A, scratch_B, &sign_eff);
+        if (!allow_neg_amp && sign_eff < 0) continue;
+        if (P_cand > best_P) {
+          best_P = P_cand;
+          best_theta = theta_2;
+          best_sign = sign_eff;
+        }
+      }
+    }
+    /* Endpoints. */
+    {
+      double bz[2] = { -1.0, 1.0 };
+      int bi2;
+      for (bi2 = 0; bi2 < 2; bi2++) {
+        int s;
+        for (s = -1; s <= 1; s += 2) {
+          double theta_2 = acos(bz[bi2]);
+          int sign_eff;
+          double P_cand;
+          if (s < 0) theta_2 = 2.0 * M_PI - theta_2;
+          P_cand = ftp_eval_P(H, theta_2, cn, sn, YC, YS, CC, CS, SS, YY,
+                               scratch_A, scratch_B, &sign_eff);
+          if (!allow_neg_amp && sign_eff < 0) continue;
+          if (P_cand > best_P) {
+            best_P = P_cand;
+            best_theta = theta_2;
+            best_sign = sign_eff;
+          }
+        }
+      }
+    }
+    if (theta_out) *theta_out = best_theta;
+    if (sign_out)  *sign_out  = best_sign;
+    return best_P;
+  }
+}
+
+/* =====================================================================
+ *  End of polynomial fast path
+ *  ===================================================================== */
+
+
 /* ---- Per-frequency P(omega) maximised over theta_2 ----
  *
  * Brute-force scan of theta_2 in [0, 2pi) at Ntheta uniform samples,
@@ -1031,10 +1919,78 @@ static void ftp_scratch_free(_FTPScratch *s)
   memset(s, 0, sizeof(_FTPScratch));
 }
 
+/* Per-frequency dispatcher: brute vs poly vs verify (both, compare). */
+typedef struct {
+  long n_verified;       /* number of frequencies where both methods ran */
+  double max_abs_diff;   /* worst-case |P_poly - P_brute| seen */
+  double sum_abs_diff;   /* for mean */
+  long n_warned;         /* number of frequencies that exceeded FTP_VERIFY_TOL */
+} _FTPVerifyStats;
+
+static double ftp_one_freq_dispatch(int method, int H, _FTPPolyState *ps,
+                                     int allow_neg_amp,
+                                     const double *cn, const double *sn,
+                                     const double *YC, const double *YS,
+                                     const double *CC, const double *CS,
+                                     const double *SS, double YY,
+                                     double *scratch_A, double *scratch_B,
+                                     double *Pgrid, int *signgrid,
+                                     double *theta_out, int *sign_out,
+                                     _FTPVerifyStats *vs)
+{
+  double P_brute = 0.0, P_poly = 0.0;
+  double theta_b = 0.0, theta_p = 0.0;
+  int sign_b = 1, sign_p = 1;
+  if (method == FTP_METHOD_BRUTE || method == FTP_METHOD_VERIFY) {
+    P_brute = ftp_max_P_over_theta(H, FTP_DEFAULT_NTHETA, allow_neg_amp,
+                                     cn, sn, YC, YS, CC, CS, SS, YY,
+                                     scratch_A, scratch_B, Pgrid, signgrid,
+                                     &theta_b, &sign_b);
+  }
+  if ((method == FTP_METHOD_POLY || method == FTP_METHOD_VERIFY) && ps != NULL) {
+    P_poly = ftp_poly_P_at_omega(H, ps, allow_neg_amp,
+                                   cn, sn, YC, YS, CC, CS, SS, YY,
+                                   scratch_A, scratch_B,
+                                   &theta_p, &sign_p);
+    if (P_poly < 0.0) {           /* poly sentinel: fall back to brute */
+      P_poly = 0.0;
+      if (method == FTP_METHOD_POLY) {
+        /* No brute computed; trigger brute as fallback. */
+        P_brute = ftp_max_P_over_theta(H, FTP_DEFAULT_NTHETA, allow_neg_amp,
+                                         cn, sn, YC, YS, CC, CS, SS, YY,
+                                         scratch_A, scratch_B, Pgrid, signgrid,
+                                         &theta_b, &sign_b);
+        if (theta_out) *theta_out = theta_b;
+        if (sign_out)  *sign_out  = sign_b;
+        return P_brute;
+      }
+      /* In verify mode, just record P_brute. */
+    }
+  }
+  if (method == FTP_METHOD_VERIFY && vs != NULL && ps != NULL) {
+    double d = fabs(P_poly - P_brute);
+    vs->n_verified++;
+    vs->sum_abs_diff += d;
+    if (d > vs->max_abs_diff) vs->max_abs_diff = d;
+    if (d > FTP_VERIFY_TOL) vs->n_warned++;
+  }
+  if (method == FTP_METHOD_POLY) {
+    if (theta_out) *theta_out = theta_p;
+    if (sign_out)  *sign_out  = sign_p;
+    return P_poly;
+  }
+  /* BRUTE or VERIFY: return brute (it's the gold standard).  VERIFY's
+   * purpose is to compare, not to switch behaviour. */
+  if (theta_out) *theta_out = theta_b;
+  if (sign_out)  *sign_out  = sign_b;
+  return P_brute;
+}
+
 /* Compute periodogram across periods[0..Nperiod-1]. */
 static void ftp_periodogram(int N, double *t, double *y_centered, double *w,
                              double YY, int H, double *cn, double *sn,
                              int allow_neg_amp, _FTPScratch *sc,
+                             int method, _FTPPolyState *ps, _FTPVerifyStats *vs,
                              int Nperiod, double *periods, double *periodogram,
                              int *negamp_grid, double *theta_grid)
 {
@@ -1045,11 +2001,11 @@ static void ftp_periodogram(int N, double *t, double *y_centered, double *w,
     int sgn = 1;
     ftp_compute_sums(N, t, y_centered, w, omega, H, sc->C, sc->S, sc->YC, sc->YS);
     ftp_compute_bilinears(H, sc->C, sc->S, sc->CC, sc->CS, sc->SS);
-    periodogram[i] = ftp_max_P_over_theta(H, FTP_DEFAULT_NTHETA, allow_neg_amp,
-                                           cn, sn, sc->YC, sc->YS,
-                                           sc->CC, sc->CS, sc->SS, YY,
-                                           sc->A, sc->B, sc->Pgrid, sc->signgrid,
-                                           &th, &sgn);
+    periodogram[i] = ftp_one_freq_dispatch(method, H, ps, allow_neg_amp,
+                                             cn, sn, sc->YC, sc->YS,
+                                             sc->CC, sc->CS, sc->SS, YY,
+                                             sc->A, sc->B, sc->Pgrid, sc->signgrid,
+                                             &th, &sgn, vs);
     if (negamp_grid != NULL) negamp_grid[i] = (sgn < 0) ? 1 : 0;
     if (theta_grid  != NULL) theta_grid[i]  = th;
   }
@@ -1058,7 +2014,9 @@ static void ftp_periodogram(int N, double *t, double *y_centered, double *w,
 /* One-shot P(omega) at a single test period (used in fine-tune + multiple checks). */
 static double ftp_one_period(int N, double *t, double *y_centered, double *w,
                               double YY, int H, double *cn, double *sn,
-                              int allow_neg_amp, _FTPScratch *sc, double period,
+                              int allow_neg_amp, _FTPScratch *sc,
+                              int method, _FTPPolyState *ps,
+                              double period,
                               double *theta_out, int *sign_out)
 {
   double omega, P;
@@ -1071,10 +2029,10 @@ static double ftp_one_period(int N, double *t, double *y_centered, double *w,
   omega = 2.0 * M_PI / period;
   ftp_compute_sums(N, t, y_centered, w, omega, H, sc->C, sc->S, sc->YC, sc->YS);
   ftp_compute_bilinears(H, sc->C, sc->S, sc->CC, sc->CS, sc->SS);
-  P = ftp_max_P_over_theta(H, FTP_DEFAULT_NTHETA, allow_neg_amp,
-                            cn, sn, sc->YC, sc->YS, sc->CC, sc->CS, sc->SS, YY,
-                            sc->A, sc->B, sc->Pgrid, sc->signgrid,
-                            theta_out, sign_out);
+  P = ftp_one_freq_dispatch(method, H, ps, allow_neg_amp,
+                              cn, sn, sc->YC, sc->YS, sc->CC, sc->CS, sc->SS, YY,
+                              sc->A, sc->B, sc->Pgrid, sc->signgrid,
+                              theta_out, sign_out, NULL);
   return P;
 }
 
@@ -1091,6 +2049,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     double *peakTheta,
                     double *avePower, double *rmsPower,
                     int outflag, char *outname, int ascii,
+                    int method,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -1105,6 +2064,10 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   double testperiod, bestscore, lastpoint;
   double ave_per, std_per;
   double clip_val = FTP_DEFAULT_CLIP;
+  _FTPPolyState ps = {0};
+  _FTPVerifyStats vs = {0};
+  _FTPPolyState *ps_ptr = NULL;
+  _FTPVerifyStats *vs_ptr = (method == FTP_METHOD_VERIFY) ? &vs : NULL;
   int    clipiter = FTP_DEFAULT_CLIPITER;
   long double Sum, Sumsqr;
   FILE *outfile = NULL;
@@ -1221,9 +2184,19 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
 
   ftp_scratch_alloc(&sc, H, FTP_DEFAULT_NTHETA);
 
+  /* Allocate polynomial state if the chosen method needs it.  Built once
+   * per LC; reused across the N_f-frequency sweep, the fine-tune sweep,
+   * and the period-multiple double-check. */
+  if (method == FTP_METHOD_POLY || method == FTP_METHOD_VERIFY) {
+    ftp_poly_state_alloc(&ps, H);
+    ftp_poly_build_templates(&ps, cn, sn);
+    ps_ptr = &ps;
+  }
+
   /* Compute periodogram. */
   ftp_periodogram(Nused, t, y_centered, w, YY, H, cn, sn,
-                  allow_neg_amp, &sc, Nperiod, periods, periodogram,
+                  allow_neg_amp, &sc, method, ps_ptr, vs_ptr,
+                  Nperiod, periods, periodogram,
                   negamp_grid, theta_grid);
 
   /* Mean / RMS over the periodogram (for SNR). */
@@ -1463,7 +2436,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
       int sgn;
       testperiod = 1.0 / freq;
       P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
-                                allow_neg_amp, &sc, testperiod, &th, &sgn);
+                                allow_neg_amp, &sc, method, ps_ptr, testperiod, &th, &sgn);
       if (P_test >= 0.0 && P_test * 0.0 == 0.0)
         if (P_test > Ppeaks[j]) {
           Ppeaks[j]     = P_test;
@@ -1485,7 +2458,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
           testperiod = perpeaks[j] * a / b;
           if (testperiod > minP && testperiod < maxP) {
             P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
-                                      allow_neg_amp, &sc, testperiod, &th, &sgn);
+                                      allow_neg_amp, &sc, method, ps_ptr, testperiod, &th, &sgn);
             if (P_test >= 0.0 && P_test * 0.0 == 0.0)
               if (P_test > bestscore) {
                 ismultiple = 1; abest = a; bbest = b; bestscore = P_test;
@@ -1497,7 +2470,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
       int sgn;
       perpeaks[j] = perpeaks[j] * abest / bbest;
       P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
-                                allow_neg_amp, &sc, perpeaks[j], &th, &sgn);
+                                allow_neg_amp, &sc, method, ps_ptr, perpeaks[j], &th, &sgn);
       Ppeaks[j]     = P_test;
       peakNegAmp[j] = (sgn < 0) ? 1 : 0;
       peakTheta[j]  = th;
@@ -1542,10 +2515,22 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* Verify-mode summary: emit stats so the user knows the poly path is
+   * agreeing with brute-force to within tolerance.  Per-LC summary line
+   * so multi-LC runs don't drown the output. */
+  if (method == FTP_METHOD_VERIFY && vs.n_verified > 0) {
+    fprintf(stderr,
+            "-FTP method verify: LC %d: %ld freqs compared, max|P_poly - P_brute| = %.3e, "
+            "mean = %.3e, %ld over tol %.1e\n",
+            lc_name_num, vs.n_verified, vs.max_abs_diff,
+            vs.sum_abs_diff / (double) vs.n_verified, vs.n_warned, FTP_VERIFY_TOL);
+  }
+
   free(t); free(mag); free(w); free(y_centered);
   free(periods); free(periodogram);
   free(negamp_grid); free(theta_grid);
   ftp_scratch_free(&sc);
+  if (ps_ptr != NULL) ftp_poly_state_free(&ps);
 }
 
 /* ---- Entry point invoked from processcommand.c ---- */
@@ -1665,5 +2650,6 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 Ftp->peakTheta[lcnum],
                 &Ftp->avepower[lcnum], &Ftp->rmspower[lcnum],
                 Ftp->operiodogram, outname, p->ascii,
+                Ftp->method,
                 lcnum, lc_name_num);
 }

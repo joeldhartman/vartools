@@ -4134,6 +4134,26 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  }
 
+	  /* "method" <brute | poly | verify> -- per-frequency solver choice.
+	   * Default brute (Phase A correctness).  poly = pyftp-style polynomial
+	   * root-finding (with the corrected p^2 - (1-b^2)*q^2 polynomial).
+	   * verify = compute both and report max |P_poly - P_brute| per LC. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "method")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "brute"))       c[cn].Ftp->method = 0;
+	    else if(!strcmp(argv[i], "poly"))   c[cn].Ftp->method = 1;
+	    else if(!strcmp(argv[i], "verify")) c[cn].Ftp->method = 2;
+	    else {
+	      fprintf(stderr, "-FTP: 'method' must be 'brute', 'poly', or 'verify'; got '%s'\n",
+	              argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
 	  cn++;
 	}
 

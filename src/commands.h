@@ -2429,6 +2429,8 @@ typedef struct {
   int     filelist_mode;       /* 1 when each LC has its own template file path */
   char  **template_filenames;  /* [Nlcs], populated by RegisterDataFromInputList */
 
+  int     method;              /* 0=brute (default), 1=poly, 2=verify(both + cmp) */
+
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
   int allow_neg_amp;
