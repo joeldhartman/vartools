@@ -2403,6 +2403,128 @@ static double ftp_one_period(int N, double *t, double *y_centered, double *w,
   return P;
 }
 
+/* ---- Bootstrap-empirical FAP calibration ----
+ *
+ * Run Nboot trials.  Each trial shuffles the magnitudes with replacement
+ * (Fisher-style), recomputes the periodogram, and records the MAX FTP
+ * power over the period grid.  Transform via t = log10(1 - P_max); under
+ * H_0 the most extreme (largest P, smallest 1-P, smallest t) trials sit
+ * at the front of the sorted distribution.  Fit a degree-1 polynomial to
+ * the front 10% as log10(FAP) = c0 + c1 * log10(1 - P).
+ *
+ * Mirrors -PDM's bootstrap with the obvious P -> 1-P sign flip. */
+#define FTP_BOOT_MINONEMINUSP 1.0e-32
+
+static void ftp_bootstrap_calibrate(int N, double *t, double *mag, double *w,
+                                     double YY, int H,
+                                     double *cn, double *sn,
+                                     int allow_neg_amp, _FTPScratch *sc,
+                                     int method, _FTPPolyState *ps, int sums_mode,
+                                     int Nperiod, double *periods,
+                                     int Nboot,
+                                     double *bootstrapdist,
+                                     double *fitcoeffs)
+{
+  int trial, j, k;
+  double *mag_shuf, *w_shuf, *y_centered_shuf, *pgram, *bprobs;
+  int *negamp_pg = NULL;
+  double *theta_pg = NULL;
+  double sumw, mu_s;
+  (void) YY;
+
+  mag_shuf        = (double *) malloc(N * sizeof(double));
+  w_shuf          = (double *) malloc(N * sizeof(double));
+  y_centered_shuf = (double *) malloc(N * sizeof(double));
+  pgram           = (double *) malloc(Nperiod * sizeof(double));
+  bprobs          = (double *) malloc(Nboot   * sizeof(double));
+  negamp_pg       = (int *)    malloc(Nperiod * sizeof(int));
+  theta_pg        = (double *) malloc(Nperiod * sizeof(double));
+  if (mag_shuf == NULL || w_shuf == NULL || y_centered_shuf == NULL ||
+      pgram == NULL || bprobs == NULL || negamp_pg == NULL || theta_pg == NULL)
+    vt_error(ERR_MEMALLOC);
+
+  for (trial = 0; trial < Nboot; trial++) {
+    double YY_s;
+    /* Shuffle with replacement (same convention as -LS / -PDM bootstrap). */
+    for (j = 0; j < N; j++) {
+      long klong = randlong(N - 1);
+      mag_shuf[j] = mag[klong];
+      w_shuf[j]   = w[klong];
+    }
+    sumw = 0.0;
+    for (j = 0; j < N; j++) sumw += w_shuf[j];
+    if (!(sumw > 0.0)) { bootstrapdist[trial] = log10(FTP_BOOT_MINONEMINUSP); continue; }
+    for (j = 0; j < N; j++) w_shuf[j] /= sumw;
+    mu_s = 0.0;
+    for (j = 0; j < N; j++) mu_s += w_shuf[j] * mag_shuf[j];
+    YY_s = 0.0;
+    for (j = 0; j < N; j++) {
+      double dy = mag_shuf[j] - mu_s;
+      y_centered_shuf[j] = dy;
+      YY_s += w_shuf[j] * dy * dy;
+    }
+    if (YY_s < FTP_MINVAR) { bootstrapdist[trial] = log10(FTP_BOOT_MINONEMINUSP); continue; }
+
+    ftp_periodogram(N, t, y_centered_shuf, w_shuf, YY_s, H, cn, sn,
+                     allow_neg_amp, sc, method, ps, NULL, sums_mode,
+                     Nperiod, periods, pgram, negamp_pg, theta_pg);
+
+    /* Record the most extreme (largest) P over the search range. */
+    {
+      double Pmax = 0.0;
+      double one_minus_P;
+      for (j = 0; j < Nperiod; j++) {
+        double v = pgram[j];
+        if (v >= 0.0 && v * 0.0 == 0.0)
+          if (v > Pmax) Pmax = v;
+      }
+      one_minus_P = 1.0 - Pmax;
+      if (one_minus_P < FTP_BOOT_MINONEMINUSP) one_minus_P = FTP_BOOT_MINONEMINUSP;
+      bootstrapdist[trial] = log10(one_minus_P);
+    }
+  }
+
+  /* Sort ascending: smallest log10(1-P) at front = most extreme. */
+  mysort1(Nboot, bootstrapdist);
+
+  /* Empirical log10(FAP) at the k-th sorted entry = log10((k+1)/Nboot). */
+  for (k = 0; k < Nboot; k++)
+    bprobs[k] = log10((double)(k + 1) / (double)Nboot);
+
+  /* Fit a degree-1 polynomial to the front 10% (most extreme tail):
+   * log10_FAP = c0 + c1 * log10(1 - P). */
+  {
+    int nfit = (int) floor(0.1 * (double) Nboot);
+    if (nfit < 2)     nfit = 2;
+    if (nfit > Nboot) nfit = Nboot;
+    fitpoly(nfit, bootstrapdist, bprobs, NULL, 1, 0, fitcoeffs, NULL);
+  }
+
+  free(mag_shuf); free(w_shuf); free(y_centered_shuf);
+  free(pgram); free(bprobs); free(negamp_pg); free(theta_pg);
+}
+
+/* Look up empirical log10(FAP) for an observed P_peak. */
+static double ftp_bootstrap_log10fap(double P_peak, int Nboot,
+                                       double *bootstrapdist_log,
+                                       double *fitcoeffs)
+{
+  double t_obs;
+  int ind;
+  double one_minus_P;
+  if (P_peak > 1.0) P_peak = 1.0;
+  if (P_peak < 0.0) P_peak = 0.0;
+  one_minus_P = 1.0 - P_peak;
+  if (one_minus_P < FTP_BOOT_MINONEMINUSP) one_minus_P = FTP_BOOT_MINONEMINUSP;
+  t_obs = log10(one_minus_P);
+  ind = findX(bootstrapdist_log, t_obs, 0, Nboot);
+  if (ind == 0) {
+    /* More extreme than any bootstrap trial -- extrapolate via tail fit. */
+    return fitcoeffs[0] + fitcoeffs[1] * t_obs;
+  }
+  return log10((double) ind / (double) Nboot);
+}
+
 /* ---- Per-LC peak finder ---- */
 
 void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
@@ -2424,6 +2546,8 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     int fix_on, double fix_period,
                     double *fix_power_ptr, double *fix_SNR_ptr,
                     int    *fix_negamp_ptr, double *fix_theta_ptr,
+                    double *fix_FAP_ptr,
+                    int bootstrap_Nboot, double *peakFAP,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -2572,6 +2696,20 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     ftp_poly_state_alloc(&ps, H);
     ftp_poly_build_templates(&ps, cn, sn);
     ps_ptr = &ps;
+  }
+
+  /* Bootstrap-empirical FAP calibration.  Runs BEFORE any whitening so
+   * the H_0 distribution is determined by the original LC's time
+   * sampling and noise structure.  Stays NULL when bootstrap is off. */
+  double *bootstrapdist = NULL;
+  double bootstrap_fitcoeffs[2] = {0.0, 0.0};
+  if (bootstrap_Nboot > 0) {
+    bootstrapdist = (double *) malloc(bootstrap_Nboot * sizeof(double));
+    if (bootstrapdist == NULL) vt_error(ERR_MEMALLOC);
+    ftp_bootstrap_calibrate(Nused, t, mag, w, YY, H, cn, sn,
+                             allow_neg_amp, &sc, method, ps_ptr, sums_mode,
+                             Nperiod, periods, bootstrap_Nboot,
+                             bootstrapdist, bootstrap_fitcoeffs);
   }
 
   /* Compute periodogram. */
@@ -2749,12 +2887,18 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
       /* SNR for this peak using THIS cycle's noise estimate. */
       if (Ppeaks[peakiter] >= 0.0 && perpeaks[peakiter] > 0.0) {
         peakSNR[peakiter] = (Ppeaks[peakiter] - cyc_ave) / cyc_std;
+        if (bootstrap_Nboot > 0 && peakFAP != NULL) {
+          double l10 = ftp_bootstrap_log10fap(Ppeaks[peakiter], bootstrap_Nboot,
+                                                bootstrapdist, bootstrap_fitcoeffs);
+          peakFAP[peakiter] = -log(10.0) * l10;
+        }
       } else {
         perpeaks[peakiter]   = -1.0;
         Ppeaks[peakiter]     = 0.0;
         peakSNR[peakiter]    = 0.0;
         peakNegAmp[peakiter] = 0;
         peakTheta[peakiter]  = 0.0;
+        if (bootstrap_Nboot > 0 && peakFAP != NULL) peakFAP[peakiter] = 0.0;
       }
 
       /* Whiten the LC at this peak; recompute periodogram for next cycle. */
@@ -2852,11 +2996,17 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
           if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - *avePower) / *rmsPower;
           if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
           if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
+          if (fix_FAP_ptr && bootstrap_Nboot > 0) {
+            double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
+                                                  bootstrapdist, bootstrap_fitcoeffs);
+            *fix_FAP_ptr = -log(10.0) * l10;
+          }
         } else {
           if (fix_power_ptr)  *fix_power_ptr = 0.0;
           if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
           if (fix_negamp_ptr) *fix_negamp_ptr = 0;
           if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+          if (fix_FAP_ptr)    *fix_FAP_ptr   = 0.0;
         }
       }
     }
@@ -2880,6 +3030,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     free(periods); free(periodogram);
     free(negamp_grid); free(theta_grid);
     ftp_scratch_free(&sc);
+  if (bootstrapdist != NULL) free(bootstrapdist);
     if (ps_ptr != NULL) ftp_poly_state_free(&ps);
     return;
   }
@@ -3200,6 +3351,19 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* Bootstrap-empirical FAP per peak (non-whiten path). */
+  if (bootstrap_Nboot > 0 && peakFAP != NULL) {
+    for (j = 0; j < Npeaks; j++) {
+      if (perpeaks[j] > 0.0) {
+        double l10 = ftp_bootstrap_log10fap(Ppeaks[j], bootstrap_Nboot,
+                                              bootstrapdist, bootstrap_fitcoeffs);
+        peakFAP[j] = -log(10.0) * l10;        /* convert log10(FAP) -> -ln(FAP) */
+      } else {
+        peakFAP[j] = 0.0;
+      }
+    }
+  }
+
   /* fixperiodSNR (non-whiten path): evaluate FTP power at fix_period
    * against the ORIGINAL LC using the main periodogram's clipped
    * mean/RMS for the SNR. */
@@ -3220,11 +3384,17 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
         if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - ave_per) / std_per;
         if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
         if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
+        if (fix_FAP_ptr && bootstrap_Nboot > 0) {
+          double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
+                                                bootstrapdist, bootstrap_fitcoeffs);
+          *fix_FAP_ptr = -log(10.0) * l10;
+        }
       } else {
         if (fix_power_ptr)  *fix_power_ptr = 0.0;
         if (fix_SNR_ptr)    *fix_SNR_ptr   = 0.0;
         if (fix_negamp_ptr) *fix_negamp_ptr = 0;
         if (fix_theta_ptr)  *fix_theta_ptr = 0.0;
+        if (fix_FAP_ptr)    *fix_FAP_ptr   = 0.0;
       }
     }
   }
@@ -3244,6 +3414,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   free(periods); free(periodogram);
   free(negamp_grid); free(theta_grid);
   ftp_scratch_free(&sc);
+  if (bootstrapdist != NULL) free(bootstrapdist);
   if (ps_ptr != NULL) ftp_poly_state_free(&ps);
 }
 
@@ -3257,6 +3428,7 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
   double fix_period = 1.0;
   double *fix_power_ptr = NULL, *fix_SNR_ptr = NULL, *fix_theta_ptr = NULL;
   int    *fix_negamp_ptr = NULL;
+  double *fix_FAP_ptr = NULL;
 
   if (Ftp->operiodogram) {
     i1 = 0; i2 = 0;
@@ -3398,6 +3570,8 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
     fix_SNR_ptr     = &(Ftp->fixperiodSNR_peakSNR[lcnum]);
     fix_negamp_ptr  = &(Ftp->fixperiodSNR_peakNegAmp[lcnum]);
     fix_theta_ptr   = &(Ftp->fixperiodSNR_peakTheta[lcnum]);
+    if (Ftp->bootstrap_Nboot > 0)
+      fix_FAP_ptr   = &(Ftp->fixperiodSNR_peakFAP[lcnum]);
   }
 
   findPeaks_ftp(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum],
@@ -3420,5 +3594,8 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 (Ftp->whiten ? Ftp->rmspower_whiten[lcnum] : NULL),
                 fix_on, fix_period,
                 fix_power_ptr, fix_SNR_ptr, fix_negamp_ptr, fix_theta_ptr,
+                fix_FAP_ptr,
+                Ftp->bootstrap_Nboot,
+                (Ftp->bootstrap_Nboot > 0 ? Ftp->peakFAP[lcnum] : NULL),
                 lcnum, lc_name_num);
 }

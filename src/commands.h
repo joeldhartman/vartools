@@ -2464,7 +2464,15 @@ typedef struct {
   double    *fixperiodSNR_peakSNR;       /* [Nlcs] */
   int       *fixperiodSNR_peakNegAmp;    /* [Nlcs] */
   double    *fixperiodSNR_peakTheta;     /* [Nlcs] */
+  double    *fixperiodSNR_peakFAP;       /* [Nlcs] -- empirical FAP if bootstrap is on */
   OutColumn *fixperiodSNR_linkedcolumn;
+
+  /* bootstrap: empirical FAP calibration via Nboot shuffled-LC trials.
+   * 0 = off; >0 = enabled with that many trials.  When on, the per-peak
+   * FTP_NEG_LN_FAP_N_M output column is emitted from the empirical CDF
+   * + log-log tail extrapolation of the bootstrap distribution. */
+  int      bootstrap_Nboot;
+  double **peakFAP;                      /* [Nlcs][Npeaks] -- -ln(FAP) per peak */
 
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */

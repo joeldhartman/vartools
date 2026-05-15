@@ -4264,6 +4264,21 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  }
 
+	  /* "bootstrap" Nboot -- empirical FAP via Nboot shuffled-LC trials */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "bootstrap")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->bootstrap_Nboot = atoi(argv[i]);
+	    if(c[cn].Ftp->bootstrap_Nboot < 1) {
+	      fprintf(stderr, "-FTP bootstrap: Nboot must be >= 1; got %d\n",
+	              c[cn].Ftp->bootstrap_Nboot);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
 	  /* "maskpoints" maskvar -- exclude points with maskvar <= VARTOOLS_MASK_TINY */
 	  i++;
 	  if(i < argc && !strcmp(argv[i], "maskpoints")) {

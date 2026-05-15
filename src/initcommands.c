@@ -823,6 +823,17 @@ void InitCommands(ProgramData *p, Command *c)
 		if((c[i].Ftp->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
 		  vt_error(ERR_MEMALLOC);
 	    }
+	    if(c[i].Ftp->bootstrap_Nboot > 0) {
+	      if((c[i].Ftp->fixperiodSNR_peakFAP = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    }
+	  }
+	  if(c[i].Ftp->bootstrap_Nboot > 0) {
+	    if((c[i].Ftp->peakFAP = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((c[i].Ftp->peakFAP[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
 	  }
 	  break;
 
