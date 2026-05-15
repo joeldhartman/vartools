@@ -4002,9 +4002,36 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	        c[cn].Ftp->sn_lit[kk] = atof(argv[i]);
 	      }
 	    }
+	  } else if(!strcmp(argv[i], "filelist")) {
+	    int kcol = 0;
+	    c[cn].Ftp->filelist_mode = 1;
+	    c[cn].Ftp->H = 0;       /* unknown until first LC's template is loaded */
+	    c[cn].Ftp->cn = NULL;
+	    c[cn].Ftp->sn = NULL;
+	    /* Optional "column" colnum (mirrors -fixperiodSNR list column pattern). */
+	    i++;
+	    if(i < argc && !strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      kcol = atoi(argv[i]);
+	      /* i now at the column number; outer i++ moves to the next positional. */
+	    } else {
+	      /* No "column" keyword; rewind so the outer i++ moves to the next positional. */
+	      i--;
+	    }
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "filelist[column=%d]", kcol);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    RegisterDataFromInputList(p,
+	                              (void *) (&(c[cn].Ftp->template_filenames)),
+	                              VARTOOLS_TYPE_STRING,
+	                              0, cn, 0, 0, NULL, kcol,
+	                              "FTP_TEMPLATE_FILE");
 	  } else {
-	    fprintf(stderr, "-FTP: expected template source 'file', 'fitlc', or 'inline' (got '%s')\n",
-	            argv[i]);
+	    fprintf(stderr, "-FTP: expected template source 'file', 'fitlc', 'inline', "
+	                    "or 'filelist' (got '%s')\n", argv[i]);
 	    listcommands(argv[iterm], p);
 	  }
 

@@ -1565,6 +1565,33 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
     sprintf(outname, "%s/%s%s", Ftp->outdir, &p->lcnames[lc_name_num][i2], Ftp->suffix);
   }
 
+  /* Filelist mode: each LC has its own template file (path stored in
+   * Ftp->template_filenames[lc_name_num]).  Load it now, replacing the
+   * previous LC's cn/sn.  H can vary across LCs; the per-LC scratch in
+   * findPeaks_ftp is allocated fresh per call so it follows automatically. */
+  if (Ftp->filelist_mode) {
+    int idx;
+    if (Ftp->cn != NULL) { free(Ftp->cn); Ftp->cn = NULL; }
+    if (Ftp->sn != NULL) { free(Ftp->sn); Ftp->sn = NULL; }
+    Ftp->H = ftp_load_template_file(Ftp->template_filenames[lc_name_num],
+                                     &Ftp->cn, &Ftp->sn);
+    if (Ftp->H <= 0) {
+      fprintf(stderr, "-FTP filelist: skipping LC '%s' due to failed template "
+                      "load from '%s'\n",
+              p->lcnames[lc_name_num], Ftp->template_filenames[lc_name_num]);
+      for (idx = 0; idx < Ftp->Npeaks; idx++) {
+        Ftp->peakperiods[lcnum][idx] = -1.0;
+        Ftp->peakvalues[lcnum][idx]  = 0.0;
+        Ftp->peakSNR[lcnum][idx]     = 0.0;
+        Ftp->peakNegAmp[lcnum][idx]  = 0;
+        Ftp->peakTheta[lcnum][idx]   = 0.0;
+      }
+      Ftp->avepower[lcnum] = 0.0;
+      Ftp->rmspower[lcnum] = 1.0;
+      return;
+    }
+  }
+
   /* Inline mode: resolve each c_k / s_k from its per-slot source (literal,
    * variable, or expression) into the shared Ftp->cn / Ftp->sn buffers.
    * For file / fitlc modes this loop is skipped (inline_mode == 0) and the
