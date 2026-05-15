@@ -1259,6 +1259,8 @@ static void ftp_chebyshev_U_coefs(int n, double *out, int out_cap, int *out_len)
 #define FTP_METHOD_BRUTE  0
 #define FTP_METHOD_POLY   1
 #define FTP_METHOD_VERIFY 2     /* compute both, compare, return poly result */
+#define FTP_METHOD_AUTO   3     /* pick poly if H <= 4, brute otherwise */
+#define FTP_METHOD_AUTO_H_THRESHOLD 4  /* empirical brute<->poly crossover */
 #define FTP_VERIFY_TOL    1.0e-3 /* max allowed |P_poly - P_brute| before warning */
 
 /* Polynomial-mode scratch.  Per-frequency this gets filled with the
@@ -2345,6 +2347,14 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   _FTPVerifyStats vs = {0};
   _FTPPolyState *ps_ptr = NULL;
   _FTPVerifyStats *vs_ptr = (method == FTP_METHOD_VERIFY) ? &vs : NULL;
+
+  /* Resolve 'auto' to brute or poly based on H.  Crossover measured at
+   * H=4: poly ~1.5-2x faster for H <= 4, brute faster for H >= 5.
+   * Independent of N (per-frequency overhead doesn't depend on N once
+   * sums are computed). */
+  if (method == FTP_METHOD_AUTO) {
+    method = (H <= FTP_METHOD_AUTO_H_THRESHOLD) ? FTP_METHOD_POLY : FTP_METHOD_BRUTE;
+  }
   int    clipiter = FTP_DEFAULT_CLIPITER;
   long double Sum, Sumsqr;
   FILE *outfile = NULL;

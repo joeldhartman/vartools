@@ -3872,6 +3872,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  memset(c[cn].Ftp, 0, sizeof(_FTP));
 	  c[cn].Ftp->useerr = 1;
 	  c[cn].Ftp->sums_mode = 2;       /* FTP_SUMS_AUTO: NFFT if compiled, else direct */
+	  c[cn].Ftp->method = 3;          /* FTP_METHOD_AUTO: poly if H<=4 else brute */
 	  c[cn].Ftp->allow_neg_amp = 1;       /* default: report flag, do not reject */
 	  c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
@@ -4146,8 +4147,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    if(!strcmp(argv[i], "brute"))       c[cn].Ftp->method = 0;
 	    else if(!strcmp(argv[i], "poly"))   c[cn].Ftp->method = 1;
 	    else if(!strcmp(argv[i], "verify")) c[cn].Ftp->method = 2;
+	    else if(!strcmp(argv[i], "auto"))   c[cn].Ftp->method = 3;
 	    else {
-	      fprintf(stderr, "-FTP: 'method' must be 'brute', 'poly', or 'verify'; got '%s'\n",
+	      fprintf(stderr, "-FTP: 'method' must be 'brute', 'poly', 'verify', or 'auto'; got '%s'\n",
 	              argv[i]);
 	      listcommands(argv[iterm], p);
 	    }
