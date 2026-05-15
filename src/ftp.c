@@ -1565,6 +1565,38 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
     sprintf(outname, "%s/%s%s", Ftp->outdir, &p->lcnames[lc_name_num][i2], Ftp->suffix);
   }
 
+  /* Inline mode: resolve each c_k / s_k from its per-slot source (literal,
+   * variable, or expression) into the shared Ftp->cn / Ftp->sn buffers.
+   * For file / fitlc modes this loop is skipped (inline_mode == 0) and the
+   * buffers already contain the parser-time-loaded template. */
+  if (Ftp->inline_mode) {
+    int kk;
+    for (kk = 0; kk < Ftp->H; kk++) {
+      switch (Ftp->cn_source[kk]) {
+        case VARTOOLS_SOURCE_EVALEXPRESSION:
+          Ftp->cn[kk] = EvaluateExpression(lc_name_num, lcnum, 0, Ftp->cn_expr[kk]);
+          break;
+        case VARTOOLS_SOURCE_EXISTINGVARIABLE:
+          Ftp->cn[kk] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Ftp->cn_var[kk]);
+          break;
+        default:
+          Ftp->cn[kk] = Ftp->cn_lit[kk];
+          break;
+      }
+      switch (Ftp->sn_source[kk]) {
+        case VARTOOLS_SOURCE_EVALEXPRESSION:
+          Ftp->sn[kk] = EvaluateExpression(lc_name_num, lcnum, 0, Ftp->sn_expr[kk]);
+          break;
+        case VARTOOLS_SOURCE_EXISTINGVARIABLE:
+          Ftp->sn[kk] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Ftp->sn_var[kk]);
+          break;
+        default:
+          Ftp->sn[kk] = Ftp->sn_lit[kk];
+          break;
+      }
+    }
+  }
+
   /* Resolve var/expr/fixed parameter sources to per-LC scalar values. */
   if (Ftp->minp_source == VARTOOLS_SOURCE_EVALEXPRESSION)
     Ftp->minp_vals[lcnum] = EvaluateExpression(lc_name_num, lcnum, 0, Ftp->minp_expr);

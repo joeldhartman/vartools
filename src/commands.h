@@ -2401,14 +2401,30 @@ typedef struct {
 /* ---------------- Fast Template Periodogram (FTP, Hoffman+ 2021) ----------- */
 
 typedef struct {
-  /* Template Fourier-series coefficients of length H.  Loaded from
-   * template_path at parser time; one set shared across all LCs.
+  /* Template Fourier-series coefficients of length H.
    *   M(phi) = sum_{n=1..H} [c_n cos(n phi) + s_n sin(n phi)]
-   */
+   *
+   * For the "file" and "fitlc" template-source modes, cn/sn are loaded
+   * once at parser time and shared across all LCs (inline_mode = 0).
+   *
+   * For the "inline" mode (inline_mode = 1), cn/sn are per-LC scratch
+   * buffers populated at run time in RunFTPCommand from the per-slot
+   * (cn_source[k], cn_var[k], cn_expr[k], cn_lit[k]) tuples (same for sn).
+   * H = Nharm + 1, following the -harmonicfilter convention. */
   int     H;
-  double *cn;             /* size H */
+  double *cn;             /* size H -- shared (file/fitlc) or per-LC scratch (inline) */
   double *sn;             /* size H */
-  char   *template_path;  /* original CLI argument, kept for diagnostics */
+  char   *template_path;  /* original CLI tag, kept for diagnostics */
+
+  int     inline_mode;    /* 1 when cn/sn are resolved per-LC from var/expr/lit */
+  int    *cn_source;      /* size H, VARTOOLS_SOURCE_FIXED/EXISTINGVARIABLE/EVALEXPRESSION */
+  int    *sn_source;      /* size H */
+  _Variable   **cn_var;   /* size H, non-NULL where source==EXISTINGVARIABLE */
+  _Variable   **sn_var;
+  _Expression **cn_expr;  /* size H, non-NULL where source==EVALEXPRESSION */
+  _Expression **sn_expr;
+  double *cn_lit;         /* size H, used where source==FIXED */
+  double *sn_lit;
 
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */

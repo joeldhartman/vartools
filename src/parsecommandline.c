@@ -3935,8 +3935,75 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      /* ftp_load_template_fitlc already wrote a diagnostic. */
 	      listcommands(argv[iterm], p);
 	    }
+	  } else if(!strcmp(argv[i], "inline")) {
+	    int Nharm_in, H_in, kk;
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    Nharm_in = atoi(argv[i]);
+	    if(Nharm_in < 0) {
+	      fprintf(stderr, "-FTP inline: Nharm must be >= 0 (Nharm counts harmonics above "
+	                      "the fundamental; Nharm=0 fits only the fundamental); got %d\n", Nharm_in);
+	      listcommands(argv[iterm], p);
+	    }
+	    H_in = Nharm_in + 1;
+	    c[cn].Ftp->H = H_in;
+	    c[cn].Ftp->inline_mode = 1;
+	    c[cn].Ftp->cn        = (double *) malloc(H_in * sizeof(double));
+	    c[cn].Ftp->sn        = (double *) malloc(H_in * sizeof(double));
+	    c[cn].Ftp->cn_source = (int *) malloc(H_in * sizeof(int));
+	    c[cn].Ftp->sn_source = (int *) malloc(H_in * sizeof(int));
+	    c[cn].Ftp->cn_var    = (_Variable **)   calloc(H_in, sizeof(_Variable *));
+	    c[cn].Ftp->sn_var    = (_Variable **)   calloc(H_in, sizeof(_Variable *));
+	    c[cn].Ftp->cn_expr   = (_Expression **) calloc(H_in, sizeof(_Expression *));
+	    c[cn].Ftp->sn_expr   = (_Expression **) calloc(H_in, sizeof(_Expression *));
+	    c[cn].Ftp->cn_lit    = (double *) calloc(H_in, sizeof(double));
+	    c[cn].Ftp->sn_lit    = (double *) calloc(H_in, sizeof(double));
+	    if(c[cn].Ftp->cn == NULL || c[cn].Ftp->sn == NULL ||
+	       c[cn].Ftp->cn_source == NULL || c[cn].Ftp->sn_source == NULL ||
+	       c[cn].Ftp->cn_var == NULL || c[cn].Ftp->sn_var == NULL ||
+	       c[cn].Ftp->cn_expr == NULL || c[cn].Ftp->sn_expr == NULL ||
+	       c[cn].Ftp->cn_lit == NULL || c[cn].Ftp->sn_lit == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "inline[Nharm=%d,H=%d]", Nharm_in, H_in);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    /* Read 2*H_in coefficient specs in order: c_1, s_1, c_2, s_2, ..., c_H, s_H.
+	     * Each spec is one of: literal float, "var" varname, "expr" expr_string. */
+	    for(kk = 0; kk < H_in; kk++) {
+	      /* c_{kk+1} */
+	      i++; if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->cn_var[kk]),
+	                                         VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      } else if(!strcmp(argv[i], "expr")) {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_EVALEXPRESSION;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->cn_expr[kk]));
+	      } else {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_FIXED;
+	        c[cn].Ftp->cn_lit[kk] = atof(argv[i]);
+	      }
+	      /* s_{kk+1} */
+	      i++; if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->sn_var[kk]),
+	                                         VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      } else if(!strcmp(argv[i], "expr")) {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_EVALEXPRESSION;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->sn_expr[kk]));
+	      } else {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_FIXED;
+	        c[cn].Ftp->sn_lit[kk] = atof(argv[i]);
+	      }
+	    }
 	  } else {
-	    fprintf(stderr, "-FTP: expected template source 'file' or 'fitlc' (got '%s')\n",
+	    fprintf(stderr, "-FTP: expected template source 'file', 'fitlc', or 'inline' (got '%s')\n",
 	            argv[i]);
 	    listcommands(argv[iterm], p);
 	  }
