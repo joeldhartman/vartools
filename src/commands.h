@@ -2432,6 +2432,16 @@ typedef struct {
   int     method;              /* 0=brute (default), 1=poly, 2=verify(both + cmp) */
   int     sums_mode;           /* 0=direct, 1=nfft, 2=auto (NFFT if compiled, default) */
 
+  /* clip: sigma-clip factor + iterative flag for the SNR noise estimate.
+   * Mirrors -PDM / -aov.  Defaults clip=5.0, clipiter=1. */
+  double  clip;
+  int     clipiter;
+
+  /* maskpoints: optional LC vector; points with mask > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -PDM. */
+  int        usemask;
+  _Variable *maskvar;
+
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
   int allow_neg_amp;

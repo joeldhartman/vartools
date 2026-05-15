@@ -3873,6 +3873,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Ftp->useerr = 1;
 	  c[cn].Ftp->sums_mode = 2;       /* FTP_SUMS_AUTO: NFFT if compiled, else direct */
 	  c[cn].Ftp->method = 3;          /* FTP_METHOD_AUTO: poly if H<=4 else brute */
+	  c[cn].Ftp->clip = 5.0;          /* 5-sigma iterative clip; matches -PDM / -aov */
+	  c[cn].Ftp->clipiter = 1;
+	  c[cn].Ftp->usemask = 0;
+	  c[cn].Ftp->maskvar = NULL;
 	  c[cn].Ftp->allow_neg_amp = 1;       /* default: report flag, do not reject */
 	  c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
 	  c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
@@ -4120,6 +4124,26 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    sprintf(c[cn].Ftp->outdir, "%s", argv[i]);
 	  }
 
+	  /* Canonical strict-order trailing keywords (mirrors -aov / -PDM):
+	   *   clip / noerr / posamponly / maskpoints / method / sums
+	   * Each block uses the i++/i-- rewind pattern so unrecognised tokens
+	   * fall through to the next keyword's slot, eventually hitting the
+	   * main parser which rejects them.  Strict ordering means a wrong
+	   * order is rejected, and each keyword can only appear once. */
+
+	  /* "clip" cf ci */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "clip")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->clip = atof(argv[i]);
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->clipiter = atoi(argv[i]);
+	  } else {
+	    i--;
+	  }
+
 	  /* "noerr" */
 	  i++;
 	  if(i < argc && !strcmp(argv[i], "noerr")) {
@@ -4132,6 +4156,18 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i < argc && !strcmp(argv[i], "posamponly")) {
 	    c[cn].Ftp->allow_neg_amp = 0;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar -- exclude points with maskvar <= VARTOOLS_MASK_TINY */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "maskpoints")) {
+	    c[cn].Ftp->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->maskvar),
+	                                     VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	  } else {
 	    i--;
 	  }

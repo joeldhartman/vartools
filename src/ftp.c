@@ -2329,6 +2329,8 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     double *avePower, double *rmsPower,
                     int outflag, char *outname, int ascii,
                     int method, int sums_mode,
+                    double clip_val, int clipiter,
+                    int usemask, _Variable *maskvar,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -2342,7 +2344,6 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   double freq, minfreq, freqstep, smallfreqstep;
   double testperiod, bestscore, lastpoint;
   double ave_per, std_per;
-  double clip_val = FTP_DEFAULT_CLIP;
   _FTPPolyState ps = {0};
   _FTPVerifyStats vs = {0};
   _FTPPolyState *ps_ptr = NULL;
@@ -2355,13 +2356,9 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   if (method == FTP_METHOD_AUTO) {
     method = (H <= FTP_METHOD_AUTO_H_THRESHOLD) ? FTP_METHOD_POLY : FTP_METHOD_BRUTE;
   }
-  int    clipiter = FTP_DEFAULT_CLIPITER;
   long double Sum, Sumsqr;
   FILE *outfile = NULL;
   _FTPScratch sc = {0};
-
-  /* Avoid -Wunused warnings on parameters not used in Phase A scope. */
-  (void) lcnum; (void) lc_name_num;
 
   if (N <= 1 || H <= 0) {
     for (i = 0; i < Npeaks; i++) {
@@ -2386,6 +2383,10 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   Nused = 0;
   for (i = 0; i < N; i++) {
     if (isnan(mag_[i])) continue;
+    if (usemask && maskvar != NULL) {
+      if (!(EvaluateVariable_Double(lc_name_num, lcnum, i, maskvar) > VARTOOLS_MASK_TINY))
+        continue;
+    }
     if (useerr) {
       if (!(sig_[i] > 0.0) || isnan(sig_[i])) continue;
       w[Nused] = 1.0 / (sig_[i] * sig_[i]);
@@ -2939,5 +2940,7 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 &Ftp->avepower[lcnum], &Ftp->rmspower[lcnum],
                 Ftp->operiodogram, outname, p->ascii,
                 Ftp->method, Ftp->sums_mode,
+                Ftp->clip, Ftp->clipiter,
+                Ftp->usemask, Ftp->maskvar,
                 lcnum, lc_name_num);
 }
