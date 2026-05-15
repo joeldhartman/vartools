@@ -4160,6 +4160,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i--;
 	  }
 
+	  /* "whiten" -- iterative pre-whitening between peaks via FTP-template subtraction */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "whiten")) {
+	    c[cn].Ftp->whiten = 1;
+	  } else {
+	    i--;
+	  }
+
 	  /* "maskpoints" maskvar -- exclude points with maskvar <= VARTOOLS_MASK_TINY */
 	  i++;
 	  if(i < argc && !strcmp(argv[i], "maskpoints")) {

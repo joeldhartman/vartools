@@ -801,6 +801,15 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].Ftp->peakNegAmp[j]  = (int *)    malloc(c[i].Ftp->Npeaks * sizeof(int))) == NULL ||
 	       (c[i].Ftp->peakTheta[j]   = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
 	      vt_error(ERR_MEMALLOC);
+	  if(c[i].Ftp->whiten) {
+	    if((c[i].Ftp->avepower_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Ftp->rmspower_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((c[i].Ftp->avepower_whiten[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+		 (c[i].Ftp->rmspower_whiten[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
 	  break;
 
 	case CNUM_HARMAOV:

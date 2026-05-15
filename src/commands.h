@@ -2442,6 +2442,14 @@ typedef struct {
   int        usemask;
   _Variable *maskvar;
 
+  /* whiten: iterative pre-whitening between peaks (model = theta_1 *
+   * M(omega t - theta_2) + theta_3 at the peak (P, theta_2); subtracted
+   * from the LC before recomputing the periodogram for the next peak).
+   * Each cycle's clipped mean/RMS is stored per-peak. */
+  int      whiten;
+  double **avepower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped mean */
+  double **rmspower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped rms */
+
   /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
    * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
   int allow_neg_amp;

@@ -614,6 +614,94 @@ int ftp_load_template_fitlc(const char *lc_path, const char *format,
   return H_out;
 }
 
+/* ---- FTP-template whitening ----
+ *
+ * Subtract the best-fit FTP model
+ *     y_fit_j = theta_1 * M(omega t_j - theta_2) + theta_3
+ * from mag[] in place, where (theta_1, theta_3) are the closed-form
+ * amplitude/offset from
+ *     theta_1 = Cov(M_{theta_2}, y) / Var(M_{theta_2})
+ *     theta_3 = <y> - theta_1 * <M_{theta_2}>
+ * computed at the given period and phase-shift theta_2.  Unlike PDM's
+ * bin-mean whitening, this uses the actual template fit, so it's more
+ * surgical (subtracts only the LC component the FTP fit identified). */
+static void whitenlc_ftp(int N, double *t, double *mag, double *w,
+                          double period, double theta_2,
+                          const double *cn, const double *sn, int H)
+{
+  int i, n;
+  double omega;
+  double *A = NULL, *B = NULL, *Mvec = NULL;
+  double c1, s1, cprev, sprev, ccurr, scurr;
+  double M_bar, y_bar, YM, MM;
+  double theta1, theta3;
+
+  if (period <= 0.0 || H < 1) return;
+  omega = 2.0 * M_PI / period;
+
+  A    = (double *) malloc(H * sizeof(double));
+  B    = (double *) malloc(H * sizeof(double));
+  Mvec = (double *) malloc(N * sizeof(double));
+  if (A == NULL || B == NULL || Mvec == NULL) vt_error(ERR_MEMALLOC);
+
+  /* A_n, B_n at theta_2 via Chebyshev recurrence on n*theta_2. */
+  c1 = cos(theta_2);
+  s1 = sin(theta_2);
+  cprev = 1.0; sprev = 0.0;
+  ccurr = c1;  scurr = s1;
+  A[0] = cn[0] * ccurr - sn[0] * scurr;
+  B[0] = sn[0] * ccurr + cn[0] * scurr;
+  for (n = 1; n < H; n++) {
+    double cnext = 2.0 * c1 * ccurr - cprev;
+    double snext = 2.0 * c1 * scurr - sprev;
+    A[n] = cn[n] * cnext - sn[n] * snext;
+    B[n] = sn[n] * cnext + cn[n] * snext;
+    cprev = ccurr; sprev = scurr;
+    ccurr = cnext; scurr = snext;
+  }
+
+  /* M(omega t_j - theta_2) = sum_n [A_n cos(n omega t_j) + B_n sin(n omega t_j)]
+   * at each data point, via the cos/sin recurrence in n. */
+  for (i = 0; i < N; i++) {
+    double phi = omega * t[i];
+    double c1p = cos(phi);
+    double s1p = sin(phi);
+    double cp_local = 1.0, sp_local = 0.0;
+    double cc = c1p, ss = s1p;
+    double m_val = A[0] * cc + B[0] * ss;
+    for (n = 1; n < H; n++) {
+      double cn_next = 2.0 * c1p * cc - cp_local;
+      double sn_next = 2.0 * c1p * ss - sp_local;
+      m_val += A[n] * cn_next + B[n] * sn_next;
+      cp_local = cc; sp_local = ss;
+      cc = cn_next; ss = sn_next;
+    }
+    Mvec[i] = m_val;
+  }
+
+  /* Closed-form amplitude + offset (weighted). */
+  M_bar = 0.0; y_bar = 0.0;
+  for (i = 0; i < N; i++) { M_bar += w[i] * Mvec[i]; y_bar += w[i] * mag[i]; }
+  YM = 0.0; MM = 0.0;
+  for (i = 0; i < N; i++) {
+    YM += w[i] * (mag[i] - y_bar) * (Mvec[i] - M_bar);
+    MM += w[i] * (Mvec[i] - M_bar) * (Mvec[i] - M_bar);
+  }
+  if (!(MM > FTP_MINVAR)) {
+    free(A); free(B); free(Mvec);
+    return;
+  }
+  theta1 = YM / MM;
+  theta3 = y_bar - theta1 * M_bar;
+
+  /* Subtract the fitted model in place. */
+  for (i = 0; i < N; i++) {
+    mag[i] -= (theta1 * Mvec[i] + theta3);
+  }
+
+  free(A); free(B); free(Mvec);
+}
+
 /* ---- Period-similarity helper (mirror aov.c / pdm.c) ---- */
 
 static int ftp_isDifferentPeriods(double p1, double p2, double T)
@@ -2331,6 +2419,8 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     int method, int sums_mode,
                     double clip_val, int clipiter,
                     int usemask, _Variable *maskvar,
+                    int whiten,
+                    double *ave_power_whiten, double *rms_power_whiten,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -2487,6 +2577,280 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                   sums_mode,
                   Nperiod, periods, periodogram,
                   negamp_grid, theta_grid);
+
+  /* ---- whiten branch ---- iterate Npeaks cycles, whitening the LC at
+   * each peak's (period, theta_2) via FTP-template subtraction.  Each
+   * cycle has its own clipped mean/RMS for the SNR.  At end, restore the
+   * original LC so any downstream code (fixperiodSNR) sees the
+   * unwhitened data. */
+  if (whiten) {
+    int peakiter;
+    double **periodogram_whiten = NULL;
+    int **negamp_whiten = NULL;
+    double **theta_whiten = NULL;
+    double *mag_orig = NULL;
+    double mu_total_orig = mu_total;
+    double var_total_orig = var_total;
+    double YY_orig = YY;
+
+    mag_orig = (double *) malloc(Nused * sizeof(double));
+    if (mag_orig == NULL) vt_error(ERR_MEMALLOC);
+    memcpy(mag_orig, mag, Nused * sizeof(double));
+
+    periodogram_whiten = (double **) malloc(Npeaks * sizeof(double *));
+    negamp_whiten      = (int **)    malloc(Npeaks * sizeof(int *));
+    theta_whiten       = (double **) malloc(Npeaks * sizeof(double *));
+    if (periodogram_whiten == NULL || negamp_whiten == NULL || theta_whiten == NULL)
+      vt_error(ERR_MEMALLOC);
+    for (i = 0; i < Npeaks; i++) {
+      periodogram_whiten[i] = (double *) malloc(Nperiod * sizeof(double));
+      negamp_whiten[i]      = (int *)    malloc(Nperiod * sizeof(int));
+      theta_whiten[i]       = (double *) malloc(Nperiod * sizeof(double));
+      if (periodogram_whiten[i] == NULL || negamp_whiten[i] == NULL || theta_whiten[i] == NULL)
+        vt_error(ERR_MEMALLOC);
+    }
+
+    /* Cycle 0 = the periodogram we already computed. */
+    memcpy(periodogram_whiten[0], periodogram, Nperiod * sizeof(double));
+    memcpy(negamp_whiten[0],      negamp_grid, Nperiod * sizeof(int));
+    memcpy(theta_whiten[0],       theta_grid,  Nperiod * sizeof(double));
+
+    for (peakiter = 0; peakiter < Npeaks; peakiter++) {
+      double cyc_ave = 0.0, cyc_std = 1.0;
+      int Ngood_cyc = 0;
+      long double Sum_cyc = 0.0, Sumsqr_cyc = 0.0;
+
+      /* Mean / RMS of this cycle's periodogram, with iterative sigma-clip. */
+      for (i = 0; i < Nperiod; i++) {
+        double v = periodogram_whiten[peakiter][i];
+        if (v >= 0.0 && v * 0.0 == 0.0) {
+          Sum_cyc    += (long double) v;
+          Sumsqr_cyc += (long double)(v * v);
+          Ngood_cyc++;
+        }
+      }
+      if (Ngood_cyc > 0) {
+        Sum_cyc /= Ngood_cyc; Sumsqr_cyc /= Ngood_cyc;
+        cyc_ave = (double) Sum_cyc;
+        cyc_std = sqrt((double)(Sumsqr_cyc - Sum_cyc * Sum_cyc));
+        if (!(cyc_std > 0.0)) cyc_std = 1.0;
+      }
+      if (clip_val > 0.0 && Ngood_cyc > 0) {
+        int nthis = 0, nlast;
+        do {
+          nlast = nthis; nthis = 0;
+          Sum_cyc = 0.0; Sumsqr_cyc = 0.0;
+          int Ngood2 = 0;
+          for (i = 0; i < Nperiod; i++) {
+            double v = periodogram_whiten[peakiter][i];
+            if (v >= 0.0 && v * 0.0 == 0.0) {
+              if (v < cyc_ave + clip_val * cyc_std) {
+                Sum_cyc += (long double) v;
+                Sumsqr_cyc += (long double)(v * v);
+                Ngood2++;
+              } else {
+                nthis++;
+              }
+            }
+          }
+          if (Ngood2 > 0) {
+            Sum_cyc /= Ngood2; Sumsqr_cyc /= Ngood2;
+            cyc_ave = (double) Sum_cyc;
+            cyc_std = sqrt((double)(Sumsqr_cyc - Sum_cyc * Sum_cyc));
+            if (!(cyc_std > 0.0)) cyc_std = 1.0;
+          }
+        } while (clipiter && nthis > nlast);
+      }
+      if (ave_power_whiten != NULL) ave_power_whiten[peakiter] = cyc_ave;
+      if (rms_power_whiten != NULL) rms_power_whiten[peakiter] = cyc_std;
+
+      /* Find best peak (max P) in this cycle's periodogram. */
+      double best = -1.0;
+      double best_p = -1.0;
+      int    best_negamp = 0;
+      double best_theta = 0.0;
+      for (i = 0; i < Nperiod; i++) {
+        double v = periodogram_whiten[peakiter][i];
+        if (v >= 0.0 && v * 0.0 == 0.0)
+          if (v > best) {
+            best = v;
+            best_p = periods[i];
+            best_negamp = negamp_whiten[peakiter][i];
+            best_theta = theta_whiten[peakiter][i];
+          }
+      }
+      perpeaks[peakiter]   = best_p;
+      Ppeaks[peakiter]     = (best >= 0.0 ? best : 0.0);
+      peakNegAmp[peakiter] = best_negamp;
+      peakTheta[peakiter]  = best_theta;
+
+      /* Fine-tune scan around the peak. */
+      if (best_p > 0.0) {
+        double freq_local, minfreq_local, smallfreqstep_local;
+        smallfreqstep_local = finetune / T;
+        freq_local    = dmin((1.0 / best_p) + freqstep, 1.0 / minP);
+        minfreq_local = dmax((1.0 / best_p) - freqstep, 1.0 / maxP);
+        while (freq_local >= minfreq_local) {
+          double th_fine, P_test;
+          int sgn;
+          double testperiod_local = 1.0 / freq_local;
+          P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
+                                    allow_neg_amp, &sc, method, ps_ptr,
+                                    testperiod_local, &th_fine, &sgn);
+          if (P_test >= 0.0 && P_test * 0.0 == 0.0)
+            if (P_test > Ppeaks[peakiter]) {
+              Ppeaks[peakiter]     = P_test;
+              perpeaks[peakiter]   = testperiod_local;
+              peakNegAmp[peakiter] = (sgn < 0) ? 1 : 0;
+              peakTheta[peakiter]  = th_fine;
+            }
+          freq_local -= smallfreqstep_local;
+        }
+        /* Period-multiple double-check. */
+        {
+          double bestscore_local = Ppeaks[peakiter];
+          int ismultiple_local = 0;
+          int abest_local = 1, bbest_local = 1;
+          int aa, bb;
+          for (aa = 1; aa <= FTP_MAX_DOUBLE_CHECK_MULTIPLE; aa++)
+            for (bb = 1; bb <= FTP_MAX_DOUBLE_CHECK_MULTIPLE; bb++)
+              if (aa != bb) {
+                double th_mult, P_test;
+                int sgn;
+                double testperiod_local = perpeaks[peakiter] * aa / bb;
+                if (testperiod_local > minP && testperiod_local < maxP) {
+                  P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
+                                            allow_neg_amp, &sc, method, ps_ptr,
+                                            testperiod_local, &th_mult, &sgn);
+                  if (P_test >= 0.0 && P_test * 0.0 == 0.0)
+                    if (P_test > bestscore_local) {
+                      ismultiple_local = 1; abest_local = aa; bbest_local = bb;
+                      bestscore_local = P_test;
+                    }
+                }
+              }
+          if (ismultiple_local) {
+            double th_mult, P_test;
+            int sgn;
+            perpeaks[peakiter] = perpeaks[peakiter] * abest_local / bbest_local;
+            P_test = ftp_one_period(Nused, t, y_centered, w, YY, H, cn, sn,
+                                      allow_neg_amp, &sc, method, ps_ptr,
+                                      perpeaks[peakiter], &th_mult, &sgn);
+            Ppeaks[peakiter]     = P_test;
+            peakNegAmp[peakiter] = (sgn < 0) ? 1 : 0;
+            peakTheta[peakiter]  = th_mult;
+          }
+        }
+      }
+
+      /* SNR for this peak using THIS cycle's noise estimate. */
+      if (Ppeaks[peakiter] >= 0.0 && perpeaks[peakiter] > 0.0) {
+        peakSNR[peakiter] = (Ppeaks[peakiter] - cyc_ave) / cyc_std;
+      } else {
+        perpeaks[peakiter]   = -1.0;
+        Ppeaks[peakiter]     = 0.0;
+        peakSNR[peakiter]    = 0.0;
+        peakNegAmp[peakiter] = 0;
+        peakTheta[peakiter]  = 0.0;
+      }
+
+      /* Whiten the LC at this peak; recompute periodogram for next cycle. */
+      if (peakiter < Npeaks - 1 && perpeaks[peakiter] > 0.0) {
+        whitenlc_ftp(Nused, t, mag, w, perpeaks[peakiter], peakTheta[peakiter],
+                      cn, sn, H);
+        /* Recompute global mu / var on the whitened LC (mean is now ~0). */
+        mu_total = 0.0;
+        for (i = 0; i < Nused; i++) mu_total += w[i] * mag[i];
+        YY = 0.0;
+        for (i = 0; i < Nused; i++) {
+          double dy = mag[i] - mu_total;
+          y_centered[i] = dy;
+          YY += w[i] * dy * dy;
+        }
+        if (YY < FTP_MINVAR) {
+          /* LC is now flat; remaining cycles can't find anything. */
+          for (i = 0; i < Nperiod; i++) {
+            periodogram_whiten[peakiter + 1][i] = 0.0;
+            negamp_whiten[peakiter + 1][i] = 0;
+            theta_whiten[peakiter + 1][i] = 0.0;
+          }
+        } else {
+          ftp_periodogram(Nused, t, y_centered, w, YY, H, cn, sn,
+                           allow_neg_amp, &sc, method, ps_ptr, vs_ptr,
+                           sums_mode, Nperiod, periods,
+                           periodogram_whiten[peakiter + 1],
+                           negamp_whiten[peakiter + 1],
+                           theta_whiten[peakiter + 1]);
+        }
+      }
+    }
+
+    /* Optional multi-column periodogram dump. */
+    if (outflag) {
+      if ((outfile = fopen(outname, "w")) == NULL) {
+        fprintf(stderr, "Cannot write periodogram to %s\n", outname);
+        exit(3);
+      }
+      if (ascii) {
+        fprintf(outfile, "#Period");
+        for (j = 0; j < Npeaks; j++) fprintf(outfile, " FTP_WhitenCycle_%d", j);
+        fprintf(outfile, "\n");
+        for (i = 0; i < Nperiod; i++) {
+          double v0 = periodogram_whiten[0][i];
+          if (!(v0 >= 0.0 && v0 * 0.0 == 0.0)) continue;
+          fprintf(outfile, "%f", periods[i]);
+          for (j = 0; j < Npeaks; j++)
+            fprintf(outfile, " %f", periodogram_whiten[j][i]);
+          fprintf(outfile, "\n");
+        }
+      } else {
+        fwrite(&Nperiod, 4, 1, outfile);
+        fwrite(periods, 8, Nperiod, outfile);
+        for (j = 0; j < Npeaks; j++) {
+          double av = (ave_power_whiten != NULL ? ave_power_whiten[j] : 0.0);
+          double rm = (rms_power_whiten != NULL ? rms_power_whiten[j] : 1.0);
+          fwrite(&av, 8, 1, outfile);
+          fwrite(&rm, 8, 1, outfile);
+          fwrite(periodogram_whiten[j], 8, Nperiod, outfile);
+        }
+      }
+      fclose(outfile);
+    }
+
+    /* Restore LC (in case anything downstream needs the unwhitened data). */
+    memcpy(mag, mag_orig, Nused * sizeof(double));
+    mu_total = mu_total_orig;
+    var_total = var_total_orig;
+    YY = YY_orig;
+    for (i = 0; i < Nused; i++) y_centered[i] = mag[i] - mu_total;
+
+    /* The per-LC avePower / rmsPower (for the per-LC non-whiten columns)
+     * are reported from cycle 0 for any code that still looks at them. */
+    *avePower = (ave_power_whiten != NULL ? ave_power_whiten[0] : 0.0);
+    *rmsPower = (rms_power_whiten != NULL ? rms_power_whiten[0] : 1.0);
+
+    /* Verify-mode summary. */
+    if (method == FTP_METHOD_VERIFY && vs.n_verified > 0) {
+      fprintf(stderr,
+              "-FTP method verify: LC %d: %ld freqs compared, max|P_poly - P_brute| = %.3e, "
+              "mean = %.3e, %ld over tol %.1e\n",
+              lc_name_num, vs.n_verified, vs.max_abs_diff,
+              vs.sum_abs_diff / (double) vs.n_verified, vs.n_warned, FTP_VERIFY_TOL);
+    }
+
+    free(mag_orig);
+    for (i = 0; i < Npeaks; i++) {
+      free(periodogram_whiten[i]); free(negamp_whiten[i]); free(theta_whiten[i]);
+    }
+    free(periodogram_whiten); free(negamp_whiten); free(theta_whiten);
+
+    free(t); free(mag); free(w); free(y_centered);
+    free(periods); free(periodogram);
+    free(negamp_grid); free(theta_grid);
+    ftp_scratch_free(&sc);
+    if (ps_ptr != NULL) ftp_poly_state_free(&ps);
+    return;
+  }
 
   /* Mean / RMS over the periodogram (for SNR). */
   Sum = 0.0; Sumsqr = 0.0;
@@ -2942,5 +3306,8 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 Ftp->method, Ftp->sums_mode,
                 Ftp->clip, Ftp->clipiter,
                 Ftp->usemask, Ftp->maskvar,
+                Ftp->whiten,
+                (Ftp->whiten ? Ftp->avepower_whiten[lcnum] : NULL),
+                (Ftp->whiten ? Ftp->rmspower_whiten[lcnum] : NULL),
                 lcnum, lc_name_num);
 }

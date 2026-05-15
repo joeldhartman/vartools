@@ -496,6 +496,8 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                    int method, int sums_mode,
                    double clip_val, int clipiter,
                    int usemask, _Variable *maskvar,
+                   int whiten,
+                   double *ave_power_whiten, double *rms_power_whiten,
                    int lcnum, int lc_name_num);
 void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    int kind, int Nbin, int Nc, double dphi, int useerr,
