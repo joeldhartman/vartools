@@ -184,6 +184,7 @@
 #define CNUM_SORTLC 60
 #define CNUM_PRINT 61
 #define CNUM_PDM 62
+#define CNUM_FTP 63
 
 #define TOT_CNUMS 61
 
@@ -203,6 +204,7 @@
 #define PERTYPE_EXPR 13
 #define PERTYPE_VAR 14
 #define PERTYPE_PDM 15
+#define PERTYPE_FTP 16
 
 #define KILLHARM_OUTTYPE_DEFAULT 0
 #define KILLHARM_OUTTYPE_AMPPHASE 1
@@ -2396,6 +2398,50 @@ typedef struct {
 } _PDM;
 
 
+/* ---------------- Fast Template Periodogram (FTP, Hoffman+ 2021) ----------- */
+
+typedef struct {
+  /* Template Fourier-series coefficients of length H.  Loaded from
+   * template_path at parser time; one set shared across all LCs.
+   *   M(phi) = sum_{n=1..H} [c_n cos(n phi) + s_n sin(n phi)]
+   */
+  int     H;
+  double *cn;             /* size H */
+  double *sn;             /* size H */
+  char   *template_path;  /* original CLI argument, kept for diagnostics */
+
+  /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
+   * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
+  int allow_neg_amp;
+  int useerr;             /* 1 default; 0 if 'noerr' keyword */
+
+  /* Frequency grid parameters (each has the standard
+   *   <"var" name | "expr" expr | fixed_value>
+   * source-resolution machinery).  Period units match the LC. */
+  double minp, maxp, subsample, finetune;
+  int    minp_source, maxp_source, subsample_source, finetune_source;
+  _Variable    *minp_var, *maxp_var, *subsample_var, *finetune_var;
+  _Expression  *minp_expr, *maxp_expr, *subsample_expr, *finetune_expr;
+  double *minp_vals, *maxp_vals, *subsample_vals, *finetune_vals;  /* per-LC */
+
+  int Npeaks;
+
+  /* operiodogram + outdir (mirrors -aov / -PDM). */
+  int   operiodogram;
+  char  outdir[MAXLEN];
+  char  suffix[MAXLEN];
+
+  /* Per-LC outputs */
+  double **peakperiods;   /* [Nlcs][Npeaks] */
+  double **peakvalues;    /* [Nlcs][Npeaks]  -- P(omega) at each peak in [0,1] */
+  double **peakSNR;       /* [Nlcs][Npeaks] */
+  int    **peakNegAmp;    /* [Nlcs][Npeaks]  -- 0 / 1 */
+  double **peakTheta;     /* [Nlcs][Npeaks]  -- best-fit theta_2 (radians) */
+  double *avepower;       /* [Nlcs] -- clipped mean of the periodogram */
+  double *rmspower;       /* [Nlcs] -- clipped RMS  of the periodogram */
+} _FTP;
+
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -2466,6 +2512,7 @@ typedef struct {
   _SortLC *SortLC;
   _PrintCommand *PrintCommand;
   _PDM *Pdm;
+  _FTP *Ftp;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

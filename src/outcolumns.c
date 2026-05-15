@@ -1338,6 +1338,18 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  }
 	  break;
 
+	case CNUM_FTP:
+	  for(i=1;i<=c[l].Ftp->Npeaks;i++) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "FTP_Period_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakvalues),  "%9.6f", 2, 0, 0, 0, i-1, "FTP_Power_%d_%d",  i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakSNR),     "%9.5f", 2, 0, 0, 0, i-1, "FTP_SNR_%d_%d",    i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Ftp->peakNegAmp),  "%2d",   2, 0, 0, 0, i-1, "FTP_NegAmp_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakTheta),   "%10.6f",2, 0, 0, 0, i-1, "FTP_Theta_%d_%d",  i, l);
+	  }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->avepower), "%9.6f", 1, 0, 0, 0, "Mean_FTP_Power_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->rmspower), "%9.6f", 1, 0, 0, 0, "RMS_FTP_Power_%d", l);
+	  break;
+
 	case CNUM_HARMAOV:
 	  for(i=1;i<=c[l].AovHarm->Npeaks;i++)
 	    {

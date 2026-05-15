@@ -3850,6 +3850,156 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -FTP "file" template_file
+              <"var" minpvar | "expr" minpexpr | minp>
+              <"var" maxpvar | "expr" maxpexpr | maxp>
+              <"var" subsamplevar | "expr" subsampleexpr | subsample>
+              <"var" finetunevar | "expr" finetuneexpr | finetune>
+              Npeaks operiodogram [outdir]
+              ["noerr"] ["posamponly"]
+       Phase A scope: single-file template only; no clip/whiten/fixperiodSNR/
+       bootstrap/maskpoints (Phases C-D).  noerr and posamponly are the only
+       trailing keywords; canonical strict order. */
+      else if(!strncmp(argv[i],"-FTP",4) && strlen(argv[i]) == 4)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_FTP;
+	  if((c[cn].Ftp = (_FTP *) malloc(sizeof(_FTP))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].Ftp, 0, sizeof(_FTP));
+	  c[cn].Ftp->useerr = 1;
+	  c[cn].Ftp->allow_neg_amp = 1;       /* default: report flag, do not reject */
+	  c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_FIXED;
+	  sprintf(c[cn].Ftp->suffix, ".ftp");
+
+	  /* Required template source: "file" PATH (Phase A only mode) */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "file") != 0) {
+	    fprintf(stderr, "-FTP: expected template source 'file' (got '%s'); "
+	                    "additional template sources arrive in a later release\n",
+	            argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Ftp->template_path = strdup(argv[i]);
+	  c[cn].Ftp->H = ftp_load_template_file(argv[i],
+	                                         &(c[cn].Ftp->cn),
+	                                         &(c[cn].Ftp->sn));
+	  if(c[cn].Ftp->H <= 0) {
+	    /* ftp_load_template_file already wrote a diagnostic. */
+	    listcommands(argv[iterm], p);
+	  }
+
+	  /* required positional: minp */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->minp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->minp_expr));
+	  } else {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->minp = atof(argv[i]);
+	  }
+	  /* required positional: maxp */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->maxp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->maxp_expr));
+	  } else {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->maxp = atof(argv[i]);
+	  }
+	  /* required positional: subsample */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->subsample_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->subsample_expr));
+	  } else {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->subsample = atof(argv[i]);
+	  }
+	  /* required positional: finetune */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->finetune_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->finetune_expr));
+	  } else {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->finetune = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Ftp->Npeaks = atoi(argv[i]); i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Ftp->operiodogram = atoi(argv[i]);
+	  if(c[cn].Ftp->operiodogram) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].Ftp->outdir, "%s", argv[i]);
+	  }
+
+	  /* "noerr" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "noerr")) {
+	    c[cn].Ftp->useerr = 0;
+	  } else {
+	    i--;
+	  }
+
+	  /* "posamponly" -- reject negative-amplitude solutions instead of just flagging */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "posamponly")) {
+	    c[cn].Ftp->allow_neg_amp = 0;
+	  } else {
+	    i--;
+	  }
+
+	  cn++;
+	}
+
       /* -aov_harm <\"var\" Nharmvar | \"expr\" Nharmexpr | Nharm> <\"var\" minpvar | \"expr\" minpexpr | minp> <\"var\" maxpvar | \"expr\" maxpexpr | maxp> <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample> <\"var\" finetunevar | \"expr\" finetuneexpr | finetune> Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov_harm",9) && strlen(argv[i]) == 9)
 	{

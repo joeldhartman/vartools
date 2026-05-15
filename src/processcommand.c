@@ -422,6 +422,11 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunPDMCommand(p, c, c->Pdm, lc2, lc, thisindex);
       break;
 
+    case CNUM_FTP:
+      /* Fast Template Periodogram (Hoffman+ 2021) */
+      RunFTPCommand(p, c, c->Ftp, lc2, lc, thisindex);
+      break;
+
     case CNUM_HARMAOV:
       /* Calculate the AoV with Harmonics */
       RunAOVHarmCommand(p, c, c->AovHarm, lc2, lc, thisindex);

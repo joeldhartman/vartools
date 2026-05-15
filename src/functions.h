@@ -475,6 +475,20 @@ void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int l
 void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
 void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name_num, int thisindex);
+void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name_num, int thisindex);
+int  ftp_load_template_file(const char *path, double **cn_out, double **sn_out);
+void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
+                   int H, double *cn, double *sn,
+                   int useerr, int allow_neg_amp,
+                   double minP, double maxP, double subsample, double finetune,
+                   int Npeaks,
+                   double *perpeaks, double *Ppeaks,
+                   int *peakNegAmp,
+                   double *peakSNR,
+                   double *peakTheta,
+                   double *avePower, double *rmsPower,
+                   int outflag, char *outname, int ascii,
+                   int lcnum, int lc_name_num);
 void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    int kind, int Nbin, int Nc, double dphi, int useerr,
                    double minP, double maxP, double subsample, double finetune,

@@ -781,6 +781,28 @@ void InitCommands(ProgramData *p, Command *c)
 	  }
 	  break;
 
+	case CNUM_FTP:
+	  if((c[i].Ftp->peakperiods    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakvalues     = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakSNR        = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakNegAmp     = (int **)    malloc(Nlcs * sizeof(int *))) == NULL ||
+	     (c[i].Ftp->peakTheta      = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->avepower       = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->rmspower       = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->minp_vals      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->maxp_vals      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->subsample_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->finetune_vals  = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++)
+	    if((c[i].Ftp->peakperiods[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakvalues[j]  = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakSNR[j]     = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakNegAmp[j]  = (int *)    malloc(c[i].Ftp->Npeaks * sizeof(int))) == NULL ||
+	       (c[i].Ftp->peakTheta[j]   = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  break;
+
 	case CNUM_HARMAOV:
 	  if((c[i].AovHarm->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].AovHarm->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
