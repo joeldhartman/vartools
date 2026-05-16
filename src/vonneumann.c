@@ -39,8 +39,16 @@
  *   w_i        = 1 / sigma_i^2
  *   w_pair_i   = 1 / (sigma_i^2 + sigma_{i+1}^2)        (proper for pair difference)
  *   ybar_w     = sum w_i y_i / sum w_i
- *   s^2_w      = sum w_i (y_i - ybar_w)^2 / sum w_i
- *   delta^2_w  = sum w_pair_i (y[i+1] - y[i])^2 / sum w_pair_i
+ *   eta_w      = (2N/(N-1)) * sum w_pair_i (y[i+1] - y[i])^2
+ *                           / sum w_i (y_i - ybar_w)^2
+ *
+ * The (2N/(N-1)) prefactor in eta_w restores E[eta_w] ~ 2 for any sigma
+ * distribution under white noise.  The naive ratio
+ * sum_pair / Σw_pair / (sum_w / Σw) instead converges to ⟨w⟩/⟨w_pair⟩,
+ * which is 2 only for homoscedastic sigma; for non-uniform sigma it drifts
+ * (e.g. bimodal sigma in {0.5, 5.0} gives raw eta_w ~ 3.9, corrected ~ 2.0).
+ * For homoscedastic sigma the corrected weighted form reduces exactly to the
+ * unweighted form.
  *
  * Long-double accumulators throughout for the same numerical-stability reason
  * the alarm statistic uses them.
@@ -53,7 +61,7 @@ double dovonneumann(int N_in, double *mag_in, double *err_in,
   double *mag = NULL, *err = NULL;
   long double sumy = 0.0L, sumw = 0.0L, ybar;
   long double sumvar = 0.0L;
-  long double sumdy = 0.0L, sumwpair = 0.0L;
+  long double sumdy = 0.0L;
   double delta_sq, s_sq;
 
   if (N_in < 2) return 0.0;
@@ -93,7 +101,9 @@ double dovonneumann(int N_in, double *mag_in, double *err_in,
       long double dy = (long double) mag[i] - ybar;
       sumvar += w * dy * dy;
     }
-    s_sq = (double) (sumvar / sumw);
+    /* Keep s_sq as the UNNORMALIZED Σw_i (y_i - ȳ_w)²; the (2N/(N-1))
+     * factor at the end restores E[eta_w] ≈ 2 for any sigma distribution. */
+    s_sq = (double) sumvar;
   } else {
     for (i = 0; i < N; i++) sumy += (long double) mag[i];
     ybar = sumy / (long double) N;
@@ -112,9 +122,9 @@ double dovonneumann(int N_in, double *mag_in, double *err_in,
       long double w_pair = 1.0L / sig_pair_sq;
       long double dy = (long double) mag[i+1] - (long double) mag[i];
       sumdy += w_pair * dy * dy;
-      sumwpair += w_pair;
     }
-    delta_sq = (double) (sumdy / sumwpair);
+    /* Unnormalized Σw_pair_i (Δy)²; see s_sq comment above. */
+    delta_sq = (double) sumdy;
   } else {
     for (i = 0; i < N - 1; i++) {
       long double dy = (long double) mag[i+1] - (long double) mag[i];
@@ -126,5 +136,8 @@ double dovonneumann(int N_in, double *mag_in, double *err_in,
   free(mag); free(err);
 
   if (!(s_sq > 0.0)) return 0.0;
+  if (weighted) {
+    return (2.0 * (double) N / (double) (N - 1)) * delta_sq / s_sq;
+  }
   return delta_sq / s_sq;
 }
