@@ -1347,8 +1347,8 @@ static void ftp_chebyshev_U_coefs(int n, double *out, int out_cap, int *out_len)
 #define FTP_METHOD_BRUTE  0
 #define FTP_METHOD_POLY   1
 #define FTP_METHOD_VERIFY 2     /* compute both, compare, return poly result */
-#define FTP_METHOD_AUTO   3     /* pick poly if H <= 4, brute otherwise */
-#define FTP_METHOD_AUTO_H_THRESHOLD 4  /* empirical brute<->poly crossover */
+#define FTP_METHOD_AUTO   3     /* pick poly if H <= 2, brute otherwise */
+#define FTP_METHOD_AUTO_H_THRESHOLD 2  /* empirical brute<->poly crossover */
 #define FTP_VERIFY_TOL    1.0e-3 /* max allowed |P_poly - P_brute| before warning */
 
 /* Polynomial-mode scratch.  Per-frequency this gets filled with the
