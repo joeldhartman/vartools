@@ -187,7 +187,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t\t| \"fixcolumn\" <colname | colnum>>]\n");
       printtostring(s,"\t[\"bootstrap\" Nboot] [\"maskpoints\" maskvar]\n");
       printtostring(s,"\t[\"method\" <\"auto\" | \"brute\" | \"poly\" | \"verify\">]\n");
-      printtostring(s,"\t[\"sums\" <\"direct\" | \"nfft\">]\n");
+      printtostring(s,"\t[\"sums\" <\"auto\" | \"direct\" | \"nfft\">]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-aov_harm",9) && strlen(c) == 9))
