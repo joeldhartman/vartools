@@ -645,6 +645,23 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     return;
   }
 
+  /* Subtract the time mean from the local t[] copy.  PDM theta at any fixed
+   * trial period is invariant to constant time shifts modulo bin alignment,
+   * but the SUB-RAYLEIGH structure of theta(f) across oversampled trial
+   * frequencies is only correlated when |t|/T is small (concretely:
+   * adjacent-trial phase shift dPhase = subsample * |t|/T must be << 1/Nbin).
+   * Without this subtraction, large epochs (e.g. full JD ~ 2.46e6) decorrelate
+   * adjacent oversampled trial frequencies and the periodogram looks noisy
+   * around the true peak (Bodi 2026 priv. comm., comparing against cuvarbase's
+   * mean-subtracted convention).  Subtraction is done ONCE here; the caller's
+   * input array t_[] is unchanged. */
+  {
+    double mean_t = 0.0;
+    for (i = 0; i < Nused; i++) mean_t += t[i];
+    mean_t /= (double) Nused;
+    for (i = 0; i < Nused; i++) t[i] -= mean_t;
+  }
+
   /* Normalise weights to sum to 1 so theta is dimensionless. */
   sumw = 0.0;
   for (i = 0; i < Nused; i++) sumw += w[i];

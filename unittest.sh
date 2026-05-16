@@ -266,39 +266,39 @@ EOF
 cat > $goodout <<EOF
 Name                       = EXAMPLES/2
 PDM_Period_1_0             =     1.23533969
-PDM_Theta_1_0              =   0.00924
-PDM_SNR_1_0                =  17.34740
-PDM_NEG_LN_FAP_1_0         = 7655.01690
-Mean_PDM_Theta_1_0         =   0.95429
-RMS_PDM_Theta_1_0          =   0.05448
-PDM_Period_2_0             =     0.13004042
-PDM_Theta_2_0              =   0.79184
-PDM_SNR_2_0                =  10.52973
-PDM_NEG_LN_FAP_2_0         = 340.59775
-Mean_PDM_Theta_2_0         =   0.96843
-RMS_PDM_Theta_2_0          =   0.01677
-PDM_Period_3_0             =     0.17645313
-PDM_Theta_3_0              =   0.74397
-PDM_SNR_3_0                =  20.50809
-PDM_NEG_LN_FAP_3_0         = 441.50584
-Mean_PDM_Theta_3_0         =   0.97310
-RMS_PDM_Theta_3_0          =   0.01117
-PDM_Period_4_0             =     0.19005658
-PDM_Theta_4_0              =   0.91817
-PDM_SNR_4_0                =   7.94554
-PDM_NEG_LN_FAP_4_0         = 104.76114
-Mean_PDM_Theta_4_0         =   0.98038
-RMS_PDM_Theta_4_0          =   0.00783
-PDM_Period_5_0             =     0.12052869
-PDM_Theta_5_0              =   0.92055
-PDM_SNR_5_0                =   7.73065
-PDM_NEG_LN_FAP_5_0         = 100.74758
-Mean_PDM_Theta_5_0         =   0.98137
-RMS_PDM_Theta_5_0          =   0.00787
+PDM_Theta_1_0              =   0.00921
+PDM_SNR_1_0                =  17.42831
+PDM_NEG_LN_FAP_1_0         = 7661.36542
+Mean_PDM_Theta_1_0         =   0.95440
+RMS_PDM_Theta_1_0          =   0.05423
+PDM_Period_2_0             =     0.41177659
+PDM_Theta_2_0              =   0.74208
+PDM_SNR_2_0                =  14.52558
+PDM_NEG_LN_FAP_2_0         = 445.63998
+Mean_PDM_Theta_2_0         =   0.96921
+RMS_PDM_Theta_2_0          =   0.01564
+PDM_Period_3_0             =     0.13003471
+PDM_Theta_3_0              =   0.73551
+PDM_SNR_3_0                =  21.09527
+PDM_NEG_LN_FAP_3_0         = 460.06408
+Mean_PDM_Theta_3_0         =   0.97450
+RMS_PDM_Theta_3_0          =   0.01133
+PDM_Period_4_0             =     0.12051363
+PDM_Theta_4_0              =   0.89627
+PDM_SNR_4_0                =  10.07335
+PDM_NEG_LN_FAP_4_0         = 142.51052
+Mean_PDM_Theta_4_0         =   0.97893
+RMS_PDM_Theta_4_0          =   0.00821
+PDM_Period_5_0             =     1.23583047
+PDM_Theta_5_0              =   0.93104
+PDM_SNR_5_0                =   6.27604
+PDM_NEG_LN_FAP_5_0         =  83.29278
+Mean_PDM_Theta_5_0         =   0.98118
+RMS_PDM_Theta_5_0          =   0.00799
 PDM_PeriodFix_0            =     1.23000000
-PDM_Theta_PeriodFix_0      =   0.03426
-PDM_SNR_PeriodFix_0        =  16.88817
-PDM_NEG_LN_FAP_PeriodFix_0 = 5498.14215
+PDM_Theta_PeriodFix_0      =   0.03920
+PDM_SNR_PeriodFix_0        =  16.87531
+PDM_NEG_LN_FAP_PeriodFix_0 = 5276.51053
 
 EOF
 
@@ -326,20 +326,20 @@ EOF
 
 cat > $goodout <<EOF
 Name               = EXAMPLES/2
-PDM_Period_1_0     =     1.23484930
-PDM_Theta_1_0      =   0.00773
-PDM_SNR_1_0        =  24.97418
-PDM_NEG_LN_FAP_1_0 = 8012.48195
+PDM_Period_1_0     =     1.23533969
+PDM_Theta_1_0      =   0.01007
+PDM_SNR_1_0        =  25.41518
+PDM_NEG_LN_FAP_1_0 = 7575.47185
 PDM_Period_2_0     =     1.23430983
-PDM_Theta_2_0      =   0.01010
-PDM_SNR_2_0        =  24.91255
-PDM_NEG_LN_FAP_2_0 = 7570.32796
-PDM_Period_3_0     =     2.45132558
-PDM_Theta_3_0      =   0.20313
-PDM_SNR_3_0        =  19.89609
-PDM_NEG_LN_FAP_3_0 = 2611.44998
-Mean_PDM_Theta_0   =   0.96871
-RMS_PDM_Theta_0    =   0.03848
+PDM_Theta_2_0      =   0.01051
+PDM_SNR_2_0        =  25.40352
+PDM_NEG_LN_FAP_2_0 = 7504.80798
+PDM_Period_3_0     =     5.12387576
+PDM_Theta_3_0      =   0.24953
+PDM_SNR_3_0        =  19.06841
+PDM_NEG_LN_FAP_3_0 = 2271.59452
+Mean_PDM_Theta_0   =   0.96899
+RMS_PDM_Theta_0    =   0.03773
 
 EOF
 
@@ -366,20 +366,20 @@ EOF
 
 cat > $goodout <<EOF
 Name               = EXAMPLES/2
-PDM_Period_1_0     =     1.23533969
-PDM_Theta_1_0      =   0.04357
-PDM_SNR_1_0        =  23.61100
-PDM_NEG_LN_FAP_1_0 = 5154.89177
-PDM_Period_2_0     =     1.23430983
-PDM_Theta_2_0      =   0.04591
-PDM_SNR_2_0        =  23.55128
-PDM_NEG_LN_FAP_2_0 = 5068.44906
-PDM_Period_3_0     =     1.23421090
-PDM_Theta_3_0      =   0.04669
-PDM_SNR_3_0        =  23.53139
-PDM_NEG_LN_FAP_3_0 = 5040.62996
-Mean_PDM_Theta_0   =   0.96872
-RMS_PDM_Theta_0    =   0.03918
+PDM_Period_1_0     =     1.23583047
+PDM_Theta_1_0      =   0.04353
+PDM_SNR_1_0        =  24.17856
+PDM_NEG_LN_FAP_1_0 = 5156.62302
+PDM_Period_2_0     =     1.23617277
+PDM_Theta_2_0      =   0.04393
+PDM_SNR_2_0        =  24.16814
+PDM_NEG_LN_FAP_2_0 = 5141.53737
+PDM_Period_3_0     =     1.23627201
+PDM_Theta_3_0      =   0.04427
+PDM_SNR_3_0        =  24.15924
+PDM_NEG_LN_FAP_3_0 = 5128.78059
+Mean_PDM_Theta_0   =   0.96911
+RMS_PDM_Theta_0    =   0.03828
 
 EOF
 
