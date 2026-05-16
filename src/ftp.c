@@ -1520,7 +1520,18 @@ static void ftp_poly_state_alloc(_FTPPolyState *ps, int H)
   ps->prev_real_roots = (double *) calloc(L_cap, sizeof(double));
   ps->Fprime_coefs    = (double *) calloc(L_cap, sizeof(double));
   ps->freqs_since_full = 0;
-  ps->full_every       = 50;        /* re-eigensolve every 50 frequencies */
+  /* Newton root tracking (the alternative to a full eigensolve per frequency)
+   * is left in place below but disabled by full_every = 0: at every frequency
+   * we run gsl_poly_complex_solve.  Newton sometimes converges from a
+   * previous-frequency interior root to the nearby boundary root b = +/- 1 of
+   * the new polynomial (Pp(+/-1) is structurally near zero, so the boundary
+   * is a strong attractor), silently missing the true interior optimum.  The
+   * resulting periodogram has up to O(1) errors -- correctness-fatal.  A
+   * proper fix would detect when Newton's converged b differs substantially
+   * from its starting b and trigger a fallback eigensolve in that case;
+   * pending that, full_every = 0 keeps the path correct at the cost of the
+   * ~1% Newton speedup. */
+  ps->full_every       = 0;        /* every-frequency full eigensolve */
   if (ps->prev_real_roots == NULL || ps->Fprime_coefs == NULL)
     vt_error(ERR_MEMALLOC);
 }
@@ -1853,11 +1864,18 @@ static double ftp_poly_P_at_omega(int H, _FTPPolyState *ps,
       ftp_poly_deriv(ps->Fprime_coefs, L_cap, ps->root_poly, ps->root_poly_len);
     }
 
-    /* Decide whether to do a full eigensolve. */
+    /* Decide whether to do a full eigensolve.  With full_every = 0 (the
+     * current default) this branch is always taken; see the comment at
+     * full_every's initialiser for why Newton tracking is disabled. */
     if (!ps->prev_roots_valid || ps->freqs_since_full >= ps->full_every) {
       do_full = 1;
     } else {
-      /* Newton refinement from previous frequency's roots. */
+      /* Newton refinement from previous frequency's roots.  NOTE: this code
+       * path is left in place but unreachable under the current default
+       * full_every = 0.  Re-enabling it requires a guard to detect when
+       * Newton converges to a root that has drifted far from its starting b
+       * (typically the boundary b = +/- 1) and fall back to eigensolve in
+       * that case -- otherwise periodograms have O(1) errors. */
       int Fp_eff_len = (ps->root_poly_len > 0) ? (ps->root_poly_len - 1) : 0;
       int max_iters = 15;
       double tol = 1.0e-13;
