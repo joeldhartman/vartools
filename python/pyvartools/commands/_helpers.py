@@ -308,6 +308,14 @@ def _resolve_period_backref(prev, spec):
             )
         return _coerce_to_numeric(stats.Period_1)
 
+    if s == "ftp":
+        stats = _most_recent_lookup(prev, ["FTP"])
+        if stats is None:
+            raise LookupError(
+                "Back-reference 'ftp' has no prior -FTP command in this chain"
+            )
+        return _coerce_to_numeric(stats.Period_1)
+
     if s == "bls":
         stats = _most_recent_lookup(prev, ["BLS"])
         if stats is None:

@@ -260,6 +260,180 @@ class TestCLIArgsPeriodicity:
         with pytest.raises(ValueError, match="bootstrap"):
             cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, bootstrap=-3)
 
+    # ----- FTP (Fast Template Periodogram) -----
+
+    def test_ftp_file_minimal(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat")._to_cli_args()
+        assert args[0] == "-FTP"
+        assert args[1] == "file" and args[2] == "t.dat"
+
+    def test_ftp_fitlc_ascii(self):
+        args = cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                       lc_path="lc.txt", lc_format="ascii",
+                       t_col=1, mag_col=2, err_col=3,
+                       nharm=5, period=1.235)._to_cli_args()
+        assert args[1] == "fitlc"
+        assert "ascii" in args
+        # ascii column tokens emitted as positional ints.
+        i = args.index("ascii")
+        assert args[i + 1:i + 4] == ["1", "2", "3"]
+        # nharm and period follow the cols.
+        assert args[i + 4] == "5" and args[i + 5] == "1.235"
+
+    def test_ftp_fitlc_fits(self):
+        args = cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                       lc_path="lc.fits", lc_format="fits",
+                       t_col="TIME", mag_col="MAG", err_col="none",
+                       nharm=3, period=0.5)._to_cli_args()
+        assert "fits" in args
+        i = args.index("fits")
+        assert args[i + 1:i + 4] == ["TIME", "MAG", "none"]
+
+    def test_ftp_inline(self):
+        # Length-2 cn/sn means H = 2 (nharm = 1).
+        args = cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                       cn=[0.7, 0.2], sn=[0.0, 0.0])._to_cli_args()
+        assert args[1] == "inline" and args[2] == "1"   # nharm
+        # The 4 c/s spec tokens for the two harmonics, in CLI order.
+        idx = args.index("inline")
+        assert args[idx + 2:idx + 6] == ["0.7", "0.0", "0.2", "0.0"]
+
+    def test_ftp_inline_var_coeff(self):
+        # var/expr forms in the cn/sn lists are passed through.
+        args = cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                       cn=["c1var"], sn=[0.0])._to_cli_args()
+        assert "var" in args and "c1var" in args
+        assert args[args.index("var") + 1] == "c1var"
+
+    def test_ftp_filelist(self):
+        args = cmd.FTP("filelist", 0.1, 2.0, 0.1, 0.01,
+                       filelist_column=2)._to_cli_args()
+        assert args[1] == "filelist"
+        assert "column" in args
+        assert args[args.index("column") + 1] == "2"
+
+    def test_ftp_filelist_no_column(self):
+        # Without filelist_column, the 'column N' tokens are omitted.
+        args = cmd.FTP("filelist", 0.1, 2.0, 0.1, 0.01)._to_cli_args()
+        assert args[1] == "filelist"
+        assert "column" not in args
+
+    def test_ftp_save_periodogram(self):
+        c = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", save_periodogram=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        assert "/tmp" in args
+
+    def test_ftp_clip_clipiter(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       clip=3, clipiter=0)._to_cli_args()
+        i = args.index("clip")
+        assert args[i + 1] == "3" and args[i + 2] == "0"
+
+    def test_ftp_posamponly_noerr_whiten(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       noerr=True, posamponly=True,
+                       whiten=True)._to_cli_args()
+        # Canonical order: noerr < posamponly < whiten.
+        assert (args.index("noerr") < args.index("posamponly")
+                < args.index("whiten"))
+
+    def test_ftp_method_sums(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       method="poly", sums="nfft")._to_cli_args()
+        assert args[args.index("method") + 1] == "poly"
+        assert args[args.index("sums") + 1] == "nfft"
+
+    def test_ftp_fixperiod_snr_ftp(self):
+        # Pre-resolution: 'ftp' keyword string passes through.
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       fixperiod_snr="ftp")._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "ftp"
+
+    def test_ftp_bootstrap(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       bootstrap=50)._to_cli_args()
+        i = args.index("bootstrap")
+        assert args[i + 1] == "50"
+
+    def test_ftp_canonical_trailing_order(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       clip=5, noerr=True, posamponly=True, whiten=True,
+                       fixperiod_snr=1.23, bootstrap=20,
+                       maskpoints="m", method="brute",
+                       sums="direct")._to_cli_args()
+        order_keywords = ["clip", "noerr", "posamponly", "whiten",
+                          "fixperiodSNR", "bootstrap", "maskpoints",
+                          "method", "sums"]
+        positions = [args.index(k) for k in order_keywords if k in args]
+        assert positions == sorted(positions)
+
+    # ----- FTP constructor validation -----
+
+    def test_ftp_rejects_bad_template_source(self):
+        with pytest.raises(ValueError, match="template_source"):
+            cmd.FTP("bogus", 0.1, 2.0, 0.1, 0.01)
+
+    def test_ftp_rejects_file_without_template_file(self):
+        with pytest.raises(ValueError, match="template_file"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01)
+
+    def test_ftp_rejects_mixed_mode_kwargs(self):
+        with pytest.raises(ValueError, match="file mode rejects"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", lc_path="x.lc")
+
+    def test_ftp_rejects_fitlc_missing_args(self):
+        with pytest.raises(ValueError, match="fitlc mode requires"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="ascii")  # cols/nharm/period missing
+
+    def test_ftp_rejects_fitlc_bad_format(self):
+        with pytest.raises(ValueError, match="lc_format"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="binary",
+                    t_col=1, mag_col=2, err_col=3, nharm=3, period=1.0)
+
+    def test_ftp_rejects_fitlc_period_string(self):
+        with pytest.raises(ValueError, match="numeric"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="ascii",
+                    t_col=1, mag_col=2, err_col=3, nharm=3, period="myP")
+
+    def test_ftp_rejects_inline_uneven_cn_sn(self):
+        with pytest.raises(ValueError, match="equal"):
+            cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                    cn=[0.7, 0.2], sn=[0.0])
+
+    def test_ftp_rejects_inline_nharm_mismatch(self):
+        with pytest.raises(ValueError, match="nharm"):
+            cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                    cn=[0.7, 0.2], sn=[0.0, 0.0], nharm=7)
+
+    def test_ftp_rejects_bad_method(self):
+        with pytest.raises(ValueError, match="method"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", method="bogus")
+
+    def test_ftp_rejects_bad_sums(self):
+        with pytest.raises(ValueError, match="sums"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", sums="bogus")
+
+    def test_ftp_rejects_bootstrap_zero(self):
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", bootstrap=0)
+
     def test_bls_minimal(self):
         # nfreq= required when density_mode=False ("optimal" is
         # density-mode-only per vartools).
@@ -2100,6 +2274,52 @@ class TestEndToEndPipelines:
         assert len(pdms) == 2
         first, second = pdms[0], pdms[1]
         # Second one's PeriodFix should equal first one's Period_1.
+        assert abs(second.PeriodFix - first.Period_1) < 1e-6
+
+    # -----------------------------------------------------------------------
+    # FTP (Fast Template Periodogram)
+    # -----------------------------------------------------------------------
+
+    def test_ftp_inline_pipeline(self):
+        # Pure-cosine H=1 template; FTP should peak at the injected period.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1),
+        ]).run(lc)
+        ftp = result.varobjs.FTP
+        assert hasattr(ftp, "Period_1")
+        assert abs(ftp.Period_1 - 1.8) / 1.8 < 0.01
+        assert ftp.Power_1 > 0.9   # near-perfect fit for a pure sinusoid
+
+    def test_ftp_fitlc_pipeline(self, tmp_path):
+        # Build an LC, dump it to disk, then FTP-fitlc against itself at
+        # the known period: search should find the same period.
+        lc = make_lc(period=1.8)
+        lc_path = tmp_path / "t.lc"
+        df = lc.to_dataframe()
+        df.to_csv(lc_path, sep=" ", header=False, index=False)
+        result = vt.Pipeline([
+            cmd.FTP("fitlc", 0.5, 5.0, 0.1, 0.01,
+                    lc_path=str(lc_path), lc_format="ascii",
+                    t_col=1, mag_col=2, err_col=3,
+                    nharm=3, period=1.8, npeaks=1),
+        ]).run(lc)
+        assert abs(result.varobjs.FTP.Period_1 - 1.8) / 1.8 < 0.01
+
+    def test_ftp_to_ftp_backref(self):
+        # Second -FTP uses the first -FTP's peak via fixperiod_snr='ftp'.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1),
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1,
+                    fixperiod_snr="ftp"),
+        ]).run(lc)
+        ftps = result.varobjs.FTP
+        assert len(ftps) == 2
+        first, second = ftps[0], ftps[1]
         assert abs(second.PeriodFix - first.Period_1) < 1e-6
 
     # -----------------------------------------------------------------------

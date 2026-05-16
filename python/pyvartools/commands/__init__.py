@@ -13,6 +13,7 @@ from .periodicity import (
     aov,
     aov_harm,
     PDM,
+    FTP,
     BLS,
     BLSFixPer,
     BLSFixDurTc,

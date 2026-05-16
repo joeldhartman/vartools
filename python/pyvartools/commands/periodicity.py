@@ -472,6 +472,334 @@ class PDM(VartoolsCommand):
         return {"periodogram": (".pdm", None)}
 
 
+_FTP_TEMPLATE_SOURCES = ("file", "fitlc", "inline", "filelist")
+_FTP_METHODS = ("auto", "brute", "poly", "verify")
+_FTP_SUMS = ("auto", "direct", "nfft")
+
+
+class FTP(VartoolsCommand):
+    """Fast Template Periodogram (FTP).
+
+    Hoffman et al. 2021 (arXiv:2101.12348) non-linear extension of the
+    Generalized Lomb-Scargle periodogram that fits a known periodic template
+    shape M(phi) at each trial period.  Four template-source modes select
+    where the truncated Fourier series ``M(phi) = sum_{n=1..H} c_n cos(n phi)
+    + s_n sin(n phi)`` comes from.
+
+    Parameters
+    ----------
+    template_source : {"file", "fitlc", "inline", "filelist"}
+        Selects how the template is sourced.  Each mode requires a different
+        set of mode-specific keyword arguments; mixing is rejected at
+        construction time:
+
+        - ``"file"``:     requires ``template_file`` (path to a two-column
+                          c_n s_n text file; H inferred from row count).
+        - ``"fitlc"``:    requires ``lc_path``, ``lc_format``, ``t_col``,
+                          ``mag_col``, ``err_col``, ``nharm``, ``period``.
+                          Builds the template by fitting a Fourier series of
+                          order ``nharm + 1`` to the LC at ``lc_path`` at
+                          fixed ``period``.
+        - ``"inline"``:   requires ``cn`` and ``sn`` lists of equal length
+                          ``nharm + 1`` (``nharm`` inferred from ``len(cn)``).
+                          Each entry can be a number or a bare identifier /
+                          expression string (var/expr semantics).
+        - ``"filelist"``: optionally ``filelist_column`` (1-indexed integer);
+                          the template path is read from that column of the
+                          ``-l`` input list.
+    minp, maxp : float or str
+        Period search range.  Accepts var/expr forms.
+    subsample, finetune : float or str
+        Frequency-grid step and fine-tune resolution.  Accepts var/expr.
+    npeaks : int
+        Number of peaks to report (default 5).
+    save_periodogram : bool or str
+        ``True`` writes the periodogram to the pipeline outdir with suffix
+        ``.ftp``; pass a path string to write to a specific directory;
+        ``False`` (default) suppresses.
+
+    template_file : str, optional (``file`` mode)
+        Path to a two-column ``c_n s_n`` whitespace-separated text file.
+    lc_path : str, optional (``fitlc`` mode)
+        Path to a light curve from which the template will be built.
+    lc_format : {"ascii", "fits"}, optional (``fitlc`` mode)
+        Format of ``lc_path``.
+    t_col, mag_col, err_col : int or str, optional (``fitlc`` mode)
+        ASCII: 1-indexed integer column numbers; pass ``err_col=0`` for an
+        unweighted fit.  FITS: column-name strings; pass
+        ``err_col="none"`` or ``""`` for an unweighted fit.
+    nharm : int, optional (``fitlc`` or ``inline`` mode)
+        Harmonics ABOVE the fundamental (matches the ``-harmonicfilter`` /
+        ``-Injectharm`` convention).  Total template harmonic count is
+        ``nharm + 1``.
+    period : float, optional (``fitlc`` mode)
+        The fixed period at which the template Fourier series is fit.
+        Numeric only (the vartools C parser uses ``atof``; var/expr are not
+        accepted on this slot).
+    cn, sn : list of (number or str), optional (``inline`` mode)
+        Length-(``nharm + 1``) lists of the c_n and s_n coefficients.  Each
+        entry is either a number or a string identifier / expression
+        evaluated per LC.  ``nharm`` is inferred from ``len(cn)``.
+    filelist_column : int, optional (``filelist`` mode)
+        1-indexed column in the ``-l`` input list holding each LC's template
+        path.  If omitted, the next available column is used.
+
+    clip : float, optional
+        Sigma-clip factor for the SNR noise estimate (default 5).
+    clipiter : int, optional
+        0 or 1: disable / enable iterative clipping (default 1).
+    noerr : bool
+        Force uniform weights instead of 1/sigma^2.
+    posamponly : bool
+        Skip negative-amplitude solutions during the search (a flipped
+        template is generally not a valid match).
+    whiten : bool
+        Iterative pre-whitening between peaks: subtract the closed-form
+        FTP-template fit from the LC at each peak before searching for
+        the next.
+    fixperiod_snr : float, int, or str, optional
+        Additionally report the FTP statistic at a specified period.
+        Recognised back-references: ``"aov"`` / ``"ls"`` / ``"pdm"`` /
+        ``"ftp"`` / ``"injectharm"``, ``"fixcolumn <name>"``,
+        ``"list [column N]"``, or a numeric value (treated as a literal).
+    bootstrap : int, optional
+        Empirical-CDF FAP via ``Nboot`` shuffled-LC trials.
+    maskpoints : str, optional
+        Name of an LC vector; points with maskvar > VARTOOLS_MASK_TINY are
+        included, others excluded.
+    method : {"auto", "brute", "poly", "verify"}, optional
+        Per-frequency optimisation strategy.  ``auto`` (default) picks
+        ``poly`` for H <= 2, else ``brute``.
+    sums : {"auto", "direct", "nfft"}, optional
+        Per-LC summation strategy.  ``auto`` (default) picks ``nfft`` if
+        vartools was built with ``--with-nfft``, else ``direct``.
+
+    See Also
+    --------
+    Citations: Hoffman, VanderPlas, Hartman & Bakos 2021
+    (arXiv:2101.12348).  Reference Python implementation:
+    https://github.com/PrincetonUniversity/FastTemplatePeriodogram
+    """
+
+    _vt_name = "FTP"
+
+    def __init__(
+        self,
+        template_source: str,
+        minp: Union[float, str],
+        maxp: Union[float, str],
+        subsample: Union[float, str],
+        finetune: Union[float, str],
+        *,
+        # file mode
+        template_file: Optional[str] = None,
+        # fitlc mode
+        lc_path: Optional[str] = None,
+        lc_format: Optional[str] = None,
+        t_col: Optional[Union[int, str]] = None,
+        mag_col: Optional[Union[int, str]] = None,
+        err_col: Optional[Union[int, str]] = None,
+        period: Optional[Union[float, int]] = None,
+        # fitlc + inline modes
+        nharm: Optional[int] = None,
+        # inline mode
+        cn: Optional[List] = None,
+        sn: Optional[List] = None,
+        # filelist mode
+        filelist_column: Optional[int] = None,
+        # required after positionals
+        npeaks: int = 5,
+        save_periodogram=False,
+        # trailing
+        clip: Optional[float] = None,
+        clipiter: Optional[int] = None,
+        noerr: bool = False,
+        posamponly: bool = False,
+        whiten: bool = False,
+        fixperiod_snr: Union[float, int, str, None] = None,
+        bootstrap: Optional[int] = None,
+        maskpoints: Optional[str] = None,
+        method: Optional[str] = None,
+        sums: Optional[str] = None,
+    ) -> None:
+        if template_source not in _FTP_TEMPLATE_SOURCES:
+            raise ValueError(
+                f"FTP: template_source must be one of {_FTP_TEMPLATE_SOURCES!r}, "
+                f"got {template_source!r}"
+            )
+
+        # Collect mode-specific kwargs to enforce mutual exclusion.
+        _file_kw = (template_file,)
+        _fitlc_kw = (lc_path, lc_format, t_col, mag_col, err_col, period)
+        _inline_kw = (cn, sn)
+        _filelist_kw = (filelist_column,)
+
+        if template_source == "file":
+            if template_file is None:
+                raise ValueError("FTP file mode requires 'template_file'")
+            if any(x is not None for x in (*_fitlc_kw, *_inline_kw,
+                                            *_filelist_kw)):
+                raise ValueError(
+                    "FTP file mode rejects fitlc/inline/filelist kwargs"
+                )
+        elif template_source == "fitlc":
+            if any(x is None for x in (lc_path, lc_format, t_col, mag_col,
+                                        err_col, nharm, period)):
+                raise ValueError(
+                    "FTP fitlc mode requires lc_path, lc_format, t_col, "
+                    "mag_col, err_col, nharm, and period"
+                )
+            if lc_format not in ("ascii", "fits"):
+                raise ValueError(
+                    f"FTP fitlc: lc_format must be 'ascii' or 'fits', got "
+                    f"{lc_format!r}"
+                )
+            if not isinstance(nharm, int) or nharm < 0:
+                raise ValueError(
+                    f"FTP fitlc: nharm must be a non-negative int, got "
+                    f"{nharm!r}"
+                )
+            if not isinstance(period, (int, float)):
+                raise ValueError(
+                    f"FTP fitlc: period must be numeric (vartools parses it "
+                    f"as a literal float), got {period!r}"
+                )
+            if any(x is not None for x in (*_file_kw, *_inline_kw,
+                                            *_filelist_kw)):
+                raise ValueError(
+                    "FTP fitlc mode rejects file/inline/filelist kwargs"
+                )
+        elif template_source == "inline":
+            if cn is None or sn is None:
+                raise ValueError("FTP inline mode requires cn and sn")
+            if len(cn) != len(sn) or len(cn) < 1:
+                raise ValueError(
+                    f"FTP inline: cn and sn must have equal non-zero length, "
+                    f"got len(cn)={len(cn)} len(sn)={len(sn)}"
+                )
+            if nharm is not None and nharm != len(cn) - 1:
+                raise ValueError(
+                    f"FTP inline: nharm={nharm} disagrees with len(cn)-1="
+                    f"{len(cn) - 1}; either pass nharm or omit it (it is "
+                    "inferred from len(cn))"
+                )
+            if any(x is not None for x in (*_file_kw, *_fitlc_kw,
+                                            *_filelist_kw)):
+                raise ValueError(
+                    "FTP inline mode rejects file/fitlc/filelist kwargs"
+                )
+            nharm = len(cn) - 1
+        elif template_source == "filelist":
+            if filelist_column is not None and (
+                not isinstance(filelist_column, int) or filelist_column < 1
+            ):
+                raise ValueError(
+                    f"FTP filelist: filelist_column must be a 1-indexed int, "
+                    f"got {filelist_column!r}"
+                )
+            if any(x is not None for x in (*_file_kw, *_fitlc_kw,
+                                            *_inline_kw[:1], nharm)):
+                raise ValueError(
+                    "FTP filelist mode rejects file/fitlc/inline kwargs"
+                )
+
+        if method is not None and method not in _FTP_METHODS:
+            raise ValueError(
+                f"FTP: method must be one of {_FTP_METHODS!r}, got {method!r}"
+            )
+        if sums is not None and sums not in _FTP_SUMS:
+            raise ValueError(
+                f"FTP: sums must be one of {_FTP_SUMS!r}, got {sums!r}"
+            )
+        if bootstrap is not None:
+            try:
+                _nboot = int(bootstrap)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"FTP: bootstrap must be a positive int, got {bootstrap!r}"
+                )
+            if _nboot < 1:
+                raise ValueError(
+                    f"FTP: bootstrap must be >= 1, got {_nboot}"
+                )
+            bootstrap = _nboot
+
+        self.template_source = template_source
+        self.minp = minp
+        self.maxp = maxp
+        self.subsample = subsample
+        self.finetune = finetune
+        self.template_file = template_file
+        self.lc_path = lc_path
+        self.lc_format = lc_format
+        self.t_col = t_col
+        self.mag_col = mag_col
+        self.err_col = err_col
+        self.period = period
+        self.nharm = nharm
+        self.cn = cn
+        self.sn = sn
+        self.filelist_column = filelist_column
+        self.npeaks = npeaks
+        self.save_periodogram = save_periodogram
+        self.clip = clip
+        self.clipiter = clipiter
+        self.noerr = noerr
+        self.posamponly = posamponly
+        self.whiten = whiten
+        self.fixperiod_snr = fixperiod_snr
+        self.bootstrap = bootstrap
+        self.maskpoints = maskpoints
+        self.method = method
+        self.sums = sums
+
+    def _to_cli_args(self) -> List[str]:
+        outdir = getattr(self, "_outdir", ".")
+        args = ["-FTP"]
+        if self.template_source == "file":
+            args += ["file", str(self.template_file)]
+        elif self.template_source == "fitlc":
+            args += ["fitlc", str(self.lc_path), str(self.lc_format),
+                     str(self.t_col), str(self.mag_col), str(self.err_col),
+                     str(int(self.nharm)), str(float(self.period))]
+        elif self.template_source == "inline":
+            args += ["inline", str(int(self.nharm))]
+            for c_val, s_val in zip(self.cn, self.sn):
+                args += _varexpr(c_val) + _varexpr(s_val)
+        elif self.template_source == "filelist":
+            args += ["filelist"]
+            if self.filelist_column is not None:
+                args += ["column", str(int(self.filelist_column))]
+        # Required positionals.
+        args += (_varexpr(self.minp) + _varexpr(self.maxp)
+                 + _varexpr(self.subsample) + _varexpr(self.finetune)
+                 + [str(self.npeaks)])
+        args += _outtoken(self.save_periodogram, outdir)
+        # Trailing keywords in the canonical (strict-parser) order:
+        # clip / noerr / posamponly / whiten / fixperiodSNR / bootstrap /
+        # maskpoints / method / sums.
+        if self.clip is not None:
+            args += ["clip", str(self.clip),
+                     str(self.clipiter if self.clipiter is not None else 1)]
+        args += _bool("noerr", self.noerr)
+        args += _bool("posamponly", self.posamponly)
+        args += _bool("whiten", self.whiten)
+        args += _fixperiodsnr_tokens(self.fixperiod_snr)
+        if self.bootstrap is not None:
+            args += ["bootstrap", str(int(self.bootstrap))]
+        args += _flag("maskpoints", self.maskpoints)
+        args += _flag("method", self.method)
+        args += _flag("sums", self.sums)
+        return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.fixperiod_snr = _resolve_period_backref(prev, self.fixperiod_snr)
+
+    def _output_file_specs(self):
+        return {"periodogram": (".ftp", None)}
+
+
 class BLS(VartoolsCommand):
     """Box-Least-Squares transit search.
 
