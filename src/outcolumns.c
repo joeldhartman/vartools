@@ -1349,9 +1349,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->avepower_whiten), "%9.6f", 2, 0, 0, 0, i-1, "Mean_FTP_Power_%d_%d", i, l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->rmspower_whiten), "%9.6f", 2, 0, 0, 0, i-1, "RMS_FTP_Power_%d_%d",  i, l);
 	    }
-	    if(c[l].Ftp->bootstrap_Nboot > 0) {
-	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakFAP), "%9.5f", 2, 0, 0, 0, i-1, "FTP_NEG_LN_FAP_%d_%d", i, l);
-	    }
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakFAP), "%9.5f", 2, 0, 0, 0, i-1, "FTP_NEG_LN_FAP_%d_%d", i, l);
 	  }
 	  if(!c[l].Ftp->whiten) {
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->avepower), "%9.6f", 1, 0, 0, 0, "Mean_FTP_Power_%d", l);
@@ -1363,9 +1361,7 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakSNR),    "%9.5f",  1, 0, 0, 0, "FTP_SNR_PeriodFix_%d", l);
 	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Ftp->fixperiodSNR_peakNegAmp), "%2d",    1, 0, 0, 0, "FTP_NegAmp_PeriodFix_%d", l);
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakTheta),  "%10.6f", 1, 0, 0, 0, "FTP_Theta_PeriodFix_%d", l);
-	    if(c[l].Ftp->bootstrap_Nboot > 0) {
-	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakFAP), "%9.5f", 1, 0, 0, 0, "FTP_NEG_LN_FAP_PeriodFix_%d", l);
-	    }
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakFAP), "%9.5f", 1, 0, 0, 0, "FTP_NEG_LN_FAP_PeriodFix_%d", l);
 	  }
 	  break;
 

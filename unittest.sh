@@ -503,19 +503,21 @@ cat > $testc <<EOF
 EOF
 
 cat > $goodout <<EOF
-Name             = EXAMPLES/2
-FTP_Period_1_0   =     1.23533969
-FTP_Power_1_0    =  0.997214
-FTP_SNR_1_0      =  52.34578
-FTP_NegAmp_1_0   =  0
-FTP_Theta_1_0    =   2.848311
-FTP_Period_2_0   =     1.24227410
-FTP_Power_2_0    =  0.938111
-FTP_SNR_2_0      =  49.19779
-FTP_NegAmp_2_0   =  1
-FTP_Theta_2_0    =   0.878884
-Mean_FTP_Power_0 =  0.014436
-RMS_FTP_Power_0  =  0.018775
+Name               = EXAMPLES/2
+FTP_Period_1_0     =     1.23533969
+FTP_Power_1_0      =  0.997214
+FTP_SNR_1_0        =  52.34578
+FTP_NegAmp_1_0     =  0
+FTP_Theta_1_0      =   2.848311
+FTP_NEG_LN_FAP_1_0 = 9730.84827
+FTP_Period_2_0     =     1.24227410
+FTP_Power_2_0      =  0.938111
+FTP_SNR_2_0        =  49.19779
+FTP_NegAmp_2_0     =  1
+FTP_Theta_2_0      =   0.878884
+FTP_NEG_LN_FAP_2_0 = 4599.21147
+Mean_FTP_Power_0   =  0.014436
+RMS_FTP_Power_0    =  0.018775
 
 EOF
 
@@ -545,19 +547,21 @@ cat > $testc <<EOF
 EOF
 
 cat > $goodout <<EOF
-Name             = EXAMPLES/2
-FTP_Period_1_1   =     1.23583047
-FTP_Power_1_1    =  0.927988
-FTP_SNR_1_1      =  63.96991
-FTP_NegAmp_1_1   =  0
-FTP_Theta_1_1    =   1.119990
-FTP_Period_2_1   =     1.24205364
-FTP_Power_2_1    =  0.881964
-FTP_SNR_2_1      =  60.76213
-FTP_NegAmp_2_1   =  0
-FTP_Theta_2_1    =   1.974284
-Mean_FTP_Power_1 =  0.010171
-RMS_FTP_Power_1  =  0.014348
+Name               = EXAMPLES/2
+FTP_Period_1_1     =     1.23583047
+FTP_Power_1_1      =  0.927988
+FTP_SNR_1_1        =  63.96991
+FTP_NegAmp_1_1     =  0
+FTP_Theta_1_1      =   1.119990
+FTP_NEG_LN_FAP_1_1 = 4348.50074
+FTP_Period_2_1     =     1.24205364
+FTP_Power_2_1      =  0.881964
+FTP_SNR_2_1        =  60.76213
+FTP_NegAmp_2_1     =  0
+FTP_Theta_2_1      =   1.974284
+FTP_NEG_LN_FAP_2_1 = 3530.66532
+Mean_FTP_Power_1   =  0.010171
+RMS_FTP_Power_1    =  0.014348
 
 EOF
 
@@ -586,9 +590,9 @@ cat > $testc <<EOF
 EOF
 
 cat > $goodout <<EOF
-#Name FTP_Period_1_0 FTP_Power_1_0 FTP_SNR_1_0 FTP_NegAmp_1_0 FTP_Theta_1_0 FTP_Period_2_0 FTP_Power_2_0 FTP_SNR_2_0 FTP_NegAmp_2_0 FTP_Theta_2_0 Mean_FTP_Power_0 RMS_FTP_Power_0
-EXAMPLES/2     1.23533969  0.997205  52.36389  0   2.851575     1.24227410  0.938042  49.21161  0   4.029896  0.014433  0.018768
-EXAMPLES/3     1.14782073  0.034710  11.18858  1   0.580350     1.14814991  0.034693  11.18264  0   1.070191  0.002568  0.002873
+#Name FTP_Period_1_0 FTP_Power_1_0 FTP_SNR_1_0 FTP_NegAmp_1_0 FTP_Theta_1_0 FTP_NEG_LN_FAP_1_0 FTP_Period_2_0 FTP_Power_2_0 FTP_SNR_2_0 FTP_NegAmp_2_0 FTP_Theta_2_0 FTP_NEG_LN_FAP_2_0 Mean_FTP_Power_0 RMS_FTP_Power_0
+EXAMPLES/2     1.23533969  0.997205  52.36389  0   2.851575 9725.52032     1.24227410  0.938042  49.21161  0   4.029896 4597.37373  0.014433  0.018768
+EXAMPLES/3     1.14782073  0.034710  11.18858  1   0.580350  54.61598     1.14814991  0.034693  11.18264  0   1.070191  54.58580  0.002568  0.002873
 EOF
 
 $VARTOOLS -l EXAMPLES/lc_list_ftp -header -ascii \

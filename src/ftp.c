@@ -2543,6 +2543,31 @@ static double ftp_bootstrap_log10fap(double P_peak, int Nboot,
   return log10((double) ind / (double) Nboot);
 }
 
+/* Analytic NEG_LN_FAP under the Wilks / Zechmeister & Kuerster Gaussian-noise
+ * idealisation: the FTP power statistic at H=1 reduces to GLS, for which the
+ * per-trial null distribution is Beta(1, (N-3)/2) with closed-form tail
+ * (1-P)^((N-3)/2).  For H>1 the Wilks-theorem asymptotic argument (two free
+ * params: theta_1 amplitude + theta_2 phase shift) gives the same Beta form
+ * as an approximation -- exact under regularity, in practice an idealised
+ * baseline because real LCs rarely satisfy Gaussian-white-noise assumptions.
+ * The metric is still useful as a significance index: it encodes the
+ * N-dependence of detectability and avoids the alias-inflation of the noise
+ * floor that hurts periodogram SNR.  Use 'bootstrap' for an empirically
+ * calibrated FAP when the absolute number matters.
+ *
+ *   FAP_single = (1 - P)^((Nused-3)/2)
+ *   NEG_LN_FAP = -log(m_eff * FAP_single)
+ *              = negln_m_eff - 0.5 * (Nused - 3) * log1p(-P)
+ *
+ * log1p(-P) is used for numerical stability near P=1. */
+static double ftp_analytic_neg_ln_fap(double P, double negln_m_eff, int Nused)
+{
+  if (Nused <= 3) return 0.0;
+  if (P < 0.0) P = 0.0;
+  if (P > 1.0) P = 1.0;
+  return negln_m_eff - 0.5 * (double)(Nused - 3) * log1p(-P);
+}
+
 /* ---- Per-LC peak finder ---- */
 
 void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
@@ -2681,6 +2706,19 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
   T = t[Nused - 1] - t[0];
   if (T <= 0.0) T = 1.0;
   freqstep = subsample / T;
+
+  /* Effective number of independent trials for the analytic NEG_LN_FAP
+   * Bonferroni correction (mirrors -PDM / -LS): the search-range frequency
+   * span divided by the Rayleigh resolution 1/T.  Subsample > 1 means the
+   * grid is coarser than 1/T so the user evaluated fewer trials -- divide
+   * out (matches -PDM convention).  Oversampling (subsample <= 1) does not
+   * add independent trials -- the Rayleigh resolution is unchanged. */
+  int    m_eff;
+  double negln_m_eff;
+  m_eff = (int)((1.0 / minP - 1.0 / maxP) * T);
+  if (subsample > 1.0) m_eff = (int)((double)m_eff / subsample);
+  if (m_eff < 1) m_eff = 1;
+  negln_m_eff = -log((double)m_eff);
 
   Nperiod = 0;
   freq = 1.0 / minP;
@@ -2905,10 +2943,15 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
       /* SNR for this peak using THIS cycle's noise estimate. */
       if (Ppeaks[peakiter] >= 0.0 && perpeaks[peakiter] > 0.0) {
         peakSNR[peakiter] = (Ppeaks[peakiter] - cyc_ave) / cyc_std;
-        if (bootstrap_Nboot > 0 && peakFAP != NULL) {
-          double l10 = ftp_bootstrap_log10fap(Ppeaks[peakiter], bootstrap_Nboot,
-                                                bootstrapdist, bootstrap_fitcoeffs);
-          peakFAP[peakiter] = -log(10.0) * l10;
+        if (peakFAP != NULL) {
+          if (bootstrap_Nboot > 0) {
+            double l10 = ftp_bootstrap_log10fap(Ppeaks[peakiter], bootstrap_Nboot,
+                                                  bootstrapdist, bootstrap_fitcoeffs);
+            peakFAP[peakiter] = -log(10.0) * l10;
+          } else {
+            peakFAP[peakiter] = ftp_analytic_neg_ln_fap(Ppeaks[peakiter],
+                                                         negln_m_eff, Nused);
+          }
         }
       } else {
         perpeaks[peakiter]   = -1.0;
@@ -2916,7 +2959,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
         peakSNR[peakiter]    = 0.0;
         peakNegAmp[peakiter] = 0;
         peakTheta[peakiter]  = 0.0;
-        if (bootstrap_Nboot > 0 && peakFAP != NULL) peakFAP[peakiter] = 0.0;
+        if (peakFAP != NULL) peakFAP[peakiter] = 0.0;
       }
 
       /* Whiten the LC at this peak; recompute periodogram for next cycle. */
@@ -3014,10 +3057,14 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
           if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - *avePower) / *rmsPower;
           if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
           if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
-          if (fix_FAP_ptr && bootstrap_Nboot > 0) {
-            double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
-                                                  bootstrapdist, bootstrap_fitcoeffs);
-            *fix_FAP_ptr = -log(10.0) * l10;
+          if (fix_FAP_ptr) {
+            if (bootstrap_Nboot > 0) {
+              double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
+                                                    bootstrapdist, bootstrap_fitcoeffs);
+              *fix_FAP_ptr = -log(10.0) * l10;
+            } else {
+              *fix_FAP_ptr = ftp_analytic_neg_ln_fap(P_fix, negln_m_eff, Nused);
+            }
           }
         } else {
           if (fix_power_ptr)  *fix_power_ptr = 0.0;
@@ -3369,13 +3416,18 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
-  /* Bootstrap-empirical FAP per peak (non-whiten path). */
-  if (bootstrap_Nboot > 0 && peakFAP != NULL) {
+  /* Per-peak NEG_LN_FAP (non-whiten path).  Analytic Wilks / GLS-Beta by
+   * default; bootstrap empirical CDF overrides when bootstrap_Nboot > 0. */
+  if (peakFAP != NULL) {
     for (j = 0; j < Npeaks; j++) {
       if (perpeaks[j] > 0.0) {
-        double l10 = ftp_bootstrap_log10fap(Ppeaks[j], bootstrap_Nboot,
-                                              bootstrapdist, bootstrap_fitcoeffs);
-        peakFAP[j] = -log(10.0) * l10;        /* convert log10(FAP) -> -ln(FAP) */
+        if (bootstrap_Nboot > 0) {
+          double l10 = ftp_bootstrap_log10fap(Ppeaks[j], bootstrap_Nboot,
+                                                bootstrapdist, bootstrap_fitcoeffs);
+          peakFAP[j] = -log(10.0) * l10;
+        } else {
+          peakFAP[j] = ftp_analytic_neg_ln_fap(Ppeaks[j], negln_m_eff, Nused);
+        }
       } else {
         peakFAP[j] = 0.0;
       }
@@ -3402,10 +3454,14 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
         if (fix_SNR_ptr)    *fix_SNR_ptr   = (P_fix - ave_per) / std_per;
         if (fix_negamp_ptr) *fix_negamp_ptr = (sgn_fix < 0) ? 1 : 0;
         if (fix_theta_ptr)  *fix_theta_ptr = th_fix;
-        if (fix_FAP_ptr && bootstrap_Nboot > 0) {
-          double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
-                                                bootstrapdist, bootstrap_fitcoeffs);
-          *fix_FAP_ptr = -log(10.0) * l10;
+        if (fix_FAP_ptr) {
+          if (bootstrap_Nboot > 0) {
+            double l10 = ftp_bootstrap_log10fap(P_fix, bootstrap_Nboot,
+                                                  bootstrapdist, bootstrap_fitcoeffs);
+            *fix_FAP_ptr = -log(10.0) * l10;
+          } else {
+            *fix_FAP_ptr = ftp_analytic_neg_ln_fap(P_fix, negln_m_eff, Nused);
+          }
         }
       } else {
         if (fix_power_ptr)  *fix_power_ptr = 0.0;
@@ -3588,8 +3644,7 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
     fix_SNR_ptr     = &(Ftp->fixperiodSNR_peakSNR[lcnum]);
     fix_negamp_ptr  = &(Ftp->fixperiodSNR_peakNegAmp[lcnum]);
     fix_theta_ptr   = &(Ftp->fixperiodSNR_peakTheta[lcnum]);
-    if (Ftp->bootstrap_Nboot > 0)
-      fix_FAP_ptr   = &(Ftp->fixperiodSNR_peakFAP[lcnum]);
+    fix_FAP_ptr   = &(Ftp->fixperiodSNR_peakFAP[lcnum]);
   }
 
   findPeaks_ftp(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum],
@@ -3614,6 +3669,6 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 fix_power_ptr, fix_SNR_ptr, fix_negamp_ptr, fix_theta_ptr,
                 fix_FAP_ptr,
                 Ftp->bootstrap_Nboot,
-                (Ftp->bootstrap_Nboot > 0 ? Ftp->peakFAP[lcnum] : NULL),
+                Ftp->peakFAP[lcnum],
                 lcnum, lc_name_num);
 }
