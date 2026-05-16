@@ -432,6 +432,178 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -FTP fitlc kitchen-sink (clip + whiten + fixperiodSNR + bootstrap; H=6 -> auto picks brute)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP fitlc example (whiten + clip + fixperiodSNR + bootstrap)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -randseed 1 -oneline -ascii \\
+    -FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \\
+         0.1 2.0 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \\
+         clip 5. 1 whiten fixperiodSNR fix 1.23 bootstrap 50
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+FTP_Period_1_0             =     1.23533969
+FTP_Power_1_0              =  0.997292
+FTP_SNR_1_0                =  52.14676
+FTP_NegAmp_1_0             =  0
+FTP_Theta_1_0              =   0.225002
+Mean_FTP_Power_1_0         =  0.014503
+RMS_FTP_Power_1_0          =  0.018847
+FTP_NEG_LN_FAP_1_0         = 6149.56719
+FTP_Period_2_0             =     0.50066949
+FTP_Power_2_0              =  0.029086
+FTP_SNR_2_0                =   9.73551
+FTP_NegAmp_2_0             =  0
+FTP_Theta_2_0              =   1.389912
+Mean_FTP_Power_2_0         =  0.002899
+RMS_FTP_Power_2_0          =  0.002690
+FTP_NEG_LN_FAP_2_0         =  26.40274
+FTP_Period_3_0             =     1.03998832
+FTP_Power_3_0              =  0.014850
+FTP_SNR_3_0                =   5.63535
+FTP_NegAmp_3_0             =  0
+FTP_Theta_3_0              =   0.891631
+Mean_FTP_Power_3_0         =  0.002348
+RMS_FTP_Power_3_0          =  0.002218
+FTP_NEG_LN_FAP_3_0         =  11.24951
+FTP_PeriodFix_0            =     1.23000000
+FTP_Power_PeriodFix_0      =  0.966744
+FTP_SNR_PeriodFix_0        =  50.52585
+FTP_NegAmp_PeriodFix_0     =  0
+FTP_Theta_PeriodFix_0      =   5.459909
+FTP_NEG_LN_FAP_PeriodFix_0 = 3538.62647
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -randseed 1 -oneline -ascii \
+    -FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \
+         0.1 2.0 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+         clip 5. 1 whiten fixperiodSNR fix 1.23 bootstrap 50 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP file template-source mode + method brute (H=1 pure-cosine template)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP file template + method brute" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -FTP file EXAMPLES/2.ftptemplate 0.1 2.0 0.1 0.01 2 0 \\
+         method brute
+EOF
+
+cat > $goodout <<EOF
+Name             = EXAMPLES/2
+FTP_Period_1_0   =     1.23533969
+FTP_Power_1_0    =  0.997214
+FTP_SNR_1_0      =  52.34578
+FTP_NegAmp_1_0   =  0
+FTP_Theta_1_0    =   2.848311
+FTP_Period_2_0   =     1.24227410
+FTP_Power_2_0    =  0.938111
+FTP_SNR_2_0      =  49.19779
+FTP_NegAmp_2_0   =  1
+FTP_Theta_2_0    =   0.878884
+Mean_FTP_Power_0 =  0.014436
+RMS_FTP_Power_0  =  0.018775
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -FTP file EXAMPLES/2.ftptemplate 0.1 2.0 0.1 0.01 2 0 \
+         method brute \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP inline template-source mode + noerr + posamponly + maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP inline template + noerr + posamponly + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -expr 'mask=1' \\
+    -FTP inline 1 0.7 0.0 0.2 0.0 \\
+         0.1 2.0 0.1 0.01 2 0 \\
+         noerr posamponly maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name             = EXAMPLES/2
+FTP_Period_1_1   =     1.23583047
+FTP_Power_1_1    =  0.927988
+FTP_SNR_1_1      =  63.96991
+FTP_NegAmp_1_1   =  0
+FTP_Theta_1_1    =   1.119990
+FTP_Period_2_1   =     1.24205364
+FTP_Power_2_1    =  0.881964
+FTP_SNR_2_1      =  60.76213
+FTP_NegAmp_2_1   =  0
+FTP_Theta_2_1    =   1.974284
+Mean_FTP_Power_1 =  0.010171
+RMS_FTP_Power_1  =  0.014348
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -expr 'mask=1' \
+    -FTP inline 1 0.7 0.0 0.2 0.0 \
+         0.1 2.0 0.1 0.01 2 0 \
+         noerr posamponly maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP filelist template-source mode (per-LC template path read from input list)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP filelist mode via -l input list" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_ftp -header -ascii \\
+    -FTP filelist column 2 0.1 2.0 0.1 0.01 2 0
+EOF
+
+cat > $goodout <<EOF
+#Name FTP_Period_1_0 FTP_Power_1_0 FTP_SNR_1_0 FTP_NegAmp_1_0 FTP_Theta_1_0 FTP_Period_2_0 FTP_Power_2_0 FTP_SNR_2_0 FTP_NegAmp_2_0 FTP_Theta_2_0 Mean_FTP_Power_0 RMS_FTP_Power_0
+EXAMPLES/2     1.23533969  0.997205  52.36389  0   2.851575     1.24227410  0.938042  49.21161  0   4.029896  0.014433  0.018768
+EXAMPLES/3     1.14782073  0.034710  11.18858  1   0.580350     1.14814991  0.034693  11.18264  0   1.070191  0.002568  0.002873
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_ftp -header -ascii \
+    -FTP filelist column 2 0.1 2.0 0.1 0.01 2 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -autcorrelation example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -autocorrelation example 1" > /dev/stderr
