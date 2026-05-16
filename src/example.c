@@ -149,6 +149,38 @@ void example(char *c, ProgramData *p)
 		    "Cite Stellingwerf, R. F. 1978, ApJ, 224, 953 and Schwarzenberg-Czerny, A. 1997, ApJ, 489, 941 if you use this command.  The \"linterp\" variant follows the implementation in cuvarbase (https://github.com/johnh2o2/cuvarbase, package developed by John Hoffman, the linterp PDM contribution was written by Attila Bodi).\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-FTP",4) && strlen(c) == 4)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-FTP file EXAMPLES/2.ftptemplate 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Runs the Fast Template Periodogram (FTP, Hoffman et al. 2021) on the light curve EXAMPLES/2.  The template is read from the two-column file EXAMPLES/2.ftptemplate (one row \"1.0  0.0\" -- a pure cosine, H=1, which makes FTP degenerate to a Lomb-Scargle-like search but with the FTP power normalisation P in [0, 1], where 1 = exact fit).  Periods between 0.1 and 10.0 days are searched.  The coarse search uses a frequency resolution of 0.1/T (T=31.1d for EXAMPLES/2); the fine search around the peaks uses 0.01/T.  The top 3 peaks are reported.  The periodogram is dumped to EXAMPLES/OUTDIR1 (filename 2.ftp).  Output columns FTP_Period_N_M / FTP_Power_N_M / FTP_SNR_N_M / FTP_Theta_N_M report the per-peak period, FTP-power statistic, signal-to-noise ratio, and best-fit phase shift.  FTP_NegAmp_N_M flags peaks where the best fit had theta_1 < 0 (a flipped template, which for a non-symmetric M(phi) is generally not a real signal).\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \\\n");
+      printtostring(&s,
+		    "\t\t0.1 10. 0.1 0.01 3 0 \\\n");
+      printtostring(&s,
+		    "\t\tclip 5. 1 whiten\n\n");
+      printtostring(&s,
+		    "Same search but with the \"fitlc\" template-source mode: the template is built by fitting a 6-harmonic (Nharm=5, so harmonics above the fundamental count to 5 plus the fundamental itself = 6 c_n,s_n pairs) Fourier series to the light curve EXAMPLES/2 at the fixed period 1.235 days.  The resulting c_n,s_n template is then used to search EXAMPLES/2 for the top 3 peaks with iterative whitening between peaks (each peak's closed-form FTP-template fit is subtracted from the LC before the next peak is found).  Each peak gets its own clipped mean/RMS for the SNR (output columns Mean_FTP_Power_N_M, RMS_FTP_Power_N_M instead of the per-LC pair).  The 5-sigma iterative clipping defaults match -aov / -PDM.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -randseed 1 \\\n");
+      printtostring(&s,
+		    "\t-FTP inline 1 1.0 0.0 0.3 0.0 \\\n");
+      printtostring(&s,
+		    "\t\t0.1 10. 0.1 0.01 2 0 \\\n");
+      printtostring(&s,
+		    "\t\tfixperiodSNR fix 1.235 bootstrap 500\n\n");
+      printtostring(&s,
+		    "Search with an inline-specified template (Nharm=1, so two c_n,s_n pairs: c_1=1.0 s_1=0.0 c_2=0.3 s_2=0.0 -- a cosine fundamental plus a 0.3-amplitude second harmonic).  The top 2 peaks are reported, plus the FTP statistic at the fixed period 1.235 days (FTP_PeriodFix / FTP_Power_PeriodFix / FTP_SNR_PeriodFix / FTP_Theta_PeriodFix).  Bootstrap 500 calibrates the empirical false-alarm probability via 500 shuffled-LC trials; FTP_NEG_LN_FAP_N_M is then the empirical -log(FAP) for each peak.  The \"-randseed\" option fixes the RNG seed for reproducibility.  Bootstrap can also be combined with whiten and fixperiodSNR (the bootstrap distribution is then calibrated once from the original light curve, before whitening starts).\n\n");
+      printtostring(&s,
+		    "Cite Hoffman, J., VanderPlas, J., Hartman, J. D., and Bakos, G. A. 2021, arXiv:2101.12348 if you use this command.  The reference Python implementation is at https://github.com/PrincetonUniversity/FastTemplatePeriodogram (package developed by John Hoffman).\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-autocorrelation",16) && strlen(c) == 16)
     {
       printtostring(&s,
