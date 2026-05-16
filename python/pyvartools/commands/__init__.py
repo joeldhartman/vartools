@@ -109,7 +109,7 @@ from .userlibs import (
 __all__ = [
     "VartoolsCommand",
     # periodicity
-    "LS", "aov", "aov_harm", "PDM", "BLS", "BLSFixPer", "BLSFixDurTc",
+    "LS", "aov", "aov_harm", "PDM", "FTP", "BLS", "BLSFixPer", "BLSFixDurTc",
     "BLSFixPerDurTc", "autocorrelation", "dftclean", "wwz",
     "GetLSAmpThresh", "Phase",
     # manipulation
