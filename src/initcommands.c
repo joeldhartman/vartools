@@ -695,6 +695,10 @@ void InitCommands(ProgramData *p, Command *c)
 	  if((c[i].Alarm->alarmvals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_VONNEUMANN:
+	  if((c[i].VonNeumann->etavals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

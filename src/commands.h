@@ -185,6 +185,7 @@
 #define CNUM_PRINT 61
 #define CNUM_PDM 62
 #define CNUM_FTP 63
+#define CNUM_VONNEUMANN 64
 
 #define TOT_CNUMS 61
 
@@ -375,6 +376,13 @@ typedef struct {
   int usemask;
   _Variable *maskvar;
 } _Alarm;
+
+typedef struct {
+  double *etavals;
+  int weighted;
+  int usemask;
+  _Variable *maskvar;
+} _VonNeumann;
 
 typedef struct {
   double start;
@@ -2520,6 +2528,7 @@ typedef struct {
   _RMS_Bin *RMS_Bin;
   _Jstet *Jstet;
   _Alarm *Alarm;
+  _VonNeumann *VonNeumann;
   _Aov *Aov;
   _AovHarm *AovHarm;
   _Ls *Ls;

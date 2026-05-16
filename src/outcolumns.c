@@ -1270,6 +1270,9 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_ALARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Alarm->alarmvals), "%9.5f", 1, 0, 0, 0, "Alarm_%d", l);
 	  break;
+	case CNUM_VONNEUMANN:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].VonNeumann->etavals), "%9.5f", 1, 0, 0, 0, "VonNeumann_Ratio_%d", l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

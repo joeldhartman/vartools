@@ -397,6 +397,14 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 					 c->Alarm->maskvar);
       break;
 
+    case CNUM_VONNEUMANN:
+      c->VonNeumann->etavals[lc2] = dovonneumann(p->NJD[lc2], p->mag[lc2], p->sig[lc2],
+						 c->VonNeumann->weighted,
+						 c->VonNeumann->usemask,
+						 c->VonNeumann->maskvar,
+						 lc2, lc);
+      break;
+
     case CNUM_AUTOCORR:
       /* Calculate the auto-correlation */
       i1 = 0;
@@ -2389,6 +2397,23 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  c->Alarm->alarmvals[lc] = doalarm(p->NJD[lc], p->mag[lc], p->sig[lc],
 					 lc, lc, c->Alarm->usemask,
 					 c->Alarm->maskvar);
+	}
+      break;
+
+    case CNUM_VONNEUMANN:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  c->VonNeumann->etavals[lc] = dovonneumann(p->NJD[lc], p->mag[lc], p->sig[lc],
+						    c->VonNeumann->weighted,
+						    c->VonNeumann->usemask,
+						    c->VonNeumann->maskvar,
+						    lc, lc);
 	}
       break;
 

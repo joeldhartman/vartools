@@ -962,6 +962,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t[\"fitmask\" maskvar] [\"outfitmask\" outmaskvar]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-vonNeumann",11) && strlen(c) == 11))
+    {
+      printtostring(s,"-vonNeumann [\"weighted\"] [\"maskpoints\" maskvar]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strcmp(c,"-wwz")))
     {
       printtostring(s,"-wwz <\"maxfreq\" <\"auto\" | \"var\" v | \"expr\" e | maxfreq>>\n");
@@ -1415,6 +1420,12 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-alarm",p,&s);
       printtostring(&s,"Calculate the alarm variability statistic for each light curve. Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded. Cite Tamuz, Mazeh, and North 2006, MNRAS, 367, 1521 if you use this tool.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-vonNeumann",11) && strlen(c) == 11))
+    {
+      listcommands_noexit("-vonNeumann",p,&s);
+      printtostring(&s,"Calculate the von Neumann (1941) ratio eta = delta^2 / s^2, where delta^2 = sum_i (y[i+1] - y[i])^2 / (N-1) is the mean-square successive difference and s^2 = sum_i (y[i] - <y>)^2 / N is the variance of the light curve. The statistic is order-dependent: the light curve will be time-sorted automatically before the calculation. For uncorrelated Gaussian noise the expected value is 2 with variance ~4/N; smoothly varying (positively correlated) signals drive eta well below 2, while anti-correlated signals push eta above 2. Widely used as a variability indicator for sparse and unevenly sampled photometric time series.\n\nUse the \"weighted\" keyword to switch to an inverse-variance-weighted form: per-point weights w_i = 1/sigma_i^2 are used for the variance, and pairwise weights w_pair_i = 1/(sigma_i^2 + sigma_{i+1}^2) are used for the mean-square successive difference. Points with NaN magnitude (or NaN / non-positive uncertainty when weighted) are dropped.\n\nUse \"maskpoints\" maskvar to exclude points where maskvar <= 0 from the calculation.\n\nOutput column VonNeumann_Ratio_N contains the eta value for command N.\n\nCite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367; for astronomical applications see Sokolovsky, K. V., et al. 2017, MNRAS, 464, 274.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-aov",4) && strlen(c) == 4))

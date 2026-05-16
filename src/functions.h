@@ -93,6 +93,7 @@ void Filldecorr_matrix(ProgramData *, Command *, int);
 void ReadDatesFiles(ProgramData *, Command *);
 void Switchtobasename(ProgramData *, int);
 double doalarm(int, double *, double *, int, int, int, _Variable *);
+double dovonneumann(int, double *, double *, int, int, _Variable *, int, int);
 void normalize(int, double *, double *, double *, double *, double *);
 //double TestPeriod(int, double *, double *, double, int, _HistType *h);
 double TestPeriod_aov_harm(int N, double *t, double *m, double *sig, int Nharm, double testperiod, double *m_noave, double *t_nostart, double *weight, double lcvariance, int *Nharm_used);

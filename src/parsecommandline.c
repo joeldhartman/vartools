@@ -3143,8 +3143,42 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Alarm->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
+	  cn++;
+	}
+
+      /* -vonNeumann [\"weighted\"] [\"maskpoints\" maskvar] */
+      else if(!strncmp(argv[i],"-vonNeumann",11) && strlen(argv[i]) == 11)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_VONNEUMANN;
+	  if((c[cn].VonNeumann = (_VonNeumann *) malloc(sizeof(_VonNeumann))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].VonNeumann->weighted = 0;
+	  c[cn].VonNeumann->usemask = 0;
+	  c[cn].VonNeumann->maskvar = NULL;
+	  /* Trailing strict-order keywords: weighted, maskpoints. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"weighted")) {
+	    c[cn].VonNeumann->weighted = 1;
+	  } else {
+	    i--;
+	  }
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].VonNeumann->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].VonNeumann->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
 	  cn++;
 	}
       
