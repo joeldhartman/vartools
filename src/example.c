@@ -1893,6 +1893,18 @@ void example(char *c, ProgramData *p)
 		    "This example illustrates the use of simultaneous decorrelation against light-curve specific trends. In this case we process the light curve EXAMPLES/1 and give the \"decorr\" keyword to the -TFA_SR command. We set iterativeflag=0 after the \"decorr\" keyword to have the routine simultaneously fit the light-curve specific trends and the TFA templates given in EXAMPLES/trendlist_tfa (this is more correct than if we iterated, but would run significantly slower than the iterative procedure if we were processing several light curves). We read in one column to decorrelate from the light curve (set Nlcterms=1), we take that to be the first column in the light curve (set lccolumn1=1; the JD in this case) and we fit a 2nd order polynomial in that term (set lcorder1=2). We still have to provide a source for the signal in addition to the decorrelation, in this case we use binning with 100 bins (as in Example 2), but we do not provide a period (so the binning is done in time rather than phase). In this example we use the -decorr command rather than -aov and -Killharm to illustrate how -TFA vs. -TFA_SR affects the light curve. Note that -TFA_SR does not reduce the signal, the way -TFA does, but does reduce the residual RMS compared with not applying trend-filtering at all.\n\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-vonNeumann",11) && strlen(c) == 11)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -vonNeumann\n\n");
+      printtostring(&s,
+		    "Compute the von Neumann (1941) ratio eta = delta^2/s^2 (mean-square successive difference divided by the variance) for the light curve EXAMPLES/2.  The light curve is time-sorted automatically before the calculation.  For uncorrelated Gaussian noise E[eta] = 2; smoothly-varying (correlated) signals drive eta well below 2.  EXAMPLES/2 is a strongly periodic light curve, so the reported eta near 0.026 (much less than 2) reflects the strong sample-to-sample correlation.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -vonNeumann weighted\n\n");
+      printtostring(&s,
+		    "Same calculation with the inverse-variance-weighted form: per-point weights w_i = 1/sigma_i^2 enter the variance and pairwise weights w_pair_i = 1/(sigma_i^2 + sigma_{i+1}^2) enter the successive-difference sum.  A (2N/(N-1)) prefactor restores E[eta_w] = 2 for white noise under any sigma distribution (a raw ratio-of-weighted-averages instead converges to <w>/<w_pair>, which equals 2 only for homoscedastic errors).  For homoscedastic sigma the weighted form reduces exactly to the unweighted form.  Cite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367; for astronomical applications see Sokolovsky, K. V., et al. 2017, MNRAS, 464, 274.\n\n");
+      commandfound = 1;
+    }
   if(!strcmp(c,"-wwz"))
     {
       printtostring(&s,
