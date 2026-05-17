@@ -2059,6 +2059,41 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -Jstet skipnormalize: Stetson's original J / L (no sum_w/wkmax rescaling)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -Jstet skipnormalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -header \\
+    -Jstet 0.5 skipnormalize
+EOF
+
+cat > $goodout <<EOF
+#Name Jstet_0 Kurtosis_0 Lstet_0
+EXAMPLES/1 143.84598   0.96779 139.21213
+EXAMPLES/2  41.68871   0.94719  39.48703
+EXAMPLES/3   0.87797   0.92816   0.81490
+EXAMPLES/4   0.48776   0.84500   0.41215
+EXAMPLES/5   0.68760   0.92120   0.63342
+EXAMPLES/6   0.40030   0.93794   0.37546
+EXAMPLES/7   0.52631   0.92501   0.48684
+EXAMPLES/8   0.53557   0.96124   0.51481
+EXAMPLES/9   0.25510   0.80997   0.20663
+EXAMPLES/10   0.29646   0.92806   0.27513
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -header \
+    -Jstet 0.5 skipnormalize \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -Killharm example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -Killharm example 1" > /dev/stderr

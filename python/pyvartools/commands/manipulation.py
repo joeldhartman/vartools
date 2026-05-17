@@ -1842,15 +1842,26 @@ class decorr(VartoolsCommand):
 
 
 class Jstet(VartoolsCommand):
-    """J-statistic (Stetson variability index).
+    """Stetson J / L variability statistics + kurtosis.
 
     Parameters
     ----------
     timescale : float
-        Timescale for variability index calculation.
-    dates : str
-        Path to the dates file.
+        Time gap (days) below which adjacent observations are treated as a
+        single "close" pair (weight 1.0); otherwise as a singleton (weight 0.1).
+    dates : str, optional
+        Path to a file of JDs for *every possible* observation in the survey.
+        Used to compute a survey-wide ``weight_max`` so the vartools J is
+        ``J_stetson * (sum_w_actual / weight_max)`` — a multiplier that
+        downweights LCs missing observations relative to the full schedule.
+        Useful within a single survey; misleading when LCs come from surveys
+        with different sampling. Mutually exclusive with ``skipnormalize``.
+    skipnormalize : bool
+        Skip the ``(sum_w / weight_max)`` rescaling and emit Stetson's
+        original J and L. Use this when comparing across surveys / cadences,
+        or when you want the textbook definition.
     maskpoints : str, optional
+        Name of an LC vector; only points with ``maskvar > 0`` contribute.
     """
 
     _vt_name = "Jstet"
@@ -1858,13 +1869,21 @@ class Jstet(VartoolsCommand):
     def __init__(
         self,
         timescale: float,
-        dates: str,
+        dates: Optional[str] = None,
+        skipnormalize: bool = False,
         maskpoints: Optional[str] = None,
     ) -> None:
+        if (dates is None) == (not skipnormalize):
+            raise ValueError(
+                "Jstet: exactly one of 'dates' (path) or skipnormalize=True "
+                "must be provided"
+            )
         self.timescale = timescale
         self.dates = dates
+        self.skipnormalize = skipnormalize
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
-        return (["-Jstet", str(self.timescale), self.dates]
+        spec = "skipnormalize" if self.skipnormalize else self.dates
+        return (["-Jstet", str(self.timescale), spec]
                 + _flag("maskpoints", self.maskpoints))

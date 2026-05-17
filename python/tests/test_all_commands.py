@@ -1168,6 +1168,17 @@ class TestCLIArgsManipulation:
     def test_jstet_basic(self):
         args = cmd.Jstet(timescale=0.5, dates="dates.txt")._to_cli_args()
         assert args[0] == "-Jstet"
+        assert args == ["-Jstet", "0.5", "dates.txt"]
+
+    def test_jstet_skipnormalize(self):
+        args = cmd.Jstet(timescale=0.5, skipnormalize=True)._to_cli_args()
+        assert args == ["-Jstet", "0.5", "skipnormalize"]
+
+    def test_jstet_requires_one_of_dates_or_skipnormalize(self):
+        with pytest.raises(ValueError, match="dates"):
+            cmd.Jstet(timescale=0.5)
+        with pytest.raises(ValueError, match="dates"):
+            cmd.Jstet(timescale=0.5, dates="dates.txt", skipnormalize=True)
 
     # ------- Killharm output_format and clip (Batch 2i) -------
 

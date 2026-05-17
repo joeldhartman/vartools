@@ -505,7 +505,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-Jstet",6) && strlen(c) == 6))
     {
-      printtostring(s,"-Jstet timescale dates [\"maskpoints\" maskvar]\n");
+      printtostring(s,"-Jstet timescale <\"skipnormalize\" | dates> [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || !strcmp(c,"-harmonicfilter")
@@ -1731,7 +1731,7 @@ void help(char *c, ProgramData *p)
   if(all == 1 || (!strncmp(c,"-Jstet",6) && strlen(c) == 6))
     {
       listcommands_noexit("-Jstet",p,&s);
-      printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations. The dates file should contain JDs for all possible observations in the first columns - this is used to calculate the maximum possible weight. Note that the J statistic calculated here differs from Stetson's definition by including an extra factor of (sum(weights)/weight_max).\n\n Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
+      printtostring(&s,"Calculate Stetson's J statistic, L statistic and the Kurtosis of each light curve. The timescale is the time in minutes that distinguishes between \"near\" and \"far\" observations.\n\nThe second argument selects how the (sum(weights) / weight_max) rescaling is computed:\n\n   dates_file -- the dates file should contain JDs for all possible observations in the first column; weight_max is computed once from that schedule and applied to every LC. This is the historical vartools default and is useful when comparing LCs WITHIN A SINGLE SURVEY (a star missing from many images is penalised vs. one in every image). It silently misbehaves when LCs come from surveys with different sampling.\n\n   \"skipnormalize\" -- skip the rescaling entirely and output Stetson's ORIGINAL J and L (i.e. J = sum_k w_k * sign(P_k) * sqrt(|P_k|) / sum_k w_k and L = J * Kurtosis). Use this when comparing LCs across different surveys / cadences, or when you simply want the textbook definition.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\nCite Stetson, P.B. 1996, PASP, 108, 851 if you use this tool.\n\n");
       commandfound = 1;
     }
   if(all == 1 || !strcmp(c,"-harmonicfilter")

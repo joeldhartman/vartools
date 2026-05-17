@@ -367,6 +367,8 @@ typedef struct {
   double *lst;
   double wkmax;
   char datesname[MAXLEN];
+  int skipnormalize;          /* 1 = output Stetson's original J / L without
+                                 the vartools (sum_w / wkmax) rescaling */
   int usemask;
   _Variable *maskvar;
 } _Jstet;

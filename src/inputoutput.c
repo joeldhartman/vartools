@@ -2204,8 +2204,12 @@ void ReadDatesFiles(ProgramData *p, Command *c)
 {
   int i;
   for(i=0;i<p->Ncommands;i++)
-    if(c[i].cnum == CNUM_JSTET)
-      c[i].Jstet->wkmax = readdates(c[i].Jstet->datesname,c[i].Jstet->Jstet_time);
+    if(c[i].cnum == CNUM_JSTET) {
+      if(c[i].Jstet->skipnormalize)
+        c[i].Jstet->wkmax = 1.0;        /* sentinel; unused in skipnormalize mode */
+      else
+        c[i].Jstet->wkmax = readdates(c[i].Jstet->datesname,c[i].Jstet->Jstet_time);
+    }
 }
 
 double readdates(char *datesname,double Jstet_time)

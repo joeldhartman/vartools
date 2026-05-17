@@ -378,7 +378,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_JSTET:
       /* Calculate JSTET */
-      getJstet(p->NJD[lc2], c->Jstet->Jstet_time, c->Jstet->wkmax, p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &c->Jstet->jst[lc2], &c->Jstet->kur[lc2], &c->Jstet->lst[lc2], lc2, lc, c->Jstet->usemask, c->Jstet->maskvar);
+      getJstet(p->NJD[lc2], c->Jstet->Jstet_time, c->Jstet->wkmax, c->Jstet->skipnormalize, p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &c->Jstet->jst[lc2], &c->Jstet->kur[lc2], &c->Jstet->lst[lc2], lc2, lc, c->Jstet->usemask, c->Jstet->maskvar);
       break;
 
     case CNUM_ADDFITSKEYWORD:
@@ -2380,7 +2380,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      continue;
 	    }
 	  }
-	  getJstet(p->NJD[lc], c->Jstet->Jstet_time, c->Jstet->wkmax, p->t[lc], p->mag[lc], p->sig[lc], &d1, &c->Jstet->jst[lc], &c->Jstet->kur[lc], &c->Jstet->lst[lc], lc, lc, c->Jstet->usemask, c->Jstet->maskvar);
+	  getJstet(p->NJD[lc], c->Jstet->Jstet_time, c->Jstet->wkmax, c->Jstet->skipnormalize, p->t[lc], p->mag[lc], p->sig[lc], &d1, &c->Jstet->jst[lc], &c->Jstet->kur[lc], &c->Jstet->lst[lc], lc, lc, c->Jstet->usemask, c->Jstet->maskvar);
 	}
       break;
 

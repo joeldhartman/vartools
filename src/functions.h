@@ -109,7 +109,7 @@ void docorr(double *, double *, int, int, double **, int *, double *, double *, 
 void magcorr(void *,int,double *, double *, int, int, double **, int *, double *, double *, double *, double,int,char *, int, int, _Variable *, int, int);
 void magcorr_chi2only(double *,double *, double *, int, int, double **, int *, double *, double *, double *, double, int, char *, int, int, _Variable *, int, int);
 void w_ave(int, double *, double *, double *, double *);
-void getJstet(int, double, double, double *, double *, double *, double *, double *, double *, double *, int, int, int, _Variable *);
+void getJstet(int, double, double, int, double *, double *, double *, double *, double *, double *, double *, int, int, int, _Variable *);
 void dokillharms(int, double *, double *, double *, int, double *, int, int, double **, double **, double **, double **, double *, double *, double *,int,char *, double *, int, int, double);
 void doinjectharm(int, double *, double *, double *, int, int, _Injectharm *, char *);
 void doinjecttransit(int N, double *t, double *mag, double *sig, int lc, int lcreal, _Injecttransit *c, char *modeloutname);

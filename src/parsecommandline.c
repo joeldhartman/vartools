@@ -2013,7 +2013,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -Jstet Jstet_time dates [\"maskpoints\" maskvar]*/
+      /* -Jstet Jstet_time <"skipnormalize" | dates> [\"maskpoints\" maskvar]*/
       else if(!strncmp(argv[i],"-Jstet",6) && strlen(argv[i]) == 6)
 	{
 	  iterm = i;
@@ -2023,15 +2023,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  if((c[cn].Jstet = (_Jstet *) malloc(sizeof(_Jstet))) == NULL)
 	    vt_error(ERR_MEMALLOC);
+	  c[cn].Jstet->skipnormalize = 0;
+	  c[cn].Jstet->datesname[0] = '\0';
 	  i++;
 	  if(i < argc)
 	    c[cn].Jstet->Jstet_time = atof(argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
-	  if(i < argc)
-	    sprintf(c[cn].Jstet->datesname,"%s",argv[i]);
-	  else
+	  if(i < argc) {
+	    /* "skipnormalize" suppresses the vartools (sum_w / wkmax) rescaling
+	     * and emits Stetson's original J / L instead.  Backwards compatible:
+	     * anything else in this slot is treated as a dates-file path
+	     * (vanishingly unlikely that anyone named a dates file
+	     * "skipnormalize"). */
+	    if(!strcmp(argv[i], "skipnormalize"))
+	      c[cn].Jstet->skipnormalize = 1;
+	    else
+	      sprintf(c[cn].Jstet->datesname,"%s",argv[i]);
+	  } else
 	    listcommands(argv[iterm],p);
 	  c[cn].Jstet->usemask = 0;
 	  c[cn].Jstet->maskvar = NULL;
