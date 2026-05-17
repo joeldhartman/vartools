@@ -608,6 +608,90 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -vonNeumann example 1: unweighted
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann unweighted" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -vonNeumann
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_0 =   0.02646
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -vonNeumann \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -vonNeumann example 2: weighted
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann weighted" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -vonNeumann weighted
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_0 =   0.02019
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -vonNeumann weighted \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -vonNeumann example 3: weighted + maskpoints (mask out the second half by time)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann weighted + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -expr 'mask=((t-t[0])<30)' \\
+    -vonNeumann weighted maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_1 =   0.02109
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -expr 'mask=((t-t[0])<30)' \
+    -vonNeumann weighted maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -autcorrelation example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -autocorrelation example 1" > /dev/stderr
