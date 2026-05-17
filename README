@@ -65,7 +65,11 @@ and disables the corresponding feature if it is not found.
     Library / interpreter     Used for
     -----------------------   -------------------------------------------
     cfitsio                   FITS light-curve I/O
-    GSL                       -addnoise, -microlens, -resample, -FFT, -IFFT
+    GSL                       -addnoise, -microlens, -resample, -FFT, -IFFT,
+                              -FTP (polynomial fast path)
+    NFFT3 + FFTW3             -FTP NFFT-batched summations (~4x speedup at
+                              N >= 10000; -FTP falls back to direct sums
+                              when NFFT3 is absent)
     pthread                   Parallel processing (-parallel N)
     CSPICE                    BJD/UTC conversions (-converttime)
     Python + NumPy (embed)    -python command (embedded interpreter)
@@ -76,6 +80,10 @@ Standard paths:
 
     cfitsio:    libcfitsio.so, fitsio.h
     GSL:        libgsl.so, libgslcblas.so, gsl/*.h
+    NFFT3:      libnfft3.so, nfft3.h        (Debian: libnfft3-dev;
+                                             Fedora: nfft-devel;
+                                             Homebrew: nfft)
+    FFTW3:      libfftw3.so                 (pulled in by libnfft3-dev / nfft)
     pthread:    libpthread (on Linux / macOS); MSYS2 native on Windows
     CSPICE:     cspice.a, SpiceUsr.h   (no standard package — build from source)
     Python:     libpython3.X.so, Python.h, numpy arrayobject.h
@@ -157,6 +165,10 @@ Available ``--with-*`` flags::
     --with-cfitsio-lib=PATH        library-only override (full path to .a)
 
     --with-gsl | --with-gsl=no     enable / disable GSL support
+
+    --with-nfft | --with-nfft=no   enable / disable NFFT3 + FFTW3 support
+                                   (used by -FTP for batched summations;
+                                   default is autodetect)
 
     --with-cspice=PATH             prefix (expects PATH/include and PATH/lib/cspice.a)
     --with-cspice-include=PATH

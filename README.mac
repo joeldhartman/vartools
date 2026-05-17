@@ -51,6 +51,7 @@ everything required plus all optional dependencies::
         autoconf automake `# only needed for ./autogen.sh` \
         cfitsio \
         gsl \
+        nfft              `# pulls in fftw; enables -FTP NFFT-batched sums` \
         python@3          `# or use system Python 3` \
         numpy \
         r
