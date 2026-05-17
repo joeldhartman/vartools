@@ -589,6 +589,28 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t[\"ojdcurve\" curve_outdir jdstep]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-matchedfilter",14) && strlen(c) == 14))
+    {
+      printtostring(s,"-matchedfilter \"template\"\n");
+      printtostring(s,"\t<\"exp\"       <\"var\" v | \"expr\" e | tau>\n");
+      printtostring(s,"\t | \"doubleexp\" <\"var\" v | \"expr\" e | tau_rise>\n");
+      printtostring(s,"\t\t      <\"var\" v | \"expr\" e | tau_decay>\n");
+      printtostring(s,"\t | \"flare\"     <\"var\" v | \"expr\" e | tfwhm>\n");
+      printtostring(s,"\t | \"gauss\"     <\"var\" v | \"expr\" e | sigma>\n");
+      printtostring(s,"\t | \"box\"       <\"var\" v | \"expr\" e | width>\n");
+      printtostring(s,"\t | \"triangle\"  <\"var\" v | \"expr\" e | width>\n");
+      printtostring(s,"\t | \"trap\"      <\"var\" v | \"expr\" e | rise>\n");
+      printtostring(s,"\t\t      <\"var\" v | \"expr\" e | flat>\n");
+      printtostring(s,"\t\t      <\"var\" v | \"expr\" e | fall>>\n");
+      printtostring(s,"\t<\"var\" v | \"expr\" e | support_halfwidth>\n");
+      printtostring(s,"\t\"mode\" \"window\"\n");
+      printtostring(s,"\t\"signs\" <\"both\" | \"positive\" | \"negative\">\n");
+      printtostring(s,"\tNpeaks omatchfile [outdir]\n");
+      printtostring(s,"\t[\"min_separation\" <\"var\" v | \"expr\" e | sep>]\n");
+      printtostring(s,"\t[\"whiten\"]\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
+      commandfound = 1;
+    }
   if(c == NULL || !strcmp(c,"-match"))
     {
       printtostring(s,"-match <\"file\" filename | \"inlist\" inlistcolumn>\n");
@@ -1793,6 +1815,33 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-MandelAgolTransit",p,&s);
       printtostring(&s,"Fit a Mandel and Agol (2002) transit model to the light curve. The initial parameters either are automatically estimated using the results from bls if \"bls\" is specified, a blsfixper command, or they are entered directly in the command line as the values for P0, T00 etc. The parameters are P0 - period, T00 - time of transit, r0 - ratio of planet radius to star radius = Rp/R*, a0 - ratio of semi-major axis to star radius = a/R*, either \"i\" - the inclination angle in degrees, or \"b\" - the impact parameter, e0 - eccentricity, omega0 - argument of periastron in degrees, and mconst0 - the out of transit magnitude. If mconst0 is negative then it will be estimated directly from the light curve. \"quad\" or \"nonlin\" are used to specify the limb darkening law, either quadratic or non-linear, following Claret. The number of initial limb darkening coefficients must be 2 for quadratic limb-darkening or 4 for non-linear limb-darkening. fitephem fitr fita ... should be 1 or 0 depending on whether or not the corresponding parameter is allowed to vary. Here fitephem corresponds to varying P0 and T00. If fitRV is 1 then the program will simultaneously fit an RV curve stored in the file RVinputfile (first column JD, second column RV, third column RV error). The model RV will be output to the file RVmodeloutfile (this will be a model evaluated at a number of evenly spaced phase points rather than at the observed RV phases). If fitting RV specify the initial K0 and gamma0 together with flags fitK and fitgamma to specify whether or not these parameters are allowed to vary in the fit. Set correctlc to 1 to subtract the model from the light curve, set it to 0 to only perform the fit. omodel is a flag set to 1 or zero that can be used to output the model for the light curve, the output directory is then given in modeloutdir, the suffix \".mandelagoltransit.model\" will be appended to the filename. Use the \"modelvar\" keyword to save the best-fit model light curve to the variable var.  If the optional keyword \"ophcurve\" is given then a model phase curve will be output to a file in the directory outdir with suffix \".mandelagoltransit.phcurve\" with phases between phmin and phmax and a uniform step size of phstep. If the optional keyword \"ojdcurve\" is given then a model light curve will be output to a file in the directory outdir with suffix \".mandelagoltransit.jdcurve\" with times between the first and last times in the light curve and with a uniform step size of jdstep. Cite Mandel, K., & Agol, E. 2002, ApJ, 580, L171 if you use this tool.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-matchedfilter",14) && strlen(c) == 14))
+    {
+      listcommands_noexit("-matchedfilter",p,&s);
+      printtostring(&s,"Run an inverse-variance matched filter over the light curve to detect template-shaped transients or features (flares, transits, eclipses, bumps).  At each trial centre tau the algorithm fits a scaled, time-shifted template g(t - tau) plus a local constant offset c to the data within the support window:  y_i ~ a * g(t_i - tau) + c + noise_i,  with w_i = 1/sigma_i^2 (uniform weighting where sigma is missing).  The offset c is a nuisance parameter that absorbs the LC's local baseline, so the absolute magnitude of the LC does not have to be pre-subtracted; a_hat is the perturbation amplitude in light-curve units at the peak, not the absolute mean magnitude.  The best-fit amplitude and signed signal-to-noise are  a_hat(tau) = Cov_w(y, g) / Var_w(g)  and  SNR(tau) = a_hat(tau) * sqrt(sum_i w_i (g_i - <g>_w)^2),  taken over points with |t_i - tau| <= support_halfwidth.  The SNR is signed: positive for matches that share the template's orientation, negative for inverted matches (e.g. detecting a transit with a positive box template gives a strongly negative SNR).  The MF is scale-invariant in g, so the named templates are normalised to peak amplitude 1; SNR and a_hat then have the natural interpretation of \"amplitude over amplitude-uncertainty\" and \"amplitude in light-curve units at the peak\".\n\n");
+      printtostring(&s,"The template-source mode is selected by the \"template\" keyword followed by one of the named-template variants.  All named templates have peak value 1 at the template's reference time; the amplitude scaling is handled internally by the inverse-variance MF formula.  With template-relative time s = t - tau:\n\n");
+      printtostring(&s,"   exp        g(s) = exp(-s/tau)                          for s >= 0, else 0\n");
+      printtostring(&s,"   doubleexp  g(s) = [(1-exp(-s/tau_rise)) * exp(-s/tau_decay)] / Apk  for s >= 0, else 0\n");
+      printtostring(&s,"              (Apk normalises the rise-then-decay profile so the peak amplitude is 1)\n");
+      printtostring(&s,"   flare      Davenport, Hawley, Hebb et al. 2014, ApJ, 797, 122 (eq. 1):\n");
+      printtostring(&s,"              piecewise rise polynomial for -1 <= s/tfwhm <= 0,\n");
+      printtostring(&s,"              two-component exponential decay for s/tfwhm > 0;\n");
+      printtostring(&s,"              tfwhm is the rise FWHM.  A small (1 percent) discontinuity at s=0\n");
+      printtostring(&s,"              is inherent in the published expression and is preserved as-is.\n");
+      printtostring(&s,"   gauss      g(s) = exp(-s^2 / (2 sigma^2))\n");
+      printtostring(&s,"   box        g(s) = 1 for |s| <= width/2, else 0\n");
+      printtostring(&s,"   triangle   g(s) = 1 - 2|s|/width for |s| <= width/2, else 0 (symmetric V at s=0)\n");
+      printtostring(&s,"   trap       Linear rise of duration 'rise', flat top of duration 'flat',\n");
+      printtostring(&s,"              linear fall of duration 'fall'; centred in s = +/- (rise+flat+fall)/2.\n\n");
+      printtostring(&s,"In all cases the support_halfwidth argument is an outer truncation window: g(s) is zero for |s| > support_halfwidth regardless of the template's intrinsic shape.  For templates with finite intrinsic support (box, triangle, trap), support_halfwidth should be at least half the intrinsic extent or the template will be clipped.  For decaying templates (exp, doubleexp, flare), support_halfwidth sets where the tail is truncated.\n\n");
+      printtostring(&s,"Numeric scalars (template parameters, support_halfwidth, min_separation) follow the standard <\"var\" v | \"expr\" e | val> per-light-curve pattern: 'var' takes a previously-defined variable name and 'expr' takes a quoted analytic expression evaluated per light curve; otherwise a literal value is used for all light curves.\n\n");
+      printtostring(&s,"The required \"mode\" keyword selects the algorithm.  In Phase A only \"window\" is implemented, which is exact for any time sampling and runs at O(N * n_window) cost (trial centres are the light curve's own time points; n_window is the average number of data points falling within +/- support_halfwidth of each trial).  Heteroscedastic sigma is supported.  A future \"nfft\" mode will use a non-equispaced FFT for an O(N log N + Nf) batched evaluation; it assumes homoscedastic sigma (median value) and has up to a 5 percent spectral-leakage edge artefact for sharp-edged templates (box, triangle, trap), so \"window\" remains the cleanest semantics.\n\n");
+      printtostring(&s,"The required \"signs\" keyword sets the polarity filter applied to peak ranking and the noise estimate.  Use \"positive\" to look for bumps that match the template orientation (e.g. a Gaussian flare with a Gaussian template), \"negative\" for inverted matches (e.g. a transit with a positive box template), or \"both\" to rank by |SNR|.\n\n");
+      printtostring(&s,"Npeaks distinct peaks are found by iteratively picking the most significant remaining trial (sign-filtered SNR) and masking a +/- min_separation window around its tau.  The default min_separation equals support_halfwidth (so neighbouring peaks must be separated by at least the template's own extent).  When the \"whiten\" keyword is given, the search additionally subtracts a_hat(tau_k) * g(t - tau_k) from a working copy of the light curve between peaks and recomputes SNR(tau) on the residuals before finding the next peak; the original light curve is restored on return so downstream commands see un-whitened data.  Output columns are MatchedFilter_Time_k_N, MatchedFilter_SNR_k_N (signed), and MatchedFilter_Amplitude_k_N per peak k=1..Npeaks; the signed SNR carries the polarity, so there is no separate sign column.  Per-light-curve MatchedFilter_Mean_SNR_N and MatchedFilter_RMS_SNR_N are computed over the sign-filtered trial grid and intended as a noise-floor estimate.\n\n");
+      printtostring(&s,"Set omatchfile to 1 to write the trial-grid (t, SNR, amplitude) surface to outdir/$basename.mf (one row per trial; ASCII with a '# t SNR amplitude' header by default, switched to a compact binary format when -binaryperiodogram is set).  The \"maskpoints\" keyword takes the name of a per-LC variable and excludes points with maskvar <= 1e-7 from the periodogram (matching the -PDM / -aov maskpoints convention).\n\n");
+      printtostring(&s,"Cite Davenport, J. R. A., Hawley, S. L., Hebb, L. et al. 2014, ApJ, 797, 122 (ADS bibcode 2014ApJ...797..122D) when using the 'flare' template.  The matched-filter formulation itself is standard; Turin, G. L. 1960, IRE Transactions on Information Theory, IT-6, 311 (\"An introduction to matched filters\") is the canonical reference.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strcmp(c,"-match")))

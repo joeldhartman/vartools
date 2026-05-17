@@ -1368,6 +1368,16 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  }
 	  break;
 
+	case CNUM_MATCHEDFILTER:
+	  for(i=1;i<=c[l].MatchedFilter->Npeaks;i++) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peaktimes), "%17.9f", 2, 0, 0, 0, i-1, "MatchedFilter_Time_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peakSNR),   "%9.5f",  2, 0, 0, 0, i-1, "MatchedFilter_SNR_%d_%d",  i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peakamps),  "%12.6g", 2, 0, 0, 0, i-1, "MatchedFilter_Amplitude_%d_%d", i, l);
+	  }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->mean_snr), "%9.5f", 1, 0, 0, 0, "MatchedFilter_Mean_SNR_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->rms_snr),  "%9.5f", 1, 0, 0, 0, "MatchedFilter_RMS_SNR_%d",  l);
+	  break;
+
 	case CNUM_HARMAOV:
 	  for(i=1;i<=c[l].AovHarm->Npeaks;i++)
 	    {

@@ -435,6 +435,11 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunFTPCommand(p, c, c->Ftp, lc2, lc, thisindex);
       break;
 
+    case CNUM_MATCHEDFILTER:
+      /* Inverse-variance matched filter at LC time points */
+      RunMatchedFilterCommand(p, c, c->MatchedFilter, lc2, lc, thisindex);
+      break;
+
     case CNUM_HARMAOV:
       /* Calculate the AoV with Harmonics */
       RunAOVHarmCommand(p, c, c->AovHarm, lc2, lc, thisindex);

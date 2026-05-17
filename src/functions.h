@@ -477,6 +477,7 @@ void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
 void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name_num, int thisindex);
 void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name_num, int thisindex);
+void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf, int lcnum, int lc_name_num, int thisindex);
 int  ftp_load_template_file(const char *path, double **cn_out, double **sn_out);
 int  ftp_load_template_fitlc(const char *lc_path, const char *format,
                               const char *t_col_str, const char *mag_col_str,

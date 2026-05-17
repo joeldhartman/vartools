@@ -4379,6 +4379,206 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -matchedfilter
+       *   template <name> <named-template-params...> support_halfwidth
+       *   mode <window>
+       *   signs <both | positive | negative>
+       *   Npeaks omatchfile [outdir]
+       *   ["min_separation" sep]
+       *   ["whiten"]
+       *   ["maskpoints" maskvar]
+       *
+       * Phase A scope: named templates only; mode = window only; trailing
+       * keywords in strict canonical order min_separation -> whiten ->
+       * maskpoints.  "expr" / "file" template-source modes and "mode nfft"
+       * are deferred to a follow-on phase. */
+      else if(!strncmp(argv[i],"-matchedfilter",14) && strlen(argv[i]) == 14)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_MATCHEDFILTER;
+	  if((c[cn].MatchedFilter = (_MatchedFilter *) malloc(sizeof(_MatchedFilter))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].MatchedFilter, 0, sizeof(_MatchedFilter));
+	  c[cn].MatchedFilter->whiten = 0;
+	  c[cn].MatchedFilter->usemask = 0;
+	  c[cn].MatchedFilter->maskvar = NULL;
+	  c[cn].MatchedFilter->min_sep_given = 0;
+	  c[cn].MatchedFilter->mode = MF_MODE_WINDOW;
+	  c[cn].MatchedFilter->signs = MF_SIGNS_BOTH;
+	  sprintf(c[cn].MatchedFilter->suffix, ".mf");
+
+	  /* Required: "template" keyword + variant name. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "template")) {
+	    fprintf(stderr, "-matchedfilter: expected 'template' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if      (!strcmp(argv[i], "exp"))       { c[cn].MatchedFilter->kind = MF_TPL_EXP;       c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "doubleexp")) { c[cn].MatchedFilter->kind = MF_TPL_DOUBLEEXP; c[cn].MatchedFilter->nparams = 2; }
+	  else if (!strcmp(argv[i], "flare"))     { c[cn].MatchedFilter->kind = MF_TPL_FLARE;     c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "gauss"))     { c[cn].MatchedFilter->kind = MF_TPL_GAUSS;     c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "box"))       { c[cn].MatchedFilter->kind = MF_TPL_BOX;       c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "triangle"))  { c[cn].MatchedFilter->kind = MF_TPL_TRIANGLE;  c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "trap"))      { c[cn].MatchedFilter->kind = MF_TPL_TRAP;      c[cn].MatchedFilter->nparams = 3; }
+	  else if (!strcmp(argv[i], "expr") || !strcmp(argv[i], "file")) {
+	    fprintf(stderr, "-matchedfilter: template-source '%s' is not yet implemented (Phase A: named templates only)\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  else {
+	    fprintf(stderr, "-matchedfilter: unrecognised template variant '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Per-template required scalars, each with <"var" v | "expr" e | val>. */
+	  int pk;
+	  for(pk = 0; pk < c[cn].MatchedFilter->nparams; pk++) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "var")) {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i],
+					      &(c[cn].MatchedFilter->p[pk].var),
+					      VARTOOLS_VECTORTYPE_PERSTARDATA,
+					      VARTOOLS_TYPE_DOUBLE);
+	    } else if(!strcmp(argv[i], "expr")) {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->p[pk].expr));
+	    } else {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].MatchedFilter->p[pk].fixed = atof(argv[i]);
+	    }
+	  }
+	  /* Required: support_halfwidth (var/expr/fixed). */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+					    &(c[cn].MatchedFilter->support.var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA,
+					    VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->support.expr));
+	  } else {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].MatchedFilter->support.fixed = atof(argv[i]);
+	  }
+	  /* Required: "mode" <window>.  Reserved for nfft in a follow-on phase. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "mode")) {
+	    fprintf(stderr, "-matchedfilter: expected 'mode' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "window"))
+	    c[cn].MatchedFilter->mode = MF_MODE_WINDOW;
+	  else if(!strcmp(argv[i], "nfft")) {
+	    fprintf(stderr, "-matchedfilter: 'mode nfft' is not yet implemented (Phase A: window only)\n");
+	    listcommands(argv[iterm], p);
+	  } else {
+	    fprintf(stderr, "-matchedfilter: 'mode' must be 'window' (got '%s')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Required: "signs" <both | positive | negative>. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "signs")) {
+	    fprintf(stderr, "-matchedfilter: expected 'signs' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if      (!strcmp(argv[i], "both"))     c[cn].MatchedFilter->signs = MF_SIGNS_BOTH;
+	  else if (!strcmp(argv[i], "positive")) c[cn].MatchedFilter->signs = MF_SIGNS_POSITIVE;
+	  else if (!strcmp(argv[i], "negative")) c[cn].MatchedFilter->signs = MF_SIGNS_NEGATIVE;
+	  else {
+	    fprintf(stderr, "-matchedfilter: 'signs' must be 'both', 'positive', or 'negative' (got '%s')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Required: Npeaks and omatchfile.  outdir if omatchfile==1. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].MatchedFilter->Npeaks = atoi(argv[i]);
+	  if(c[cn].MatchedFilter->Npeaks < 1) {
+	    fprintf(stderr, "-matchedfilter: Npeaks must be >= 1 (got %d)\n", c[cn].MatchedFilter->Npeaks);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].MatchedFilter->omatchfile = atoi(argv[i]);
+	  if(c[cn].MatchedFilter->omatchfile) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].MatchedFilter->outdir, "%s", argv[i]);
+	  }
+	  /* Trailing strict-order keywords: min_separation, whiten, maskpoints. */
+
+	  /* "min_separation" sep */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "min_separation")) {
+	    c[cn].MatchedFilter->min_sep_given = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "var")) {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i],
+					      &(c[cn].MatchedFilter->min_sep.var),
+					      VARTOOLS_VECTORTYPE_PERSTARDATA,
+					      VARTOOLS_TYPE_DOUBLE);
+	    } else if(!strcmp(argv[i], "expr")) {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->min_sep.expr));
+	    } else {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].MatchedFilter->min_sep.fixed = atof(argv[i]);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "whiten" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "whiten")) {
+	    c[cn].MatchedFilter->whiten = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "maskpoints")) {
+	    c[cn].MatchedFilter->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+					    &(c[cn].MatchedFilter->maskvar),
+					    VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov_harm <\"var\" Nharmvar | \"expr\" Nharmexpr | Nharm> <\"var\" minpvar | \"expr\" minpexpr | minp> <\"var\" maxpvar | \"expr\" maxpexpr | maxp> <\"var\" subsamplevar | \"expr\" subsampleexpr | subsample> <\"var\" finetunevar | \"expr\" finetuneexpr | finetune> Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov_harm",9) && strlen(argv[i]) == 9)
 	{

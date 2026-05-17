@@ -837,6 +837,34 @@ void InitCommands(ProgramData *p, Command *c)
 	      vt_error(ERR_MEMALLOC);
 	  break;
 
+	case CNUM_MATCHEDFILTER:
+	  {
+	    _MatchedFilter *mf = c[i].MatchedFilter;
+	    int pk;
+	    if((mf->peaktimes = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->peakSNR   = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->peakamps  = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->mean_snr  = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	       (mf->rms_snr   = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((mf->peaktimes[j] = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL ||
+		 (mf->peakSNR[j]   = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL ||
+		 (mf->peakamps[j]  = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    /* Per-LC scalar arrays for var/expr-sourced parameters. */
+	    for(pk=0; pk<mf->nparams; pk++)
+	      if((mf->p[pk].vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    if((mf->support.vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(mf->min_sep_given) {
+	      if((mf->min_sep.vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    }
+	  }
+	  break;
+
 	case CNUM_HARMAOV:
 	  if((c[i].AovHarm->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].AovHarm->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

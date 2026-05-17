@@ -186,6 +186,7 @@
 #define CNUM_PDM 62
 #define CNUM_FTP 63
 #define CNUM_VONNEUMANN 64
+#define CNUM_MATCHEDFILTER 65
 
 #define TOT_CNUMS 61
 
@@ -2516,6 +2517,82 @@ typedef struct {
 } _FTP;
 
 
+/* ----------------------- Matched-filter command --------------------------- */
+
+/* Named-template kinds (shared between parser and matchedfilter.c). */
+#define MF_TPL_EXP        0
+#define MF_TPL_DOUBLEEXP  1
+#define MF_TPL_FLARE      2
+#define MF_TPL_GAUSS      3
+#define MF_TPL_BOX        4
+#define MF_TPL_TRIANGLE   5
+#define MF_TPL_TRAP       6
+
+/* Execution mode. */
+#define MF_MODE_WINDOW    0
+#define MF_MODE_NFFT      1
+
+/* Sign filter applied when ranking peaks / computing the SNR-noise mean/RMS. */
+#define MF_SIGNS_BOTH      0
+#define MF_SIGNS_POSITIVE  1
+#define MF_SIGNS_NEGATIVE  2
+
+/* One scalar parameter with the standard <var|expr|fixed> source machinery.
+ * Used for every template-shape scalar (tau, tfwhm, sigma, width, etc.),
+ * support_halfwidth, and min_separation.  Per-LC resolution writes the
+ * resolved value into vals[lcnum] inside RunMatchedFilterCommand. */
+typedef struct {
+  int     source;            /* VARTOOLS_SOURCE_FIXED / _EXISTINGVARIABLE / _EVALEXPRESSION */
+  double  fixed;             /* literal value when source==FIXED */
+  _Variable   *var;          /* set when source==EXISTINGVARIABLE */
+  _Expression *expr;         /* set when source==EVALEXPRESSION */
+  double *vals;              /* [Nlcs] -- per-LC resolved scalar */
+} _MFScalar;
+
+typedef struct {
+  int kind;                  /* MF_TPL_* */
+
+  /* Up to three named-template scalar parameters, with meaning depending on kind:
+   *   exp       -> p[0] = tau
+   *   doubleexp -> p[0] = tau_rise, p[1] = tau_decay
+   *   flare     -> p[0] = tfwhm
+   *   gauss     -> p[0] = sigma
+   *   box       -> p[0] = width
+   *   triangle  -> p[0] = width
+   *   trap      -> p[0] = rise, p[1] = flat, p[2] = fall
+   */
+  _MFScalar p[3];
+  int       nparams;         /* count of scalars actually used by this kind */
+
+  _MFScalar support;         /* support_halfwidth */
+  _MFScalar min_sep;         /* min_separation (sentinel: use support if min_sep_given == 0) */
+  int       min_sep_given;
+
+  int mode;                  /* MF_MODE_WINDOW (only one in Phase A) */
+  int signs;                 /* MF_SIGNS_BOTH / POSITIVE / NEGATIVE */
+
+  int   Npeaks;
+  int   omatchfile;          /* 0/1: write aux file per LC */
+  char  outdir[MAXLEN];
+  char  suffix[8];           /* file suffix, default ".mf" */
+
+  int   whiten;
+
+  /* maskpoints: optional LC vector; points with mask > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -PDM. */
+  int        usemask;
+  _Variable *maskvar;
+
+  /* Per-LC outputs.  All arrays are sized [Nlcs] (outer) and [Npeaks]
+   * (inner) where applicable. */
+  double **peaktimes;        /* [Nlcs][Npeaks] -- tau of each peak */
+  double **peakSNR;          /* [Nlcs][Npeaks] -- signed SNR at the peak */
+  double **peakamps;         /* [Nlcs][Npeaks] -- a-hat at the peak */
+  double  *mean_snr;         /* [Nlcs] -- mean of SNR(tau) over the sign-filtered trial grid */
+  double  *rms_snr;          /* [Nlcs] -- rms  of SNR(tau) over the sign-filtered trial grid */
+} _MatchedFilter;
+
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -2588,6 +2665,7 @@ typedef struct {
   _PrintCommand *PrintCommand;
   _PDM *Pdm;
   _FTP *Ftp;
+  _MatchedFilter *MatchedFilter;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;
