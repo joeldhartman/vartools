@@ -171,6 +171,51 @@ class alarm(VartoolsCommand):
         return ["-alarm"] + _flag("maskpoints", self.maskpoints)
 
 
+class vonNeumann(VartoolsCommand):
+    """von Neumann (1941) ratio eta = delta^2 / s^2 as a variability indicator.
+
+    For uncorrelated Gaussian noise E[eta] = 2 (variance ~ 4/N).  Smoothly
+    varying (correlated) signals drive eta well below 2; anti-correlated
+    signals push eta above 2.  Useful as a sparse-/uneven-sampling variability
+    metric (Sokolovsky et al. 2017, MNRAS 464, 274).  The light curve is
+    time-sorted automatically before the calculation.
+
+    Parameters
+    ----------
+    weighted : bool
+        If True, use inverse-variance weighting.  The weighted ratio is
+        ``eta_w = (2N/(N-1)) * sum w_pair_i (y[i+1]-y[i])^2 / sum w_i (y_i - <y>_w)^2``
+        with ``w_i = 1/sigma_i^2`` and ``w_pair_i = 1/(sigma_i^2 + sigma_{i+1}^2)``.
+        The (2N/(N-1)) prefactor restores E[eta_w] ~ 2 for white noise under
+        any sigma distribution (the raw ratio-of-weighted-averages instead
+        converges to <w>/<w_pair>, which equals 2 only for homoscedastic
+        errors).  Reduces exactly to the unweighted form when sigma is
+        constant.  Points with NaN / non-positive uncertainty are dropped.
+    maskpoints : str, optional
+        Name of a vector; only points where ``maskvar > 0`` are included.
+
+    See Also
+    --------
+    Cite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367
+    if you use this command; for astronomical applications see Sokolovsky,
+    K. V., et al. 2017, MNRAS, 464, 274.
+    """
+
+    _vt_name = "vonNeumann"
+
+    def __init__(self, weighted: bool = False,
+                 maskpoints: Optional[str] = None) -> None:
+        self.weighted = weighted
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        # Strict-parser order: weighted, then maskpoints.
+        args = ["-vonNeumann"]
+        args += _bool("weighted", self.weighted)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
 class rescalesig(VartoolsCommand):
     """Rescale measurement uncertainties to match the scatter.
 

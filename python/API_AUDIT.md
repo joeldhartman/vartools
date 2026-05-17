@@ -73,6 +73,7 @@ will not be released until it is fully featured.  As a result:
 | `chi2` | ✓ Complete | — | — | — | — | — |
 | `chi2bin` | ✓ Complete | — | — | — | — | — |
 | `alarm` | ✓ Complete | — | — | — | — | — |
+| `vonNeumann` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `rescalesig` | ✓ Complete | — | — | — | — | — |
 | `ensemblerescalesig` | ✓ Complete | — | — | — | — | — |
 | `stats` | ✓ Complete | — | — | — | — | — |

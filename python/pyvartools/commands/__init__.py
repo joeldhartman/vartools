@@ -33,6 +33,7 @@ from .manipulation import (
     chi2,
     chi2bin,
     alarm,
+    vonNeumann,
     rescalesig,
     ensemblerescalesig,
     stats,
@@ -113,7 +114,7 @@ __all__ = [
     "BLSFixPerDurTc", "autocorrelation", "dftclean", "wwz",
     "GetLSAmpThresh", "Phase",
     # manipulation
-    "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm",
+    "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm", "vonNeumann",
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",

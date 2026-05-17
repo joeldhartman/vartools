@@ -871,6 +871,23 @@ class TestCLIArgsManipulation:
     def test_alarm_basic(self):
         assert cmd.alarm()._to_cli_args()[0] == "-alarm"
 
+    def test_vonneumann_basic(self):
+        args = cmd.vonNeumann()._to_cli_args()
+        assert args == ["-vonNeumann"]
+
+    def test_vonneumann_weighted(self):
+        args = cmd.vonNeumann(weighted=True)._to_cli_args()
+        assert args == ["-vonNeumann", "weighted"]
+
+    def test_vonneumann_maskpoints(self):
+        args = cmd.vonNeumann(maskpoints="m")._to_cli_args()
+        assert args == ["-vonNeumann", "maskpoints", "m"]
+
+    def test_vonneumann_canonical_order(self):
+        # weighted must precede maskpoints to match the strict-parser order.
+        args = cmd.vonNeumann(weighted=True, maskpoints="m")._to_cli_args()
+        assert args == ["-vonNeumann", "weighted", "maskpoints", "m"]
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -2098,6 +2115,21 @@ class TestEndToEndPipelines:
         assert "RMS_0" in result.vars.index
         assert any("Chi2" in k or "chi2" in k for k in result.vars.index)
         assert any("Alarm" in k or "alarm" in k for k in result.vars.index)
+
+    def test_vonneumann_pipeline(self):
+        # Use a clear sinusoid -- eta should be well below 2 (correlated).
+        lc = make_lc(period=2.0, amp=0.5)
+        result = vt.Pipeline([
+            cmd.vonNeumann(),
+            cmd.vonNeumann(weighted=True),
+        ]).run(lc)
+        vn = result.varobjs.vonNeumann
+        assert len(vn) == 2
+        eta_unw  = float(vn[0].Ratio)
+        eta_wgt  = float(vn[1].Ratio)
+        # Sinusoidal signal -> strongly correlated -> eta << 2.
+        assert eta_unw < 1.0
+        assert eta_wgt < 1.0
 
     def test_stats_multiple_variables(self):
         lc = make_lc()
