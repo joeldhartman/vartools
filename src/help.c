@@ -572,6 +572,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
 		    "\t[\"bootstrap\" Nbootstrap] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-magtoflux",10) && strlen(c) == 10))
+    {
+      printtostring(s,"-magtoflux <\"normalize\" | <\"var\" mcvar | \"expr\" mcexpr | mag_constant>>\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18))
     {
       printtostring(s,"-MandelAgolTransit <bls | blsfixper\n");
@@ -1811,6 +1816,12 @@ void help(char *c, ProgramData *p)
 "Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation of the periodogram. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
       printtostring(&s,
 "Cite Zechmeister and K\\\"urster 2009, A&A, 496, 577, and Press, W.H., Teukolsky, S.A., Vetterling, W.T. & Flannery, B.P. 1992, Numerical Recipes in C, 2nd ed. (New York: Cambridge University Press) if you use this tool (we use an appropriately modified version of the fasper algorithm from Numerical Recipes to calculate the periodogram). If you compute the traditional L-S periodogram rather than the default Generalized one, then the references are Lomb, N.R. 1976, A&SS, 39, 447, Scargle, J.D. 1982, ApJ, 263, 835, Press, W.H. & Rybicki, G.B. 1989, ApJ, 338, 277, and Press, W.H., Teukolsky, S.A., Vetterling, W.T. & Flannery, B.P. 1992, Numerical Recipes in C, 2nd ed. (New York: Cambridge University Press).\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-magtoflux",10) && strlen(c) == 10))
+    {
+      listcommands_noexit("-magtoflux",p,&s);
+      printtostring(&s,"Convert light curves from magnitudes into fluxes. This is the inverse of -fluxtomag. The conversion is flux = 10^((mag_constant - mag)/2.5) with the uncertainty propagated as sig_flux = flux * sig_mag / 1.0857. mag_constant is the magnitude of a source with a flux of 1 ADU. NaN and Inf magnitude values propagate through to the output flux and uncertainty.\n\nAlternatively, give the keyword \"normalize\" in place of mag_constant. In normalize mode, the fluxes are first computed using an arbitrary internal zero-point, and then both the flux array and the flux uncertainty array are divided by the median flux (NaNs are rejected from the median), so that the output light curve has a median flux of 1. The output is then independent of the choice of zero-point, which is why the mag_constant argument is not needed in this mode. This is useful when the absolute zero-point is unknown or unimportant -- e.g. when subsequent commands only care about relative variability.\n\nThis command does not yield any output to stdout.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18))

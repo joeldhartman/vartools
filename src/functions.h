@@ -77,6 +77,7 @@ int findX(double *, double, int, int);
 int findX_string(char **, int *, char *, int, int);
 void difffluxtomag(double *t, double *mag, double *sig, int N, double mag_star, double mag_constant1, double offset);
 void fluxtomag(double *t, double *mag, double *sig, int N, double mag_constant1, double offset);
+void magtoflux(double *t, double *mag, double *sig, int N, double mag_constant1, int normalize);
 double binnedchi2(int, double *, double *, double *, double, double *, int *, int, _Variable *, int, int);
 double chi2(int, double *, double *, double *, double *, int *, int, _Variable *, int, int);
 double binnedrms(int, double *, double *, double *, double, double *, double *, int *, int, _Variable *, int, int);

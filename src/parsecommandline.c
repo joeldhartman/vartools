@@ -701,7 +701,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_FLUXTOMAG;
 	  if((c[cn].Fluxtomag = (_Fluxtomag *) malloc(sizeof(_Fluxtomag))) == NULL)
 	    vt_error(ERR_MEMALLOC);
-	  
+
 	  i++;
 	  if(i < argc)
 	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, mag_constant1, argv, i);
@@ -713,6 +713,33 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, offset, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+
+      else if(!strncmp(argv[i],"-magtoflux",10) && strlen(argv[i]) == 10)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_MAGTOFLUX;
+	  if((c[cn].Magtoflux = (_Magtoflux *) malloc(sizeof(_Magtoflux))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].Magtoflux->normalize = 0;
+	  c[cn].Magtoflux->mag_constant1 = 0.0;
+	  VT_INIT_PARAM(c[cn].Magtoflux, mag_constant1);
+
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+
+	  if(!strcmp(argv[i], "normalize"))
+	    {
+	      c[cn].Magtoflux->normalize = 1;
+	    }
+	  else
+	    {
+	      VT_PARSE_DOUBLE(c[cn].Magtoflux, mag_constant1, argv, i);
+	    }
 	  cn++;
 	}
 

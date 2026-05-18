@@ -187,6 +187,7 @@
 #define CNUM_FTP 63
 #define CNUM_VONNEUMANN 64
 #define CNUM_MATCHEDFILTER 65
+#define CNUM_MAGTOFLUX 66
 
 #define TOT_CNUMS 61
 
@@ -1192,6 +1193,12 @@ typedef struct {
   double offset;
   VT_PARAM_COMPANIONS(offset);
 } _Fluxtomag;
+
+typedef struct {
+  double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
+  int normalize;
+} _Magtoflux;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2708,6 +2715,7 @@ typedef struct {
   _PDM *Pdm;
   _FTP *Ftp;
   _MatchedFilter *MatchedFilter;
+  _Magtoflux *Magtoflux;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

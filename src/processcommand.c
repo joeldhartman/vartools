@@ -151,6 +151,13 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       fluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc2), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc2));
       break;
 
+    case CNUM_MAGTOFLUX:
+      /* Convert from magnitudes to flux (inverse of -fluxtomag) */
+      magtoflux(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],
+		c->Magtoflux->normalize ? 0.0 : VT_EVAL_DOUBLE(c->Magtoflux, mag_constant1, lc, lc2),
+		c->Magtoflux->normalize);
+      break;
+
     case CNUM_EXPRESSION:
       /* Evaluate an analytic expression */
       RunExpressionCommand(lc, lc2, p, c->ExpressionCommand);
@@ -1991,6 +1998,21 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  }
 	}
 	fluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc));
+      }
+      break;
+
+    case CNUM_MAGTOFLUX:
+      /* Convert from magnitudes to flux (inverse of -fluxtomag) */
+      for(lc=0;lc<p->Nlcs;lc++) {
+	if(p->isifcommands) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	    SkipCommand(p, c, thisindex, lc, lc);
+	    continue;
+	  }
+	}
+	magtoflux(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],
+		  c->Magtoflux->normalize ? 0.0 : VT_EVAL_DOUBLE(c->Magtoflux, mag_constant1, lc, lc),
+		  c->Magtoflux->normalize);
       }
       break;
 

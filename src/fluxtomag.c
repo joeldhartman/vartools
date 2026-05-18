@@ -35,6 +35,7 @@
 #include "commands.h"
 #include "programdata.h"
 #include "functions.h"
+#include "statistics.h"
 
 void fluxtomag(double *t, double *mag, double *sig, int N, double mag_constant1, double offset)
 {
@@ -52,6 +53,29 @@ void fluxtomag(double *t, double *mag, double *sig, int N, double mag_constant1,
 	{
 	  sig[i] = sqrt(-1.);
 	  mag[i] = sqrt(-1.);
+	}
+    }
+}
+
+void magtoflux(double *t, double *mag, double *sig, int N, double mag_constant1, int normalize)
+{
+  int i;
+  double scale;
+  for(i=0; i < N; i++)
+    {
+      mag[i] = pow(10.0, (mag_constant1 - mag[i])/2.5);
+      sig[i] = mag[i] * sig[i] / 1.0857;
+    }
+  if(normalize)
+    {
+      scale = median_nanrej(N, mag);
+      if(scale > 0.0 && !isnan(scale))
+	{
+	  for(i=0; i < N; i++)
+	    {
+	      mag[i] = mag[i] / scale;
+	      sig[i] = sig[i] / scale;
+	    }
 	}
     }
 }
