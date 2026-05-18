@@ -56,6 +56,7 @@
 #include "programdata.h"
 #include "functions.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -164,32 +165,48 @@ int mf_load_template_file(const char *path,
  *   trap       param[0..2] = rise, flat, fall    : centred, total = rise+flat+fall
  */
 /* Linear interpolation of a file-loaded template g(s) sampled on the
- * sorted nodes fs->t[0..fs->N-1].  Returns 0 outside the file's t range
- * AND outside |s| > support. */
-static double mf_template_eval_file(const _MFFileTemplate *fs,
+ * sorted nodes ctx->t[0..ctx->N-1].  Returns 0 outside the file's t
+ * range AND outside |s| > support. */
+static double mf_template_eval_file(const _MFEvalCtx *ctx,
                                     double support, double s)
 {
-  if (fabs(s) > support || fs == NULL || fs->N < 2) return 0.0;
-  if (s <= fs->t[0] || s >= fs->t[fs->N - 1]) return 0.0;
-  int lo = 0, hi = fs->N - 1;
+  if (fabs(s) > support || ctx == NULL || ctx->N < 2) return 0.0;
+  if (s <= ctx->t[0] || s >= ctx->t[ctx->N - 1]) return 0.0;
+  int lo = 0, hi = ctx->N - 1;
   while (hi - lo > 1) {
     int mid = (lo + hi) >> 1;
-    if (fs->t[mid] <= s) lo = mid; else hi = mid;
+    if (ctx->t[mid] <= s) lo = mid; else hi = mid;
   }
-  double dt = fs->t[hi] - fs->t[lo];
-  if (!(dt > 0.0)) return fs->g[lo];
-  double frac = (s - fs->t[lo]) / dt;
-  return fs->g[lo] + frac * (fs->g[hi] - fs->g[lo]);
+  double dt = ctx->t[hi] - ctx->t[lo];
+  if (!(dt > 0.0)) return ctx->g[lo];
+  double frac = (s - ctx->t[lo]) / dt;
+  return ctx->g[lo] + frac * (ctx->g[hi] - ctx->g[lo]);
 }
 
-/* Template evaluator dispatch.  When fs is non-NULL the named-kind
- * fields are ignored and the file's linear-interp value is returned. */
+/* Expression-template evaluator.  Sets the user-defined time-relative
+ * variable to s, then calls EvaluateExpression.  Returns 0 outside
+ * |s| > support. */
+static double mf_template_eval_expr(const _MFEvalCtx *ctx,
+                                    double support, double s)
+{
+  if (fabs(s) > support || ctx == NULL ||
+      ctx->expr_var == NULL || ctx->expr == NULL) return 0.0;
+  SetVariable_Value_Double(ctx->lcid, ctx->threadid, 0, ctx->expr_var, s);
+  return EvaluateExpression(ctx->lcid, ctx->threadid, 0, ctx->expr);
+}
+
+/* Template evaluator dispatch.  The ctx pointer carries out-of-band
+ * template state when needed: file rows for MF_TPL_FILE, or a stump
+ * variable + parsed expression + (lcid, threadid) for MF_TPL_EXPR.
+ * For the named-template kinds ctx is unused and may be NULL. */
 static double mf_template_eval(int kind, const double *param,
-                               const _MFFileTemplate *fs,
+                               const _MFEvalCtx *ctx,
                                double support, double s)
 {
-  if (fs != NULL)
-    return mf_template_eval_file(fs, support, s);
+  if (kind == MF_TPL_FILE)
+    return mf_template_eval_file(ctx, support, s);
+  if (kind == MF_TPL_EXPR)
+    return mf_template_eval_expr(ctx, support, s);
   if (fabs(s) > support) return 0.0;
   switch (kind) {
     case MF_TPL_EXP: {
@@ -303,7 +320,7 @@ static double mf_template_eval(int kind, const double *param,
 static void mf_window_periodogram(int N, const double *t,
                                   const double *mag, const double *w,
                                   int kind, const double *params,
-                                  const _MFFileTemplate *fs, double support,
+                                  const _MFEvalCtx *ctx, double support,
                                   int Ntau, const double *t_tau,
                                   double *snr_out, double *amp_out)
 {
@@ -318,7 +335,7 @@ static void mf_window_periodogram(int N, const double *t,
     double Sw = 0.0, Swg = 0.0, Swgg = 0.0, Swy = 0.0, Swyg = 0.0;
     int j;
     for (j = lo; j < hi; j++) {
-      double g = mf_template_eval(kind, params, fs, support, t[j] - tau);
+      double g = mf_template_eval(kind, params, ctx, support, t[j] - tau);
       /* All points in the support window contribute to Sw / Swy (they
        * inform the local baseline c).  Points where g==0 still pin the
        * baseline; only Swg / Swgg / Swyg get the g-weighted forms. */
@@ -437,14 +454,14 @@ static void mf_find_peaks(int Ntau, const double *t_tau,
 /* ---- Subtract one fitted template from the LC (in-place on mag_loc) --- */
 static void mf_subtract_template(int N, const double *t, double *mag_loc,
                                  int kind, const double *params,
-                                 const _MFFileTemplate *fs, double support,
+                                 const _MFEvalCtx *ctx, double support,
                                  double tau, double amp)
 {
   int j;
   for (j = 0; j < N; j++) {
     double s = t[j] - tau;
     if (fabs(s) > support) continue;
-    double g = mf_template_eval(kind, params, fs, support, s);
+    double g = mf_template_eval(kind, params, ctx, support, s);
     if (g != 0.0) mag_loc[j] -= amp * g;
   }
 }
@@ -485,7 +502,7 @@ static void mf_write_auxfile(const char *path, int ascii, int Ntau,
 extern int mf_nfft_periodogram(int N, const double *t, const double *mag,
                                const double *w_in,
                                int kind, const double *params,
-                               const _MFFileTemplate *fs, double support,
+                               const _MFEvalCtx *ctx, double support,
                                int Ntau, const double *t_tau,
                                double *snr_out, double *amp_out);
 
@@ -496,23 +513,23 @@ static void mf_periodogram_dispatch(const _MatchedFilter *mf,
                                     int N, const double *t, const double *mag,
                                     const double *w,
                                     const double *params,
-                                    const _MFFileTemplate *fs, double support,
+                                    const _MFEvalCtx *ctx, double support,
                                     int Ntau, const double *t_tau,
                                     double *snr_out, double *amp_out,
                                     void (*windowfn)(int, const double *,
                                                      const double *, const double *,
                                                      int, const double *,
-                                                     const _MFFileTemplate *, double,
+                                                     const _MFEvalCtx *, double,
                                                      int, const double *,
                                                      double *, double *))
 {
   if (mf->mode == MF_MODE_NFFT) {
-    int rc = mf_nfft_periodogram(N, t, mag, w, mf->kind, params, fs, support,
+    int rc = mf_nfft_periodogram(N, t, mag, w, mf->kind, params, ctx, support,
                                  Ntau, t_tau, snr_out, amp_out);
     if (rc == 0) return;
     /* Fall through to window mode on failure. */
   }
-  windowfn(N, t, mag, w, mf->kind, params, fs, support, Ntau, t_tau,
+  windowfn(N, t, mag, w, mf->kind, params, ctx, support, Ntau, t_tau,
            snr_out, amp_out);
 }
 
@@ -531,6 +548,121 @@ static double mf_resolve_scalar(_MFScalar *s, int lcnum, int lc_name_num)
   }
   if (s->vals != NULL) s->vals[lcnum] = v;
   return v;
+}
+
+/* ---- Expression-template setup (MF_TPL_EXPR) -------------------------- */
+
+/* Recurse through a parsed expression tree and return 1 if any
+ * referenced variable has vectortype VARTOOLS_VECTORTYPE_LC.  Mirrors
+ * fourierfilter.c::_fourierfilter_expr_has_lc_var; rejecting LC vectors
+ * keeps the user from accidentally referencing the per-observation
+ * t/mag/err arrays in a template expression that's supposed to be a
+ * function of the template-relative time variable only. */
+static int mf_expr_has_lc_var(_Expression *e, const char **badname)
+{
+  if (e == NULL) return 0;
+  if (e->op1type == VARTOOLS_OPERANDTYPE_VARIABLE && e->op1_variable != NULL) {
+    if (e->op1_variable->vectortype == VARTOOLS_VECTORTYPE_LC) {
+      if (badname) *badname = e->op1_variable->varname;
+      return 1;
+    }
+  }
+  if (e->op2type == VARTOOLS_OPERANDTYPE_VARIABLE && e->op2_variable != NULL) {
+    if (e->op2_variable->vectortype == VARTOOLS_VECTORTYPE_LC) {
+      if (badname) *badname = e->op2_variable->varname;
+      return 1;
+    }
+  }
+  if (e->op1type == VARTOOLS_OPERANDTYPE_EXPRESSION
+      && mf_expr_has_lc_var((_Expression *) e->op1_expression, badname))
+    return 1;
+  if (e->op2type == VARTOOLS_OPERANDTYPE_EXPRESSION
+      && mf_expr_has_lc_var((_Expression *) e->op2_expression, badname))
+    return 1;
+  if (e->op1type == VARTOOLS_OPERANDTYPE_FUNCTION
+      && e->op1_functioncall != NULL) {
+    _FunctionCall *fc = (_FunctionCall *) e->op1_functioncall;
+    int a;
+    for (a = 0; a < fc->Nexpr; a++)
+      if (mf_expr_has_lc_var(fc->arguments[a], badname)) return 1;
+  }
+  if (e->op2type == VARTOOLS_OPERANDTYPE_FUNCTION
+      && e->op2_functioncall != NULL) {
+    _FunctionCall *fc = (_FunctionCall *) e->op2_functioncall;
+    int a;
+    for (a = 0; a < fc->Nexpr; a++)
+      if (mf_expr_has_lc_var(fc->arguments[a], badname)) return 1;
+  }
+  return 0;
+}
+
+/* Whole-word in-place substring replacement on src, writing into dst
+ * (length dst_sz).  Only identifier characters (alnum or '_') on the
+ * boundaries count as part of a word.  Returns 0 on success, -1 if dst
+ * would overflow.  Mirrors fourierfilter.c's helper. */
+static int mf_subst_whole_word(const char *src, const char *from,
+                               const char *to, char *dst, size_t dst_sz)
+{
+  size_t flen = strlen(from), tlen = strlen(to);
+  size_t wr = 0;
+  const char *p = src;
+  while (*p) {
+    if (strncmp(p, from, flen) == 0) {
+      int before_ok = (p == src) || !(isalnum((unsigned char) *(p-1)) || *(p-1) == '_');
+      int after_ok  = (p[flen] == '\0') || !(isalnum((unsigned char) p[flen]) || p[flen] == '_');
+      if (before_ok && after_ok) {
+        if (wr + tlen >= dst_sz) return -1;
+        memcpy(dst + wr, to, tlen);
+        wr += tlen;
+        p += flen;
+        continue;
+      }
+    }
+    if (wr + 1 >= dst_sz) return -1;
+    dst[wr++] = *p++;
+  }
+  dst[wr] = '\0';
+  return 0;
+}
+
+/* Called from analytic.c::CompileAllExpressions once per -matchedfilter
+ * command with a template-expr string.  Allocates the stump
+ * INTERNALSCALAR variable for the time-relative coordinate, substitutes
+ * the user's name with the stump in the expression source, parses, and
+ * validates that the expression depends only on per-star scalars,
+ * constants, and the stump variable (no LC-vector references). */
+void SetupMatchedFilterExpression(ProgramData *p, _MatchedFilter *mf, int cnum)
+{
+  char stump[64];
+  char substituted[4 * MAXLEN];
+  const char *badname = NULL;
+
+  if (mf == NULL || mf->expr_string == NULL || mf->expr_varname == NULL) return;
+
+  snprintf(stump, sizeof(stump), "__mf_s_%d", cnum);
+
+  mf->expr_var = CreateVariable(p, stump, VARTOOLS_TYPE_DOUBLE,
+                                VARTOOLS_VECTORTYPE_INTERNALSCALAR, NULL);
+  RegisterDataFromLightCurve(p, mf->expr_var->dataptr, VARTOOLS_TYPE_DOUBLE,
+                             0, 0, 0, 0, 0, NULL, mf->expr_var, -1, stump);
+
+  if (mf_subst_whole_word(mf->expr_string, mf->expr_varname, stump,
+                          substituted, sizeof(substituted))) {
+    vt_error2(ERR_CODEERROR,
+              "-matchedfilter template expr: substituted expression exceeds internal buffer");
+  }
+
+  mf->expr = ParseExpression(substituted, p);
+
+  if (mf_expr_has_lc_var(mf->expr, &badname)) {
+    fprintf(stderr,
+            "\nError in -matchedfilter (command #%d): template expr may not "
+            "reference light-curve-vector variables.\n"
+            "'%s' has vectortype VECTORTYPE_LC.  Only per-star scalars, constants, "
+            "and the template-relative variable (%s) are allowed.\n\n",
+            cnum, badname ? badname : "<unknown>", mf->expr_varname);
+    vt_error(ERR_CODEERROR);
+  }
 }
 
 /* ---- Entry point invoked from processcommand.c ------------------------ */
@@ -562,15 +694,26 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
   double params[3] = {0.0, 0.0, 0.0};
   for (k = 0; k < mf->nparams; k++)
     params[k] = mf_resolve_scalar(&mf->p[k], lcnum, lc_name_num);
-  /* File-template state, NULL for named-template kinds.  Loaded once at
-   * parser time, shared across all LCs. */
-  _MFFileTemplate fs_local;
-  const _MFFileTemplate *fs = NULL;
+  /* Evaluator context, NULL for named-template kinds.  Carries:
+   *   - File rows (kind == MF_TPL_FILE; loaded once at parser time)
+   *   - Stump variable + parsed expression + lcid/threadid for
+   *     SetVariable_Value_Double + EvaluateExpression
+   *     (kind == MF_TPL_EXPR; compiled in analytic.c). */
+  _MFEvalCtx ctx_local;
+  const _MFEvalCtx *ctx = NULL;
+  memset(&ctx_local, 0, sizeof(ctx_local));
   if (mf->kind == MF_TPL_FILE && mf->file_t != NULL && mf->file_N >= 2) {
-    fs_local.N = mf->file_N;
-    fs_local.t = mf->file_t;
-    fs_local.g = mf->file_g;
-    fs = &fs_local;
+    ctx_local.N = mf->file_N;
+    ctx_local.t = mf->file_t;
+    ctx_local.g = mf->file_g;
+    ctx = &ctx_local;
+  } else if (mf->kind == MF_TPL_EXPR &&
+             mf->expr_var != NULL && mf->expr != NULL) {
+    ctx_local.expr_var = mf->expr_var;
+    ctx_local.expr     = mf->expr;
+    ctx_local.lcid     = lc_name_num;
+    ctx_local.threadid = lcnum;
+    ctx = &ctx_local;
   }
   double support = mf_resolve_scalar(&mf->support, lcnum, lc_name_num);
   double min_sep = mf->min_sep_given
@@ -625,7 +768,7 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     double cycle0_mean = 0.0, cycle0_rms = 0.0;
     int didcycle0 = 0;
     for (k = 0; k < mf->Npeaks; k++) {
-      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, ctx, support,
                               Nused, t, snr, amp, mf_window_periodogram);
       if (!didcycle0) {
         mf_compute_mean_rms(Nused, snr, mf->signs, &cycle0_mean, &cycle0_rms);
@@ -644,14 +787,14 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
       mf->peakSNR[lcnum][k]   = snr[best];
       mf->peakamps[lcnum][k]  = amp[best];
       /* Subtract this peak's contribution and continue. */
-      mf_subtract_template(Nused, t, mag, mf->kind, params, fs, support,
+      mf_subtract_template(Nused, t, mag, mf->kind, params, ctx, support,
                            t[best], amp[best]);
     }
     /* Aux dump uses the cycle-0 (un-whitened) SNR(tau) so downstream
      * users see the baseline match-statistic surface. */
     if (mf->omatchfile) {
       memcpy(mag, mag_orig, Nused * sizeof(double));
-      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, ctx, support,
                               Nused, t, snr, amp, mf_window_periodogram);
       int i1, i2 = 0;
       for (i1 = 0; p->lcnames[lc_name_num][i1] != '\0'; i1++)
@@ -664,7 +807,7 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     mf->rms_snr[lcnum]  = cycle0_rms;
     free(mag_orig);
   } else {
-    mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
+    mf_periodogram_dispatch(mf, Nused, t, mag, w, params, ctx, support,
                             Nused, t, snr, amp, mf_window_periodogram);
     mf_compute_mean_rms(Nused, snr, mf->signs, &mf->mean_snr[lcnum],
                         &mf->rms_snr[lcnum]);

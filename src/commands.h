@@ -2528,6 +2528,7 @@ typedef struct {
 #define MF_TPL_TRIANGLE   5
 #define MF_TPL_TRAP       6
 #define MF_TPL_FILE       7
+#define MF_TPL_EXPR       8
 
 /* Execution mode. */
 #define MF_MODE_WINDOW    0
@@ -2538,13 +2539,26 @@ typedef struct {
 #define MF_SIGNS_POSITIVE  1
 #define MF_SIGNS_NEGATIVE  2
 
-/* File-template state passed to the evaluator when kind == MF_TPL_FILE.
- * Pointer fields are NULL for named-template kinds. */
+/* Evaluator context passed to mf_template_eval / its NFFT-side twin
+ * when the template kind needs out-of-band state.  Used for:
+ *   - MF_TPL_FILE   -- (N, t[], g[]) are the loaded file-template rows.
+ *   - MF_TPL_EXPR   -- (expr_var, expr, lcid, threadid) drive a
+ *                      SetVariable_Value_Double + EvaluateExpression
+ *                      call per data point.
+ * Pointer fields are NULL when the kind doesn't use them.  For named
+ * templates the caller passes NULL for the whole ctx pointer and the
+ * evaluator falls through to the closed-form switch. */
 typedef struct {
+  /* File-template fields (kind == MF_TPL_FILE). */
   int           N;
   const double *t;
   const double *g;
-} _MFFileTemplate;
+  /* Expr-template fields (kind == MF_TPL_EXPR). */
+  _Variable    *expr_var;
+  _Expression  *expr;
+  int           lcid;
+  int           threadid;
+} _MFEvalCtx;
 
 /* One scalar parameter with the standard <var|expr|fixed> source machinery.
  * Used for every template-shape scalar (tau, tfwhm, sigma, width, etc.),
@@ -2581,6 +2595,16 @@ typedef struct {
   int       file_N;          /* number of (t, g) rows after sort + dedupe */
   double   *file_t;          /* size file_N */
   double   *file_g;          /* size file_N */
+
+  /* Expression-template state (kind == MF_TPL_EXPR).  The user-visible
+   * expression string and time-relative variable name (default "s") are
+   * captured at parser time; the stump _Variable and parsed _Expression
+   * are built in analytic.c::CompileAllExpressions once the rest of the
+   * variable scope is registered, by SetupMatchedFilterExpression(). */
+  char         *expr_string;
+  char         *expr_varname;
+  _Variable    *expr_var;
+  _Expression  *expr;
 
   _MFScalar support;         /* support_halfwidth */
   _MFScalar min_sep;         /* min_separation (sentinel: use support if min_sep_given == 0) */

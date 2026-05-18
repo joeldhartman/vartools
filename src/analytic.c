@@ -813,6 +813,16 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_MATCHCOMMAND) {
       SetupMatchCommandVariables(c[i].MatchCommand,p);
     }
+    else if(c[i].cnum == CNUM_MATCHEDFILTER) {
+      /* If the user gave 'template expr <name?> <expression>', build the
+         per-command stump INTERNALSCALAR variable for the template-relative
+         coordinate and parse the expression with the user's variable name
+         substituted out.  Validation (no LC-vector references) runs inside
+         the helper. */
+      if(c[i].MatchedFilter->expr_string != NULL) {
+        SetupMatchedFilterExpression(p, c[i].MatchedFilter, i);
+      }
+    }
     else if(c[i].cnum == CNUM_FOURIERFILTER) {
       /* If the user gave "filterexpr <expr>" to -fourierfilter, create a
          per-command stump INTERNALSCALAR variable for the frequency and

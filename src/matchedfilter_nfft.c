@@ -84,32 +84,46 @@
 /* File-template linear-interp evaluator (mirrors matchedfilter.c's
  * mf_template_eval_file).  Returns 0 outside the file's t range AND
  * outside |s| > support. */
-static double mf_nfft_template_file(const _MFFileTemplate *fs,
+static double mf_nfft_template_file(const _MFEvalCtx *ctx,
                                     double support, double s)
 {
-  if (fabs(s) > support || fs == NULL || fs->N < 2) return 0.0;
-  if (s <= fs->t[0] || s >= fs->t[fs->N - 1]) return 0.0;
-  int lo = 0, hi = fs->N - 1;
+  if (fabs(s) > support || ctx == NULL || ctx->N < 2) return 0.0;
+  if (s <= ctx->t[0] || s >= ctx->t[ctx->N - 1]) return 0.0;
+  int lo = 0, hi = ctx->N - 1;
   while (hi - lo > 1) {
     int mid = (lo + hi) >> 1;
-    if (fs->t[mid] <= s) lo = mid; else hi = mid;
+    if (ctx->t[mid] <= s) lo = mid; else hi = mid;
   }
-  double dt = fs->t[hi] - fs->t[lo];
-  if (!(dt > 0.0)) return fs->g[lo];
-  double frac = (s - fs->t[lo]) / dt;
-  return fs->g[lo] + frac * (fs->g[hi] - fs->g[lo]);
+  double dt = ctx->t[hi] - ctx->t[lo];
+  if (!(dt > 0.0)) return ctx->g[lo];
+  double frac = (s - ctx->t[lo]) / dt;
+  return ctx->g[lo] + frac * (ctx->g[hi] - ctx->g[lo]);
+}
+
+/* Expression-template evaluator (mirrors matchedfilter.c's
+ * mf_template_eval_expr).  Sets the user-defined time-relative variable
+ * to s, then calls EvaluateExpression. */
+static double mf_nfft_template_expr(const _MFEvalCtx *ctx,
+                                    double support, double s)
+{
+  if (fabs(s) > support || ctx == NULL ||
+      ctx->expr_var == NULL || ctx->expr == NULL) return 0.0;
+  SetVariable_Value_Double(ctx->lcid, ctx->threadid, 0, ctx->expr_var, s);
+  return EvaluateExpression(ctx->lcid, ctx->threadid, 0, ctx->expr);
 }
 
 /* Template evaluator (mirrors matchedfilter.c's mf_template_eval, kept
- * file-local here to avoid an inter-file include).  When fs is non-NULL
- * the named-kind fields are ignored and the file's linear-interp value
- * is returned. */
+ * file-local here to avoid an inter-file include).  Dispatch by kind:
+ * MF_TPL_FILE / MF_TPL_EXPR use the ctx out-of-band state, named kinds
+ * use param[]. */
 static double mf_nfft_template(int kind, const double *param,
-                               const _MFFileTemplate *fs,
+                               const _MFEvalCtx *ctx,
                                double support, double s)
 {
-  if (fs != NULL)
-    return mf_nfft_template_file(fs, support, s);
+  if (kind == MF_TPL_FILE)
+    return mf_nfft_template_file(ctx, support, s);
+  if (kind == MF_TPL_EXPR)
+    return mf_nfft_template_expr(ctx, support, s);
   if (fabs(s) > support) return 0.0;
   switch (kind) {
     case MF_TPL_EXP: {
@@ -195,7 +209,7 @@ static int mf_next_pow2(int n)
  * Writes complex output into kbuf[N].  kernel_kind: 0 = B(s) (box
  * indicator), 1 = g(s), 2 = g(s)^2. */
 static void mf_nfft_sample_kernel(int kind, const double *params,
-                                  const _MFFileTemplate *fs,
+                                  const _MFEvalCtx *ctx,
                                   double support, int kernel_kind,
                                   int N, double dt, double T_window,
                                   fftw_complex *kbuf)
@@ -208,9 +222,9 @@ static void mf_nfft_sample_kernel(int kind, const double *params,
     if (fabs(s) <= support) {
       switch (kernel_kind) {
         case 0: K = 1.0; break;
-        case 1: K = mf_nfft_template(kind, params, fs, support, s); break;
+        case 1: K = mf_nfft_template(kind, params, ctx, support, s); break;
         case 2: {
-          double g = mf_nfft_template(kind, params, fs, support, s);
+          double g = mf_nfft_template(kind, params, ctx, support, s);
           K = g * g;
           break;
         }
@@ -269,7 +283,7 @@ static void mf_nfft_evaluate(nfft_plan *plan, int N_nfft,
 int mf_nfft_periodogram(int N, const double *t, const double *mag,
                         const double *w_in,
                         int kind, const double *params,
-                        const _MFFileTemplate *fs, double support,
+                        const _MFEvalCtx *ctx, double support,
                         int Ntau, const double *t_tau,
                         double *snr_out, double *amp_out)
 {
@@ -361,11 +375,11 @@ int mf_nfft_periodogram(int N, const double *t, const double *mag,
   memcpy(rho_wy, plan.f_hat, N_nfft * sizeof(fftw_complex));
 
   /* Sample and FFT the three kernels. */
-  mf_nfft_sample_kernel(kind, params, fs, support, 0, N_nfft, dt_grid, T_window, K_B);
+  mf_nfft_sample_kernel(kind, params, ctx, support, 0, N_nfft, dt_grid, T_window, K_B);
   mf_nfft_fftw_forward(N_nfft, K_B);
-  mf_nfft_sample_kernel(kind, params, fs, support, 1, N_nfft, dt_grid, T_window, K_g);
+  mf_nfft_sample_kernel(kind, params, ctx, support, 1, N_nfft, dt_grid, T_window, K_g);
   mf_nfft_fftw_forward(N_nfft, K_g);
-  mf_nfft_sample_kernel(kind, params, fs, support, 2, N_nfft, dt_grid, T_window, K_gg);
+  mf_nfft_sample_kernel(kind, params, ctx, support, 2, N_nfft, dt_grid, T_window, K_gg);
   mf_nfft_fftw_forward(N_nfft, K_gg);
 
   /* The five forward NFFTs.  Each writes into a length-N output array
@@ -428,12 +442,12 @@ int mf_nfft_periodogram(int N, const double *t, const double *mag,
 int mf_nfft_periodogram(int N, const double *t, const double *mag,
                         const double *w_in,
                         int kind, const double *params,
-                        const _MFFileTemplate *fs, double support,
+                        const _MFEvalCtx *ctx, double support,
                         int Ntau, const double *t_tau,
                         double *snr_out, double *amp_out)
 {
   (void) N; (void) t; (void) mag; (void) w_in;
-  (void) kind; (void) params; (void) fs; (void) support;
+  (void) kind; (void) params; (void) ctx; (void) support;
   (void) Ntau; (void) t_tau;
   (void) snr_out; (void) amp_out;
   return -1;

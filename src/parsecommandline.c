@@ -4443,8 +4443,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  }
 	  else if (!strcmp(argv[i], "expr")) {
-	    fprintf(stderr, "-matchedfilter: 'template expr' is not yet implemented (deferred to Phase B.3)\n");
-	    listcommands(argv[iterm], p);
+	    c[cn].MatchedFilter->kind = MF_TPL_EXPR;
+	    c[cn].MatchedFilter->nparams = 0;
+	    /* Optional 'varname NAME' before the required expression string.
+	     * Default is 's'.  Mirrors fourierfilter's filterexpr-varname idiom. */
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "varname")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].MatchedFilter->expr_varname = strdup(argv[i]);
+	      if(c[cn].MatchedFilter->expr_varname == NULL) vt_error(ERR_MEMALLOC);
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	    } else {
+	      c[cn].MatchedFilter->expr_varname = strdup("s");
+	      if(c[cn].MatchedFilter->expr_varname == NULL) vt_error(ERR_MEMALLOC);
+	    }
+	    c[cn].MatchedFilter->expr_string = strdup(argv[i]);
+	    if(c[cn].MatchedFilter->expr_string == NULL) vt_error(ERR_MEMALLOC);
 	  }
 	  else {
 	    fprintf(stderr, "-matchedfilter: unrecognised template variant '%s'\n", argv[i]);
