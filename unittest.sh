@@ -4935,4 +4935,96 @@ EOF
     exit 1
 fi
 
+
+# -percentileratios defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -percentileratios
+EOF
+
+cat > $goodout <<EOF
+Name                                     = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_0  = 0.099200000000001509
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0 = 1.6174142480211142
+PERCENTILERATIOS_amp_PCT1.00_PCT99.00_0  = 0.10357600000000033
+PERCENTILERATIOS_asym_PCT1.00_PCT99.00_0 = 1.6031959563790361
+PERCENTILERATIOS_medmeddev_over_stddev_0 = 0.90883791042289785
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -percentileratios > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -percentileratios percentilepairs with floats and auto-swap of p > q
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios percentilepairs (floats + auto-swap)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -percentileratios percentilepairs 10:90,20:80,2.5:97.5,95:5
+EOF
+
+cat > $goodout <<EOF
+Name                                      = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT10.00_PCT90.00_0  = 0.095580015092060933
+PERCENTILERATIOS_asym_PCT10.00_PCT90.00_0 = 1.6417903599226138
+PERCENTILERATIOS_amp_PCT20.00_PCT80.00_0  = 0.082460015092062022
+PERCENTILERATIOS_asym_PCT20.00_PCT80.00_0 = 1.637875088966307
+PERCENTILERATIOS_amp_PCT2.50_PCT97.50_0   = 0.10139999999999993
+PERCENTILERATIOS_asym_PCT2.50_PCT97.50_0  = 1.606683804627252
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_0   = 0.099200000000001509
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0  = 1.6174142480211142
+PERCENTILERATIOS_medmeddev_over_stddev_0  = 0.90883791042289785
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -percentileratios percentilepairs 10:90,20:80,2.5:97.5,95:5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -percentileratios percentilepairs duplicate-after-swap rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios percentilepairs duplicate rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -percentileratios percentilepairs 5:95,95:5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -percentileratios percentilepairs 5:95,95:5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -percentileratios duplicate-pair invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate percentile pair" $testout ; then
+    cat > /dev/stderr <<EOF
+-percentileratios duplicate-pair invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
 rm -f $testc $testout $goodout
