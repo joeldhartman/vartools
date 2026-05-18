@@ -608,6 +608,191 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -matchedfilter named gauss + window + whiten + maskpoints (kitchen sink)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template gauss + window + whiten + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -expr 'mask=1' \\
+    -matchedfilter template gauss 0.5 2.0 mode window signs both 3 0 \\
+        min_separation 0.5 whiten maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_1      =   53730.432890000
+MatchedFilter_SNR_1_1       = 1089.23988
+MatchedFilter_Amplitude_1_1 =    0.0898513
+MatchedFilter_Time_2_1      =   53742.262190000
+MatchedFilter_SNR_2_1       = -814.09733
+MatchedFilter_Amplitude_2_1 =   -0.0730215
+MatchedFilter_Time_3_1      =   53735.302880000
+MatchedFilter_SNR_3_1       = 729.10371
+MatchedFilter_Amplitude_3_1 =    0.0733817
+MatchedFilter_Mean_SNR_1    =   0.24496
+MatchedFilter_RMS_SNR_1     = 537.22078
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -expr 'mask=1' \
+    -matchedfilter template gauss 0.5 2.0 mode window signs both 3 0 \
+        min_separation 0.5 whiten maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter named box + window + signs negative on EXAMPLES/3.transit
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template box + signs negative recovers transit" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -oneline -ascii \\
+    -matchedfilter template box 0.083 0.5 mode window signs negative 1 0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/3.transit
+MatchedFilter_Time_1_0      =   53727.183210000
+MatchedFilter_SNR_1_0       = -61.49018
+MatchedFilter_Amplitude_1_0 =    -0.007167
+MatchedFilter_Mean_SNR_0    = -11.72187
+MatchedFilter_RMS_SNR_0     =  12.42548
+
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -oneline -ascii \
+    -matchedfilter template box 0.083 0.5 mode window signs negative 1 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter nfft mode (smooth template; cross-check vs window)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template gauss + mode nfft" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template gauss 0.5 2.0 mode nfft signs both 2 0 \\
+        min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.428770000
+MatchedFilter_SNR_1_0       = 1006.39329
+MatchedFilter_Amplitude_1_0 =    0.0862446
+MatchedFilter_Time_2_0      =   53740.360810000
+MatchedFilter_SNR_2_0       = 808.77966
+MatchedFilter_Amplitude_2_0 =    0.0900151
+MatchedFilter_Mean_SNR_0    = -30.16562
+MatchedFilter_RMS_SNR_0     = 546.79044
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template gauss 0.5 2.0 mode nfft signs both 2 0 \
+        min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter file template-source mode (2-col ASCII)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template file" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template file EXAMPLES/2.mftemplate 2.0 \\
+        mode window signs positive 2 0 min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.432890000
+MatchedFilter_SNR_1_0       = 1089.20798
+MatchedFilter_Amplitude_1_0 =    0.0899192
+MatchedFilter_Time_2_0      =   53740.336210000
+MatchedFilter_SNR_2_0       = 742.80993
+MatchedFilter_Amplitude_2_0 =     0.093375
+MatchedFilter_Mean_SNR_0    = 471.45552
+MatchedFilter_RMS_SNR_0     = 296.24227
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template file EXAMPLES/2.mftemplate 2.0 \
+        mode window signs positive 2 0 min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter expr template-source mode (analytic expression)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template expr "exp(-s*s/0.5)" 2.0 \\
+        mode window signs positive 2 0 min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.432890000
+MatchedFilter_SNR_1_0       = 1089.23988
+MatchedFilter_Amplitude_1_0 =    0.0898513
+MatchedFilter_Time_2_0      =   53740.336210000
+MatchedFilter_SNR_2_0       = 742.81045
+MatchedFilter_Amplitude_2_0 =    0.0932994
+MatchedFilter_Mean_SNR_0    = 471.12334
+MatchedFilter_RMS_SNR_0     = 296.35869
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template expr "exp(-s*s/0.5)" 2.0 \
+        mode window signs positive 2 0 min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -vonNeumann example 1: unweighted
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -vonNeumann unweighted" > /dev/stderr
