@@ -161,6 +161,7 @@ am__objects_1 = libvartoolspipeline_la-alarm.lo \
 	libvartoolspipeline_la-binlc.lo libvartoolspipeline_la-pdm.lo \
 	libvartoolspipeline_la-ftp.lo \
 	libvartoolspipeline_la-matchedfilter.lo \
+	libvartoolspipeline_la-matchedfilter_nfft.lo \
 	libvartoolspipeline_la-vonneumann.lo \
 	libvartoolspipeline_la-binarylcio.lo \
 	libvartoolspipeline_la-chi2rms.lo \
@@ -305,6 +306,7 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo \
@@ -577,7 +579,7 @@ libvartools_la_SOURCES = vartools.c
 # The vartools binary links against this library instead of re-compiling
 # those sources, so every symbol is compiled exactly once.
 PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
- matchedfilter.c vonneumann.c \
+ matchedfilter.c matchedfilter_nfft.c vonneumann.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \
@@ -797,6 +799,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo@am__quote@ # am--include-marker
@@ -927,6 +930,13 @@ libvartoolspipeline_la-matchedfilter.lo: matchedfilter.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchedfilter.c' object='libvartoolspipeline_la-matchedfilter.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-matchedfilter.lo `test -f 'matchedfilter.c' || echo '$(srcdir)/'`matchedfilter.c
+
+libvartoolspipeline_la-matchedfilter_nfft.lo: matchedfilter_nfft.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-matchedfilter_nfft.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Tpo -c -o libvartoolspipeline_la-matchedfilter_nfft.lo `test -f 'matchedfilter_nfft.c' || echo '$(srcdir)/'`matchedfilter_nfft.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Tpo $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchedfilter_nfft.c' object='libvartoolspipeline_la-matchedfilter_nfft.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-matchedfilter_nfft.lo `test -f 'matchedfilter_nfft.c' || echo '$(srcdir)/'`matchedfilter_nfft.c
 
 libvartoolspipeline_la-vonneumann.lo: vonneumann.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-vonneumann.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-vonneumann.Tpo -c -o libvartoolspipeline_la-vonneumann.lo `test -f 'vonneumann.c' || echo '$(srcdir)/'`vonneumann.c
@@ -1573,6 +1583,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo
@@ -1695,6 +1706,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo

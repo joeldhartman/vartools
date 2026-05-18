@@ -4489,10 +4489,14 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if(!strcmp(argv[i], "window"))
 	    c[cn].MatchedFilter->mode = MF_MODE_WINDOW;
 	  else if(!strcmp(argv[i], "nfft")) {
-	    fprintf(stderr, "-matchedfilter: 'mode nfft' is not yet implemented (Phase A: window only)\n");
+#ifdef HAVE_NFFT3
+	    c[cn].MatchedFilter->mode = MF_MODE_NFFT;
+#else
+	    fprintf(stderr, "-matchedfilter: 'mode nfft' requires vartools built with libnfft3 + libfftw3 (configure with --with-nfft)\n");
 	    listcommands(argv[iterm], p);
+#endif
 	  } else {
-	    fprintf(stderr, "-matchedfilter: 'mode' must be 'window' (got '%s')\n", argv[i]);
+	    fprintf(stderr, "-matchedfilter: 'mode' must be 'window' or 'nfft' (got '%s')\n", argv[i]);
 	    listcommands(argv[iterm], p);
 	  }
 	  /* Required: "signs" <both | positive | negative>. */

@@ -373,6 +373,40 @@ static void mf_write_auxfile(const char *path, int ascii, int Ntau,
   fclose(fp);
 }
 
+/* Forward decl for the NFFT path (defined in matchedfilter_nfft.c).
+ * Returns 0 on success (snr_out / amp_out populated), nonzero on
+ * failure (caller falls back to window mode). */
+extern int mf_nfft_periodogram(int N, const double *t, const double *mag,
+                               const double *w_in,
+                               int kind, const double *params, double support,
+                               int Ntau, const double *t_tau,
+                               double *snr_out, double *amp_out);
+
+/* Dispatch between window-mode and NFFT-mode periodogram evaluators
+ * based on mf->mode.  NFFT-mode falls through to window mode if the
+ * NFFT routine returns nonzero (e.g. N_nfft cap exceeded). */
+static void mf_periodogram_dispatch(const _MatchedFilter *mf,
+                                    int N, const double *t, const double *mag,
+                                    const double *w,
+                                    const double *params, double support,
+                                    int Ntau, const double *t_tau,
+                                    double *snr_out, double *amp_out,
+                                    void (*windowfn)(int, const double *,
+                                                     const double *, const double *,
+                                                     int, const double *, double,
+                                                     int, const double *,
+                                                     double *, double *))
+{
+  if (mf->mode == MF_MODE_NFFT) {
+    int rc = mf_nfft_periodogram(N, t, mag, w, mf->kind, params, support,
+                                 Ntau, t_tau, snr_out, amp_out);
+    if (rc == 0) return;
+    /* Fall through to window mode on failure. */
+  }
+  windowfn(N, t, mag, w, mf->kind, params, support, Ntau, t_tau,
+           snr_out, amp_out);
+}
+
 /* ---- Resolve one _MFScalar to its per-LC scalar value ----------------- */
 static double mf_resolve_scalar(_MFScalar *s, int lcnum, int lc_name_num)
 {
@@ -472,8 +506,8 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     double cycle0_mean = 0.0, cycle0_rms = 0.0;
     int didcycle0 = 0;
     for (k = 0; k < mf->Npeaks; k++) {
-      mf_window_periodogram(Nused, t, mag, w, mf->kind, params, support,
-                            Nused, t, snr, amp);
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+                              Nused, t, snr, amp, mf_window_periodogram);
       if (!didcycle0) {
         mf_compute_mean_rms(Nused, snr, mf->signs, &cycle0_mean, &cycle0_rms);
         didcycle0 = 1;
@@ -498,8 +532,8 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
      * users see the baseline match-statistic surface. */
     if (mf->omatchfile) {
       memcpy(mag, mag_orig, Nused * sizeof(double));
-      mf_window_periodogram(Nused, t, mag, w, mf->kind, params, support,
-                            Nused, t, snr, amp);
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+                              Nused, t, snr, amp, mf_window_periodogram);
       int i1, i2 = 0;
       for (i1 = 0; p->lcnames[lc_name_num][i1] != '\0'; i1++)
         if (p->lcnames[lc_name_num][i1] == '/') i2 = i1 + 1;
@@ -511,8 +545,8 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     mf->rms_snr[lcnum]  = cycle0_rms;
     free(mag_orig);
   } else {
-    mf_window_periodogram(Nused, t, mag, w, mf->kind, params, support,
-                          Nused, t, snr, amp);
+    mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+                            Nused, t, snr, amp, mf_window_periodogram);
     mf_compute_mean_rms(Nused, snr, mf->signs, &mf->mean_snr[lcnum],
                         &mf->rms_snr[lcnum]);
     mf_find_peaks(Nused, t, snr, amp, mf->signs, min_sep, mf->Npeaks,
