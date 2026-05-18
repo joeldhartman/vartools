@@ -85,6 +85,7 @@ will not be released until it is fully featured.  As a result:
 | `restorelc` | ✓ Complete | — | — | — | — | — |
 | `difffluxtomag` | ✓ Complete | — | — | — | — | — |
 | `fluxtomag` | ✓ Complete | — | — | — | — | — |
+| `magtoflux` | ✓ Complete | — | — | — | — | — |
 | `changeerror` | ✓ Complete | — | — | — | — | — |
 | `changevariable` | ✓ Complete | — | — | — | — | — |
 | `copylc` | ✓ Complete | — | — | — | — | — |

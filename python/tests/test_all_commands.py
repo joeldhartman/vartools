@@ -1072,6 +1072,30 @@ class TestCLIArgsManipulation:
         args = cmd.fluxtomag(mag_constant=10.0)._to_cli_args()
         assert args[0] == "-fluxtomag"
 
+    def test_magtoflux_basic(self):
+        args = cmd.magtoflux(mag_constant=25.0)._to_cli_args()
+        assert args == ["-magtoflux", "25.0"]
+
+    def test_magtoflux_normalize(self):
+        args = cmd.magtoflux(normalize=True)._to_cli_args()
+        assert args == ["-magtoflux", "normalize"]
+
+    def test_magtoflux_expr(self):
+        args = cmd.magtoflux(mag_constant="25.0+0.0")._to_cli_args()
+        assert args == ["-magtoflux", "expr", "25.0+0.0"]
+
+    def test_magtoflux_var(self):
+        args = cmd.magtoflux(mag_constant="zpt")._to_cli_args()
+        assert args == ["-magtoflux", "var", "zpt"]
+
+    def test_magtoflux_normalize_rejects_mag_constant(self):
+        with pytest.raises(ValueError):
+            cmd.magtoflux(mag_constant=25.0, normalize=True)
+
+    def test_magtoflux_requires_one_of(self):
+        with pytest.raises(ValueError):
+            cmd.magtoflux()
+
     def test_changeerror_basic(self):
         assert cmd.changeerror()._to_cli_args()[0] == "-changeerror"
 
@@ -2782,6 +2806,31 @@ class TestEndToEndPipelines:
             *make_lc()._df.values.T, name="mystar")
         result = vt.Pipeline([cmd.clip(sigclip=5.0)]).run(lc, capture_lc=True)
         assert result.lc.name == "mystar"
+
+    # -----------------------------------------------------------------------
+    # magtoflux
+    # -----------------------------------------------------------------------
+
+    def test_magtoflux_roundtrip(self):
+        """fluxtomag then magtoflux should recover the original magnitudes."""
+        lc = make_lc(n=200)
+        mag_orig = lc._df.iloc[:, 1].values.copy()
+        result = vt.Pipeline([
+            cmd.fluxtomag(mag_constant=25.0),
+            cmd.magtoflux(mag_constant=25.0),
+        ]).run(lc, capture_lc=True)
+        assert result.lc is not None
+        mag_back = result.lc._df.iloc[:, 1].values
+        np.testing.assert_allclose(mag_back, mag_orig, rtol=0, atol=1e-12)
+
+    def test_magtoflux_normalize_median_is_one(self):
+        """magtoflux normalize should produce median flux = 1."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.magtoflux(normalize=True),
+        ]).run(lc, capture_lc=True)
+        flux = result.lc._df.iloc[:, 1].values
+        assert np.isclose(np.median(flux), 1.0, rtol=0, atol=1e-15)
 
     # -----------------------------------------------------------------------
     # MatchedFilter

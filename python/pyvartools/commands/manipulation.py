@@ -1075,6 +1075,46 @@ class fluxtomag(VartoolsCommand):
         return ["-fluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
 
 
+class magtoflux(VartoolsCommand):
+    """Convert magnitude to flux.  Inverse of :class:`fluxtomag`.
+
+    Parameters
+    ----------
+    mag_constant : float or str, optional
+        Zero-point magnitude.  Required unless ``normalize=True``.
+        The conversion is ``flux = 10**((mag_constant - mag) / 2.5)``
+        with ``sig_flux = flux * sig_mag / 1.0857``.
+    normalize : bool, optional
+        If True, compute fluxes with an arbitrary internal zero-point
+        and then divide the flux and flux-uncertainty arrays by the
+        median flux (NaNs rejected), so the output light curve has
+        median flux 1.  Cannot be combined with ``mag_constant``.
+    """
+
+    _vt_name = "magtoflux"
+
+    def __init__(
+        self,
+        mag_constant: Optional[float] = None,
+        normalize: bool = False,
+    ) -> None:
+        if normalize and mag_constant is not None:
+            raise ValueError(
+                "magtoflux: cannot specify both mag_constant and normalize=True"
+            )
+        if not normalize and mag_constant is None:
+            raise ValueError(
+                "magtoflux: must specify mag_constant, or pass normalize=True"
+            )
+        self.mag_constant = mag_constant
+        self.normalize = normalize
+
+    def _to_cli_args(self) -> List[str]:
+        if self.normalize:
+            return ["-magtoflux", "normalize"]
+        return ["-magtoflux"] + _varexpr(self.mag_constant)
+
+
 class changeerror(VartoolsCommand):
     """Rescale measurement uncertainties by a constant factor.
 

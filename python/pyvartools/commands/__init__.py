@@ -50,6 +50,7 @@ from .manipulation import (
     restorelc,
     difffluxtomag,
     fluxtomag,
+    magtoflux,
     changeerror,
     changevariable,
     copylc,
@@ -119,7 +120,7 @@ __all__ = [
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",
-    "savelc", "restorelc", "difffluxtomag", "fluxtomag", "changeerror",
+    "savelc", "restorelc", "difffluxtomag", "fluxtomag", "magtoflux", "changeerror",
     "changevariable", "copylc", "medianfilter", "expr", "print_cols",
     "FFT", "IFFT", "resample", "decorr", "Jstet",
     # fitting
