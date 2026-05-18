@@ -42,6 +42,7 @@ will not be released until it is fully featured.  As a result:
 | `aov_harm` | ✓ Complete | — | ~~1~~ | — | — | — |
 | `PDM` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `FTP` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `MatchedFilter` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `BLS` | ✓ Complete | — | ~~1~~ | ~~6~~ | ~~3~~ | — |
 | `BLSFixPer` | ✓ Complete | — | — | ~~1~~ | — | — |
 | `BLSFixPerDurTc` | ✗ Not implemented | — | — | ~~3~~ | — | — |

@@ -1221,3 +1221,301 @@ class findblends(VartoolsCommand):
 
     def _output_file_specs(self):
         return {"matches": (".findblends.matches", None)}
+
+
+_MF_NAMED_TEMPLATES = ("exp", "doubleexp", "flare", "gauss", "box",
+                       "triangle", "trap")
+_MF_TEMPLATE_KINDS  = (*_MF_NAMED_TEMPLATES, "file", "expr")
+_MF_MODES           = ("window", "nfft")
+_MF_SIGNS           = ("both", "positive", "negative")
+
+
+class MatchedFilter(VartoolsCommand):
+    """Inverse-variance matched filter for template-shaped transient or
+    feature detection (flares, transits, eclipses, bumps).
+
+    At each trial centre ``tau`` the algorithm fits a scaled, time-shifted
+    template ``g(t - tau)`` plus a local constant offset ``c`` to the
+    light curve within the support window:
+
+        y_i ~ a * g(t_i - tau) + c + noise_i,   w_i = 1/sigma_i^2
+
+    The output amplitude ``a_hat`` is the perturbation amplitude in
+    light-curve units at the peak; the signed SNR is positive for matches
+    that share the template orientation, negative for inverted matches
+    (e.g. a transit detected with a positive box template returns a
+    strongly-negative SNR).
+
+    Parameters
+    ----------
+    template : {"exp", "doubleexp", "flare", "gauss", "box", "triangle",
+                "trap", "file", "expr"}
+        Selects the template-source mode.  Each mode requires a different
+        set of mode-specific keyword arguments; mixing is rejected at
+        construction time.
+
+        Named-template kwargs (peak amplitude is normalised to 1):
+
+        - ``"exp"``:       requires ``tau``.  ``g(s) = exp(-s/tau)`` for
+                           ``s >= 0``.
+        - ``"doubleexp"``: requires ``tau_rise`` and ``tau_decay``.
+                           Rise-then-decay profile normalised so the peak
+                           amplitude is 1.
+        - ``"flare"``:     requires ``tfwhm`` (the rise FWHM in time).
+                           Davenport+2014 empirical flare template.
+        - ``"gauss"``:     requires ``sigma``.
+        - ``"box"``:       requires ``width``.
+        - ``"triangle"``:  requires ``width``.  Symmetric V centred at s=0.
+        - ``"trap"``:      requires ``rise``, ``flat``, ``fall`` (durations).
+
+        Other modes:
+
+        - ``"file"``:      requires ``template_file`` (path to a 2-column
+                           ``t  amplitude`` ASCII file; rows are sorted by
+                           t and exact-duplicate t values are dropped at
+                           load time; linear interpolation between rows).
+        - ``"expr"``:      requires ``expression`` (an analytic vartools
+                           expression in a template-relative time variable
+                           named ``"s"`` by default).  Pass
+                           ``expr_varname=NAME`` to use a different
+                           variable name in the expression.
+
+    support_halfwidth : float or str
+        Outer truncation window: ``g(s)`` is set to zero for
+        ``|s| > support_halfwidth`` regardless of the template's intrinsic
+        shape.  Accepts var/expr forms.
+    mode : {"window", "nfft"}
+        ``"window"`` is exact for any sampling and supports heteroscedastic
+        sigma.  ``"nfft"`` is an NFFT-batched evaluation that requires
+        vartools built ``--with-nfft`` and assumes homoscedastic sigma
+        (median value).  Sharp-edged named templates (box, triangle,
+        trap) develop a few-percent spectral-leakage artefact in
+        ``nfft`` mode near the support boundary; prefer ``window`` if
+        that matters.
+    signs : {"both", "positive", "negative"}
+        Polarity filter applied to peak ranking and the per-LC noise
+        estimate.  ``"positive"`` for bumps matching template
+        orientation, ``"negative"`` for inverted matches.
+
+    npeaks : int, optional
+        Number of peaks to report (default 3).  Each peak is the next
+        most significant trial after masking a +/-``min_separation``
+        window around the prior peaks.
+    save_matchfile : bool or str
+        ``True`` writes the per-trial (t, SNR, amp) surface to the
+        pipeline outdir with suffix ``.mf``; a path string writes to a
+        specific directory; ``False`` (default) suppresses.
+
+    tau : float or str, optional (``exp`` mode)
+        Decay timescale.  Accepts var/expr forms.
+    tau_rise, tau_decay : float or str, optional (``doubleexp`` mode)
+        Rise and decay timescales.  Accepts var/expr forms.
+    tfwhm : float or str, optional (``flare`` mode)
+        Davenport+2014 rise FWHM.  Accepts var/expr forms.
+    sigma : float or str, optional (``gauss`` mode)
+        Gaussian sigma.  Accepts var/expr forms.
+    width : float or str, optional (``box``, ``triangle`` modes)
+        Full width of the box / triangle.  Accepts var/expr forms.
+    rise, flat, fall : float or str, optional (``trap`` mode)
+        Rising-edge, flat-top, falling-edge durations.  Accepts var/expr
+        forms.
+    template_file : str, optional (``file`` mode)
+        Path to the 2-column ASCII template file.
+    expression : str, optional (``expr`` mode)
+        Vartools-syntax expression in the template-relative time
+        variable.  Default variable name is ``"s"``; override with
+        ``expr_varname``.
+    expr_varname : str, optional (``expr`` mode)
+        Name of the template-relative time variable in ``expression``.
+        Defaults to ``"s"``.
+
+    min_separation : float or str, optional
+        Mask half-width around each peak.  Default = ``support_halfwidth``.
+        Accepts var/expr forms.
+    whiten : bool, optional
+        Iteratively subtract ``a_hat * g(t - tau_k)`` from a working
+        copy of the LC between peaks.  The original LC is restored on
+        return so downstream commands see un-whitened data.
+    maskpoints : str, optional
+        Name of an LC vector; points with maskvar > 1e-7 are included.
+
+    See Also
+    --------
+    Davenport, J. R. A. et al. 2014, ApJ, 797, 122 (the empirical
+    Davenport+2014 flare template used by the ``"flare"`` named kind;
+    ADS bibcode 2014ApJ...797..122D).  Turin, G. L. 1960, IRE
+    Transactions on Information Theory, IT-6, 311 (the canonical
+    matched-filter reference).
+    """
+
+    _vt_name = "MatchedFilter"
+
+    def __init__(
+        self,
+        template: str,
+        support_halfwidth: Union[float, str],
+        mode: str,
+        signs: str,
+        npeaks: int = 3,
+        save_matchfile=False,
+        *,
+        # named-template params
+        tau: Union[float, str, None] = None,
+        tau_rise: Union[float, str, None] = None,
+        tau_decay: Union[float, str, None] = None,
+        tfwhm: Union[float, str, None] = None,
+        sigma: Union[float, str, None] = None,
+        width: Union[float, str, None] = None,
+        rise: Union[float, str, None] = None,
+        flat: Union[float, str, None] = None,
+        fall: Union[float, str, None] = None,
+        # file mode
+        template_file: Optional[str] = None,
+        # expr mode
+        expression: Optional[str] = None,
+        expr_varname: Optional[str] = None,
+        # trailing
+        min_separation: Union[float, str, None] = None,
+        whiten: bool = False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        if template not in _MF_TEMPLATE_KINDS:
+            raise ValueError(
+                f"MatchedFilter: template must be one of {_MF_TEMPLATE_KINDS!r}, "
+                f"got {template!r}"
+            )
+        if mode not in _MF_MODES:
+            raise ValueError(
+                f"MatchedFilter: mode must be one of {_MF_MODES!r}, got {mode!r}"
+            )
+        if signs not in _MF_SIGNS:
+            raise ValueError(
+                f"MatchedFilter: signs must be one of {_MF_SIGNS!r}, got {signs!r}"
+            )
+        if not isinstance(npeaks, int) or npeaks < 1:
+            raise ValueError(
+                f"MatchedFilter: npeaks must be a positive int, got {npeaks!r}"
+            )
+
+        # Per-template required kwargs and mutual-exclusion enforcement.
+        # _all_named_kw is the set of named-template scalars.
+        _all_named_kw = {
+            "tau": tau, "tau_rise": tau_rise, "tau_decay": tau_decay,
+            "tfwhm": tfwhm, "sigma": sigma, "width": width,
+            "rise": rise, "flat": flat, "fall": fall,
+        }
+        _file_kw = {"template_file": template_file}
+        _expr_kw = {"expression": expression, "expr_varname": expr_varname}
+        required = {
+            "exp":       ("tau",),
+            "doubleexp": ("tau_rise", "tau_decay"),
+            "flare":     ("tfwhm",),
+            "gauss":     ("sigma",),
+            "box":       ("width",),
+            "triangle":  ("width",),
+            "trap":      ("rise", "flat", "fall"),
+            "file":      (),
+            "expr":      (),
+        }[template]
+        for name in required:
+            if _all_named_kw.get(name) is None and \
+               _file_kw.get(name) is None and _expr_kw.get(name) is None:
+                raise ValueError(
+                    f"MatchedFilter template={template!r} requires {name!r}"
+                )
+        # Reject template-incompatible kwargs.
+        if template in _MF_NAMED_TEMPLATES:
+            for k, v in _all_named_kw.items():
+                if k not in required and v is not None:
+                    raise ValueError(
+                        f"MatchedFilter template={template!r} rejects {k!r} "
+                        f"(belongs to a different named-template variant)"
+                    )
+            if any(v is not None for v in _file_kw.values()):
+                raise ValueError(
+                    f"MatchedFilter template={template!r} rejects 'template_file'"
+                )
+            if any(v is not None for v in _expr_kw.values()):
+                raise ValueError(
+                    f"MatchedFilter template={template!r} rejects 'expression' / 'expr_varname'"
+                )
+        elif template == "file":
+            if template_file is None:
+                raise ValueError("MatchedFilter file mode requires 'template_file'")
+            if any(v is not None for v in _all_named_kw.values()):
+                raise ValueError(
+                    "MatchedFilter file mode rejects named-template kwargs"
+                )
+            if any(v is not None for v in _expr_kw.values()):
+                raise ValueError(
+                    "MatchedFilter file mode rejects 'expression' / 'expr_varname'"
+                )
+        elif template == "expr":
+            if expression is None:
+                raise ValueError("MatchedFilter expr mode requires 'expression'")
+            if any(v is not None for v in _all_named_kw.values()):
+                raise ValueError(
+                    "MatchedFilter expr mode rejects named-template kwargs"
+                )
+            if any(v is not None for v in _file_kw.values()):
+                raise ValueError(
+                    "MatchedFilter expr mode rejects 'template_file'"
+                )
+
+        self.template = template
+        self.support_halfwidth = support_halfwidth
+        self.mode = mode
+        self.signs = signs
+        self.npeaks = npeaks
+        self.save_matchfile = save_matchfile
+        self.tau = tau
+        self.tau_rise = tau_rise
+        self.tau_decay = tau_decay
+        self.tfwhm = tfwhm
+        self.sigma = sigma
+        self.width = width
+        self.rise = rise
+        self.flat = flat
+        self.fall = fall
+        self.template_file = template_file
+        self.expression = expression
+        self.expr_varname = expr_varname
+        self.min_separation = min_separation
+        self.whiten = whiten
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        outdir = getattr(self, "_outdir", ".")
+        args = ["-matchedfilter", "template"]
+        if self.template == "exp":
+            args += ["exp"] + _varexpr(self.tau)
+        elif self.template == "doubleexp":
+            args += ["doubleexp"] + _varexpr(self.tau_rise) + _varexpr(self.tau_decay)
+        elif self.template == "flare":
+            args += ["flare"] + _varexpr(self.tfwhm)
+        elif self.template == "gauss":
+            args += ["gauss"] + _varexpr(self.sigma)
+        elif self.template == "box":
+            args += ["box"] + _varexpr(self.width)
+        elif self.template == "triangle":
+            args += ["triangle"] + _varexpr(self.width)
+        elif self.template == "trap":
+            args += ["trap"] + _varexpr(self.rise) + _varexpr(self.flat) + _varexpr(self.fall)
+        elif self.template == "file":
+            args += ["file", str(self.template_file)]
+        elif self.template == "expr":
+            args += ["expr"]
+            if self.expr_varname is not None:
+                args += ["varname", self.expr_varname]
+            args += [self.expression]
+        args += _varexpr(self.support_halfwidth)
+        args += ["mode", self.mode, "signs", self.signs, str(int(self.npeaks))]
+        args += _outtoken(self.save_matchfile, outdir)
+        if self.min_separation is not None:
+            args += ["min_separation"] + _varexpr(self.min_separation)
+        args += _bool("whiten", self.whiten)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _output_file_specs(self):
+        return {"matchfile": (".mf", None)}

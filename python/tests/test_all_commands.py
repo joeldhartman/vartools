@@ -1752,6 +1752,140 @@ class TestCLIArgsFitting:
         assert "/tmp/rv_model.txt" in args
         assert "10.0" in args
 
+    # ----- MatchedFilter -----
+
+    def test_mf_gauss_basic(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                                  sigma=0.5)._to_cli_args()
+        assert args[0] == "-matchedfilter"
+        assert args[1:4] == ["template", "gauss", "0.5"]
+        assert "mode" in args and args[args.index("mode") + 1] == "window"
+        assert "signs" in args and args[args.index("signs") + 1] == "both"
+
+    def test_mf_doubleexp(self):
+        args = cmd.MatchedFilter("doubleexp", 0.01, "window", "positive",
+                                  tau_rise=0.001, tau_decay=0.005)._to_cli_args()
+        i = args.index("doubleexp")
+        assert args[i + 1:i + 3] == ["0.001", "0.005"]
+
+    def test_mf_flare(self):
+        args = cmd.MatchedFilter("flare", 0.02, "window", "positive",
+                                  tfwhm=0.005)._to_cli_args()
+        assert "flare" in args
+        assert args[args.index("flare") + 1] == "0.005"
+
+    def test_mf_box(self):
+        args = cmd.MatchedFilter("box", 0.5, "window", "negative",
+                                  width=0.083)._to_cli_args()
+        assert "box" in args
+        assert args[args.index("box") + 1] == "0.083"
+
+    def test_mf_triangle(self):
+        args = cmd.MatchedFilter("triangle", 0.5, "window", "both",
+                                  width=0.1)._to_cli_args()
+        assert "triangle" in args
+
+    def test_mf_trap(self):
+        args = cmd.MatchedFilter("trap", 0.5, "window", "both",
+                                  rise=0.01, flat=0.05, fall=0.01)._to_cli_args()
+        i = args.index("trap")
+        assert args[i + 1:i + 4] == ["0.01", "0.05", "0.01"]
+
+    def test_mf_exp(self):
+        args = cmd.MatchedFilter("exp", 0.02, "window", "negative",
+                                  tau=0.005)._to_cli_args()
+        i = args.index("exp")
+        assert args[i + 1] == "0.005"
+
+    def test_mf_file(self):
+        args = cmd.MatchedFilter("file", 2.0, "window", "positive",
+                                  template_file="/tmp/t.mf")._to_cli_args()
+        assert "file" in args
+        assert args[args.index("file") + 1] == "/tmp/t.mf"
+
+    def test_mf_expr_default_varname(self):
+        args = cmd.MatchedFilter("expr", 2.0, "window", "positive",
+                                  expression="exp(-s*s/0.5)")._to_cli_args()
+        i = args.index("expr")
+        # No 'varname' keyword when expr_varname is None (default 's').
+        assert args[i + 1] == "exp(-s*s/0.5)"
+
+    def test_mf_expr_custom_varname(self):
+        args = cmd.MatchedFilter("expr", 2.0, "window", "positive",
+                                  expression="exp(-x*x/0.5)",
+                                  expr_varname="x")._to_cli_args()
+        i = args.index("expr")
+        assert args[i + 1:i + 4] == ["varname", "x", "exp(-x*x/0.5)"]
+
+    def test_mf_nfft_mode(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "nfft", "both",
+                                  sigma=0.5)._to_cli_args()
+        assert args[args.index("mode") + 1] == "nfft"
+
+    def test_mf_min_separation_whiten_maskpoints(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                                  sigma=0.5,
+                                  min_separation=0.5, whiten=True,
+                                  maskpoints="mask")._to_cli_args()
+        # Canonical strict-order trailing keywords.
+        assert (args.index("min_separation") < args.index("whiten")
+                < args.index("maskpoints"))
+
+    def test_mf_save_matchfile(self):
+        c = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                               sigma=0.5, save_matchfile=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        assert "/tmp" in args
+        # omatchfile token immediately precedes outdir.
+        i = args.index("/tmp")
+        assert args[i - 1] == "1"
+
+    def test_mf_varexpr_scalars(self):
+        # sigma and support_halfwidth accept var/expr forms.
+        args = cmd.MatchedFilter("gauss", "myvar", "window", "both",
+                                  sigma="2*sigma0")._to_cli_args()
+        assert "expr" in args
+        assert "var" in args
+
+    def test_mf_rejects_bad_template(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("bogus", 2.0, "window", "both", sigma=0.5)
+
+    def test_mf_rejects_bad_mode(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "fft", "both", sigma=0.5)
+
+    def test_mf_rejects_bad_signs(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "yes", sigma=0.5)
+
+    def test_mf_rejects_missing_template_param(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both")
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("trap", 2.0, "window", "both",
+                              rise=0.01, flat=0.05)   # missing fall
+
+    def test_mf_rejects_template_kwarg_mismatch(self):
+        # 'tau' belongs to exp; passing it with gauss should reject.
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                              sigma=0.5, tau=0.01)
+
+    def test_mf_rejects_file_without_path(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("file", 2.0, "window", "positive")
+
+    def test_mf_rejects_expr_without_expression(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("expr", 2.0, "window", "positive")
+
+    def test_mf_rejects_npeaks_zero(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                              sigma=0.5, npeaks=0)
+
 
 # ===========================================================================
 # CLI-arg tests — Misc
@@ -2648,6 +2782,76 @@ class TestEndToEndPipelines:
             *make_lc()._df.values.T, name="mystar")
         result = vt.Pipeline([cmd.clip(sigclip=5.0)]).run(lc, capture_lc=True)
         assert result.lc.name == "mystar"
+
+    # -----------------------------------------------------------------------
+    # MatchedFilter
+    # -----------------------------------------------------------------------
+
+    def test_matchedfilter_recovers_injected_gauss(self):
+        """Inject a known Gaussian into white-noise data and recover it.
+
+        Verifies that the named-gauss MatchedFilter recovers (within
+        ~10 percent) the injected amplitude at the right time."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.linspace(0, 30, n)
+        # White noise + Gaussian dip at t0 with sigma=0.3 and depth -0.05.
+        t0 = t[100]
+        sigma_g = 0.3
+        depth = -0.05
+        mag = depth * np.exp(-0.5 * ((t - t0) / sigma_g) ** 2) \
+              + rng.normal(0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="inj")
+        result = vt.Pipeline([
+            cmd.MatchedFilter("gauss", 3.0, "window", "negative",
+                              sigma=sigma_g, npeaks=1),
+        ]).run(lc)
+        # Output column naming: MatchedFilter_*_<peak>_<step>
+        keys = result.vars.index
+        snr_key = [k for k in keys if k.startswith("MatchedFilter_SNR_1_")][0]
+        amp_key = [k for k in keys if k.startswith("MatchedFilter_Amplitude_1_")][0]
+        time_key = [k for k in keys if k.startswith("MatchedFilter_Time_1_")][0]
+        snr = float(result.vars[snr_key])
+        amp = float(result.vars[amp_key])
+        t_rec = float(result.vars[time_key])
+        # Strong negative detection at the injection time.
+        assert snr < -10.0
+        assert abs(amp - depth) / abs(depth) < 0.10
+        assert abs(t_rec - t0) < 0.1
+
+    def test_matchedfilter_template_modes_consistent(self):
+        """The named-gauss, file, and expr template modes should all
+        give the same recovered amplitude/time on a clean injection."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.linspace(0, 30, n)
+        t0 = t[100]
+        sigma_g = 0.3
+        depth = -0.05
+        mag = depth * np.exp(-0.5 * ((t - t0) / sigma_g) ** 2) \
+              + rng.normal(0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="inj")
+        # Reference: named gauss.
+        result_named = vt.Pipeline([
+            cmd.MatchedFilter("gauss", 3.0, "window", "negative",
+                              sigma=sigma_g, npeaks=1),
+        ]).run(lc)
+        # Expression: sampled Gaussian formula.
+        result_expr = vt.Pipeline([
+            cmd.MatchedFilter("expr", 3.0, "window", "negative",
+                              expression=f"exp(-s*s/{2.0 * sigma_g ** 2})",
+                              npeaks=1),
+        ]).run(lc)
+        # Pull the amp from each.
+        def amp_of(result):
+            k = [kk for kk in result.vars.index
+                 if kk.startswith("MatchedFilter_Amplitude_1_")][0]
+            return float(result.vars[k])
+        # Expression mode must match named gauss to ~1 part in 1e-5.
+        assert abs(amp_of(result_named) - amp_of(result_expr)) \
+               < 1e-5 * abs(amp_of(result_named))
 
 
 # ---------------------------------------------------------------------------

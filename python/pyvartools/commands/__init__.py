@@ -75,6 +75,7 @@ from .fitting import (
     nonlinfit,
     addnoise,
     findblends,
+    MatchedFilter,
 )
 
 # Miscellaneous / utility commands
@@ -124,6 +125,7 @@ __all__ = [
     # fitting
     "TFA", "TFA_SR", "SYSREM", "MandelAgolTransit", "SoftenedTransit",
     "Starspot", "microlens", "nonlinfit", "addnoise", "findblends",
+    "MatchedFilter",
     # misc
     "addfitskeyword", "converttime", "R", "python", "match", "o",
     "ifcmd", "elifcmd", "elsecmd", "ficmd",
