@@ -1273,6 +1273,19 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_VONNEUMANN:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].VonNeumann->etavals), "%9.5f", 1, 0, 0, 0, "VonNeumann_Ratio_%d", l);
 	  break;
+	case CNUM_PERCENTILERATIOS:
+	  for(i=0; i < c[l].Percentileratios->Npairs; i++) {
+	    sprintf(tmpstring,"PERCENTILERATIOS_amp_PCT%.2f_PCT%.2f_%%d",
+		    c[l].Percentileratios->plow[i],
+		    c[l].Percentileratios->phigh[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->amp), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	    sprintf(tmpstring,"PERCENTILERATIOS_asym_PCT%.2f_PCT%.2f_%%d",
+		    c[l].Percentileratios->plow[i],
+		    c[l].Percentileratios->phigh[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->asym), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	  }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->medmeddev_over_stddev), "%.17g", 1, 0, 0, 0, "PERCENTILERATIOS_medmeddev_over_stddev_%d", l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

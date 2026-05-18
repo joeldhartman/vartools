@@ -163,6 +163,7 @@ am__objects_1 = libvartoolspipeline_la-alarm.lo \
 	libvartoolspipeline_la-matchedfilter.lo \
 	libvartoolspipeline_la-matchedfilter_nfft.lo \
 	libvartoolspipeline_la-vonneumann.lo \
+	libvartoolspipeline_la-percentileratios.lo \
 	libvartoolspipeline_la-binarylcio.lo \
 	libvartoolspipeline_la-chi2rms.lo \
 	libvartoolspipeline_la-copylc.lo \
@@ -319,6 +320,7 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-resample.Plo \
@@ -579,7 +581,7 @@ libvartools_la_SOURCES = vartools.c
 # The vartools binary links against this library instead of re-compiling
 # those sources, so every symbol is compiled exactly once.
 PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
- matchedfilter.c matchedfilter_nfft.c vonneumann.c \
+ matchedfilter.c matchedfilter_nfft.c vonneumann.c percentileratios.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \
@@ -812,6 +814,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-resample.Plo@am__quote@ # am--include-marker
@@ -944,6 +947,13 @@ libvartoolspipeline_la-vonneumann.lo: vonneumann.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='vonneumann.c' object='libvartoolspipeline_la-vonneumann.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-vonneumann.lo `test -f 'vonneumann.c' || echo '$(srcdir)/'`vonneumann.c
+
+libvartoolspipeline_la-percentileratios.lo: percentileratios.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-percentileratios.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-percentileratios.Tpo -c -o libvartoolspipeline_la-percentileratios.lo `test -f 'percentileratios.c' || echo '$(srcdir)/'`percentileratios.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-percentileratios.Tpo $(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='percentileratios.c' object='libvartoolspipeline_la-percentileratios.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-percentileratios.lo `test -f 'percentileratios.c' || echo '$(srcdir)/'`percentileratios.c
 
 libvartoolspipeline_la-binarylcio.lo: binarylcio.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-binarylcio.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-binarylcio.Tpo -c -o libvartoolspipeline_la-binarylcio.lo `test -f 'binarylcio.c' || echo '$(srcdir)/'`binarylcio.c
@@ -1596,6 +1606,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-resample.Plo
@@ -1719,6 +1730,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-resample.Plo

@@ -412,6 +412,10 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 						 lc2, lc);
       break;
 
+    case CNUM_PERCENTILERATIOS:
+      RunPercentileratiosCommand(p, c->Percentileratios, lc2, lc);
+      break;
+
     case CNUM_AUTOCORR:
       /* Calculate the auto-correlation */
       i1 = 0;
@@ -2441,6 +2445,19 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 						    c->VonNeumann->usemask,
 						    c->VonNeumann->maskvar,
 						    lc, lc);
+	}
+      break;
+
+    case CNUM_PERCENTILERATIOS:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunPercentileratiosCommand(p, c->Percentileratios, lc, lc);
 	}
       break;
 

@@ -188,6 +188,7 @@
 #define CNUM_VONNEUMANN 64
 #define CNUM_MATCHEDFILTER 65
 #define CNUM_MAGTOFLUX 66
+#define CNUM_PERCENTILERATIOS 67
 
 #define TOT_CNUMS 61
 
@@ -1199,6 +1200,15 @@ typedef struct {
   VT_PARAM_COMPANIONS(mag_constant1);
   int normalize;
 } _Magtoflux;
+
+typedef struct {
+  int Npairs;
+  double *plow;
+  double *phigh;
+  double **amp;
+  double **asym;
+  double *medmeddev_over_stddev;
+} _Percentileratios;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2716,6 +2726,7 @@ typedef struct {
   _FTP *Ftp;
   _MatchedFilter *MatchedFilter;
   _Magtoflux *Magtoflux;
+  _Percentileratios *Percentileratios;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

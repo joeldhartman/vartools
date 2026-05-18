@@ -699,6 +699,17 @@ void InitCommands(ProgramData *p, Command *c)
 	  if((c[i].VonNeumann->etavals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_PERCENTILERATIOS:
+	  if((c[i].Percentileratios->medmeddev_over_stddev = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Percentileratios->amp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Percentileratios->asym = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].Percentileratios->amp[j] = (double *) malloc(c[i].Percentileratios->Npairs * sizeof(double))) == NULL ||
+	       (c[i].Percentileratios->asym[j] = (double *) malloc(c[i].Percentileratios->Npairs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

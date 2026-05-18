@@ -3219,6 +3219,113 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
       
+      /* -percentileratios [\"percentilepairs\" p1:q1,p2:q2,...,pN:qN] */
+      else if(!strncmp(argv[i],"-percentileratios",17) && strlen(argv[i]) == 17)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_PERCENTILERATIOS;
+	  if((c[cn].Percentileratios = (_Percentileratios *) malloc(sizeof(_Percentileratios))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Default pairs: (5:95, 1:99).  Replaced wholesale if the
+	   * "percentilepairs" keyword is given. */
+	  c[cn].Percentileratios->Npairs = 2;
+	  if((c[cn].Percentileratios->plow = (double *) malloc(2 * sizeof(double))) == NULL ||
+	     (c[cn].Percentileratios->phigh = (double *) malloc(2 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].Percentileratios->plow[0] = 5.0;
+	  c[cn].Percentileratios->phigh[0] = 95.0;
+	  c[cn].Percentileratios->plow[1] = 1.0;
+	  c[cn].Percentileratios->phigh[1] = 99.0;
+
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"percentilepairs")) {
+	    int kk, i1, i2, j, lentmp, Npairs;
+	    char *tmpstring;
+	    double pval, qval, tmp;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    /* Count commas to get Npairs. */
+	    Npairs = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') Npairs++;
+	      j++;
+	    }
+
+	    free(c[cn].Percentileratios->plow);
+	    free(c[cn].Percentileratios->phigh);
+	    if((c[cn].Percentileratios->plow = (double *) malloc(Npairs * sizeof(double))) == NULL ||
+	       (c[cn].Percentileratios->phigh = (double *) malloc(Npairs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < Npairs; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf:%lf", &pval, &qval) != 2) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid percentile pair '%s' "
+		  "for -percentileratios; expected p:q\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval <= 0.0 || pval >= 100.0 ||
+		 qval <= 0.0 || qval >= 100.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: percentile pair '%s' "
+		  "for -percentileratios has values outside (0, 100)\n",
+		  tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval == qval) {
+		fprintf(stderr,
+		  "Error parsing the command-line: percentile pair '%s' "
+		  "for -percentileratios has p == q\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval > qval) {
+		tmp = pval; pval = qval; qval = tmp;
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Percentileratios->plow[pp] == pval) &&
+		      (c[cn].Percentileratios->phigh[pp] == qval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate percentile pair "
+		    "%g:%g for -percentileratios\n", pval, qval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Percentileratios->plow[kk] = pval;
+	      c[cn].Percentileratios->phigh[kk] = qval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Percentileratios->Npairs = Npairs;
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{
