@@ -4328,6 +4328,78 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -magtoflux round-trip with -fluxtomag
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux round-trip with -fluxtomag" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux 25 -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux 25 -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -magtoflux normalize
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux normalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -magtoflux normalize -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2   0.99312   0.03340   0.00092  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -magtoflux normalize -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -magtoflux with expr
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux expr '25.0' -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux expr '25.0' -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # Tier 1: -medianfilter with expr
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -medianfilter expr" > /dev/stderr
