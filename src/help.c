@@ -601,7 +601,8 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"\t | \"triangle\"  <\"var\" v | \"expr\" e | width>\n");
       printtostring(s,"\t | \"trap\"      <\"var\" v | \"expr\" e | rise>\n");
       printtostring(s,"\t\t      <\"var\" v | \"expr\" e | flat>\n");
-      printtostring(s,"\t\t      <\"var\" v | \"expr\" e | fall>>\n");
+      printtostring(s,"\t\t      <\"var\" v | \"expr\" e | fall>\n");
+      printtostring(s,"\t | \"file\"      template_file>\n");
       printtostring(s,"\t<\"var\" v | \"expr\" e | support_halfwidth>\n");
       printtostring(s,"\t\"mode\" <\"window\" | \"nfft\">\n");
       printtostring(s,"\t\"signs\" <\"both\" | \"positive\" | \"negative\">\n");
@@ -1835,7 +1836,8 @@ void help(char *c, ProgramData *p)
       printtostring(&s,"   triangle   g(s) = 1 - 2|s|/width for |s| <= width/2, else 0 (symmetric V at s=0)\n");
       printtostring(&s,"   trap       Linear rise of duration 'rise', flat top of duration 'flat',\n");
       printtostring(&s,"              linear fall of duration 'fall'; centred in s = +/- (rise+flat+fall)/2.\n\n");
-      printtostring(&s,"In all cases the support_halfwidth argument is an outer truncation window: g(s) is zero for |s| > support_halfwidth regardless of the template's intrinsic shape.  For templates with finite intrinsic support (box, triangle, trap), support_halfwidth should be at least half the intrinsic extent or the template will be clipped.  For decaying templates (exp, doubleexp, flare), support_halfwidth sets where the tail is truncated.\n\n");
+      printtostring(&s,"The \"file\" variant reads the template from a 2-column whitespace-separated ASCII file (column 1 = template-relative time s, column 2 = amplitude g(s)).  Lines starting with '#' and blank lines are skipped.  Rows are sorted by t and exact-duplicate t values are dropped at load time.  The template is evaluated by linear interpolation between adjacent loaded rows; g(s) is zero outside the file's t range (and also outside |s| > support_halfwidth, whichever is tighter).  The template need not be normalised -- the matched filter is scale-invariant in g and the reported amplitude is the perturbation amplitude in light-curve units, scaled to the file's peak value.\n\n");
+      printtostring(&s,"In all cases the support_halfwidth argument is an outer truncation window: g(s) is zero for |s| > support_halfwidth regardless of the template's intrinsic shape.  For templates with finite intrinsic support (box, triangle, trap, file), support_halfwidth should be at least half the intrinsic extent or the template will be clipped.  For decaying templates (exp, doubleexp, flare), support_halfwidth sets where the tail is truncated.\n\n");
       printtostring(&s,"Numeric scalars (template parameters, support_halfwidth, min_separation) follow the standard <\"var\" v | \"expr\" e | val> per-light-curve pattern: 'var' takes a previously-defined variable name and 'expr' takes a quoted analytic expression evaluated per light curve; otherwise a literal value is used for all light curves.\n\n");
       printtostring(&s,"The required \"mode\" keyword selects the algorithm.  Two modes are supported:\n\n");
       printtostring(&s,"   window -- exact for any time sampling; per-point sigma is used (heteroscedastic).  Trial centres are the light curve's own (sorted) time points and two cursors sweep forward through the data to identify each support window.  Per-LC cost is O(N * n_window) where n_window is the average number of data points falling within +/- support_halfwidth of each trial.\n\n");

@@ -81,13 +81,35 @@
 #define MF_NFFT_ERROR_SCORE   (-1.0e300)
 #define MF_NFFT_TINY          1.0e-32
 
+/* File-template linear-interp evaluator (mirrors matchedfilter.c's
+ * mf_template_eval_file).  Returns 0 outside the file's t range AND
+ * outside |s| > support. */
+static double mf_nfft_template_file(const _MFFileTemplate *fs,
+                                    double support, double s)
+{
+  if (fabs(s) > support || fs == NULL || fs->N < 2) return 0.0;
+  if (s <= fs->t[0] || s >= fs->t[fs->N - 1]) return 0.0;
+  int lo = 0, hi = fs->N - 1;
+  while (hi - lo > 1) {
+    int mid = (lo + hi) >> 1;
+    if (fs->t[mid] <= s) lo = mid; else hi = mid;
+  }
+  double dt = fs->t[hi] - fs->t[lo];
+  if (!(dt > 0.0)) return fs->g[lo];
+  double frac = (s - fs->t[lo]) / dt;
+  return fs->g[lo] + frac * (fs->g[hi] - fs->g[lo]);
+}
+
 /* Template evaluator (mirrors matchedfilter.c's mf_template_eval, kept
- * file-local here to avoid an inter-file include).  Returns g(s); zero
- * outside the user-specified outer support window and outside each
- * template's intrinsic support. */
+ * file-local here to avoid an inter-file include).  When fs is non-NULL
+ * the named-kind fields are ignored and the file's linear-interp value
+ * is returned. */
 static double mf_nfft_template(int kind, const double *param,
+                               const _MFFileTemplate *fs,
                                double support, double s)
 {
+  if (fs != NULL)
+    return mf_nfft_template_file(fs, support, s);
   if (fabs(s) > support) return 0.0;
   switch (kind) {
     case MF_TPL_EXP: {
@@ -173,6 +195,7 @@ static int mf_next_pow2(int n)
  * Writes complex output into kbuf[N].  kernel_kind: 0 = B(s) (box
  * indicator), 1 = g(s), 2 = g(s)^2. */
 static void mf_nfft_sample_kernel(int kind, const double *params,
+                                  const _MFFileTemplate *fs,
                                   double support, int kernel_kind,
                                   int N, double dt, double T_window,
                                   fftw_complex *kbuf)
@@ -185,9 +208,9 @@ static void mf_nfft_sample_kernel(int kind, const double *params,
     if (fabs(s) <= support) {
       switch (kernel_kind) {
         case 0: K = 1.0; break;
-        case 1: K = mf_nfft_template(kind, params, support, s); break;
+        case 1: K = mf_nfft_template(kind, params, fs, support, s); break;
         case 2: {
-          double g = mf_nfft_template(kind, params, support, s);
+          double g = mf_nfft_template(kind, params, fs, support, s);
           K = g * g;
           break;
         }
@@ -245,7 +268,8 @@ static void mf_nfft_evaluate(nfft_plan *plan, int N_nfft,
  * success, -1 on failure (caller should fall back to window mode). */
 int mf_nfft_periodogram(int N, const double *t, const double *mag,
                         const double *w_in,
-                        int kind, const double *params, double support,
+                        int kind, const double *params,
+                        const _MFFileTemplate *fs, double support,
                         int Ntau, const double *t_tau,
                         double *snr_out, double *amp_out)
 {
@@ -337,11 +361,11 @@ int mf_nfft_periodogram(int N, const double *t, const double *mag,
   memcpy(rho_wy, plan.f_hat, N_nfft * sizeof(fftw_complex));
 
   /* Sample and FFT the three kernels. */
-  mf_nfft_sample_kernel(kind, params, support, 0, N_nfft, dt_grid, T_window, K_B);
+  mf_nfft_sample_kernel(kind, params, fs, support, 0, N_nfft, dt_grid, T_window, K_B);
   mf_nfft_fftw_forward(N_nfft, K_B);
-  mf_nfft_sample_kernel(kind, params, support, 1, N_nfft, dt_grid, T_window, K_g);
+  mf_nfft_sample_kernel(kind, params, fs, support, 1, N_nfft, dt_grid, T_window, K_g);
   mf_nfft_fftw_forward(N_nfft, K_g);
-  mf_nfft_sample_kernel(kind, params, support, 2, N_nfft, dt_grid, T_window, K_gg);
+  mf_nfft_sample_kernel(kind, params, fs, support, 2, N_nfft, dt_grid, T_window, K_gg);
   mf_nfft_fftw_forward(N_nfft, K_gg);
 
   /* The five forward NFFTs.  Each writes into a length-N output array
@@ -403,12 +427,13 @@ int mf_nfft_periodogram(int N, const double *t, const double *mag,
  * Caller must ensure mode != MF_MODE_NFFT in this build. */
 int mf_nfft_periodogram(int N, const double *t, const double *mag,
                         const double *w_in,
-                        int kind, const double *params, double support,
+                        int kind, const double *params,
+                        const _MFFileTemplate *fs, double support,
                         int Ntau, const double *t_tau,
                         double *snr_out, double *amp_out)
 {
   (void) N; (void) t; (void) mag; (void) w_in;
-  (void) kind; (void) params; (void) support;
+  (void) kind; (void) params; (void) fs; (void) support;
   (void) Ntau; (void) t_tau;
   (void) snr_out; (void) amp_out;
   return -1;

@@ -4426,8 +4426,24 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else if (!strcmp(argv[i], "box"))       { c[cn].MatchedFilter->kind = MF_TPL_BOX;       c[cn].MatchedFilter->nparams = 1; }
 	  else if (!strcmp(argv[i], "triangle"))  { c[cn].MatchedFilter->kind = MF_TPL_TRIANGLE;  c[cn].MatchedFilter->nparams = 1; }
 	  else if (!strcmp(argv[i], "trap"))      { c[cn].MatchedFilter->kind = MF_TPL_TRAP;      c[cn].MatchedFilter->nparams = 3; }
-	  else if (!strcmp(argv[i], "expr") || !strcmp(argv[i], "file")) {
-	    fprintf(stderr, "-matchedfilter: template-source '%s' is not yet implemented (Phase A: named templates only)\n", argv[i]);
+	  else if (!strcmp(argv[i], "file")) {
+	    c[cn].MatchedFilter->kind = MF_TPL_FILE;
+	    c[cn].MatchedFilter->nparams = 0;
+	    /* Next token is the template file path; load it once here. */
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].MatchedFilter->file_path = strdup(argv[i]);
+	    if(c[cn].MatchedFilter->file_path == NULL) vt_error(ERR_MEMALLOC);
+	    if(mf_load_template_file(c[cn].MatchedFilter->file_path,
+	                             &(c[cn].MatchedFilter->file_N),
+	                             &(c[cn].MatchedFilter->file_t),
+	                             &(c[cn].MatchedFilter->file_g)) != 0) {
+	      /* mf_load_template_file already wrote a clear error message. */
+	      listcommands(argv[iterm], p);
+	    }
+	  }
+	  else if (!strcmp(argv[i], "expr")) {
+	    fprintf(stderr, "-matchedfilter: 'template expr' is not yet implemented (deferred to Phase B.3)\n");
 	    listcommands(argv[iterm], p);
 	  }
 	  else {

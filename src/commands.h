@@ -2527,6 +2527,7 @@ typedef struct {
 #define MF_TPL_BOX        4
 #define MF_TPL_TRIANGLE   5
 #define MF_TPL_TRAP       6
+#define MF_TPL_FILE       7
 
 /* Execution mode. */
 #define MF_MODE_WINDOW    0
@@ -2536,6 +2537,14 @@ typedef struct {
 #define MF_SIGNS_BOTH      0
 #define MF_SIGNS_POSITIVE  1
 #define MF_SIGNS_NEGATIVE  2
+
+/* File-template state passed to the evaluator when kind == MF_TPL_FILE.
+ * Pointer fields are NULL for named-template kinds. */
+typedef struct {
+  int           N;
+  const double *t;
+  const double *g;
+} _MFFileTemplate;
 
 /* One scalar parameter with the standard <var|expr|fixed> source machinery.
  * Used for every template-shape scalar (tau, tfwhm, sigma, width, etc.),
@@ -2563,6 +2572,15 @@ typedef struct {
    */
   _MFScalar p[3];
   int       nparams;         /* count of scalars actually used by this kind */
+
+  /* File-template state (kind == MF_TPL_FILE).  Loaded once at parser
+   * time, shared across all LCs.  file_t is sorted ascending and
+   * deduped; the template is evaluated by linear interpolation between
+   * adjacent rows and zero outside the file's t range. */
+  char     *file_path;       /* path the template was loaded from, kept for diagnostics */
+  int       file_N;          /* number of (t, g) rows after sort + dedupe */
+  double   *file_t;          /* size file_N */
+  double   *file_g;          /* size file_N */
 
   _MFScalar support;         /* support_halfwidth */
   _MFScalar min_sep;         /* min_separation (sentinel: use support if min_sep_given == 0) */

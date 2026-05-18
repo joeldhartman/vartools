@@ -35,14 +35,16 @@
  *  template is a positive box).  Scale-invariant in g: the template need
  *  not be pre-normalised.
  *
- *  Phase A scope:
- *    - Named templates only (exp, doubleexp, flare, gauss, box, triangle, trap).
- *      "expr" and "file" template-source modes are deferred to Phase B.
- *    - "mode window" only (exact for any sampling).  "mode nfft" is parsed
- *      as a deferred mode and rejected at parse time.
- *    - Iterative peak finding with min_separation masking and a signs filter.
- *    - Pre-whitening between peaks via a_hat(tau_k) * g(t - tau_k) subtraction.
- *    - maskpoints trailing keyword.
+ *  Template sources:
+ *    - Named (kind = MF_TPL_EXP / DOUBLEEXP / FLARE / GAUSS / BOX /
+ *      TRIANGLE / TRAP): closed-form g(s) with at most three scalar
+ *      parameters (resolved per-LC from var/expr/fixed).
+ *    - File (kind = MF_TPL_FILE): 2-col ASCII (t, amplitude) loaded
+ *      once at parser time; the evaluator linearly interpolates
+ *      between rows and returns 0 outside the file's t range.
+ *
+ *  Modes: window (exact, heteroscedastic sigma) and nfft (NFFT-batched,
+ *  homoscedastic sigma; see matchedfilter_nfft.c).
  *
  *  Citations:
  *    - Davenport, J. R. A., Hawley, S. L., Hebb, L. et al. 2014, ApJ, 797,
@@ -62,6 +64,84 @@
 
 #define MF_ERROR_SCORE       (-1.0e300)
 #define MF_TINY              1.0e-32
+
+/* Load a 2-column whitespace-separated ASCII file (t, amplitude) into
+ * freshly-allocated arrays.  Skips lines whose first non-whitespace
+ * character is '#' as well as fully-blank lines.  Sorts the rows by t
+ * ascending and drops exact-duplicate t values (keeping the first
+ * occurrence).  Returns 0 on success with (*t_out, *g_out, *N_out)
+ * populated; -1 on file/open/parse error (no allocation leaked). */
+int mf_load_template_file(const char *path,
+                          int *N_out, double **t_out, double **g_out)
+{
+  FILE *fp;
+  char line[4096];
+  int  cap = 64, n = 0;
+  double *tt = NULL, *gg = NULL;
+
+  if (path == NULL || N_out == NULL || t_out == NULL || g_out == NULL)
+    return -1;
+  *N_out = 0; *t_out = NULL; *g_out = NULL;
+  if ((fp = fopen(path, "r")) == NULL) {
+    fprintf(stderr, "-matchedfilter: cannot open template file '%s'\n", path);
+    return -1;
+  }
+  tt = (double *) malloc(cap * sizeof(double));
+  gg = (double *) malloc(cap * sizeof(double));
+  if (tt == NULL || gg == NULL) { if (tt) free(tt); if (gg) free(gg); fclose(fp); return -1; }
+
+  while (fgets(line, sizeof(line), fp)) {
+    char *p = line;
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
+    double tv, gv;
+    if (sscanf(p, "%lf %lf", &tv, &gv) != 2) continue;
+    if (n >= cap) {
+      int newcap = cap * 2;
+      double *nt = (double *) realloc(tt, newcap * sizeof(double));
+      double *ng = (double *) realloc(gg, newcap * sizeof(double));
+      if (nt == NULL || ng == NULL) {
+        if (nt == NULL) free(tt); else tt = nt;
+        if (ng == NULL) free(gg); else gg = ng;
+        if (nt == NULL || ng == NULL) { fclose(fp); return -1; }
+      }
+      tt = nt; gg = ng; cap = newcap;
+    }
+    tt[n] = tv; gg[n] = gv; n++;
+  }
+  fclose(fp);
+
+  if (n < 2) {
+    fprintf(stderr, "-matchedfilter: template file '%s' has %d valid rows (need >= 2)\n",
+            path, n);
+    free(tt); free(gg);
+    return -1;
+  }
+
+  /* Sort by t ascending (mysort2 carries gg along). */
+  mysort2(n, tt, gg);
+
+  /* Dedupe exact-duplicate t (keep first). */
+  int w = 1, r;
+  for (r = 1; r < n; r++) {
+    if (tt[r] != tt[r - 1]) {
+      tt[w] = tt[r];
+      gg[w] = gg[r];
+      w++;
+    }
+  }
+  n = w;
+
+  if (n < 2) {
+    fprintf(stderr, "-matchedfilter: template file '%s' has %d unique-t rows after dedupe (need >= 2)\n",
+            path, n);
+    free(tt); free(gg);
+    return -1;
+  }
+
+  *N_out = n; *t_out = tt; *g_out = gg;
+  return 0;
+}
 
 /* ---- Named-template evaluator -----------------------------------------
  *
@@ -83,9 +163,33 @@
  *   triangle   param[0] = width                  : |s| <= width/2
  *   trap       param[0..2] = rise, flat, fall    : centred, total = rise+flat+fall
  */
+/* Linear interpolation of a file-loaded template g(s) sampled on the
+ * sorted nodes fs->t[0..fs->N-1].  Returns 0 outside the file's t range
+ * AND outside |s| > support. */
+static double mf_template_eval_file(const _MFFileTemplate *fs,
+                                    double support, double s)
+{
+  if (fabs(s) > support || fs == NULL || fs->N < 2) return 0.0;
+  if (s <= fs->t[0] || s >= fs->t[fs->N - 1]) return 0.0;
+  int lo = 0, hi = fs->N - 1;
+  while (hi - lo > 1) {
+    int mid = (lo + hi) >> 1;
+    if (fs->t[mid] <= s) lo = mid; else hi = mid;
+  }
+  double dt = fs->t[hi] - fs->t[lo];
+  if (!(dt > 0.0)) return fs->g[lo];
+  double frac = (s - fs->t[lo]) / dt;
+  return fs->g[lo] + frac * (fs->g[hi] - fs->g[lo]);
+}
+
+/* Template evaluator dispatch.  When fs is non-NULL the named-kind
+ * fields are ignored and the file's linear-interp value is returned. */
 static double mf_template_eval(int kind, const double *param,
+                               const _MFFileTemplate *fs,
                                double support, double s)
 {
+  if (fs != NULL)
+    return mf_template_eval_file(fs, support, s);
   if (fabs(s) > support) return 0.0;
   switch (kind) {
     case MF_TPL_EXP: {
@@ -198,7 +302,8 @@ static double mf_template_eval(int kind, const double *param,
  * total work across all taus is bounded by O(N) plus O(sum n_window). */
 static void mf_window_periodogram(int N, const double *t,
                                   const double *mag, const double *w,
-                                  int kind, const double *params, double support,
+                                  int kind, const double *params,
+                                  const _MFFileTemplate *fs, double support,
                                   int Ntau, const double *t_tau,
                                   double *snr_out, double *amp_out)
 {
@@ -213,7 +318,7 @@ static void mf_window_periodogram(int N, const double *t,
     double Sw = 0.0, Swg = 0.0, Swgg = 0.0, Swy = 0.0, Swyg = 0.0;
     int j;
     for (j = lo; j < hi; j++) {
-      double g = mf_template_eval(kind, params, support, t[j] - tau);
+      double g = mf_template_eval(kind, params, fs, support, t[j] - tau);
       /* All points in the support window contribute to Sw / Swy (they
        * inform the local baseline c).  Points where g==0 still pin the
        * baseline; only Swg / Swgg / Swyg get the g-weighted forms. */
@@ -331,14 +436,15 @@ static void mf_find_peaks(int Ntau, const double *t_tau,
 
 /* ---- Subtract one fitted template from the LC (in-place on mag_loc) --- */
 static void mf_subtract_template(int N, const double *t, double *mag_loc,
-                                 int kind, const double *params, double support,
+                                 int kind, const double *params,
+                                 const _MFFileTemplate *fs, double support,
                                  double tau, double amp)
 {
   int j;
   for (j = 0; j < N; j++) {
     double s = t[j] - tau;
     if (fabs(s) > support) continue;
-    double g = mf_template_eval(kind, params, support, s);
+    double g = mf_template_eval(kind, params, fs, support, s);
     if (g != 0.0) mag_loc[j] -= amp * g;
   }
 }
@@ -378,7 +484,8 @@ static void mf_write_auxfile(const char *path, int ascii, int Ntau,
  * failure (caller falls back to window mode). */
 extern int mf_nfft_periodogram(int N, const double *t, const double *mag,
                                const double *w_in,
-                               int kind, const double *params, double support,
+                               int kind, const double *params,
+                               const _MFFileTemplate *fs, double support,
                                int Ntau, const double *t_tau,
                                double *snr_out, double *amp_out);
 
@@ -388,22 +495,24 @@ extern int mf_nfft_periodogram(int N, const double *t, const double *mag,
 static void mf_periodogram_dispatch(const _MatchedFilter *mf,
                                     int N, const double *t, const double *mag,
                                     const double *w,
-                                    const double *params, double support,
+                                    const double *params,
+                                    const _MFFileTemplate *fs, double support,
                                     int Ntau, const double *t_tau,
                                     double *snr_out, double *amp_out,
                                     void (*windowfn)(int, const double *,
                                                      const double *, const double *,
-                                                     int, const double *, double,
+                                                     int, const double *,
+                                                     const _MFFileTemplate *, double,
                                                      int, const double *,
                                                      double *, double *))
 {
   if (mf->mode == MF_MODE_NFFT) {
-    int rc = mf_nfft_periodogram(N, t, mag, w, mf->kind, params, support,
+    int rc = mf_nfft_periodogram(N, t, mag, w, mf->kind, params, fs, support,
                                  Ntau, t_tau, snr_out, amp_out);
     if (rc == 0) return;
     /* Fall through to window mode on failure. */
   }
-  windowfn(N, t, mag, w, mf->kind, params, support, Ntau, t_tau,
+  windowfn(N, t, mag, w, mf->kind, params, fs, support, Ntau, t_tau,
            snr_out, amp_out);
 }
 
@@ -453,6 +562,16 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
   double params[3] = {0.0, 0.0, 0.0};
   for (k = 0; k < mf->nparams; k++)
     params[k] = mf_resolve_scalar(&mf->p[k], lcnum, lc_name_num);
+  /* File-template state, NULL for named-template kinds.  Loaded once at
+   * parser time, shared across all LCs. */
+  _MFFileTemplate fs_local;
+  const _MFFileTemplate *fs = NULL;
+  if (mf->kind == MF_TPL_FILE && mf->file_t != NULL && mf->file_N >= 2) {
+    fs_local.N = mf->file_N;
+    fs_local.t = mf->file_t;
+    fs_local.g = mf->file_g;
+    fs = &fs_local;
+  }
   double support = mf_resolve_scalar(&mf->support, lcnum, lc_name_num);
   double min_sep = mf->min_sep_given
                  ? mf_resolve_scalar(&mf->min_sep, lcnum, lc_name_num)
@@ -506,7 +625,7 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     double cycle0_mean = 0.0, cycle0_rms = 0.0;
     int didcycle0 = 0;
     for (k = 0; k < mf->Npeaks; k++) {
-      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
                               Nused, t, snr, amp, mf_window_periodogram);
       if (!didcycle0) {
         mf_compute_mean_rms(Nused, snr, mf->signs, &cycle0_mean, &cycle0_rms);
@@ -525,14 +644,14 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
       mf->peakSNR[lcnum][k]   = snr[best];
       mf->peakamps[lcnum][k]  = amp[best];
       /* Subtract this peak's contribution and continue. */
-      mf_subtract_template(Nused, t, mag, mf->kind, params, support,
+      mf_subtract_template(Nused, t, mag, mf->kind, params, fs, support,
                            t[best], amp[best]);
     }
     /* Aux dump uses the cycle-0 (un-whitened) SNR(tau) so downstream
      * users see the baseline match-statistic surface. */
     if (mf->omatchfile) {
       memcpy(mag, mag_orig, Nused * sizeof(double));
-      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+      mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
                               Nused, t, snr, amp, mf_window_periodogram);
       int i1, i2 = 0;
       for (i1 = 0; p->lcnames[lc_name_num][i1] != '\0'; i1++)
@@ -545,7 +664,7 @@ void RunMatchedFilterCommand(ProgramData *p, Command *c, _MatchedFilter *mf,
     mf->rms_snr[lcnum]  = cycle0_rms;
     free(mag_orig);
   } else {
-    mf_periodogram_dispatch(mf, Nused, t, mag, w, params, support,
+    mf_periodogram_dispatch(mf, Nused, t, mag, w, params, fs, support,
                             Nused, t, snr, amp, mf_window_periodogram);
     mf_compute_mean_rms(Nused, snr, mf->signs, &mf->mean_snr[lcnum],
                         &mf->rms_snr[lcnum]);
