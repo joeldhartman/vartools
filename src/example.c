@@ -181,6 +181,32 @@ void example(char *c, ProgramData *p)
 		    "Cite Hoffman, J. et al., 2021, arXiv:2101.12348 if you use this command.  The reference Python implementation is at https://github.com/PrincetonUniversity/FastTemplatePeriodogram (package developed by John Hoffman).\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-matchedfilter",14) && strlen(c) == 14)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template gauss 0.5 2.0 mode window signs both 3 0\n\n");
+      printtostring(&s,
+		    "Run an inverse-variance matched filter on the light curve EXAMPLES/2 using a Gaussian template of sigma=0.5 d and an outer truncation support of +/-2 d around each trial centre.  The top 3 peaks of |SNR(tau)| are reported (signs both keeps positive- and negative-amplitude matches in the same ranking).  Output columns MatchedFilter_Time_N_M / MatchedFilter_SNR_N_M / MatchedFilter_Amplitude_N_M report each peak's trial centre, signed SNR, and the perturbation amplitude in light-curve units.  Per-LC columns MatchedFilter_Mean_SNR_M and MatchedFilter_RMS_SNR_M are computed over the sign-filtered trial grid.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/3.transit -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template box 0.083 0.5 mode window signs negative 1 0\n\n");
+      printtostring(&s,
+		    "Search EXAMPLES/3.transit for an injected box-shaped dip with a 2-hour (0.083 d) width.  signs negative keeps only inverted (dip) matches in the ranking; a real transit returns a strongly-negative SNR with a small-but-negative amplitude.  support_halfwidth=0.5 d gives the matched-filter a wide enough local baseline that the c-offset term cleanly absorbs the out-of-transit magnitude.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template expr \"exp(-s/0.005) * (s>0)\" 0.02 \\\n");
+      printtostring(&s,
+		    "\t\tmode window signs negative 5 0 min_separation 0.05 whiten\n\n");
+      printtostring(&s,
+		    "Search for exponentially-decaying flare-shaped events with a 0.005-day decay timescale.  The template-source mode is expr, with the time-relative variable s bound to (t_i - tau) inside the support window.  The (s>0) factor zeroes the template before the trial centre so only post-peak decay contributes.  min_separation 0.05 d enforces a 0.05-day exclusion radius around each peak so neighbouring features are reported as separate peaks.  The whiten keyword subtracts the best-fit template at each peak from a working copy of the LC before searching for the next; the original LC is restored on return.\n\n");
+      printtostring(&s,
+		    "Cite Davenport, J. R. A., Hawley, S. L., Hebb, L. et al. 2014, ApJ, 797, 122 (ADS bibcode 2014ApJ...797..122D) if you use this command's flare named-template kind.  The matched-filter formulation itself is standard; Turin, G. L. 1960, IRE Transactions on Information Theory, IT-6, 311 (\"An introduction to matched filters\") is the canonical reference.\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-autocorrelation",16) && strlen(c) == 16)
     {
       printtostring(&s,
