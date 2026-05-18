@@ -1029,6 +1029,38 @@ void example(char *c, ProgramData *p)
 		    "Run the Lomb-Scargle period-finding algorithm on the light curve EXAMPLES/2. Search for periods between 0.1 and 10.0 days at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case). Report the top 5 peaks, and output the periodogram to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/2.ls). Pre-whiten the light curve and re-apply L-S before finding the next peak, and use a 5 sigma iterative clipping in determining the spectroscopic S/N.\n");
       commandfound =1;
     }
+  if(!strncmp(c,"-magtoflux",10) && strlen(c) == 10)
+    {
+      printtostring(&s,
+		    "\nExample 1: round-trip with -fluxtomag\n");
+      printtostring(&s,
+		    "-------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fluxtomag 25.0 0 \\\n");
+      printtostring(&s,
+		    "\t-magtoflux 25.0 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Convert the magnitude light curve EXAMPLES/2 to flux with -fluxtomag using a zero-point of 25.0, then invert with -magtoflux using the same zero-point. The two -rms calls before and after the round-trip should give identical statistics (preserved to roughly 10^-14 in magnitude; the printed five-decimal output is bit-identical).\n\n");
+      printtostring(&s,
+		    "\nExample 2: normalize to median flux of 1\n");
+      printtostring(&s,
+		    "----------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-magtoflux normalize \\\n");
+      printtostring(&s,
+		    "\t-stats mag median,min,max\n\n");
+      printtostring(&s,
+		    "Convert EXAMPLES/2 to flux and normalize the output so that the median flux is 1. This mode is useful when the absolute zero-point is unknown or unimportant (e.g. when subsequent commands only care about relative variability). The reported median should be 1.0 exactly; the min and max bracket the fractional variability of the light curve.\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18)
     {
       printtostring(&s,
