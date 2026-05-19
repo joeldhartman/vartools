@@ -37,9 +37,10 @@
  * statistics.c (used by -stats), so PERCENTILERATIOS values are
  * directly comparable to the corresponding pct(p) columns from -stats.
  *
- * NaN magnitudes are filtered out before any statistic is computed.
- * Zero denominators (e.g. median == pct(p)) and degenerate inputs
- * (post-NaN-reject N < 2, or stddev == 0) produce NaN outputs.
+ * NaN magnitudes and (when the "maskpoints" keyword is in effect)
+ * points with maskvar <= 0 are filtered out before any statistic is
+ * computed.  Zero denominators (e.g. median == pct(p)) and degenerate
+ * inputs (post-filter N < 2, or stddev == 0) produce NaN outputs.
  */
 void RunPercentileratiosCommand(ProgramData *p, _Percentileratios *pr,
                                  int lcnum, int lc_name_num)
@@ -65,9 +66,12 @@ void RunPercentileratiosCommand(ProgramData *p, _Percentileratios *pr,
 
   nrej = 0;
   for (i = 0; i < N_in; i++) {
-    if (!isnan(p->mag[lcnum][i])) {
-      buf[nrej++] = p->mag[lcnum][i];
+    if (isnan(p->mag[lcnum][i])) continue;
+    if (pr->usemask && pr->maskvar != NULL) {
+      if (!(EvaluateVariable_Double(lc_name_num, lcnum, i, pr->maskvar) > VARTOOLS_MASK_TINY))
+        continue;
     }
+    buf[nrej++] = p->mag[lcnum][i];
   }
 
   if (nrej < 2) {

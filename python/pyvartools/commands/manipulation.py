@@ -249,6 +249,10 @@ class percentileratios(VartoolsCommand):
         with ``p > q`` are silently canonicalized to ``p < q``; duplicate
         pairs (after canonicalization) are rejected.  Floating-point
         percentiles are accepted (e.g. ``(2.5, 97.5)``).
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied alongside
+        NaN rejection).
     """
 
     _vt_name = "percentileratios"
@@ -258,7 +262,9 @@ class percentileratios(VartoolsCommand):
     def __init__(
         self,
         percentilepairs: Optional[Sequence[Sequence[float]]] = None,
+        maskpoints: Optional[str] = None,
     ) -> None:
+        self.maskpoints = maskpoints
         if percentilepairs is None:
             self.percentilepairs = list(self._DEFAULT_PAIRS)
             return
@@ -298,6 +304,7 @@ class percentileratios(VartoolsCommand):
         if list(map(tuple, self.percentilepairs)) != list(self._DEFAULT_PAIRS):
             pair_str = ",".join(f"{p}:{q}" for p, q in self.percentilepairs)
             args += ["percentilepairs", pair_str]
+        args += _flag("maskpoints", self.maskpoints)
         return args
 
 

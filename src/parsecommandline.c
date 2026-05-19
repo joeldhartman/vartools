@@ -3219,7 +3219,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
       
-      /* -percentileratios [\"percentilepairs\" p1:q1,p2:q2,...,pN:qN] */
+      /* -percentileratios [\"percentilepairs\" p1:q1,p2:q2,...,pN:qN] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-percentileratios",17) && strlen(argv[i]) == 17)
 	{
 	  iterm = i;
@@ -3238,6 +3238,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Percentileratios->phigh[0] = 95.0;
 	  c[cn].Percentileratios->plow[1] = 1.0;
 	  c[cn].Percentileratios->phigh[1] = 99.0;
+	  c[cn].Percentileratios->usemask = 0;
+	  c[cn].Percentileratios->maskvar = NULL;
 
 	  i++;
 	  if(i < argc && !strcmp(argv[i],"percentilepairs")) {
@@ -3320,6 +3322,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	    free(tmpstring);
 	    c[cn].Percentileratios->Npairs = Npairs;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Percentileratios->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Percentileratios->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
 	  } else {
 	    i--;
 	  }

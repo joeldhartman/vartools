@@ -937,6 +937,21 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.percentileratios(percentilepairs=[(5,)])
 
+    def test_percentileratios_maskpoints(self):
+        args = cmd.percentileratios(maskpoints="m")._to_cli_args()
+        assert args == ["-percentileratios", "maskpoints", "m"]
+
+    def test_percentileratios_canonical_order(self):
+        # percentilepairs must precede maskpoints (strict parser order).
+        args = cmd.percentileratios(
+            percentilepairs=[(10, 90)],
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-percentileratios", "percentilepairs", "10.0:90.0",
+            "maskpoints", "m",
+        ]
+
     def test_beyondNsigma_defaults(self):
         args = cmd.beyondNsigma()._to_cli_args()
         assert args == ["-beyondNsigma"]
@@ -2982,6 +2997,31 @@ class TestEndToEndPipelines:
         # Surviving values are still Gaussian, so the limits still hold.
         ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
         assert abs(ratio - 0.6745) < 0.02
+
+    def test_percentileratios_maskpoints_changes_result(self):
+        """Masking out the tail of a skewed LC changes the asym statistic."""
+        rng = np.random.default_rng(3)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        # Heavy positive skew (exponential): asym >> 1.
+        mag = rng.exponential(scale=1.0, size=n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="expo")
+        # Build a mask that keeps only the lower half of the magnitude
+        # distribution -- the symmetric bulk -- via -expr.  Then asym
+        # should be much closer to 1.
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+            cmd.expr("keep=(mag<1.0)"),
+            cmd.percentileratios(maskpoints="keep"),
+        ]).run(lc)
+        asym_unmasked = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0"]
+        asym_masked   = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_2"]
+        # Unmasked exponential is strongly skewed; masked bulk is much less so.
+        assert asym_unmasked > 2.0, f"unmasked asym = {asym_unmasked}"
+        assert asym_masked < asym_unmasked, (
+            f"masked asym {asym_masked} should be smaller than unmasked {asym_unmasked}"
+        )
 
     # -----------------------------------------------------------------------
     # beyondNsigma

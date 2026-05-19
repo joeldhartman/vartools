@@ -1209,6 +1209,8 @@ typedef struct {
   double **amp;
   double **asym;
   double *medmeddev_over_stddev;
+  int usemask;
+  _Variable *maskvar;
 } _Percentileratios;
 
 typedef struct {

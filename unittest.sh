@@ -5027,6 +5027,35 @@ EOF
 fi
 
 
+# -percentileratios maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -percentileratios maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                                     = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_1  = 0.098599999999999355
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_1 = 2.0621118012422577
+PERCENTILERATIOS_amp_PCT1.00_PCT99.00_1  = 0.10313402307337327
+PERCENTILERATIOS_asym_PCT1.00_PCT99.00_1 = 1.9951197643566312
+PERCENTILERATIOS_medmeddev_over_stddev_1 = 0.80368214904111612
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -percentileratios maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -beyondNsigma defaults
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -beyondNsigma defaults" > /dev/stderr
