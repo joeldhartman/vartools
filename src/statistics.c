@@ -523,6 +523,37 @@ double MAD (int n, double *data)
 }
 
 
+double medmeddev_nocopy(int n, double *data)
+/* Destructive version of medmeddev: data is rearranged in place; the caller
+   must not depend on data preserving its original contents.  Saves the
+   malloc + memcpy that medmeddev performs internally, for callers that
+   already have a scratch buffer.
+*/
+{
+  double medval1, temp;
+  int i;
+  if(n == 1)
+    return (double) 0.0;
+  medval1 = median_nocopy_double(n, data);
+  for(i = 0; i < n; i++) {
+    data[i] = data[i] - medval1;
+    if(data[i] < 0)
+      data[i] = -data[i];
+  }
+  temp = median_nocopy_double(n, data);
+  return temp;
+}
+
+
+double MAD_nocopy(int n, double *data)
+/* Destructive version of MAD = 1.483*medmeddev_nocopy(n, data).  See
+   medmeddev_nocopy for the contract.
+*/
+{
+  return 1.483 * medmeddev_nocopy(n, data);
+}
+
+
 #define DEF_MEDDEV(type) \
 type meddev_##type(int n, type *data) \
 /* Compute the deviation about the median, this is basically the standard \

@@ -544,6 +544,8 @@ double stddev(int n, double *data);
 double meddev(int n, double *data);
 double medmeddev(int n, double *data);
 double MAD(int n, double *data);
+double medmeddev_nocopy(int n, double *data);
+double MAD_nocopy(int n, double *data);
 double kurtosis(int n, double *data);
 double skewness(int n, double *data);
 double percentile_nocopy(int n, double *data, double pct);
