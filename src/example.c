@@ -217,6 +217,30 @@ void example(char *c, ProgramData *p)
 		    "Compute the discrete auto-correlation function (DACF) of the light curve EXAMPLES/2. The DACF is calculated between time-lags of 0 and 10.0 days with a time-step of 0.05 days. It is output to the directory EXAMPLES/OUTDIR1 with the filename 2.autocorr\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-beyondNsigma",13) && strlen(c) == 13)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -beyondNsigma\n\n");
+      printtostring(&s,
+		    "Compute, for the light curve EXAMPLES/2, the fraction of magnitudes that lie more than N*sigma above the median and more than N*sigma below the median, where sigma is the sample standard deviation, for the default N values 1, 3, and 5. The output columns BEYONDNSIGMA_frac_above_NX.XX_0 and BEYONDNSIGMA_frac_below_NX.XX_0 report these fractions. For Gaussian-distributed scatter the expected one-tailed values are 0.1587, 0.00135, and 2.87e-7 for N=1, 3, and 5 respectively; departures from these values are diagnostic of asymmetry, heavy tails, or genuine outliers.\n\n");
+      printtostring(&s,
+		    "\nExample 2: custom N values with the MAD-based scale\n");
+      printtostring(&s,
+		    "---------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-beyondNsigma Nvalues 0.5,1.0,1.5 useMAD\n\n");
+      printtostring(&s,
+		    "Same statistics computed at a user-supplied list of N values (floating-point allowed; duplicates and N <= 0 are rejected at parse time) and using 1.483*median(|x - median(x)|) as the scale instead of the sample standard deviation. The MAD-based scale is robust to heavy tails or outliers in the magnitude distribution: outliers inflate the stddev and widen the N*sigma threshold, while MAD reflects the bulk's scale and the same thresholds correctly flag the outliers.\n\n");
+      printtostring(&s,
+		    "The N=1 instance of this statistic corresponds to the Beyond1Std feature defined by Nun et al. 2015, arXiv:1506.00010 (the FATS package for variable-star feature engineering); cite that work if you use the -beyondNsigma command.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-binlc",6) && strlen(c) == 6)
     {
       printtostring(&s,
