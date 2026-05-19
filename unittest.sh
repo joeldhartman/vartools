@@ -5027,4 +5027,122 @@ EOF
 fi
 
 
+# -beyondNsigma defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -beyondNsigma
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N1.00_0 = 0.31150015092061578
+BEYONDNSIGMA_frac_below_N1.00_0 = 0.08421370359191066
+BEYONDNSIGMA_frac_above_N3.00_0 = 0
+BEYONDNSIGMA_frac_below_N3.00_0 = 0
+BEYONDNSIGMA_frac_above_N5.00_0 = 0
+BEYONDNSIGMA_frac_below_N5.00_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -beyondNsigma > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -beyondNsigma Nvalues + useMAD
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma Nvalues + useMAD" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -beyondNsigma Nvalues 0.5,1.0,1.5 useMAD
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N0.50_0 = 0.3932991246604286
+BEYONDNSIGMA_frac_below_N0.50_0 = 0.29670993057651673
+BEYONDNSIGMA_frac_above_N1.00_0 = 0.22155146392997283
+BEYONDNSIGMA_frac_below_N1.00_0 = 0
+BEYONDNSIGMA_frac_above_N1.50_0 = 0
+BEYONDNSIGMA_frac_below_N1.50_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -beyondNsigma Nvalues 0.5,1.0,1.5 useMAD > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -beyondNsigma N <= 0 rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma N<=0 rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -beyondNsigma Nvalues -1,2
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -beyondNsigma Nvalues -1,2 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -beyondNsigma N<=0 invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "must be > 0" $testout ; then
+    cat > /dev/stderr <<EOF
+-beyondNsigma N<=0 invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -beyondNsigma duplicate N rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma duplicate-N rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -beyondNsigma Nvalues 1,2,1
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -beyondNsigma Nvalues 1,2,1 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -beyondNsigma duplicate-N invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate N value" $testout ; then
+    cat > /dev/stderr <<EOF
+-beyondNsigma duplicate-N invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
 rm -f $testc $testout $goodout
