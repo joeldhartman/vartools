@@ -888,6 +888,55 @@ class TestCLIArgsManipulation:
         args = cmd.vonNeumann(weighted=True, maskpoints="m")._to_cli_args()
         assert args == ["-vonNeumann", "weighted", "maskpoints", "m"]
 
+    def test_percentileratios_defaults(self):
+        args = cmd.percentileratios()._to_cli_args()
+        assert args == ["-percentileratios"]
+
+    def test_percentileratios_custom_pairs(self):
+        args = cmd.percentileratios(percentilepairs=[(10, 90), (20, 80)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "10.0:90.0,20.0:80.0"]
+
+    def test_percentileratios_floats(self):
+        args = cmd.percentileratios(percentilepairs=[(2.5, 97.5)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "2.5:97.5"]
+
+    def test_percentileratios_auto_swap(self):
+        args = cmd.percentileratios(percentilepairs=[(95, 5)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "5.0:95.0"]
+
+    def test_percentileratios_explicit_defaults_omitted_from_cli(self):
+        # Passing the defaults explicitly should produce the same CLI as
+        # leaving them unset -- no percentilepairs token emitted.
+        args = cmd.percentileratios(
+            percentilepairs=[(5, 95), (1, 99)]
+        )._to_cli_args()
+        assert args == ["-percentileratios"]
+
+    def test_percentileratios_rejects_equal(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(50, 50)])
+
+    def test_percentileratios_rejects_out_of_range_low(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(0, 50)])
+
+    def test_percentileratios_rejects_out_of_range_high(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 100)])
+
+    def test_percentileratios_rejects_duplicate(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 95), (5, 95)])
+
+    def test_percentileratios_rejects_duplicate_after_swap(self):
+        # 95:5 canonicalizes to 5:95, which then duplicates the first pair.
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 95), (95, 5)])
+
+    def test_percentileratios_rejects_malformed_pair(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5,)])
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -2831,6 +2880,65 @@ class TestEndToEndPipelines:
         ]).run(lc, capture_lc=True)
         flux = result.lc._df.iloc[:, 1].values
         assert np.isclose(np.median(flux), 1.0, rtol=0, atol=1e-15)
+
+    # -----------------------------------------------------------------------
+    # percentileratios
+    # -----------------------------------------------------------------------
+
+    def test_percentileratios_gaussian_limit(self):
+        """For large-N white-Gaussian noise, asym -> 1 and medmeddev/stddev -> 0.6745."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.percentileratios(percentilepairs=[(5, 95), (1, 99), (25, 75)]),
+        ]).run(lc)
+        # asym ~ 1 for any symmetric distribution; finite-sample noise at
+        # N=20000 leaves +/- ~0.05 headroom.
+        for p, q in [(5, 95), (1, 99), (25, 75)]:
+            asym = result.vars[
+                f"PERCENTILERATIOS_asym_PCT{p}.00_PCT{q}.00_0"
+            ]
+            assert abs(asym - 1.0) < 0.1, f"asym_{p}_{q} = {asym} far from 1.0"
+        # medmeddev / stddev -> 0.6745 in the Gaussian limit.
+        ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
+        assert abs(ratio - 0.6745) < 0.02, f"medmeddev/stddev = {ratio} far from 0.6745"
+
+    def test_percentileratios_positive_skew(self):
+        """A positively-skewed distribution must produce asym > 1."""
+        rng = np.random.default_rng(1)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        # Exponential is right-skewed; median much lower than mean, so the
+        # upper tail dominates and (pct(q)-median)/(median-pct(p)) > 1.
+        mag = rng.exponential(scale=1.0, size=n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="expo")
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+        ]).run(lc)
+        asym = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0"]
+        assert asym > 2.0, f"asym for exponential = {asym}, expected > 2"
+
+    def test_percentileratios_nan_input_handled(self):
+        """NaN magnitudes are dropped and the surviving N is used."""
+        rng = np.random.default_rng(2)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Sprinkle 10% NaNs.
+        mag[rng.choice(n, n // 10, replace=False)] = np.nan
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="withnan")
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+        ]).run(lc)
+        # Surviving values are still Gaussian, so the limits still hold.
+        ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
+        assert abs(ratio - 0.6745) < 0.02
 
     # -----------------------------------------------------------------------
     # MatchedFilter

@@ -216,6 +216,91 @@ class vonNeumann(VartoolsCommand):
         return args
 
 
+class percentileratios(VartoolsCommand):
+    """Robust scatter statistics from the magnitude distribution.
+
+    For each pair of percentiles ``(p, q)`` with ``0 < p < q < 100`` the
+    command emits two statistics per light curve:
+
+        amp_p_q  = pct(q) - pct(p)
+        asym_p_q = (pct(q) - median) / (median - pct(p))
+
+    plus one additional statistic that does not depend on the pair list:
+
+        medmeddev_over_stddev = median(|x - median(x)|) / stddev(x)
+
+    For any symmetric distribution ``asym -> 1.0``; positively-skewed
+    distributions produce ``asym > 1`` and negatively-skewed distributions
+    produce ``asym < 1``.  For independent Gaussian noise
+    ``medmeddev / stddev -> 0.6745`` in the large-N limit.
+
+    Percentile interpolation matches the ``-stats`` command, so values are
+    directly comparable to the corresponding ``pct(p)`` columns from
+    ``stats``.  NaN magnitudes are dropped before any statistic is
+    computed; light curves with fewer than two finite magnitudes, and
+    ratios with a zero denominator (e.g. ``median == pct(p)``, or
+    ``stddev == 0``), produce NaN outputs.
+
+    Parameters
+    ----------
+    percentilepairs : sequence of (float, float), optional
+        Percentile pairs to use.  Defaults to ``[(5, 95), (1, 99)]``.
+        Each pair must satisfy ``0 < p, q < 100`` and ``p != q``; pairs
+        with ``p > q`` are silently canonicalized to ``p < q``; duplicate
+        pairs (after canonicalization) are rejected.  Floating-point
+        percentiles are accepted (e.g. ``(2.5, 97.5)``).
+    """
+
+    _vt_name = "percentileratios"
+
+    _DEFAULT_PAIRS = ((5.0, 95.0), (1.0, 99.0))
+
+    def __init__(
+        self,
+        percentilepairs: Optional[Sequence[Sequence[float]]] = None,
+    ) -> None:
+        if percentilepairs is None:
+            self.percentilepairs = list(self._DEFAULT_PAIRS)
+            return
+
+        canonical = []
+        seen = set()
+        for idx, pair in enumerate(percentilepairs):
+            try:
+                p, q = pair
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"percentilepairs[{idx}] must be a (p, q) pair, got {pair!r}"
+                )
+            p = float(p)
+            q = float(q)
+            if not (0.0 < p < 100.0) or not (0.0 < q < 100.0):
+                raise ValueError(
+                    f"percentilepairs[{idx}] = ({p}, {q}) is outside the open interval (0, 100)"
+                )
+            if p == q:
+                raise ValueError(
+                    f"percentilepairs[{idx}] has p == q ({p})"
+                )
+            if p > q:
+                p, q = q, p
+            key = (p, q)
+            if key in seen:
+                raise ValueError(
+                    f"percentilepairs has duplicate pair {p}:{q} (after canonicalizing p < q)"
+                )
+            seen.add(key)
+            canonical.append((p, q))
+        self.percentilepairs = canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-percentileratios"]
+        if list(map(tuple, self.percentilepairs)) != list(self._DEFAULT_PAIRS):
+            pair_str = ",".join(f"{p}:{q}" for p, q in self.percentilepairs)
+            args += ["percentilepairs", pair_str]
+        return args
+
+
 class rescalesig(VartoolsCommand):
     """Rescale measurement uncertainties to match the scatter.
 

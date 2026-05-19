@@ -34,6 +34,7 @@ from .manipulation import (
     chi2bin,
     alarm,
     vonNeumann,
+    percentileratios,
     rescalesig,
     ensemblerescalesig,
     stats,
@@ -117,6 +118,7 @@ __all__ = [
     "GetLSAmpThresh", "Phase",
     # manipulation
     "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm", "vonNeumann",
+    "percentileratios",
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",
