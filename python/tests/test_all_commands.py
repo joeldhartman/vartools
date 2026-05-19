@@ -937,6 +937,49 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.percentileratios(percentilepairs=[(5,)])
 
+    def test_beyondNsigma_defaults(self):
+        args = cmd.beyondNsigma()._to_cli_args()
+        assert args == ["-beyondNsigma"]
+
+    def test_beyondNsigma_custom_Nvalues(self):
+        args = cmd.beyondNsigma(Nvalues=[1, 2, 3])._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "1.0,2.0,3.0"]
+
+    def test_beyondNsigma_floats(self):
+        args = cmd.beyondNsigma(Nvalues=[1.5, 2.5, 4.0])._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "1.5,2.5,4.0"]
+
+    def test_beyondNsigma_useMAD(self):
+        args = cmd.beyondNsigma(useMAD=True)._to_cli_args()
+        assert args == ["-beyondNsigma", "useMAD"]
+
+    def test_beyondNsigma_canonical_order(self):
+        # Nvalues must precede useMAD to match the strict-parser order.
+        args = cmd.beyondNsigma(Nvalues=[2, 4], useMAD=True)._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "2.0,4.0", "useMAD"]
+
+    def test_beyondNsigma_explicit_defaults_omitted_from_cli(self):
+        # Passing the defaults explicitly should produce the same CLI as
+        # leaving them unset -- no Nvalues token emitted.
+        args = cmd.beyondNsigma(Nvalues=[1, 3, 5])._to_cli_args()
+        assert args == ["-beyondNsigma"]
+
+    def test_beyondNsigma_rejects_zero(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[0, 1, 2])
+
+    def test_beyondNsigma_rejects_negative(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[-1, 2])
+
+    def test_beyondNsigma_rejects_duplicate(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[1, 2, 1])
+
+    def test_beyondNsigma_rejects_non_numeric(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=["abc", 1])
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -2939,6 +2982,130 @@ class TestEndToEndPipelines:
         # Surviving values are still Gaussian, so the limits still hold.
         ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
         assert abs(ratio - 0.6745) < 0.02
+
+    # -----------------------------------------------------------------------
+    # beyondNsigma
+    # -----------------------------------------------------------------------
+
+    def test_beyondNsigma_gaussian_limit(self):
+        """For large-N Gaussian noise, frac_above_N1 -> 0.1587 and
+        frac_above_N3 -> 0.00135 (one-tailed 1 - Phi(N))."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+        ]).run(lc)
+        f_above_1 = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        f_below_1 = result.vars["BEYONDNSIGMA_frac_below_N1.00_0"]
+        f_above_3 = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f_below_3 = result.vars["BEYONDNSIGMA_frac_below_N3.00_0"]
+        # 1 - Phi(1) = 0.1587; finite-sample std at N=20000 is ~0.0026.
+        assert abs(f_above_1 - 0.1587) < 0.01, f"frac_above_1 = {f_above_1}"
+        assert abs(f_below_1 - 0.1587) < 0.01, f"frac_below_1 = {f_below_1}"
+        # 1 - Phi(3) = 0.00135; finite-sample std at N=20000 is ~0.00026.
+        assert abs(f_above_3 - 0.00135) < 0.002, f"frac_above_3 = {f_above_3}"
+        assert abs(f_below_3 - 0.00135) < 0.002, f"frac_below_3 = {f_below_3}"
+
+    def test_beyondNsigma_useMAD_matches_stddev_for_gaussian(self):
+        """For clean Gaussian noise, useMAD and stddev modes agree to <2%
+        because 1.483 * medmeddev -> stddev in the large-N limit."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.beyondNsigma(useMAD=True),
+        ]).run(lc)
+        f1_std = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        f1_mad = result.vars["BEYONDNSIGMA_frac_above_N1.00_1"]
+        assert abs(f1_std - f1_mad) < 0.01, f"std={f1_std}, mad={f1_mad}"
+
+    def test_beyondNsigma_useMAD_robust_to_outliers(self):
+        """With heavy-tailed outliers injected, useMAD identifies more 3-sigma
+        outliers than stddev mode -- because stddev is inflated by the outliers
+        and widens the threshold, while MAD reflects the bulk's scale."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Inject 200 outliers at +-[8, 20] sigma.
+        idx = rng.choice(n, size=200, replace=False)
+        mag[idx] += rng.choice([-1.0, 1.0], size=200) * rng.uniform(8, 20, 200)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="heavy")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.beyondNsigma(useMAD=True),
+        ]).run(lc)
+        f3_std_above = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f3_mad_above = result.vars["BEYONDNSIGMA_frac_above_N3.00_1"]
+        # MAD-based threshold is tighter -> more points cross it -> larger frac.
+        assert f3_mad_above > f3_std_above, (
+            f"useMAD frac_above_3={f3_mad_above} should exceed stddev "
+            f"frac_above_3={f3_std_above} when heavy outliers are present"
+        )
+
+    def test_beyondNsigma_custom_Nvalues_column_names(self):
+        """Custom float Nvalues produce columns with %.2f-formatted names."""
+        rng = np.random.default_rng(0)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(Nvalues=[1.5, 2.5]),
+        ]).run(lc)
+        assert "BEYONDNSIGMA_frac_above_N1.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_below_N1.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_above_N2.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_below_N2.50_0" in result.vars.index
+
+    def test_beyondNsigma_degenerate_distribution(self):
+        """When every magnitude equals the median, sigma=0 -> all fractions 0."""
+        n = 100
+        t = np.linspace(0, 30, n)
+        mag = np.full(n, 10.0)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="flat")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+        ]).run(lc)
+        for n_val in [1.0, 3.0, 5.0]:
+            tag = f"BEYONDNSIGMA_frac_above_N{n_val:.2f}_0"
+            assert result.vars[tag] == 0.0, f"{tag} = {result.vars[tag]}"
+            tag = f"BEYONDNSIGMA_frac_below_N{n_val:.2f}_0"
+            assert result.vars[tag] == 0.0, f"{tag} = {result.vars[tag]}"
+
+    def test_beyondNsigma_two_tail_consistency(self):
+        """frac_above + frac_below should equal the two-tailed fraction exactly
+        (integer counts divided by the same denominator -- no FP slack)."""
+        rng = np.random.default_rng(7)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(Nvalues=[1.0]),
+        ]).run(lc)
+        above = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        below = result.vars["BEYONDNSIGMA_frac_below_N1.00_0"]
+        # Both fractions have the same denominator N_rej, so their sum is
+        # exactly representable as a count fraction.
+        total = above + below
+        # Count back the total via N_rej and verify it's an integer / N_rej.
+        # At n=5000, the sum's denominator must be 5000.
+        assert abs(total * n - round(total * n)) < 1e-9, (
+            f"above+below={total} not an integer/{n} fraction"
+        )
 
     # -----------------------------------------------------------------------
     # MatchedFilter

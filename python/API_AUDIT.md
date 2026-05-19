@@ -76,6 +76,7 @@ will not be released until it is fully featured.  As a result:
 | `alarm` | ✓ Complete | — | — | — | — | — |
 | `vonNeumann` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `percentileratios` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `beyondNsigma` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `rescalesig` | ✓ Complete | — | — | — | — | — |
 | `ensemblerescalesig` | ✓ Complete | — | — | — | — | — |
 | `stats` | ✓ Complete | — | — | — | — | — |

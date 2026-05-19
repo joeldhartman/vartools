@@ -301,6 +301,90 @@ class percentileratios(VartoolsCommand):
         return args
 
 
+class beyondNsigma(VartoolsCommand):
+    """Fraction of magnitudes beyond N*sigma above/below the median.
+
+    For each light curve and each N value in ``Nvalues``, two fractions are
+    emitted::
+
+        frac_above_N = #{ x : x > median + N*sigma } / N_rej
+        frac_below_N = #{ x : x < median - N*sigma } / N_rej
+
+    where ``N_rej`` is the number of finite magnitudes after NaN rejection.
+    Comparisons are strict (``>`` and ``<``).
+
+    By default ``sigma`` is the sample standard deviation.  When
+    ``useMAD=True`` is given, ``sigma`` is taken to be
+    ``1.483 * median(|x - median(x)|)`` instead -- the Gaussian-consistent
+    calibration of the MAD.  The MAD-based scale is robust to heavy tails
+    or outliers, which inflate the stddev and widen the threshold; using
+    MAD recovers a tighter threshold and correctly flags outliers as such.
+
+    NaN magnitudes are dropped before any statistic is computed; light
+    curves with fewer than two finite magnitudes produce NaN outputs.  When
+    sigma is exactly zero (e.g. every magnitude equals the median) the
+    fractions are reported as zero, since no point strictly exceeds a zero
+    threshold.
+
+    The ``N=1`` instance of this statistic corresponds to the
+    ``Beyond1Std`` feature of Nun et al. 2015, "FATS: Feature Analysis for
+    Time Series" (arXiv:1506.00010), generalized here to an arbitrary list
+    of N values and to a choice of stddev or MAD scale.
+
+    Parameters
+    ----------
+    Nvalues : sequence of float, optional
+        N values to evaluate.  Defaults to ``[1.0, 3.0, 5.0]``.  Each value
+        must be strictly positive, and duplicates are rejected.
+        Floating-point values are accepted (e.g. ``[1.5, 2.5, 4.0]``).
+    useMAD : bool, optional
+        If True, use ``1.483 * MAD`` as the scale instead of the sample
+        standard deviation.  Defaults to False.
+    """
+
+    _vt_name = "beyondNsigma"
+
+    _DEFAULT_NVALUES = (1.0, 3.0, 5.0)
+
+    def __init__(
+        self,
+        Nvalues: Optional[Sequence[float]] = None,
+        useMAD: bool = False,
+    ) -> None:
+        if Nvalues is None:
+            self.Nvalues = list(self._DEFAULT_NVALUES)
+        else:
+            canonical = []
+            seen = set()
+            for idx, val in enumerate(Nvalues):
+                try:
+                    v = float(val)
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"Nvalues[{idx}] must be a number, got {val!r}"
+                    )
+                if v <= 0.0:
+                    raise ValueError(
+                        f"Nvalues[{idx}] = {v} must be > 0"
+                    )
+                if v in seen:
+                    raise ValueError(
+                        f"Nvalues has duplicate value {v}"
+                    )
+                seen.add(v)
+                canonical.append(v)
+            self.Nvalues = canonical
+        self.useMAD = bool(useMAD)
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-beyondNsigma"]
+        if [float(v) for v in self.Nvalues] != list(self._DEFAULT_NVALUES):
+            args += ["Nvalues", ",".join(str(v) for v in self.Nvalues)]
+        if self.useMAD:
+            args += ["useMAD"]
+        return args
+
+
 class rescalesig(VartoolsCommand):
     """Rescale measurement uncertainties to match the scatter.
 
