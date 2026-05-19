@@ -1202,6 +1202,28 @@ void example(char *c, ProgramData *p)
 		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %17.9f, %9.5f, and %9.5f respectively.\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-percentileratios",17) && strlen(c) == 17)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -percentileratios\n\n");
+      printtostring(&s,
+		    "Compute robust scatter statistics on the magnitude distribution of EXAMPLES/2 using the default percentile pairs (5:95 and 1:99). The output columns PERCENTILERATIOS_amp_PCTp_PCTq_0 report the amplitude pct(q) - pct(p) and PERCENTILERATIOS_asym_PCTp_PCTq_0 report the asymmetry (pct(q) - median) / (median - pct(p)). PERCENTILERATIOS_medmeddev_over_stddev_0 reports the raw median-absolute-deviation-from-the-median divided by the sample standard deviation; for independent Gaussian noise this tends to 0.6745 in the large-N limit, with larger values indicating significant outliers and smaller values indicating lighter-than-Gaussian tails.\n\n");
+      printtostring(&s,
+		    "\nExample 2: custom percentile pairs with floats\n");
+      printtostring(&s,
+		    "----------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-percentileratios percentilepairs 10:90,20:80,2.5:97.5\n\n");
+      printtostring(&s,
+		    "Same statistics computed against a user-supplied list of percentile pairs. Pairs may use floating-point percentiles (e.g. 2.5:97.5), are validated at parse time (0 < p, q < 100 and p != q), and pairs given with p > q are silently canonicalized to p < q before they are emitted as column names.\n\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-Phase",6) && strlen(c) == 6)
     {
       printtostring(&s,
