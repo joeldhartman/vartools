@@ -995,6 +995,22 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.beyondNsigma(Nvalues=["abc", 1])
 
+    def test_beyondNsigma_maskpoints(self):
+        args = cmd.beyondNsigma(maskpoints="m")._to_cli_args()
+        assert args == ["-beyondNsigma", "maskpoints", "m"]
+
+    def test_beyondNsigma_canonical_order_all(self):
+        # Strict parser order: Nvalues, useMAD, maskpoints.
+        args = cmd.beyondNsigma(
+            Nvalues=[2, 4],
+            useMAD=True,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-beyondNsigma", "Nvalues", "2.0,4.0", "useMAD",
+            "maskpoints", "m",
+        ]
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -3146,6 +3162,33 @@ class TestEndToEndPipelines:
         assert abs(total * n - round(total * n)) < 1e-9, (
             f"above+below={total} not an integer/{n} fraction"
         )
+
+    def test_beyondNsigma_maskpoints_changes_result(self):
+        """Masking out the heavy upper tail reduces frac_above relative to
+        the full distribution -- the bulk's fraction beyond N*sigma is smaller
+        than the full distribution's because the outliers don't inflate sigma
+        (under stddev mode) once they're masked."""
+        rng = np.random.default_rng(8)
+        n = 10000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Inject 100 large positive outliers.
+        idx = rng.choice(n, size=100, replace=False)
+        mag[idx] += rng.uniform(8.0, 15.0, size=100)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="heavy")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.expr("keep=(mag<5.0)"),  # mask out the injected outliers
+            cmd.beyondNsigma(maskpoints="keep"),
+        ]).run(lc)
+        f3_full   = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f3_masked = result.vars["BEYONDNSIGMA_frac_above_N3.00_2"]
+        # Full distribution: ~100 outliers count as far-above (1%); masked
+        # bulk is clean Gaussian where 3-sigma is ~0.135%.
+        assert f3_full > 0.005, f"f3_full = {f3_full}; outliers should show"
+        assert f3_masked < 0.01, f"f3_masked = {f3_masked}; should drop after mask"
+        assert f3_masked < f3_full
 
     # -----------------------------------------------------------------------
     # MatchedFilter

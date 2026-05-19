@@ -1219,6 +1219,8 @@ typedef struct {
   double *Nvalues;
   double **frac_above;
   double **frac_below;
+  int usemask;
+  _Variable *maskvar;
 } _BeyondNsigma;
 
 typedef struct {

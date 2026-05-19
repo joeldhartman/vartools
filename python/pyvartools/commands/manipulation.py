@@ -347,6 +347,10 @@ class beyondNsigma(VartoolsCommand):
     useMAD : bool, optional
         If True, use ``1.483 * MAD`` as the scale instead of the sample
         standard deviation.  Defaults to False.
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied alongside
+        NaN rejection).
     """
 
     _vt_name = "beyondNsigma"
@@ -357,6 +361,7 @@ class beyondNsigma(VartoolsCommand):
         self,
         Nvalues: Optional[Sequence[float]] = None,
         useMAD: bool = False,
+        maskpoints: Optional[str] = None,
     ) -> None:
         if Nvalues is None:
             self.Nvalues = list(self._DEFAULT_NVALUES)
@@ -382,6 +387,7 @@ class beyondNsigma(VartoolsCommand):
                 canonical.append(v)
             self.Nvalues = canonical
         self.useMAD = bool(useMAD)
+        self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
         args = ["-beyondNsigma"]
@@ -389,6 +395,7 @@ class beyondNsigma(VartoolsCommand):
             args += ["Nvalues", ",".join(str(v) for v in self.Nvalues)]
         if self.useMAD:
             args += ["useMAD"]
+        args += _flag("maskpoints", self.maskpoints)
         return args
 
 

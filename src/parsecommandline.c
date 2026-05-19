@@ -3342,7 +3342,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
-      /* -beyondNsigma ["Nvalues" N1,N2,...,Nk] ["useMAD"] */
+      /* -beyondNsigma ["Nvalues" N1,N2,...,Nk] ["useMAD"] ["maskpoints" maskvar] */
       else if(!strncmp(argv[i],"-beyondNsigma",13) && strlen(argv[i]) == 13)
 	{
 	  iterm = i;
@@ -3359,6 +3359,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].BeyondNsigma->Nvalues[1] = 3.0;
 	  c[cn].BeyondNsigma->Nvalues[2] = 5.0;
 	  c[cn].BeyondNsigma->useMAD = 0;
+	  c[cn].BeyondNsigma->usemask = 0;
+	  c[cn].BeyondNsigma->maskvar = NULL;
 
 	  /* "Nvalues" N1,N2,...,Nk */
 	  i++;
@@ -3435,6 +3437,20 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i < argc && !strcmp(argv[i],"useMAD")) {
 	    c[cn].BeyondNsigma->useMAD = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].BeyondNsigma->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].BeyondNsigma->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
 	  } else {
 	    i--;
 	  }

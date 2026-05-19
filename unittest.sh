@@ -5174,4 +5174,34 @@ EOF
 fi
 
 
+# -beyondNsigma maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -beyondNsigma maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N1.00_1 = 0.307798800184587
+BEYONDNSIGMA_frac_below_N1.00_1 = 0.00092293493308721734
+BEYONDNSIGMA_frac_above_N3.00_1 = 0
+BEYONDNSIGMA_frac_below_N3.00_1 = 0
+BEYONDNSIGMA_frac_above_N5.00_1 = 0
+BEYONDNSIGMA_frac_below_N5.00_1 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -beyondNsigma maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout

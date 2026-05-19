@@ -34,7 +34,9 @@
  * Analysis for Time Series" (arXiv:1506.00010), which is the N=1
  * instance of this statistic.
  *
- * NaN magnitudes are filtered out before any statistic is computed.
+ * NaN magnitudes and (when the "maskpoints" keyword is in effect)
+ * points with maskvar <= 0 are filtered out before any statistic is
+ * computed.
  * Edge cases:
  *   N_rej < 2     -> NaN for all fractions
  *   sigma == 0    -> 0 for all fractions (degenerate but well-defined;
@@ -65,9 +67,12 @@ void RunBeyondNsigmaCommand(ProgramData *p, _BeyondNsigma *bs,
 
   nrej = 0;
   for (i = 0; i < N_in; i++) {
-    if (!isnan(p->mag[lcnum][i])) {
-      buf[nrej++] = p->mag[lcnum][i];
+    if (isnan(p->mag[lcnum][i])) continue;
+    if (bs->usemask && bs->maskvar != NULL) {
+      if (!(EvaluateVariable_Double(lc_name_num, lcnum, i, bs->maskvar) > VARTOOLS_MASK_TINY))
+        continue;
     }
+    buf[nrej++] = p->mag[lcnum][i];
   }
 
   if (nrej < 2) {
