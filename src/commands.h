@@ -189,6 +189,7 @@
 #define CNUM_MATCHEDFILTER 65
 #define CNUM_MAGTOFLUX 66
 #define CNUM_PERCENTILERATIOS 67
+#define CNUM_BEYONDNSIGMA 68
 
 #define TOT_CNUMS 61
 
@@ -1209,6 +1210,14 @@ typedef struct {
   double **asym;
   double *medmeddev_over_stddev;
 } _Percentileratios;
+
+typedef struct {
+  int NN;
+  int useMAD;
+  double *Nvalues;
+  double **frac_above;
+  double **frac_below;
+} _BeyondNsigma;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2727,6 +2736,7 @@ typedef struct {
   _MatchedFilter *MatchedFilter;
   _Magtoflux *Magtoflux;
   _Percentileratios *Percentileratios;
+  _BeyondNsigma *BeyondNsigma;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

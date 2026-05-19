@@ -3326,6 +3326,105 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -beyondNsigma ["Nvalues" N1,N2,...,Nk] ["useMAD"] */
+      else if(!strncmp(argv[i],"-beyondNsigma",13) && strlen(argv[i]) == 13)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_BEYONDNSIGMA;
+	  if((c[cn].BeyondNsigma = (_BeyondNsigma *) malloc(sizeof(_BeyondNsigma))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: N = [1, 3, 5], sigma = stddev. */
+	  c[cn].BeyondNsigma->NN = 3;
+	  if((c[cn].BeyondNsigma->Nvalues = (double *) malloc(3 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].BeyondNsigma->Nvalues[0] = 1.0;
+	  c[cn].BeyondNsigma->Nvalues[1] = 3.0;
+	  c[cn].BeyondNsigma->Nvalues[2] = 5.0;
+	  c[cn].BeyondNsigma->useMAD = 0;
+
+	  /* "Nvalues" N1,N2,...,Nk */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"Nvalues")) {
+	    int kk, i1, i2, j, lentmp, NN;
+	    char *tmpstring;
+	    double nval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    /* Count commas to get NN. */
+	    NN = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NN++;
+	      j++;
+	    }
+
+	    free(c[cn].BeyondNsigma->Nvalues);
+	    if((c[cn].BeyondNsigma->Nvalues = (double *) malloc(NN * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NN; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &nval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid N value '%s' "
+		  "for -beyondNsigma; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(nval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: N value '%s' "
+		  "for -beyondNsigma must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].BeyondNsigma->Nvalues[pp] == nval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate N value "
+		    "%g for -beyondNsigma\n", nval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].BeyondNsigma->Nvalues[kk] = nval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].BeyondNsigma->NN = NN;
+	  } else {
+	    i--;
+	  }
+
+	  /* "useMAD" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"useMAD")) {
+	    c[cn].BeyondNsigma->useMAD = 1;
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{

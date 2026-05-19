@@ -452,6 +452,7 @@ void DoNonlinfit(ProgramData *p, _Nonlinfit *c, int threadid, int lcid);
 void RestrictTimes_expr_apply(ProgramData *p, _RestrictTimes *c, int threadindex, int lcindex, int markrestrict, _Variable *markvar, int noinitmark);
 void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s);
 void RunPercentileratiosCommand(ProgramData *p, _Percentileratios *pr, int lcnum, int lc_name_num);
+void RunBeyondNsigmaCommand(ProgramData *p, _BeyondNsigma *bs, int lcnum, int lc_name_num);
 void GetDoubleParameterValue(int threadid, int lcid, double *outparam, int source, double fixvalue, double *inlistvec, OutColumn *column, _Expression *exprsn);
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum);
 void dotab_buffer(char *c,int tabflag);

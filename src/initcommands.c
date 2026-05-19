@@ -710,6 +710,16 @@ void InitCommands(ProgramData *p, Command *c)
 	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
+	case CNUM_BEYONDNSIGMA:
+	  if((c[i].BeyondNsigma->frac_above = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].BeyondNsigma->frac_below = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].BeyondNsigma->frac_above[j] = (double *) malloc(c[i].BeyondNsigma->NN * sizeof(double))) == NULL ||
+	       (c[i].BeyondNsigma->frac_below[j] = (double *) malloc(c[i].BeyondNsigma->NN * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

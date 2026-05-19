@@ -216,6 +216,11 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-autocorrelation <\"var\" startvar | \"expr\" startexpr | start> <\"var\" stopvar | \"expr\" stopexpr | stop> <\"var\" stepvar | \"expr\" stepexpr | step> outdir [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-beyondNsigma",13) && strlen(c) == 13))
+    {
+      printtostring(s,"-beyondNsigma [\"Nvalues\" N1,N2,...,Nk] [\"useMAD\"]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strncmp(c,"-binlc",6) && strlen(c) == 6))
     {
       printtostring(s,"-binlc <\"average\" | \"median\" | \"weightedaverage\">\n");
@@ -1490,6 +1495,12 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-autocorrelation",p,&s);
       printtostring(&s,"Calculate the discrete auto-correlation function (Edelson and Krolik 1988, ApJ, 333, 646), these are written out to outdir/basename.autocorr, start, stop and step are the times in days for sampling the auto-correlation. Note that rather than using the variance of the light curve in the denominator, we use the formal uncertainty (we do not subtract the \"measurement error\" from the variance as done in the Edelson and Krolik formula since this could lead to imaginary numbers in the case where \"measurement errors\" are overestimated). If you wish to use the variance in the denominator rather than the formal uncertainty you should issue the -changeerror command before calling this routine. Note that due to binning, when the variance is used in the denominator the autocorrelation function may be smaller than 1 unless the time step used is less than the time difference between any consecutive measurements in the light curve. Optionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points in each light curve with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-beyondNsigma",13) && strlen(c) == 13))
+    {
+      listcommands_noexit("-beyondNsigma",p,&s);
+      printtostring(&s,"For each light curve, compute the fraction of magnitudes that lie more than N*sigma above the median and the fraction that lie more than N*sigma below the median, for a user-supplied list of N values:\n\n  frac_above_N = #{ x : x > median + N*sigma } / N_rej\n  frac_below_N = #{ x : x < median - N*sigma } / N_rej\n\nwhere N_rej is the number of finite magnitudes after NaN rejection.  Comparisons are strict (> and <).\n\nBy default sigma is the sample standard deviation.  If the optional \"useMAD\" keyword is given, sigma is taken to be 1.483 * median(|x - median(x)|) instead.  The factor 1.483 calibrates the MAD to the Gaussian standard deviation in the large-N limit, so \"3-sigma\" thresholds are roughly comparable across the two modes for clean Gaussian noise but the useMAD mode is more robust to heavy tails or outliers.\n\nThe default N values are 1, 3, and 5.  Use the optional \"Nvalues\" keyword followed by a comma-separated list to override the defaults; each value must be strictly positive, and duplicate values are rejected at parse time.  Floating-point values are accepted (e.g. Nvalues 1.5,2.5,4.0).\n\nNaN magnitudes are dropped before any statistic is computed; light curves with fewer than two finite magnitudes produce NaN output values.  When sigma is exactly zero (e.g. a degenerate distribution in which every magnitude equals the median) the fractions are reported as zero, since no point strictly exceeds a zero threshold.\n\nOutput column names are:\n\n  BEYONDNSIGMA_frac_above_NX.XX_M\n  BEYONDNSIGMA_frac_below_NX.XX_M\n\nwhere X.XX is the N value with two decimal places (e.g. N1.00, N2.50) and M is the 0-indexed command position in the pipeline.\n\nThe N=1 instance of this statistic corresponds to the Beyond1Std feature of Nun et al. 2015, \"FATS: Feature Analysis for Time Series\" (arXiv:1506.00010), generalized here to an arbitrary list of N values and to a choice of stddev or MAD scale.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-binlc",6) && strlen(c) == 6))
