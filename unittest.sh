@@ -5204,4 +5204,220 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -slopestats defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_0  = 1.2121212115632392
+SLOPESTATS_max_abs_dmdt_0     = 15.000000037872484
+SLOPESTATS_mad_dmdt_0         = 1.7975757567482837
+SLOPESTATS_frac_above_T3.00_0 = 0.008152173913043478
+SLOPESTATS_frac_below_T3.00_0 = 0.008152173913043478
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats bintime + threshold + maxgap + useMAD
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats bintime+threshold+maxgap+useMAD" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats bintime 10,30 threshold 1,2,3 maxgap 0.5 useMAD
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_BT10.00_0  = 0.18395683317911915
+SLOPESTATS_max_abs_dmdt_BT10.00_0     = 1.8870292863939131
+SLOPESTATS_mad_dmdt_BT10.00_0         = 0.27324690870655383
+SLOPESTATS_frac_above_T1.00_BT10.00_0 = 0.14373088685015289
+SLOPESTATS_frac_below_T1.00_BT10.00_0 = 0.14525993883792049
+SLOPESTATS_frac_above_T2.00_BT10.00_0 = 0.021406727828746176
+SLOPESTATS_frac_below_T2.00_BT10.00_0 = 0.021406727828746176
+SLOPESTATS_frac_above_T3.00_BT10.00_0 = 0.0076452599388379203
+SLOPESTATS_frac_below_T3.00_BT10.00_0 = 0.0045871559633027525
+SLOPESTATS_median_abs_dmdt_BT30.00_0  = 0.16369175165924241
+SLOPESTATS_max_abs_dmdt_BT30.00_0     = 0.95214562176006601
+SLOPESTATS_mad_dmdt_BT30.00_0         = 0.25335418510495206
+SLOPESTATS_frac_above_T1.00_BT30.00_0 = 0.082304526748971193
+SLOPESTATS_frac_below_T1.00_BT30.00_0 = 0.094650205761316872
+SLOPESTATS_frac_above_T2.00_BT30.00_0 = 0.00411522633744856
+SLOPESTATS_frac_below_T2.00_BT30.00_0 = 0
+SLOPESTATS_frac_above_T3.00_BT30.00_0 = 0.00411522633744856
+SLOPESTATS_frac_below_T3.00_BT30.00_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats bintime 10,30 threshold 1,2,3 maxgap 0.5 useMAD > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats binshift (multiplicative half-bin shift)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats binshift" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats bintime 10 binshift 0.5 threshold 3
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_BT10.00_0  = 0.17934994034448781
+SLOPESTATS_max_abs_dmdt_BT10.00_0     = 1.5830546260755221
+SLOPESTATS_mad_dmdt_BT10.00_0         = 0.26197217352624952
+SLOPESTATS_frac_above_T3.00_BT10.00_0 = 0.0043988269794721412
+SLOPESTATS_frac_below_T3.00_BT10.00_0 = 0.0058651026392961877
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats bintime 10 binshift 0.5 threshold 3 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -slopestats maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_1  = 1.2390955386939013
+SLOPESTATS_max_abs_dmdt_1     = 12.65306107442264
+SLOPESTATS_mad_dmdt_1         = 1.8229270293118238
+SLOPESTATS_frac_above_T3.00_1 = 0.008771929824561403
+SLOPESTATS_frac_below_T3.00_1 = 0.0083102493074792248
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -slopestats maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats bintime <= 0 rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats bintime<=0 rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats bintime -1,5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats bintime -1,5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats bintime<=0 invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "must be > 0" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats bintime<=0 invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -slopestats duplicate bintime rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats duplicate-bintime rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats bintime 5,10,5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats bintime 5,10,5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats duplicate-bintime invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate bintime value" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats duplicate-bintime invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -slopestats binshift without bintime rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats binshift-without-bintime rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats binshift 0.5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats binshift 0.5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats binshift-without-bintime invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "binshift requires bintime" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats binshift-without-bintime invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
 rm -f $testc $testout $goodout
