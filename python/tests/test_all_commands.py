@@ -1011,6 +1011,102 @@ class TestCLIArgsManipulation:
             "maskpoints", "m",
         ]
 
+    def test_slopestats_defaults(self):
+        args = cmd.slopestats()._to_cli_args()
+        assert args == ["-slopestats"]
+
+    def test_slopestats_custom_bintime(self):
+        args = cmd.slopestats(bintime=[5, 10])._to_cli_args()
+        assert args == ["-slopestats", "bintime", "5.0,10.0"]
+
+    def test_slopestats_binshift(self):
+        args = cmd.slopestats(bintime=[10], binshift=0.5)._to_cli_args()
+        assert args == ["-slopestats", "bintime", "10.0",
+                        "binshift", "0.5"]
+
+    def test_slopestats_binshift_requires_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(binshift=0.5)
+
+    def test_slopestats_custom_threshold(self):
+        args = cmd.slopestats(threshold=[1, 3, 5])._to_cli_args()
+        assert args == ["-slopestats", "threshold", "1.0,3.0,5.0"]
+
+    def test_slopestats_default_threshold_omitted(self):
+        # Passing the default threshold explicitly should produce the
+        # same CLI as leaving it unset -- no threshold token emitted.
+        args = cmd.slopestats(threshold=[3.0])._to_cli_args()
+        assert args == ["-slopestats"]
+
+    def test_slopestats_maxgap(self):
+        args = cmd.slopestats(maxgap=0.5)._to_cli_args()
+        assert args == ["-slopestats", "maxgap", "0.5"]
+
+    def test_slopestats_useMAD(self):
+        args = cmd.slopestats(useMAD=True)._to_cli_args()
+        assert args == ["-slopestats", "useMAD"]
+
+    def test_slopestats_maskpoints(self):
+        args = cmd.slopestats(maskpoints="m")._to_cli_args()
+        assert args == ["-slopestats", "maskpoints", "m"]
+
+    def test_slopestats_canonical_order_all(self):
+        # Strict parser order: bintime, binshift, threshold, maxgap,
+        # useMAD, maskpoints.
+        args = cmd.slopestats(
+            bintime=[5, 10],
+            binshift=0.5,
+            threshold=[1, 3],
+            maxgap=0.5,
+            useMAD=True,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-slopestats",
+            "bintime", "5.0,10.0",
+            "binshift", "0.5",
+            "threshold", "1.0,3.0",
+            "maxgap", "0.5",
+            "useMAD",
+            "maskpoints", "m",
+        ]
+
+    def test_slopestats_rejects_zero_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[0, 5])
+
+    def test_slopestats_rejects_negative_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[-1, 5])
+
+    def test_slopestats_rejects_duplicate_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[5, 10, 5])
+
+    def test_slopestats_rejects_non_numeric_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=["abc", 5])
+
+    def test_slopestats_rejects_zero_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[0, 1, 3])
+
+    def test_slopestats_rejects_negative_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[-1, 3])
+
+    def test_slopestats_rejects_duplicate_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[1, 3, 1])
+
+    def test_slopestats_rejects_zero_maxgap(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(maxgap=0)
+
+    def test_slopestats_rejects_negative_maxgap(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(maxgap=-0.5)
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -3189,6 +3285,120 @@ class TestEndToEndPipelines:
         assert f3_full > 0.005, f"f3_full = {f3_full}; outliers should show"
         assert f3_masked < 0.01, f"f3_masked = {f3_masked}; should drop after mask"
         assert f3_masked < f3_full
+
+    # -----------------------------------------------------------------------
+    # slopestats
+    # -----------------------------------------------------------------------
+
+    def test_slopestats_gaussian_limit(self):
+        """For large-N white-noise slopes, frac_above_T1 -> 0.1587 and
+        frac_above_T3 -> 0.00135 (one-tailed 1 - Phi(T))."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.arange(n, dtype=float)  # dt = 1 day, integer-aligned
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.slopestats(threshold=[1.0, 3.0]),
+        ]).run(lc)
+        f_above_1 = result.vars["SLOPESTATS_frac_above_T1.00_0"]
+        f_below_1 = result.vars["SLOPESTATS_frac_below_T1.00_0"]
+        f_above_3 = result.vars["SLOPESTATS_frac_above_T3.00_0"]
+        f_below_3 = result.vars["SLOPESTATS_frac_below_T3.00_0"]
+        # Slope distribution is Gaussian with mean 0; 1-Phi(1) = 0.1587.
+        assert abs(f_above_1 - 0.1587) < 0.01, f"frac_above_1 = {f_above_1}"
+        assert abs(f_below_1 - 0.1587) < 0.01, f"frac_below_1 = {f_below_1}"
+        # 1-Phi(3) = 0.00135; small-sample noise is ~0.0003.
+        assert abs(f_above_3 - 0.00135) < 0.002, f"frac_above_3 = {f_above_3}"
+        assert abs(f_below_3 - 0.00135) < 0.002, f"frac_below_3 = {f_below_3}"
+
+    def test_slopestats_constant_slope_has_zero_mad(self):
+        """For a perfectly linear LC, all consecutive slopes are equal,
+        so mad_dmdt -> 0 and median_abs_dmdt = max_abs_dmdt = |k|."""
+        n = 100
+        t = np.arange(n, dtype=float)
+        k = 0.05
+        mag = k * t
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="lin")
+        result = vt.Pipeline([cmd.slopestats()]).run(lc)
+        # MAD should be at floating-point noise level (well below 1e-10).
+        assert result.vars["SLOPESTATS_mad_dmdt_0"] < 1e-10
+        assert abs(result.vars["SLOPESTATS_median_abs_dmdt_0"] - k) < 1e-9
+        assert abs(result.vars["SLOPESTATS_max_abs_dmdt_0"] - k) < 1e-9
+
+    def test_slopestats_maxgap_drops_gap_spanning_pair(self):
+        """A pathological gap-spanning pair should produce max_abs_dmdt
+        far above the bulk, and maxgap should drop it back to the bulk."""
+        # Times: 0..49 clean, then jump to t=150 with a spike, then 51..99.
+        ts = list(range(0, 50)) + [150] + list(range(51, 100))
+        ms = [0.0] * 50 + [1000.0] + [0.0] * 49
+        t = np.array(ts, dtype=float)
+        mag = np.array(ms, dtype=float)
+        err = np.full(len(t), 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gap")
+        result = vt.Pipeline([
+            cmd.slopestats(),                # no maxgap: spike dominates
+            cmd.slopestats(maxgap=50.0),     # drops the t=99->150 pair
+        ]).run(lc)
+        max_no_filter = result.vars["SLOPESTATS_max_abs_dmdt_0"]
+        max_filtered  = result.vars["SLOPESTATS_max_abs_dmdt_1"]
+        assert max_no_filter > 10.0, f"max without maxgap = {max_no_filter}"
+        assert max_filtered == 0.0, f"max with maxgap = {max_filtered}"
+
+    def test_slopestats_useMAD_matches_stddev_for_gaussian(self):
+        """For clean Gaussian slopes, useMAD and stddev modes agree to <2%
+        because 1.483 * medmeddev -> stddev in the large-N limit."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.slopestats(),
+            cmd.slopestats(useMAD=True),
+        ]).run(lc)
+        f1_std = result.vars["SLOPESTATS_frac_above_T3.00_0"]
+        f1_mad = result.vars["SLOPESTATS_frac_above_T3.00_1"]
+        assert abs(f1_std - f1_mad) < 0.005, f"std={f1_std}, mad={f1_mad}"
+
+    def test_slopestats_binshift_changes_partition(self):
+        """A half-bin binshift on integer-day points with a 10-day binsize
+        re-partitions the LC and produces a measurably different median."""
+        rng = np.random.default_rng(0)
+        n = 5000
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            # bintime in minutes: 14400 min = 10 days.  binshift 0.5 ->
+            # bin partition shifts by 5 days, moving the first 5 points
+            # into a half-size bin.
+            cmd.slopestats(bintime=[14400]),
+            cmd.slopestats(bintime=[14400], binshift=0.5),
+        ]).run(lc)
+        m_noshift = result.vars["SLOPESTATS_median_abs_dmdt_BT14400.00_0"]
+        m_shifted = result.vars["SLOPESTATS_median_abs_dmdt_BT14400.00_1"]
+        assert m_noshift != m_shifted, "binshift should change the partition"
+
+    def test_slopestats_bintime_column_names_use_minutes(self):
+        """bintime values appear in column names verbatim (as given in
+        minutes), not as the kernel's days-converted internal value."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.slopestats(bintime=[5.0, 60.0]),
+        ]).run(lc)
+        # The user-supplied minute values appear formatted as %.2f.
+        assert "SLOPESTATS_median_abs_dmdt_BT5.00_0" in result.vars.index
+        assert "SLOPESTATS_median_abs_dmdt_BT60.00_0" in result.vars.index
 
     # -----------------------------------------------------------------------
     # MatchedFilter

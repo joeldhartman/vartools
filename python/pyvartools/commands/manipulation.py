@@ -399,6 +399,170 @@ class beyondNsigma(VartoolsCommand):
         return args
 
 
+class slopestats(VartoolsCommand):
+    """Per-pair slope statistics over consecutive light-curve points.
+
+    After time-sorting (and optionally binning) the filtered light curve,
+    consecutive points are paired and slopes are formed::
+
+        s_i = (m[i+1] - m[i]) / (t[i+1] - t[i])
+
+    Five statistics are reported per (LC, binsize) combination::
+
+        median_abs_dmdt = median(|s_i|)
+        max_abs_dmdt    = max(|s_i|)
+        mad_dmdt        = 1.483 * median(|s_i - median(s_i)|)
+        frac_above_T    = #{ s_i : s_i - <s> > T*sigma } / N_pairs
+        frac_below_T    = #{ s_i : s_i - <s> < -T*sigma } / N_pairs
+
+    ``<s>`` is the mean of the slopes; deviations are mean-centered
+    regardless of the choice of sigma flavor.  Comparisons against
+    ``T*sigma`` are strict (``>`` and ``<``).
+
+    By default ``sigma`` is the sample standard deviation of the slopes
+    (normalized by ``N_pairs - 1``).  When ``useMAD=True``, ``sigma`` is
+    ``1.483 * median(|s_i - median(s_i)|)`` instead (= ``mad_dmdt``),
+    which is more robust to heavy tails or outliers.
+
+    The optional ``bintime`` parameter takes a list of bin sizes in
+    MINUTES (assuming the light curve time axis is in days; the kernel
+    divides each bintime by 1440 before binning).  Each binsize produces
+    its own column set.  The optional ``binshift`` parameter (only valid
+    in combination with ``bintime``) shifts the first bin by a fraction
+    of the binwidth: ``t0_bin = t[0] - binshift * binsize``.  Canonical
+    use is ``0 <= binshift < 1``.
+
+    The optional ``maxgap`` parameter (in days) drops consecutive pairs
+    whose time separation exceeds ``maxgap``, suppressing spurious large
+    slopes that span long observational gaps.
+
+    The ``max_abs_dmdt`` statistic corresponds to the ``MaxSlope``
+    feature of Richards et al. 2011, ApJ 733, 10.  The
+    ``frac_above_T*sigma`` and ``frac_below_T*sigma`` statistics are
+    slope-domain generalizations of the magnitude-domain ``Beyond1Std``
+    feature of the same paper, extended to a user-supplied list of T
+    values and split into signed above/below counts.  The ``mad_dmdt``
+    statistic is the slope-domain analog of the magnitude-domain median
+    absolute deviation (here with the Gaussian-calibrated 1.483 factor).
+
+    Parameters
+    ----------
+    bintime : sequence of float, optional
+        List of bin sizes in minutes.  Each value must be strictly
+        positive; duplicates are rejected.  If ``None`` (the default),
+        no binning is performed.
+    binshift : float, optional
+        Fraction of the binwidth by which to shift the first bin.
+        Canonical use is ``0 <= binshift < 1``.  Only valid in
+        combination with ``bintime``.
+    threshold : sequence of float, optional
+        List of T values for the threshold-fraction statistics.
+        Defaults to ``[3.0]``.  Each value must be strictly positive;
+        duplicates are rejected.
+    maxgap : float, optional
+        Drop consecutive pairs whose time separation exceeds
+        ``maxgap``, in the same time units as the light curve (days).
+        Must be strictly positive.
+    useMAD : bool, optional
+        If True, use ``1.483 * MAD`` of the slopes as ``sigma`` instead
+        of the sample standard deviation.  Defaults to False.
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied
+        alongside NaN rejection on the magnitudes).
+    """
+
+    _vt_name = "slopestats"
+
+    _DEFAULT_THRESHOLD = (3.0,)
+
+    def __init__(
+        self,
+        bintime: Optional[Sequence[float]] = None,
+        binshift: Optional[float] = None,
+        threshold: Optional[Sequence[float]] = None,
+        maxgap: Optional[float] = None,
+        useMAD: bool = False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.bintime = self._validate_positive_unique(bintime, "bintime")
+
+        if binshift is None:
+            self.binshift = None
+        else:
+            try:
+                self.binshift = float(binshift)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"binshift must be a number, got {binshift!r}"
+                )
+
+        if self.binshift is not None and self.bintime is None:
+            raise ValueError(
+                "binshift requires bintime to be specified"
+            )
+
+        if threshold is None:
+            self.threshold = list(self._DEFAULT_THRESHOLD)
+        else:
+            self.threshold = self._validate_positive_unique(
+                threshold, "threshold"
+            )
+
+        if maxgap is None:
+            self.maxgap = None
+        else:
+            try:
+                m = float(maxgap)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"maxgap must be a number, got {maxgap!r}"
+                )
+            if m <= 0.0:
+                raise ValueError(f"maxgap = {m} must be > 0")
+            self.maxgap = m
+
+        self.useMAD = bool(useMAD)
+        self.maskpoints = maskpoints
+
+    @staticmethod
+    def _validate_positive_unique(values, name):
+        if values is None:
+            return None
+        canonical = []
+        seen = set()
+        for idx, val in enumerate(values):
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{name}[{idx}] must be a number, got {val!r}"
+                )
+            if v <= 0.0:
+                raise ValueError(f"{name}[{idx}] = {v} must be > 0")
+            if v in seen:
+                raise ValueError(f"{name} has duplicate value {v}")
+            seen.add(v)
+            canonical.append(v)
+        return canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-slopestats"]
+        if self.bintime is not None:
+            args += ["bintime", ",".join(str(v) for v in self.bintime)]
+        if self.binshift is not None:
+            args += ["binshift", str(self.binshift)]
+        if [float(v) for v in self.threshold] != list(self._DEFAULT_THRESHOLD):
+            args += ["threshold",
+                     ",".join(str(v) for v in self.threshold)]
+        if self.maxgap is not None:
+            args += ["maxgap", str(self.maxgap)]
+        if self.useMAD:
+            args += ["useMAD"]
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
 class rescalesig(VartoolsCommand):
     """Rescale measurement uncertainties to match the scatter.
 
