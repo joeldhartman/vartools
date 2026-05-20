@@ -1070,6 +1070,12 @@ typedef struct {
 
 typedef struct {
   int medflag, binsize_Nbins_flag, Nbins, firstbinflag, tflag;
+  /* binshift_mult selects which formula the firstbin field feeds into:
+   *   0 => legacy "firstbinshift" keyword: t0 -= firstbin / binsize
+   *        (dimensionally inconsistent, retained for backward compatibility)
+   *   1 => "binshift" keyword: t0 -= firstbin * binsize
+   *        (firstbin is dimensionless fraction-of-binwidth, canonical 0..1) */
+  int binshift_mult;
   VT_PARAM_COMPANIONS(Nbins);
   double binsize;
   VT_PARAM_COMPANIONS(binsize);

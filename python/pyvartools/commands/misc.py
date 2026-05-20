@@ -1042,8 +1042,15 @@ class binlc(VartoolsCommand):
     T0 : float or str, optional
         Reference time for bin-edge alignment.  A float is passed as
         ``"fix T0"``.
+    binshift : float, optional
+        Shift the start of the first bin by ``binshift * binsize``.
+        ``binshift`` is a dimensionless fraction of the binwidth;
+        canonical use is ``0 <= binshift < 1`` (e.g. ``binshift=0.5``
+        for a half-bin shift).
     firstbinshift : float, optional
-        Shift the first bin edge by this amount.
+        Legacy keyword retained for backward compatibility; shifts the
+        first bin by ``firstbinshift / binsize``.  Emits a
+        ``DeprecationWarning`` when used.  Prefer ``binshift``.
     maskpoints : str, optional
     """
 
@@ -1059,10 +1066,31 @@ class binlc(VartoolsCommand):
         bincolumnsonly: bool = False,
         T0=None,
         firstbinshift: Optional[float] = None,
+        binshift: Optional[float] = None,
         maskpoints: Optional[str] = None,
     ) -> None:
         if binsize is None and nbins is None:
             raise ValueError("binlc requires either binsize or nbins")
+        if binshift is not None and firstbinshift is not None:
+            raise ValueError(
+                "binlc accepts at most one of `binshift` or "
+                "`firstbinshift` (the underlying CLI keywords are "
+                "mutually exclusive)"
+            )
+        if firstbinshift is not None:
+            import warnings
+            warnings.warn(
+                "binlc(firstbinshift=...) emits the legacy "
+                "`firstbinshift` CLI keyword, whose shift formula "
+                "`t0 -= firstbinshift / binsize` is dimensionally "
+                "inconsistent and retained only for backward "
+                "compatibility. Prefer `binshift=` (dimensionless "
+                "fraction-of-binwidth shift; canonical 0..1), which "
+                "emits the corrected `binshift` CLI keyword with "
+                "`t0 -= binshift * binsize`.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.method = method
         self.binsize = binsize
         self.nbins = nbins
@@ -1071,6 +1099,7 @@ class binlc(VartoolsCommand):
         self.bincolumnsonly = bincolumnsonly
         self.T0 = T0
         self.firstbinshift = firstbinshift
+        self.binshift = binshift
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
@@ -1086,7 +1115,9 @@ class binlc(VartoolsCommand):
                 args += ["T0", "fix", str(self.T0)]
             else:
                 args += ["T0"] + str(self.T0).split()
-        if self.firstbinshift is not None:
+        if self.binshift is not None:
+            args += ["binshift"] + _varexpr(self.binshift)
+        elif self.firstbinshift is not None:
             args += ["firstbinshift"] + _varexpr(self.firstbinshift)
         to = str(self.time_output)
         args += [to]

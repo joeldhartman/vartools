@@ -12845,9 +12845,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
-	  if(!strncmp(argv[i],"firstbinshift",13) && strlen(argv[i]) == 13)
+	  if(!strncmp(argv[i],"binshift",8) && strlen(argv[i]) == 8)
 	    {
+	      /* New (multiplicative) shift: t0 -= firstbin * binsize. */
 	      c[cn].Binlc->firstbinflag = 1;
+	      c[cn].Binlc->binshift_mult = 1;
 	      i++;
 	      if(i < argc)
 		VT_PARSE_DOUBLE(c[cn].Binlc, firstbin, argv, i);
@@ -12857,8 +12859,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(i >= argc)
 		listcommands(argv[iterm],p);
 	    }
-	  else
+	  else if(!strncmp(argv[i],"firstbinshift",13) && strlen(argv[i]) == 13)
+	    {
+	      /* Legacy (divisive) shift: t0 -= firstbin / binsize.  Retained
+		 for backward compatibility; users should prefer "binshift". */
+	      c[cn].Binlc->firstbinflag = 1;
+	      c[cn].Binlc->binshift_mult = 0;
+	      i++;
+	      if(i < argc)
+		VT_PARSE_DOUBLE(c[cn].Binlc, firstbin, argv, i);
+	      else
+		listcommands(argv[iterm],p);
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	    }
+	  else {
 	    c[cn].Binlc->firstbinflag = 0;
+	    c[cn].Binlc->binshift_mult = 0;
+	  }
 	  if(!strcmp(argv[i],"tcenter"))
 	    c[cn].Binlc->tflag = VARTOOLS_BINLC_TIMETYPE_CENTER;
 	  else if(!strcmp(argv[i],"taverage"))

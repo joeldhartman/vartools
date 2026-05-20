@@ -965,6 +965,64 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -binlc binshift (new multiplicative formula: t0 -= binshift * binsize)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -binlc binshift" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -binlc average binsize 0.5 binshift 0.5 tcenter -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_1     =  10.12069
+RMS_1          =   0.03464
+Expected_RMS_1 =   0.00046
+Npoints_1      =    35
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -binlc average binsize 0.5 binshift 0.5 tcenter -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -binlc firstbinshift backward-compat (legacy divisive formula:
+# t0 -= firstbinshift / binsize).  Pinned to guard against accidental
+# regression of the bug-compat path.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -binlc firstbinshift backward-compat" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -binlc average binsize 0.5 firstbinshift 0.5 tcenter -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_1     =  10.11955
+RMS_1          =   0.03562
+Expected_RMS_1 =   0.00046
+Npoints_1      =    36
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -binlc average binsize 0.5 firstbinshift 0.5 tcenter -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -BLS example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLS example 1" > /dev/stderr

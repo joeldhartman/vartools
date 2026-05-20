@@ -2471,6 +2471,29 @@ class TestCLIArgsMisc:
         with pytest.raises(ValueError):
             cmd.binlc()
 
+    def test_binlc_binshift(self):
+        args = cmd.binlc(binsize=0.5, binshift=0.5)._to_cli_args()
+        assert "binshift" in args
+        assert args[args.index("binshift") + 1] == "0.5"
+        # The legacy keyword must NOT also be emitted.
+        assert "firstbinshift" not in args
+
+    def test_binlc_firstbinshift_legacy_emits_old_keyword(self):
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            args = cmd.binlc(binsize=0.5, firstbinshift=0.5)._to_cli_args()
+            assert any(issubclass(rec.category, DeprecationWarning)
+                       for rec in w), \
+                f"expected DeprecationWarning, got {[str(r.message) for r in w]}"
+        assert "firstbinshift" in args
+        assert args[args.index("firstbinshift") + 1] == "0.5"
+        assert "binshift" not in args
+
+    def test_binlc_binshift_and_firstbinshift_mutually_exclusive(self):
+        with pytest.raises(ValueError):
+            cmd.binlc(binsize=0.5, binshift=0.5, firstbinshift=0.5)
+
     def test_columnsuffix_basic(self):
         args = cmd.columnsuffix("myls")._to_cli_args()
         assert args == ["-columnsuffix", "myls"]
