@@ -720,6 +720,22 @@ void InitCommands(ProgramData *p, Command *c)
 	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
+	case CNUM_SLOPESTATS:
+	  if((c[i].Slopestats->median_abs_dmdt = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->max_abs_dmdt    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->mad_dmdt        = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->frac_above      = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->frac_below      = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].Slopestats->median_abs_dmdt[j] = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->max_abs_dmdt[j]    = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->mad_dmdt[j]        = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->frac_above[j]      = (double *) malloc(c[i].Slopestats->N_bin * c[i].Slopestats->N_thresh * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->frac_below[j]      = (double *) malloc(c[i].Slopestats->N_bin * c[i].Slopestats->N_thresh * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

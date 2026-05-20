@@ -190,6 +190,7 @@
 #define CNUM_MAGTOFLUX 66
 #define CNUM_PERCENTILERATIOS 67
 #define CNUM_BEYONDNSIGMA 68
+#define CNUM_SLOPESTATS 69
 
 #define TOT_CNUMS 61
 
@@ -1222,6 +1223,33 @@ typedef struct {
   int usemask;
   _Variable *maskvar;
 } _BeyondNsigma;
+
+typedef struct {
+  /* binning */
+  int has_binning;       /* 1 if "bintime" was given */
+  int N_bin;             /* number of bintimes; 1 if no binning (a single "raw" entry) */
+  double *bintimes;      /* length N_bin; meaningful only when has_binning */
+  int has_binshift;
+  double binshift;
+  /* thresholds */
+  int N_thresh;
+  double *thresholds;    /* length N_thresh */
+  /* gap filter */
+  int has_maxgap;
+  double maxgap;
+  /* sigma flavor */
+  int useMAD;
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC arrays of length N_bin (single stats) or N_bin*N_thresh
+   * (threshold-fraction columns, bin-major / threshold-minor). */
+  double **median_abs_dmdt;
+  double **max_abs_dmdt;
+  double **mad_dmdt;
+  double **frac_above;
+  double **frac_below;
+} _Slopestats;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2741,6 +2769,7 @@ typedef struct {
   _Magtoflux *Magtoflux;
   _Percentileratios *Percentileratios;
   _BeyondNsigma *BeyondNsigma;
+  _Slopestats *Slopestats;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

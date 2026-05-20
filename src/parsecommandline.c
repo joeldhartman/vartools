@@ -3457,6 +3457,245 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -slopestats ["bintime" B1,B2,...,Bk] ["binshift" S]
+       *             ["threshold" T1,T2,...,Tj] ["maxgap" maxgap]
+       *             ["useMAD"] ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-slopestats",11) && strlen(argv[i]) == 11)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_SLOPESTATS;
+	  if((c[cn].Slopestats = (_Slopestats *) malloc(sizeof(_Slopestats))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: no binning, no binshift, threshold = [3.0], no
+	     maxgap, sigma = stddev, no maskpoints. */
+	  c[cn].Slopestats->has_binning = 0;
+	  c[cn].Slopestats->N_bin = 1;
+	  c[cn].Slopestats->bintimes = NULL;
+	  c[cn].Slopestats->has_binshift = 0;
+	  c[cn].Slopestats->binshift = 0.0;
+	  c[cn].Slopestats->N_thresh = 1;
+	  if((c[cn].Slopestats->thresholds = (double *) malloc(1 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].Slopestats->thresholds[0] = 3.0;
+	  c[cn].Slopestats->has_maxgap = 0;
+	  c[cn].Slopestats->maxgap = 0.0;
+	  c[cn].Slopestats->useMAD = 0;
+	  c[cn].Slopestats->usemask = 0;
+	  c[cn].Slopestats->maskvar = NULL;
+
+	  /* "bintime" B1,B2,...,Bk */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"bintime")) {
+	    int kk, i1, i2, j, lentmp, NB;
+	    char *tmpstring;
+	    double bval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    NB = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NB++;
+	      j++;
+	    }
+
+	    if((c[cn].Slopestats->bintimes = (double *) malloc(NB * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NB; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &bval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid bintime value '%s' "
+		  "for -slopestats; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(bval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: bintime value '%s' "
+		  "for -slopestats must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Slopestats->bintimes[pp] == bval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate bintime value "
+		    "%g for -slopestats\n", bval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Slopestats->bintimes[kk] = bval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Slopestats->has_binning = 1;
+	    c[cn].Slopestats->N_bin = NB;
+	  } else {
+	    i--;
+	  }
+
+	  /* "binshift" S */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"binshift")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%lf", &(c[cn].Slopestats->binshift)) != 1) {
+	      fprintf(stderr,
+		"Error parsing the command-line: invalid binshift value "
+		"'%s' for -slopestats; expected a number\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    c[cn].Slopestats->has_binshift = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "threshold" T1,T2,...,Tj */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"threshold")) {
+	    int kk, i1, i2, j, lentmp, NT;
+	    char *tmpstring;
+	    double tval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    NT = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NT++;
+	      j++;
+	    }
+
+	    free(c[cn].Slopestats->thresholds);
+	    if((c[cn].Slopestats->thresholds = (double *) malloc(NT * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NT; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &tval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid threshold value '%s' "
+		  "for -slopestats; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(tval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: threshold value '%s' "
+		  "for -slopestats must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Slopestats->thresholds[pp] == tval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate threshold value "
+		    "%g for -slopestats\n", tval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Slopestats->thresholds[kk] = tval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Slopestats->N_thresh = NT;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maxgap" maxgap */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maxgap")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%lf", &(c[cn].Slopestats->maxgap)) != 1) {
+	      fprintf(stderr,
+		"Error parsing the command-line: invalid maxgap value '%s' "
+		"for -slopestats; expected a positive number\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    if(c[cn].Slopestats->maxgap <= 0.0) {
+	      fprintf(stderr,
+		"Error parsing the command-line: maxgap value '%s' "
+		"for -slopestats must be > 0\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    c[cn].Slopestats->has_maxgap = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "useMAD" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"useMAD")) {
+	    c[cn].Slopestats->useMAD = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Slopestats->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Slopestats->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+
+	  /* Validation: binshift requires bintime. */
+	  if(c[cn].Slopestats->has_binshift && !c[cn].Slopestats->has_binning) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -slopestats binshift "
+	      "requires bintime to be specified\n");
+	    listcommands(argv[iterm], p);
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{

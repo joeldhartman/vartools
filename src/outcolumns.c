@@ -1296,6 +1296,38 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BeyondNsigma->frac_below), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
 	  }
 	  break;
+	case CNUM_SLOPESTATS:
+	  {
+	    int b, t, idx;
+	    int has_binning = c[l].Slopestats->has_binning;
+	    int N_b = c[l].Slopestats->N_bin;
+	    int N_t = c[l].Slopestats->N_thresh;
+	    char bin_suffix[64];
+	    for(b = 0; b < N_b; b++) {
+	      if(has_binning)
+		sprintf(bin_suffix, "_BT%.2f", c[l].Slopestats->bintimes[b]);
+	      else
+		bin_suffix[0] = '\0';
+
+	      sprintf(tmpstring, "SLOPESTATS_median_abs_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->median_abs_dmdt), "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+	      sprintf(tmpstring, "SLOPESTATS_max_abs_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->max_abs_dmdt),    "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+	      sprintf(tmpstring, "SLOPESTATS_mad_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->mad_dmdt),        "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+
+	      for(t = 0; t < N_t; t++) {
+		idx = b * N_t + t;
+		sprintf(tmpstring, "SLOPESTATS_frac_above_T%.2f%s_%%d",
+			c[l].Slopestats->thresholds[t], bin_suffix);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->frac_above), "%.17g", 2, 0, 0, 0, idx, tmpstring, l);
+		sprintf(tmpstring, "SLOPESTATS_frac_below_T%.2f%s_%%d",
+			c[l].Slopestats->thresholds[t], bin_suffix);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->frac_below), "%.17g", 2, 0, 0, 0, idx, tmpstring, l);
+	      }
+	    }
+	  }
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

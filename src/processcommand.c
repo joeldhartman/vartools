@@ -420,6 +420,10 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunBeyondNsigmaCommand(p, c->BeyondNsigma, lc2, lc);
       break;
 
+    case CNUM_SLOPESTATS:
+      RunSlopestatsCommand(p, c->Slopestats, lc2, lc);
+      break;
+
     case CNUM_AUTOCORR:
       /* Calculate the auto-correlation */
       i1 = 0;
@@ -2475,6 +2479,19 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	  }
 	  RunBeyondNsigmaCommand(p, c->BeyondNsigma, lc, lc);
+	}
+      break;
+
+    case CNUM_SLOPESTATS:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunSlopestatsCommand(p, c->Slopestats, lc, lc);
 	}
       break;
 
