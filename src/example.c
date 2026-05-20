@@ -1781,6 +1781,30 @@ void example(char *c, ProgramData *p)
 		    "An example of running a battery of variability selection algorithms on a number of light curves in parallel. We first save the initial state of the light curve using the -savelc command, then apply iterative 5-sigma clipping to the light curve. We save the 5-sigma clipped light curve. We then run the -LS and -aov period finding algorithms. We then restore the light curve to its state before the 5-sigma clipping and apply 10-sigma clipping and run BLS (BLS would be sensitive to eclipses. To search for eclipses we would want to use a less aggressive sigma-clipping). After BLS we restore the light curve to its state after the 5-sigma clipping was applied and replace the errors in the light curve with the RMS. Finally we run the -autocorrelation command on the light curve which will output the autocorrelation function to the EXAMPLES/OUTDIR1 directory (see for example EXAMPLES/OUTDIR1/2.autocorr which is periodic and has a first peak at 1.23 days).\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-slopestats",11) && strlen(c) == 11)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -slopestats\n\n");
+      printtostring(&s,
+		    "Compute, for the light curve EXAMPLES/2, per-pair slope statistics over consecutive points (after time-sorting). For each pair (t_i, m_i), (t_{i+1}, m_{i+1}) the slope s_i = (m_{i+1} - m_i) / (t_{i+1} - t_i) is formed, and five statistics are reported: SLOPESTATS_median_abs_dmdt_0 (= median(|s_i|)), SLOPESTATS_max_abs_dmdt_0 (= max(|s_i|)), SLOPESTATS_mad_dmdt_0 (= 1.483*median(|s_i - median(s_i)|)), and the threshold fractions SLOPESTATS_frac_above_T3.00_0 and SLOPESTATS_frac_below_T3.00_0 (= number of slopes above or below 3*sigma from the mean, divided by N_pairs; sigma is the sample standard deviation of the slopes). The default threshold list is T = 3; pass the threshold keyword followed by a comma-separated list of values to override.\n\n");
+      printtostring(&s,
+		    "\nExample 2: binning, multiple thresholds, maximum-gap filter\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-slopestats bintime 10,30 threshold 1,3 maxgap 0.5\n\n");
+      printtostring(&s,
+		    "Same statistics, but now computed after first phase-binning the light curve. The bintime keyword takes a comma-separated list of bin sizes in MINUTES (assuming the time axis is in days); a separate set of output columns is emitted per bin size, with the binwidth tagged in the column name as _BTX.XX. Within each bin, an unweighted average of (t, m) is taken, and consecutive-bin slopes are formed from those averages. The threshold keyword extends the report to multiple T values (each strictly positive; duplicates rejected at parse time). The maxgap keyword (in days) drops any consecutive pair whose time separation exceeds the given value, which suppresses spurious large slopes that span long observational gaps.\n\n");
+      printtostring(&s,
+		    "The max_abs_dmdt statistic corresponds to the MaxSlope feature of Richards et al. 2011, ApJ, 733, 10. The frac_above_T*sigma and frac_below_T*sigma statistics are slope-domain generalizations of the magnitude-domain Beyond1Std feature of the same paper, extended to a user-supplied list of T values and split into signed above/below counts. Cite Richards et al. 2011 if you use the -slopestats command.\n\n");
+      commandfound = 1;
+    }
   if(!strcmp(c,"-sortlc"))
     {
       printtostring(&s,
