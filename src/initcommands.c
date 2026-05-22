@@ -736,6 +736,14 @@ void InitCommands(ProgramData *p, Command *c)
 	      vt_error(ERR_MEMALLOC);
 	  }
 	  break;
+	case CNUM_CODYM:
+	  if((c[i].CodyM->M       = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->d10     = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->dmed    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->sigma_d = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->Npoints = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

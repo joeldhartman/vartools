@@ -191,8 +191,9 @@
 #define CNUM_PERCENTILERATIOS 67
 #define CNUM_BEYONDNSIGMA 68
 #define CNUM_SLOPESTATS 69
+#define CNUM_CODYM 70
 
-#define TOT_CNUMS 61
+#define TOT_CNUMS 71
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -1256,6 +1257,30 @@ typedef struct {
   double **frac_above;
   double **frac_below;
 } _Slopestats;
+
+typedef struct {
+  /* Long-term detrending boxcar full-width, in time-axis units. */
+  double trendwindow;
+  VT_PARAM_COMPANIONS(trendwindow);
+  /* Optional short-timescale boxcar full-width used to build the residual
+   * on which sigma-clip outliers are identified.  When absent, outliers
+   * are identified directly on the trend-detrended curve (single-stage). */
+  int has_outlierwindow;
+  double outlierwindow;
+  VT_PARAM_COMPANIONS(outlierwindow);
+  /* Outlier-rejection threshold in sigma; <= 0 disables rejection. */
+  double sigclip;
+  VT_PARAM_COMPANIONS(sigclip);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars */
+  double *M;
+  double *d10;
+  double *dmed;
+  double *sigma_d;
+  int *Npoints;
+} _CodyM;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2776,6 +2801,7 @@ typedef struct {
   _Percentileratios *Percentileratios;
   _BeyondNsigma *BeyondNsigma;
   _Slopestats *Slopestats;
+  _CodyM *CodyM;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

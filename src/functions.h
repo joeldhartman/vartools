@@ -454,6 +454,7 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s);
 void RunPercentileratiosCommand(ProgramData *p, _Percentileratios *pr, int lcnum, int lc_name_num);
 void RunBeyondNsigmaCommand(ProgramData *p, _BeyondNsigma *bs, int lcnum, int lc_name_num);
 void RunSlopestatsCommand(ProgramData *p, _Slopestats *ss, int lcnum, int lc_name_num);
+void RunCodyMCommand(ProgramData *p, _CodyM *cm, int lcnum, int lc_name_num);
 void GetDoubleParameterValue(int threadid, int lcid, double *outparam, int source, double fixvalue, double *inlistvec, OutColumn *column, _Expression *exprsn);
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum);
 void dotab_buffer(char *c,int tabflag);

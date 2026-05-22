@@ -3696,6 +3696,95 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -CodyM "trendwindow" <"var" v | "expr" e | Wt>
+       *        ["outlierwindow" <"var" v | "expr" e | Wo>]
+       *        ["sigclip" <"var" v | "expr" e | S>]
+       *        ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-CodyM",6) && strlen(argv[i]) == 6)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_CODYM;
+	  if((c[cn].CodyM = (_CodyM *) malloc(sizeof(_CodyM))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: no outlier window (single-stage), sigclip = 5.0,
+	     no maskpoints; all numeric params start fixed-source. */
+	  c[cn].CodyM->has_outlierwindow = 0;
+	  c[cn].CodyM->sigclip = 5.0;
+	  c[cn].CodyM->usemask = 0;
+	  c[cn].CodyM->maskvar = NULL;
+	  VT_INIT_PARAM(c[cn].CodyM, trendwindow);
+	  VT_INIT_PARAM(c[cn].CodyM, outlierwindow);
+	  VT_INIT_PARAM(c[cn].CodyM, sigclip);
+
+	  /* Required "trendwindow" <"var" v | "expr" e | Wt>. */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"trendwindow"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  VT_PARSE_DOUBLE(c[cn].CodyM, trendwindow, argv, i);
+	  if(c[cn].CodyM->trendwindow_source == VARTOOLS_SOURCE_FIXED &&
+	     !(c[cn].CodyM->trendwindow > 0.0)) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -CodyM trendwindow value "
+	      "'%s' must be > 0\n", argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "outlierwindow" <"var" v | "expr" e | Wo> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"outlierwindow")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyM, outlierwindow, argv, i);
+	    if(c[cn].CodyM->outlierwindow_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].CodyM->outlierwindow > 0.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyM outlierwindow value "
+	        "'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyM->has_outlierwindow = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "sigclip" <"var" v | "expr" e | S> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"sigclip")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyM, sigclip, argv, i);
+	    if(c[cn].CodyM->sigclip_source == VARTOOLS_SOURCE_FIXED &&
+	       c[cn].CodyM->sigclip < 0.0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyM sigclip value "
+	        "'%s' must be >= 0 (0 disables outlier rejection)\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].CodyM->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyM->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{

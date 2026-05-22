@@ -1328,6 +1328,13 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    }
 	  }
 	  break;
+	case CNUM_CODYM:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->M),       "%.17g", 1, 0, 0, 0, "CODYM_M_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->d10),     "%.17g", 1, 0, 0, 0, "CODYM_d10_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->dmed),    "%.17g", 1, 0, 0, 0, "CODYM_dmed_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->sigma_d), "%.17g", 1, 0, 0, 0, "CODYM_sigma_d_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyM->Npoints), "%d",    1, 0, 0, 0, "CODYM_Npoints_%d", l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

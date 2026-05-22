@@ -341,6 +341,14 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-clip <\"var\" sigclipvar | \"expr\" sigclipexpr | sigclip> <\"var\" itervar | \"expr\" iterexpr | iter> [\"niter\" <\"var\" nvar | \"expr\" nexpr | n>] [\"median\"] [\"markclip\" var [\"noinitmark\"]]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-CodyM",6) && strlen(c) == 6))
+    {
+      printtostring(s,"-CodyM \"trendwindow\" <\"var\" varname | \"expr\" exprstring | trendwindow>\n");
+      printtostring(s,"\t[\"outlierwindow\" <\"var\" varname | \"expr\" exprstring | outlierwindow>]\n");
+      printtostring(s,"\t[\"sigclip\" <\"var\" varname | \"expr\" exprstring | sigclip>]\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strncmp(c,"-converttime",12) && strlen(c) == 12))
     {
       printtostring(s,"-converttime\n");
@@ -1568,6 +1576,12 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-clip",p,&s);
       printtostring(&s,"Sigma-clip the light curves using a clipping factor of sigclip. iter is a flag that is either 1 for iterative clipping (performed continuously until no further points are removed), or 0 to not do continuous iterative clipping. To clip for a fixed number of iterations give the \"niter\" keyword followed by the number of iterations to use. By default clipping is done with respect to the mean. To use the median instead provide the \"median\" keyword. The output table will include the number of points that were clipped. Note that points with errors <= 0 or NaN magnitude values will be clipped. If sigclip is <= 0, then sigma clipping is not performed, but points with errors <= 0 or NaN magnitude values will be clipped. By default clipped points will be removed from the light curve. If the \"markclip\" keyword is given, then the points will not be removed, but instead points that would not clipped will have var set to 1, while points that would be clipped will have var set to 0. By default the program will ignore any prior values that may be set in the var variable. If the \"noinitmark\" keyword is given after the variable name, then the input var values will be taken as an initial clipping mask, and only points with var = 1 will be considered in calculating additional points to clip.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-CodyM",6) && strlen(c) == 6))
+    {
+      listcommands_noexit("-CodyM",p,&s);
+      printtostring(&s,"For each light curve, compute the flux-asymmetry statistic M of Cody et al. 2014, AJ, 147, 82 (their Equation 7). M measures whether a light curve is asymmetric with respect to reflection about the median magnitude:\n\n  M = (<d_10%> - d_med) / sigma_d\n\nwhere d_med is the median of the detrended, outlier-filtered light curve, sigma_d is its standard deviation, and <d_10%> is the mean of the combined faintest-decile and brightest-decile magnitude values. For magnitude-valued light curves M > 0.25 indicates a dipping light curve (asymmetric toward faint excursions), M < -0.25 a bursting light curve, and |M| <= 0.25 a symmetric one. The sign convention is reversed for flux-valued input.\n\nThe statistic is computed as follows. (1) Points with NaN magnitudes, and -- when the \"maskpoints\" keyword is given -- points whose mask variable is <= 0, are rejected. (2) A long-term trend is removed by subtracting a boxcar-mean smoothed version of the light curve; the boxcar has full width trendwindow, in the same units as the time axis. M is only sensitive to asymmetry on timescales shorter than roughly half the light-curve duration, so removing longer trends is necessary. (3) Outliers are rejected at the sigclip-sigma level (default 5). If the optional \"outlierwindow\" keyword is given, outliers are identified on a separate residual formed by subtracting a short-timescale boxcar smooth of full width outlierwindow; this is the two-stage scheme of the paper, in which real variability is removed before outliers are measured, so the genuine dips and bursts that M quantifies are not themselves clipped. If \"outlierwindow\" is omitted, outliers are identified directly on the trend-detrended curve, a simpler single-stage scheme that can clip strong dips or bursts and bias M toward zero. A sigclip value of 0 disables outlier rejection. (4) On the trend-detrended, outlier-filtered curve of N' points, M is evaluated using deciles of round(0.1*N') points each.\n\nThe \"trendwindow\", \"outlierwindow\" and \"sigclip\" parameters may each be given as a fixed value, or as \"var\" followed by the name of a light-curve-list variable, or as \"expr\" followed by an analytic expression, in which case the value is evaluated separately for each light curve.\n\nThe output columns are CODYM_M_N (the statistic), CODYM_d10_N, CODYM_dmed_N, CODYM_sigma_d_N, and CODYM_Npoints_N (the number of points surviving the filtering and outlier rejection), where N is the command number. CODYM_M_N and CODYM_d10_N are reported as NaN when fewer than two points survive, when the light curve is flat (sigma_d = 0), or when the requested deciles would overlap.\n\nCite Cody et al. 2014, AJ, 147, 82 if you use this command.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-converttime",12) && strlen(c) == 12))
