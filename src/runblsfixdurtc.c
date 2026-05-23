@@ -680,39 +680,13 @@ the periodogram, and then search it for peaks    *
     }
   else
     {
-      /* We have no peaks, just put -1. for the values and return to the calling function */
-      /*for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  }*/
+      /* No frequencies survive clipping in the inverse-transit pass.  Set
+         the inverse-transit sentinels and fall through so that operiodogram,
+         omodel, ophcurve, ojdcurve, and correctlc still execute on the
+         already-computed forward-transit results. */
       *bperpos = -1.;
       *chisqrminus = 999999.;
       *meanmagval = -1.;
-      free(weight);
-      free(best_id);
-      free(sr_ave);
-      free(binned_sr_ave);
-      free(binned_sr_sig);
-      free(qtran_array);
-      free(depth_array);
-      free(bper_array);
-      free(sr_ave_minus);
-      free(binned_sr_ave_minus);
-      free(binned_sr_sig_minus);
-      free(p_minus);
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
     }
 
   //sde = (*bpow - ((double)sr_ave / (double)nsr))/sqrt((double)((srsqr_ave / (long double) nsr) - (sr_ave*sr_ave/(long double)(nsr*nsr))));
