@@ -847,7 +847,9 @@ class BLS(VartoolsCommand):
     fittrap : bool
         Fit a trapezoidal transit shape instead of a box.
     nobinnedrms : bool
-        Do not report the binned-RMS diagnostic.
+        Adjust the way in which the BLS_SN statistic is calculated.  The
+        default mode of ``True`` yields a faster and more robust process.
+        Set to ``False`` to recover the historical VARTOOLS behavior.
     save_phcurve : bool, str, or Output
         Write the phase-folded model light curve.
     ophcurve_phmin, ophcurve_phmax, ophcurve_phstep : float
@@ -892,7 +894,7 @@ class BLS(VartoolsCommand):
         correct_lc: bool = False,
         extraparams: bool = False,
         fittrap: bool = False,
-        nobinnedrms: bool = False,
+        nobinnedrms: bool = True,
         save_phcurve=False,
         ophcurve_phmin: float = 0.0,
         ophcurve_phmax: float = 1.0,
