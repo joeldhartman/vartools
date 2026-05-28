@@ -28,6 +28,12 @@ class clip(VartoolsCommand):
     noinitmark : bool
         Do not initialise the markclip variable before clipping.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the clipping statistics.
+
+    See Also
+    --------
+    CLI command: ``-clip``.
     """
 
     _vt_name = "clip"
@@ -63,11 +69,21 @@ class clip(VartoolsCommand):
 
 
 class rms(VartoolsCommand):
-    """Compute RMS and weighted RMS of the light curve.
+    """Compute the RMS and expected RMS of the light curve.
+
+    Emits the unweighted magnitude RMS, the error-weighted mean
+    magnitude, and the expected RMS implied by the per-point
+    uncertainties.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rms``.
     """
 
     _vt_name = "rms"
@@ -80,15 +96,25 @@ class rms(VartoolsCommand):
 
 
 class rmsbin(VartoolsCommand):
-    """Compute binned RMS at a series of timescales.
+    """Compute the RMS of the light curve after moving-average binning.
+
+    For each timescale the magnitudes are smoothed with a moving
+    average of that width and the RMS of the smoothed series is
+    reported — a measure of how much scatter survives binning.
 
     Parameters
     ----------
     nbin : int
-        Number of timescale bins.
+        Number of timescales (must equal ``len(bintimes)``).
     bintimes : list of float
-        Timescales (e.g. in days) at which to compute the binned RMS.
+        Bin timescales (days) at which to compute the binned RMS.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rmsbin``.
     """
 
     _vt_name = "rmsbin"
@@ -110,11 +136,20 @@ class rmsbin(VartoolsCommand):
 
 
 class chi2(VartoolsCommand):
-    """Compute chi-squared statistic.
+    """Compute the reduced chi-squared of the light curve about its
+    weighted mean.
+
+    Reports ``χ²/dof`` and the error-weighted mean magnitude.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-chi2``.
     """
 
     _vt_name = "chi2"
@@ -127,13 +162,25 @@ class chi2(VartoolsCommand):
 
 
 class chi2bin(VartoolsCommand):
-    """Compute binned chi-squared at multiple timescales.
+    """Compute reduced chi-squared after moving-average binning.
+
+    For each timescale the magnitudes are smoothed with a moving
+    average of that width and ``χ²/dof`` of the smoothed series is
+    reported.
 
     Parameters
     ----------
     nbin : int
+        Number of timescales (must equal ``len(bintimes)``).
     bintimes : list of float
+        Bin timescales (days) at which to compute the binned χ².
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-chi2bin``.
     """
 
     _vt_name = "chi2bin"
@@ -155,11 +202,22 @@ class chi2bin(VartoolsCommand):
 
 
 class alarm(VartoolsCommand):
-    """Alarm statistic for transit detection.
+    """Tamuz, Mazeh & North (2006) alarm statistic.
+
+    A time-correlated-variability indicator sensitive to runs of
+    same-sign residuals about the weighted mean — useful for flagging
+    systematics and coherent variability.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-alarm``.
+    Citation: Tamuz, Mazeh & North 2006 (MNRAS 367, 1521).
     """
 
     _vt_name = "alarm"
@@ -196,6 +254,7 @@ class vonNeumann(VartoolsCommand):
 
     See Also
     --------
+    CLI command: ``-vonNeumann``.
     Cite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367
     if you use this command; for astronomical applications see Sokolovsky,
     K. V., et al. 2017, MNRAS, 464, 274.
@@ -253,6 +312,10 @@ class percentileratios(VartoolsCommand):
         Name of a light-curve vector; points with ``maskvar > 0`` are
         included in the calculation, others are excluded (applied alongside
         NaN rejection).
+
+    See Also
+    --------
+    CLI command: ``-percentileratios``.
     """
 
     _vt_name = "percentileratios"
@@ -351,6 +414,12 @@ class beyondNsigma(VartoolsCommand):
         Name of a light-curve vector; points with ``maskvar > 0`` are
         included in the calculation, others are excluded (applied alongside
         NaN rejection).
+
+    See Also
+    --------
+    CLI command: ``-beyondNsigma``.
+    Citation: Nun et al. 2015 (arXiv:1506.00010) for the ``Beyond1Std``
+    feature this generalizes.
     """
 
     _vt_name = "beyondNsigma"
@@ -470,6 +539,12 @@ class slopestats(VartoolsCommand):
         Name of a light-curve vector; points with ``maskvar > 0`` are
         included in the calculation, others are excluded (applied
         alongside NaN rejection on the magnitudes).
+
+    See Also
+    --------
+    CLI command: ``-slopestats``.
+    Citation: Richards et al. 2011 (ApJ 733, 10) for the ``MaxSlope``
+    feature this generalizes.
     """
 
     _vt_name = "slopestats"
@@ -564,11 +639,20 @@ class slopestats(VartoolsCommand):
 
 
 class rescalesig(VartoolsCommand):
-    """Rescale measurement uncertainties to match the scatter.
+    """Rescale per-point uncertainties so that χ²/dof = 1.
+
+    Multiply every uncertainty by a single factor chosen so the reduced
+    chi-square about the weighted mean equals 1, and report that factor.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rescalesig``.
     """
 
     _vt_name = "rescalesig"
@@ -581,13 +665,23 @@ class rescalesig(VartoolsCommand):
 
 
 class ensemblerescalesig(VartoolsCommand):
-    """Rescale uncertainties using ensemble sigma-clipping.
+    """Rescale uncertainties using the ensemble mag–χ² relation.
+
+    Fit the magnitude-dependent scatter across the ensemble of light
+    curves and rescale each light curve's uncertainties accordingly
+    (sigma-clipped fit).
 
     Parameters
     ----------
     sigclip : float
-        Sigma-clipping threshold.
+        Sigma-clipping threshold for the ensemble fit.  Default 5.0.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-ensemblerescalesig``.
     """
 
     _vt_name = "ensemblerescalesig"
@@ -653,6 +747,10 @@ class stats(VartoolsCommand):
         stats("mag", "mean,median,stddev")
         stats(["mag", "err"], ["mean", "stddev"])
         stats("mag", ["pct10", "pct50", "pct90"])
+
+    See Also
+    --------
+    CLI command: ``-stats``.
     """
 
     _vt_name = "stats"
@@ -684,22 +782,45 @@ class harmonicfilter(VartoolsCommand):
     Parameters
     ----------
     period : float or str
-        Period of the signal to remove.  Can be a number, ``"ls"``, ``"aov"``,
-        ``"bls"``, etc.
+        Period of the signal to fit (days).  Forms:
+
+        - A number — fit at that fixed period.
+        - ``"ls"`` / ``"aov"`` / ``"injectharm"`` — back-reference to the
+          best period from a prior command of that type in the same
+          chain.
+        - ``"both"`` — fit at *both* the most-recent LS and AOV periods
+          (a two-period fit).
+        - ``"list"`` — read the period from a list-file column.
+        - A bare identifier or expression string — per-LC variable or
+          analytic expression.
+
+        ``"bls"`` is **not** accepted (the vartools ``-harmonicfilter`` /
+        ``-Killharm`` parser rejects it); use a numeric period or one of
+        the keywords above.  Default ``"ls"``.
     nharm : int
-        Number of harmonics to fit.
+        Number of harmonics to fit.  Default 3.
     nsubharm : int
-        Number of sub-harmonics to fit.
-    save_model : bool
-        Write the fitted harmonic model to a file.
+        Number of sub-harmonics to fit.  Default 0.
+    save_model : bool, str, or Output
+        Fitted harmonic model.  ``True`` captures as
+        ``result.files["harmonicfilter_model_N"]``; a path string writes
+        to that directory without capturing; ``Output(path, capture=True)``
+        does both.
     fitonly : bool
         Fit the model but do not subtract it from the light curve.
     output_format : str, optional
         Coefficient output format: ``"outampphase"``, ``"outampradphase"``,
         ``"outRphi"``, or ``"outRradphi"``.
     clip : float, optional
-        Sigma-clipping threshold to apply after fitting before refitting.
+        Sigma-clipping threshold applied after fitting before refitting.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-harmonicfilter`` (the :class:`Killharm` subclass
+    emits the ``-Killharm`` synonym instead).
     """
 
     _vt_name = "harmonicfilter"
@@ -835,6 +956,11 @@ class Killharm(harmonicfilter):
     compatibility; emits ``-Killharm`` on the command line and produces
     output columns under the ``Killharm_*`` prefix.  New code should use
     :class:`harmonicfilter`.
+
+    See Also
+    --------
+    CLI command: ``-Killharm``.  Same parameters as
+    :class:`harmonicfilter`.
     """
 
     _vt_name = "Killharm"
@@ -862,13 +988,20 @@ class linfit(VartoolsCommand):
         Maximum number of rejection iterations (requires ``reject_iter=True``).
     correct_lc : bool
         Subtract the best-fit model from the light curve.
-    save_model : bool
-        Write the fitted model to a file.
+    save_model : bool, str, or Output
+        Fitted model curve.  ``True`` captures as
+        ``result.files["linfit_model_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.
     model_nameformat : str, optional
         Format string for the output model filename.
     fitmask : str, optional
         Name of a mask variable; points where the variable is non-zero are
         excluded from the fit.
+
+    See Also
+    --------
+    CLI command: ``-linfit``.
     """
 
     _vt_name = "linfit"
@@ -955,8 +1088,15 @@ class Injectharm(VartoolsCommand):
     nsubharm : int
         Number of sub-harmonics (default 0).  When non-zero, sub-harmonics
         share the fundamental's amp/phase mode (no per-sub-harmonic list).
-    save_model : bool
-        Write the injected signal model to a file.
+    save_model : bool, str, or Output
+        Injected-signal model.  ``True`` captures as
+        ``result.files["Injectharm_model_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-Injectharm``.
 
     Examples
     --------
@@ -1144,10 +1284,19 @@ class Injecttransit(VartoolsCommand):
         Dilution factor.  Float → ``["dilute", "fix", str(val)]``.
         String passthrough (e.g. ``"fix 0.5"`` or ``"list"``).
     ld_type : str
-        Limb-darkening law: ``"quad"`` or ``"nonlin"``.
-    ld_coeffs : list of float
-        Limb-darkening coefficients.
-    save_model : bool
+        Limb-darkening law: ``"quad"`` (default) or ``"nonlin"``.
+    ld_coeffs : list of float, optional
+        Limb-darkening coefficients.  Default ``[0.3, 0.3]`` (quadratic).
+        Two coefficients for ``"quad"``, four for ``"nonlin"``.
+    save_model : bool, str, or Output
+        Injected-transit model.  ``True`` captures as
+        ``result.files["Injecttransit_model_N"]``; a path string writes
+        to that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-Injecttransit``.
     """
 
     _vt_name = "Injecttransit"
@@ -1229,6 +1378,10 @@ class sortlc(VartoolsCommand):
         Variable to sort by.  Default is time (``"t"``).
     reverse : bool
         Sort in reverse (descending) order.
+
+    See Also
+    --------
+    CLI command: ``-sortlc``.
     """
 
     _vt_name = "sortlc"
@@ -1268,6 +1421,10 @@ class restricttimes(VartoolsCommand):
         Variable to record which points were restricted.
     noinitmark : bool
         Do not initialise the markrestrict variable.
+
+    See Also
+    --------
+    CLI command: ``-restricttimes``.  Undo with :class:`restoretimes`.
     """
 
     _vt_name = "restricttimes"
@@ -1318,6 +1475,10 @@ class restoretimes(VartoolsCommand):
     ----------
     prior_command : int
         Index (1-based) of the -restricttimes command to undo.
+
+    See Also
+    --------
+    CLI command: ``-restoretimes``.
     """
 
     _vt_name = "restoretimes"
@@ -1332,7 +1493,12 @@ class restoretimes(VartoolsCommand):
 class savelc(VartoolsCommand):
     """Save the current light curve state (for later restoration).
 
-    Use :class:`restorelc` to restore.
+    Pipeline-stateful: meaningful only within a single ``Pipeline``
+    invocation alongside a later :class:`restorelc`.
+
+    See Also
+    --------
+    CLI command: ``-savelc``.  Restore with :class:`restorelc`.
     """
 
     _vt_name = "savelc"
@@ -1350,6 +1516,10 @@ class restorelc(VartoolsCommand):
         Index of the -savelc save point to restore (1-based).
     vars : str or list of str, optional
         Restore only specific variables instead of the full light curve.
+
+    See Also
+    --------
+    CLI command: ``-restorelc``.  Save with :class:`savelc`.
     """
 
     _vt_name = "restorelc"
@@ -1371,16 +1541,21 @@ class restorelc(VartoolsCommand):
 
 
 class difffluxtomag(VartoolsCommand):
-    """Convert differential flux to magnitude.
+    """Convert image-subtraction differential flux to magnitudes.
 
     Parameters
     ----------
-    mag_constant : float
-        Reference magnitude (zero-point magnitude).
-    offset : float
-        Flux offset (added to the flux before conversion).
+    mag_constant : float or str
+        Zero-point magnitude.  Accepts var/expr forms.
+    offset : float or str
+        Flux offset added before conversion.  Accepts var/expr forms.
+        Default 0.0.
     magcolumn : int, optional
         Which magnitude column to convert (1-based).
+
+    See Also
+    --------
+    CLI command: ``-difffluxtomag``.
     """
 
     _vt_name = "difffluxtomag"
@@ -1402,14 +1577,19 @@ class difffluxtomag(VartoolsCommand):
 
 
 class fluxtomag(VartoolsCommand):
-    """Convert flux to magnitude.
+    """Convert flux to magnitudes.
 
     Parameters
     ----------
-    mag_constant : float
-        Zero-point magnitude.
-    offset : float
-        Flux offset.
+    mag_constant : float or str
+        Zero-point magnitude.  Accepts var/expr forms.
+    offset : float or str
+        Flux offset added before conversion.  Accepts var/expr forms.
+        Default 0.0.
+
+    See Also
+    --------
+    CLI command: ``-fluxtomag``.  Inverse: :class:`magtoflux`.
     """
 
     _vt_name = "fluxtomag"
@@ -1436,6 +1616,10 @@ class magtoflux(VartoolsCommand):
         and then divide the flux and flux-uncertainty arrays by the
         median flux (NaNs rejected), so the output light curve has
         median flux 1.  Cannot be combined with ``mag_constant``.
+
+    See Also
+    --------
+    CLI command: ``-magtoflux``.  Inverse: :class:`fluxtomag`.
     """
 
     _vt_name = "magtoflux"
@@ -1463,11 +1647,21 @@ class magtoflux(VartoolsCommand):
 
 
 class changeerror(VartoolsCommand):
-    """Rescale measurement uncertainties by a constant factor.
+    """Set the uncertainties equal to the RMS scatter of the magnitudes.
+
+    Replace every per-point uncertainty with a single value: the RMS
+    deviation of the (finite) magnitudes about their mean.  Useful when
+    the input light curve has no usable error column.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the RMS calculation.
+
+    See Also
+    --------
+    CLI command: ``-changeerror``.
     """
 
     _vt_name = "changeerror"
@@ -1485,9 +1679,15 @@ class changevariable(VartoolsCommand):
     Parameters
     ----------
     column : str
-        Target column: ``"t"``, ``"mag"``, ``"err"``, or ``"id"``.
+        Which standard role to reassign: ``"t"``, ``"mag"``, ``"err"``,
+        or ``"id"``.
     var : str
-        Source variable name.
+        Name of the existing variable that subsequent commands should
+        use for that role.
+
+    See Also
+    --------
+    CLI command: ``-changevariable``.
     """
 
     _vt_name = "changevariable"
@@ -1501,11 +1701,23 @@ class changevariable(VartoolsCommand):
 
 
 class copylc(VartoolsCommand):
-    """Duplicate the light curve N times in the output.
+    """Replicate the light curve in memory for Monte-Carlo simulation.
+
+    Make *ncopies* additional copies of the current light curve; each
+    copy flows through the remaining pipeline independently and produces
+    its own output row.  Commonly used ahead of ``-Injecttransit`` /
+    ``-addnoise`` to build a per-LC simulation ensemble.
 
     Parameters
     ----------
     ncopies : int
+        Number of replicated copies to create.
+
+    See Also
+    --------
+    CLI command: ``-copylc``.  (Pipelines containing ``-copylc`` cannot
+    use ``resume=True`` on streaming runs — one input row produces many
+    output rows.)
     """
 
     _vt_name = "copylc"
@@ -1518,16 +1730,26 @@ class copylc(VartoolsCommand):
 
 
 class medianfilter(VartoolsCommand):
-    """Median (or mean) filter the light curve.
+    """Apply a moving median (or mean) filter to the light curve.
+
+    By default the filtered series is subtracted from the magnitudes
+    (a high-pass filter); with ``replace=True`` the magnitudes are
+    replaced by the filtered series (a low-pass filter).
 
     Parameters
     ----------
-    time : float
-        Filter timescale.
+    time : float or str
+        Filter timescale (same units as the time column).  Accepts
+        var/expr forms.
     method : str
         ``"median"`` (default), ``"average"``, or ``"weightedaverage"``.
     replace : bool
-        Replace the magnitude values with the filtered version.
+        Replace the magnitudes with the filtered series (low-pass)
+        rather than subtracting it (high-pass).
+
+    See Also
+    --------
+    CLI command: ``-medianfilter``.
     """
 
     _vt_name = "medianfilter"
@@ -1662,6 +1884,11 @@ class fourierfilter(VartoolsCommand):
         caller has vetted the data and doesn't need the repeated
         advisories.  Parse-time warnings about CLI misuse are not
         suppressed.
+
+    See Also
+    --------
+    CLI command: ``-fourierfilter``.  For fitting harmonics of a
+    *known* period instead, see :class:`harmonicfilter`.
     """
 
     _vt_name = "fourierfilter"
@@ -1893,6 +2120,10 @@ class expr(VartoolsCommand):
     >>> cmd.expr("dmag=mag-10.0")                     # per-observation
     >>> cmd.expr("avg=mean(mag)", vartype="listvar")   # per-star mean
     >>> cmd.expr("pi=3.14159", vartype="const")        # global constant
+
+    See Also
+    --------
+    CLI command: ``-expr``.
     """
 
     _vt_name = "expr"
@@ -1930,7 +2161,11 @@ class expr(VartoolsCommand):
 
 
 class print_cols(VartoolsCommand):
-    """Print selected variables to stdout as additional columns.
+    """Print selected variables to the output table as extra columns.
+
+    Wraps the vartools ``-print`` command (the class is named
+    ``print_cols`` to avoid shadowing the Python built-in; the
+    pipeline-builder method is ``Pipeline.print``).
 
     Parameters
     ----------
@@ -1940,6 +2175,10 @@ class print_cols(VartoolsCommand):
         Output column header names.
     fmt : str or list of str, optional
         printf-style format strings for each column.
+
+    See Also
+    --------
+    CLI command: ``-print``.
     """
 
     _vt_name = "print"
@@ -1966,14 +2205,22 @@ class print_cols(VartoolsCommand):
 
 
 class FFT(VartoolsCommand):
-    """Compute the Fast Fourier Transform of two variables.
+    """Compute the Fast Fourier Transform of a pair of LC vectors.
+
+    Transforms the (real, imaginary) input vector pair into a
+    (real, imaginary) output vector pair.  For a purely real signal,
+    pass a zero-filled vector as *input_imag*.
 
     Parameters
     ----------
     input_real, input_imag : str
         Input real and imaginary variable names.
     output_real, output_imag : str
-        Output real and imaginary variable names.
+        Output real and imaginary variable names (created if absent).
+
+    See Also
+    --------
+    CLI command: ``-FFT``.  Inverse: :class:`IFFT`.
     """
 
     _vt_name = "FFT"
@@ -1996,7 +2243,23 @@ class FFT(VartoolsCommand):
 
 
 class IFFT(VartoolsCommand):
-    """Inverse FFT (same parameter structure as FFT)."""
+    """Compute the inverse Fast Fourier Transform of a pair of LC vectors.
+
+    Same parameter structure as :class:`FFT`: transforms the
+    (real, imaginary) input vector pair into a (real, imaginary) output
+    vector pair.
+
+    Parameters
+    ----------
+    input_real, input_imag : str
+        Input real and imaginary variable names.
+    output_real, output_imag : str
+        Output real and imaginary variable names (created if absent).
+
+    See Also
+    --------
+    CLI command: ``-IFFT``.  Forward transform: :class:`FFT`.
+    """
 
     _vt_name = "IFFT"
 
@@ -2062,6 +2325,14 @@ class resample(VartoolsCommand):
         Column number (1-based) in the *time-grid file* that holds the time
         values.  Maps to the CLI ``column`` keyword (path mode) or
         ``tcolumn`` keyword (list mode).  Defaults to ``1``.
+    gaps : str, optional
+        Gap-handling spec passed through verbatim after the ``gaps``
+        keyword (controls how interpolation behaves across large time
+        gaps).
+
+    See Also
+    --------
+    CLI command: ``-resample``.
     """
 
     _vt_name = "resample"
@@ -2174,6 +2445,12 @@ class decorr(VartoolsCommand):
         pyvartools docs for the full ``Output`` semantics.  Default
         ``False`` (no model output).
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the fit.
+
+    See Also
+    --------
+    CLI command: ``-decorr``.
     """
 
     _vt_name = "decorr"
@@ -2249,6 +2526,11 @@ class Jstet(VartoolsCommand):
         or when you want the textbook definition.
     maskpoints : str, optional
         Name of an LC vector; only points with ``maskvar > 0`` contribute.
+
+    See Also
+    --------
+    CLI command: ``-Jstet``.
+    Citation: Stetson 1996 (PASP 108, 851).
     """
 
     _vt_name = "Jstet"
