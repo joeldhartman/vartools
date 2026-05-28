@@ -80,6 +80,11 @@ class magadd(_UserLibCommand):
     lib_path : str, optional
         Path to ``magadd.so`` / ``magadd.la``.  Omit to rely on vartools
         auto-loading from the installed userlibs directory.
+
+    See Also
+    --------
+    USERLIB extension command: ``-magadd``.  Shipped as the template /
+    example extension; useful as a starting point for writing your own.
     """
 
     _vt_name = "magadd"
@@ -113,6 +118,10 @@ class hatpiflag(_UserLibCommand):
         Name of the output binary flag variable to create.
     lib_path : str, optional
         Path to ``hatpiflag.so``.
+
+    See Also
+    --------
+    USERLIB extension command: ``-hatpiflag``.
     """
 
     _vt_name = "hatpiflag"
@@ -175,6 +184,11 @@ class fastchi2(_UserLibCommand):
         Name of a light-curve variable to write the model into.
     lib_path : str, optional
         Path to ``fastchi2.so``.
+
+    See Also
+    --------
+    USERLIB extension command: ``-fastchi2``.
+    Citation: Palmer 2009 (ApJ 695, 496).
     """
 
     _vt_name = "fastchi2"
@@ -274,6 +288,10 @@ class splinedetrend(_UserLibCommand):
         Comma-separated ``outvar[:inputvarsignal]`` specs to store per-LC models.
     lib_path : str, optional
         Path to ``splinedetrend.so``.
+
+    See Also
+    --------
+    USERLIB extension command: ``-splinedetrend``.
     """
 
     _vt_name = "splinedetrend"
@@ -361,6 +379,12 @@ class ftuneven(_UserLibCommand):
     changeinputvectors : tuple of 3 str, optional
         ``(tvec, data_real_vec, data_imag_vec)``.
     lib_path : str, optional
+
+    See Also
+    --------
+    USERLIB extension command: ``-ftuneven``.
+    Citation: Scargle 1989 (ApJ 343, 874) for the unevenly-sampled
+    Fourier-transform method.
     """
 
     _vt_name = "ftuneven"
@@ -577,6 +601,11 @@ class stitch(_UserLibCommand):
         (same shape rule as *in_shifts_file*).
     include_missing : bool
     lib_path : str, optional
+
+    See Also
+    --------
+    USERLIB extension command: ``-stitch``.  Commonly used after
+    ``run_combinelcs`` to merge multi-telescope segments.
     """
 
     _vt_name = "stitch"
@@ -748,6 +777,12 @@ class jktebop(_UserLibCommand):
     curve_step : float, optional
     curve_nameformat : str, optional
     lib_path : str, optional
+
+    See Also
+    --------
+    USERLIB extension command: ``-jktebop``.
+    Citations: Southworth, Maxted & Smalley 2004 (MNRAS 351, 1277) and
+    Nelson & Davis 1972 (ApJ 174, 617) for the underlying EBOP model.
     """
 
     _vt_name = "jktebop"
@@ -939,6 +974,11 @@ class macula(_UserLibCommand):
     curve_step : float, optional
     curve_nameformat : str, optional
     lib_path : str, optional
+
+    See Also
+    --------
+    USERLIB extension command: ``-macula``.
+    Citation: Kipping 2012 (MNRAS 427, 2487).
     """
 
     _vt_name = "macula"
