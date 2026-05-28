@@ -20,27 +20,42 @@ class TFA(VartoolsCommand):
     pixelsep : float
         Pixel separation threshold for selecting trend stars.
     correct_lc : bool
-        Subtract the TFA model from the light curve.
-    save_coeffs : bool
-        Write the TFA coefficients to a file.
-    save_model : bool
-        Write the TFA model to a file.
+        Subtract the TFA model from the light curve.  Default ``True``.
+    save_coeffs : bool, str, or Output
+        Trend coefficients.  ``True`` captures as
+        ``result.files["TFA_coeffs_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.
+    save_model : bool, str, or Output
+        Reconstructed trend model.  Same value semantics as
+        ``save_coeffs``; key ``TFA_model_N``.
     xycol : tuple of int, optional
         ``(xcol, ycol)`` — column numbers for pixel coordinates.
     clip : float, optional
-        Sigma-clipping threshold.
+        Sigma-clipping threshold applied during the trend fit.
     usemedian : bool
-        Use median instead of mean in clipping.
+        Use the median instead of the mean in clipping.
     useMAD : bool
-        Use MAD in clipping.
+        Use the MAD instead of the standard deviation as the clipping
+        scale.
     readformat : tuple, optional
-        ``(Nskip, jdcol, magcol)`` — non-default light curve read format.
+        ``(Nskip, jdcol, magcol)`` — non-default read format for the
+        trend light curves.
     trend_coeff_priors : str, optional
-        Path to prior file for trend coefficients.
+        Path to a prior file for the trend coefficients.
     weight_by_template_stddev : bool
-        Weight by template standard deviation instead of LC errors.
+        Weight by the template standard deviation instead of the LC
+        errors (only meaningful with ``trend_coeff_priors``).
     fitmask : str, optional
+        Name of a mask variable; points where it is non-zero are
+        excluded from the trend fit.
     outfitmask : str, optional
+        Name of a variable into which the applied fit mask is written.
+
+    See Also
+    --------
+    CLI command: ``-TFA``.  Signal-reconstruction variant:
+    :class:`TFA_SR`.
     """
 
     _vt_name = "TFA"
@@ -112,30 +127,72 @@ class TFA(VartoolsCommand):
 
 
 class TFA_SR(VartoolsCommand):
-    """TFA with signal reconstruction (TFA-SR).
+    """Trend Filtering Algorithm with signal reconstruction (TFA-SR).
+
+    Like :class:`TFA` but iterates the trend fit with a reconstructed
+    signal model so that real periodic / shaped variability is not
+    absorbed into the trend correction.
 
     Parameters
     ----------
     trendlist : str
+        Path to the file listing trend light curves.
     dates_file : str
+        Path to the dates file.
     pixelsep : float
-    correct_lc : bool
-    save_coeffs : bool
-    save_model : bool
+        Pixel-separation threshold for selecting trend stars.
     dotfafirst : int
-        Run TFA before SR (1) or SR before TFA (0).
+        Run TFA before SR (1) or SR before TFA (0).  Default 1.
     tfathresh : float
-        Convergence threshold.
+        Convergence threshold for the TFA-SR iteration.  Default 0.001.
     maxiter : int
-        Maximum number of TFA-SR iterations.
+        Maximum number of TFA-SR iterations.  Default 10.
     signal_mode : str
-        Signal model type: ``"bin"`` (nbins), ``"signal"`` (file),
-        or ``"harm"`` (Nharm Nsubharm).
-    signal_params : varies
-        For ``"bin"``: nbins (int).
-        For ``"signal"``: filename (str).
-        For ``"harm"``: (Nharm, Nsubharm) tuple.
-    clip, usemedian, useMAD, fitmask, outfitmask : see TFA.
+        Signal model type: ``"bin"`` (phase-binned), ``"signal"``
+        (read from a file), or ``"harm"`` (harmonic series).
+    signal_params : int, str, or tuple
+        Mode-specific parameter(s):
+        ``"bin"`` → number of phase bins (int, default 100);
+        ``"signal"`` → filename (str);
+        ``"harm"`` → ``(Nharm, Nsubharm)`` tuple (default ``(3, 0)``).
+    signal_period : float or str, optional
+        Period for the reconstructed signal model.  Accepts numeric,
+        var/expr, or ``"ls"`` / ``"aov"`` / ``"bls"`` back-references to
+        a prior command in the same chain.
+    decorr_params : str, optional
+        Decorrelation spec passed verbatim after the ``decorr`` keyword.
+    correct_lc : bool
+        Subtract the TFA-SR model from the light curve.  Default ``True``.
+    save_coeffs : bool, str, or Output
+        Trend coefficients.  ``True`` captures as
+        ``result.files["TFA_SR_coeffs_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.
+    save_model : bool, str, or Output
+        Reconstructed trend model.  Same value semantics as
+        ``save_coeffs``; key ``TFA_SR_model_N``.
+    xycol : tuple of int, optional
+        ``(xcol, ycol)`` — column numbers for pixel coordinates.
+    clip : float, optional
+        Sigma-clipping threshold applied during the trend fit.
+    usemedian : bool
+        Use the median instead of the mean in clipping.
+    useMAD : bool
+        Use the MAD instead of the standard deviation as the clipping
+        scale.
+    readformat : tuple, optional
+        ``(Nskip, jdcol, magcol)`` — non-default read format for the
+        trend light curves.
+    fitmask : str, optional
+        Name of a mask variable; points where it is non-zero are
+        excluded from the trend fit.
+    outfitmask : str, optional
+        Name of a variable into which the applied fit mask is written.
+
+    See Also
+    --------
+    CLI command: ``-TFA_SR``.  Plain (non-reconstructing) variant:
+    :class:`TFA`.
     """
 
     _vt_name = "TFA_SR"
@@ -246,13 +303,23 @@ class SYSREM(VartoolsCommand):
     saturation : float
         Saturation level.
     correct_lc : bool
-        Subtract the SYSREM model from the light curve.
-    save_model : bool
-        Write the SYSREM model to a file.
-    save_trends : bool
-        Write the trend vectors.
+        Subtract the SYSREM model from the light curve.  Default ``True``.
+    save_model : bool, str, or Output
+        SYSREM model.  ``True`` captures as
+        ``result.files["SYSREM_model_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.
+    save_trends : bool, str, or Output
+        Fitted trend vectors.  A single global file for the whole run
+        (not one per LC).  Same value semantics as ``save_model``; key
+        ``SYSREM_trends_N``.
     useweights : int
-        Use measurement weights (0 or 1).
+        Use measurement weights (1) or uniform weights (0).  Default 1.
+
+    See Also
+    --------
+    CLI command: ``-SYSREM``.
+    Citation: Tamuz, Mazeh & Zucker 2005 (MNRAS 356, 1466).
     """
 
     _vt_name = "SYSREM"
@@ -336,8 +403,14 @@ class MandelAgolTransit(VartoolsCommand):
 
     Parameters
     ----------
-    P0, T00, r0, a0 : float
-        Initial period, epoch, radius ratio, semi-major axis (in stellar radii).
+    P0, T00, r0, a0 : float or str
+        Initial period, epoch, radius ratio, and semi-major axis (in
+        stellar radii).  As a shortcut, pass ``P0="bls"`` or
+        ``P0="blsfixper"`` (and leave the others at their defaults) to
+        seed all six geometric parameters from the most recent prior
+        ``-BLS`` / ``-BLSFixPer`` command in the chain
+        (``r0 = sqrt(depth)``, ``a0 = 1/(π·qtran)``, others at vartools
+        defaults).  Each also accepts var/expr forms.
     inclination : float
         Initial orbital inclination (degrees).  Used when ``bimpact`` is None.
     bimpact : float, optional
@@ -371,17 +444,31 @@ class MandelAgolTransit(VartoolsCommand):
     fitK, fitgamma : int
         Whether to fit K and gamma (0 or 1).
     correct_lc : bool
-    save_model : bool
+        Subtract the best-fit transit from the light curve.
+    save_model : bool, str, or Output
+        Fitted transit model.  ``True`` captures as
+        ``result.files["MandelAgolTransit_model_N"]``; a path string
+        writes to that directory without capturing;
+        ``Output(path, capture=True)`` does both.
     modelvar : str, optional
         Variable name to store the best-fit model.
-    save_phcurve : bool
+    save_phcurve : bool, str, or Output
+        Phase-folded model curve.  Same value semantics as
+        ``save_model``; key ``MandelAgolTransit_phcurve_N``.
     ophcurve_phmin, ophcurve_phmax, ophcurve_phstep : float
         Phase range and step for the phcurve output (only used when
         ``save_phcurve`` is truthy).  Defaults are ``0.0``, ``1.0``, ``0.005``.
-    save_jdcurve : bool
+    save_jdcurve : bool, str, or Output
+        JD-sampled model curve.  Same value semantics as ``save_model``;
+        key ``MandelAgolTransit_jdcurve_N``.
     ojdcurve_jdstep : float
         Time step for the jdcurve output (only used when ``save_jdcurve`` is
         truthy).  Default is ``0.02``.
+
+    See Also
+    --------
+    CLI command: ``-MandelAgolTransit``.
+    Citation: Mandel & Agol 2002 (ApJ 580, L171).
     """
 
     _vt_name = "MandelAgolTransit"
@@ -554,18 +641,29 @@ class SoftenedTransit(VartoolsCommand):
         Either ``"bls"``, ``"blsfixper"``, or a tuple
         ``(P0, T00, eta0, delta0, mconst0, cval0)``.
     fitephem, fiteta, fitcval, fitdelta, fitmconst : int
-        Which parameters to fit (0 or 1).
+        Which parameters to fit (0 = fixed, 1 = free).
     correct_lc : bool
-    save_model : bool
+        Subtract the best-fit transit from the light curve.
+    save_model : bool, str, or Output
+        Fitted trapezoidal-transit model.  ``True`` captures as
+        ``result.files["SoftenedTransit_model_N"]``; a path string writes
+        to that directory without capturing; ``Output(path, capture=True)``
+        does both.
     fit_harm : int
         Harmonic fit flag (0 = no harmonic fit, default).  When > 0, the
         following three parameters describe the harmonic fitting.
     fit_harm_method : str, optional
-        Method for harmonic fitting, e.g. ``"aov"``.
+        Method for harmonic fitting, e.g. ``"aov"``.  Accepts ``"ls"`` /
+        ``"aov"`` / ``"bls"`` back-references in a chain.
     fit_harm_nharm : int, optional
         Number of harmonics for harmonic fitting.
     fit_harm_nsubharm : int, optional
         Number of sub-harmonics for harmonic fitting.
+
+    See Also
+    --------
+    CLI command: ``-SoftenedTransit``.
+    Citation: Protopapas et al. 2005 (MNRAS 362, 460).
     """
 
     _vt_name = "SoftenedTransit"
@@ -662,7 +760,9 @@ class Starspot(VartoolsCommand):
     Parameters
     ----------
     period : float or str
-        Period for the starspot model.
+        Period for the starspot model.  Accepts a number, var/expr
+        forms, or ``"ls"`` / ``"aov"`` / ``"bls"`` back-references to a
+        prior command in the same chain.  Default ``"ls"``.
     a0 : float
         Initial spot fractional radius.
     b0 : float
@@ -682,7 +782,17 @@ class Starspot(VartoolsCommand):
     fit_a, fit_b, fit_alpha, fit_i, fit_chi, fit_psi, fit_mconst : int
         Fit each parameter (0=fixed, 1=free).
     correct_lc : bool
-    save_model : bool
+        Subtract the best-fit starspot model from the light curve.
+    save_model : bool, str, or Output
+        Fitted starspot model.  ``True`` captures as
+        ``result.files["Starspot_model_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-Starspot``.
+    Citation: Dorren 1987 (ApJ 320, 756).
     """
 
     _vt_name = "Starspot"
@@ -755,11 +865,28 @@ class microlens(VartoolsCommand):
 
     Parameters
     ----------
-    f0, f1, u0, t0, tmax : float or str or None
-        Initial values for microlensing parameters.  Each can be a number
-        (auto-fit), ``"auto"`` (vartools auto-estimates), or None (omit).
+    f0, f1, u0, t0, tmax : float, str, or None
+        Initial values for the Wozniak microlensing parameters
+        (baseline flux, blend flux, impact parameter, time offset, peak
+        time).  Each can be a number, ``"auto"`` (vartools
+        auto-estimates), a ``"fixcolumn NAME"`` back-reference, or
+        ``None`` (omit the parameter).
     correct_lc : bool
-    save_model : bool
+        Subtract the best-fit microlensing model from the light curve.
+    save_model : bool, str, or Output
+        Fitted microlensing model.  ``True`` captures as
+        ``result.files["microlens_model_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
+    f0_step, f1_step, u0_step, t0_step, tmax_step : float, optional
+        Initial amoeba step size for the corresponding parameter.
+    f0_novary, f1_novary, u0_novary, t0_novary, tmax_novary : bool
+        Hold the corresponding parameter fixed during the fit.
+
+    See Also
+    --------
+    CLI command: ``-microlens``.
+    Citation: Wozniak & Paczynski 1997 (ApJ 487, 55).
     """
 
     _vt_name = "microlens"
@@ -890,13 +1017,22 @@ class nonlinfit(VartoolsCommand):
     mcmc_chains_printevery : int, optional
         Print every Nth link to the chain file.
     correct_lc : bool
-    save_model : bool or str or Output
+        Subtract the best-fit model from the light curve.
+    save_model : bool, str, or Output
+        Fitted model curve.  ``True`` captures as
+        ``result.files["nonlinfit_model_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
     model_nameformat : str, optional
         Naming format for model output files.
     modelvar : str, optional
         Variable name to store the best-fit model.
     fitmask : str, optional
         Name of a mask variable; non-zero points are excluded from the fit.
+
+    See Also
+    --------
+    CLI command: ``-nonlinfit``.
     """
 
     _vt_name = "nonlinfit"
@@ -1072,24 +1208,30 @@ class nonlinfit(VartoolsCommand):
 
 
 class addnoise(VartoolsCommand):
-    """Add synthetic noise to the light curve.
+    """Add simulated (optionally time-correlated) noise to the light curve.
 
     Parameters
     ----------
     noise_type : str
-        ``"white"``, ``"squareexp"``, ``"exp"``, ``"matern"``, or ``"wavelet"``.
+        Noise model: ``"white"``, ``"squareexp"``, ``"exp"``,
+        ``"matern"``, or ``"wavelet"``.  Default ``"white"``.
     sig_white : float or str
-        White noise amplitude.
+        White-noise amplitude.  Default 0.001.  Accepts var/expr forms.
     rho : float or str, optional
         Correlation length (for ``"squareexp"``, ``"exp"``, ``"matern"``).
     sig_red : float or str, optional
-        Red noise amplitude (for correlated noise models).
+        Red-noise amplitude (for correlated noise models).
     nu : float or str, optional
         Smoothness parameter for the Matern covariance (``"matern"`` only).
     gamma : float or str, optional
         Wavelet decay parameter (``"wavelet"`` only).
     bintime : float or str, optional
-        Bin time for integrated covariance (``"squareexp"``, ``"exp"``).
+        Bin time for the integrated covariance (``"squareexp"``,
+        ``"exp"``); emitted after ``sig_white``.
+
+    See Also
+    --------
+    CLI command: ``-addnoise``.
     """
 
     _vt_name = "addnoise"
@@ -1166,9 +1308,16 @@ class findblends(VartoolsCommand):
     zeromag : float, optional
         Zero-point magnitude.
     nofluxconvert : bool
-        Do not convert fluxes.
-    save_matches : bool
-        Write matched star list to a file.
+        Do not convert magnitudes to fluxes before comparing amplitudes.
+    save_matches : bool, str, or Output
+        Matched-blend candidate list.  ``True`` captures as
+        ``result.files["findblends_matches_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-findblends``.
     """
 
     _vt_name = "findblends"
@@ -1301,10 +1450,11 @@ class MatchedFilter(VartoolsCommand):
         Number of peaks to report (default 3).  Each peak is the next
         most significant trial after masking a +/-``min_separation``
         window around the prior peaks.
-    save_matchfile : bool or str
-        ``True`` writes the per-trial (t, SNR, amp) surface to the
-        pipeline outdir with suffix ``.mf``; a path string writes to a
-        specific directory; ``False`` (default) suppresses.
+    save_matchfile : bool, str, or Output
+        Per-trial (t, SNR, amplitude) surface.  ``True`` captures as
+        ``result.files["matchfile_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.  ``False`` (default) suppresses.
 
     tau : float or str, optional (``exp`` mode)
         Decay timescale.  Accepts var/expr forms.
@@ -1341,6 +1491,7 @@ class MatchedFilter(VartoolsCommand):
 
     See Also
     --------
+    CLI command: ``-matchedfilter``.
     Davenport, J. R. A. et al. 2014, ApJ, 797, 122 (the empirical
     Davenport+2014 flare template used by the ``"flare"`` named kind;
     ADS bibcode 2014ApJ...797..122D).  Turin, G. L. 1960, IRE
