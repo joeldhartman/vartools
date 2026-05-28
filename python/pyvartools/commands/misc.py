@@ -34,6 +34,10 @@ class addfitskeyword(VartoolsCommand):
         ``"append"`` or ``"update"``.
     combinelc : str, optional
         Variable name holding the LC number for combined-LC mode.
+
+    See Also
+    --------
+    CLI command: ``-addfitskeyword``.
     """
 
     _vt_name = "addfitskeyword"
@@ -120,6 +124,10 @@ class converttime(VartoolsCommand):
         Path to a JPL ephemeris file.
     leapsecfile : str, optional
         Path to a leap-second table.
+
+    See Also
+    --------
+    CLI command: ``-converttime``.
     """
 
     _vt_name = "converttime"
@@ -220,6 +228,10 @@ class R(VartoolsCommand):
         Pass ``"verbose"`` flag.
     continueprocess : int, optional
         Prior R command number to share a subprocess with.
+
+    See Also
+    --------
+    CLI command: ``-R``.  Python equivalent: :class:`python`.
     """
 
     _vt_name = "R"
@@ -373,6 +385,10 @@ class python(VartoolsCommand):
         for the user code (default: caller's ``__main__.__dict__``).
         Useful for sandboxing or for exposing a specific module's
         globals to the inline code.
+
+    See Also
+    --------
+    CLI command: ``-python``.  R equivalent: :class:`R`.
     """
 
     _vt_name = "python"
@@ -534,6 +550,10 @@ class match(VartoolsCommand):
         Column delimiter character.
     opencommand : str, optional
         Shell command used to open the catalog file (e.g. for compressed files).
+
+    See Also
+    --------
+    CLI command: ``-match``.
     """
 
     _vt_name = "match"
@@ -670,6 +690,12 @@ class o(VartoolsCommand):
         Key under which the captured LC(s) are stored in
         ``result.files``.  Default ``"o"``.  Use a unique key when the
         pipeline contains more than one ``cmd.o(capture=True)`` command.
+
+    See Also
+    --------
+    CLI command: ``-o``.  Pipeline-stateful: must be used inside a
+    single ``Pipeline`` invocation (calling it on a ``LightCurve`` /
+    ``Result`` raises ``NotImplementedError``).
     """
 
     _vt_name = "o"
@@ -938,9 +964,11 @@ class ifcmd(VartoolsCommand):
 
     See Also
     --------
+    CLI command: ``-if``.
     elifcmd : ``-elif`` branch.
     elsecmd : ``-else`` branch.
     ficmd : ``-fi`` — closes an `ifcmd` / `elifcmd` / `elsecmd` block.
+    Pipeline-stateful: use inside a single ``Pipeline`` invocation.
     """
 
     _vt_name = "if"
@@ -967,6 +995,10 @@ class elifcmd(VartoolsCommand):
     ----------
     condition : str
         The vartools condition expression (passed verbatim).
+
+    See Also
+    --------
+    CLI command: ``-elif``.  Pipeline-stateful.
     """
 
     _vt_name = "elif"
@@ -986,6 +1018,10 @@ class elsecmd(VartoolsCommand):
 
     Must be preceded by a matching :class:`ifcmd` (or :class:`elifcmd`) and
     closed by a :class:`ficmd`.  Takes no parameters.
+
+    See Also
+    --------
+    CLI command: ``-else``.  Pipeline-stateful.
     """
 
     _vt_name = "else"
@@ -1005,6 +1041,10 @@ class ficmd(VartoolsCommand):
 
     Must follow a matching :class:`ifcmd` / :class:`elifcmd` / :class:`elsecmd`
     sequence.  Takes no parameters.
+
+    See Also
+    --------
+    CLI command: ``-fi``.  Pipeline-stateful.
     """
 
     _vt_name = "fi"
@@ -1052,6 +1092,12 @@ class binlc(VartoolsCommand):
         first bin by ``firstbinshift / binsize``.  Emits a
         ``DeprecationWarning`` when used.  Prefer ``binshift``.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the binning.
+
+    See Also
+    --------
+    CLI command: ``-binlc``.
     """
 
     _vt_name = "binlc"
@@ -1155,6 +1201,11 @@ class columnsuffix(VartoolsCommand):
         ])
         result = pipe.run(lc)
         best_period = float(result.vars["LS_Period_1_ls"])
+
+    See Also
+    --------
+    CLI command: ``-columnsuffix``.  Pipeline-stateful: use inside a
+    single ``Pipeline`` invocation.
     """
 
     _vt_name = "columnsuffix"
