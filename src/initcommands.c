@@ -744,6 +744,24 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].CodyM->Npoints = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_CODYQ:
+	  /* period[Nlcs][1]: list-sourced periods are populated by
+	     RegisterDataFromInputList; for any other pertype we allocate
+	     here and fill the value in processcommand. */
+	  if(c[i].CodyQ->pertype != PERTYPE_SPECIFIED) {
+	    if((c[i].CodyQ->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j = 0; j < Nlcs; j++)
+	      if((c[i].CodyQ->period[j] = (double *) malloc(sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
+	  if((c[i].CodyQ->Q         = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->RMS_raw   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->RMS_resid = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->Sigma     = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->Npoints   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

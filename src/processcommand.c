@@ -428,6 +428,41 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunCodyMCommand(p, c->CodyM, lc2, lc);
       break;
 
+    case CNUM_CODYQ:
+      if(c->CodyQ->pertype == PERTYPE_AOV) {
+	i1 = c->CodyQ->lastaovindex;
+	if(c[i1-thisindex].cnum == CNUM_AOV)
+	  c->CodyQ->period[lc2][0] = c[i1-thisindex].Aov->peakperiods[lc2][0];
+	else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	  c->CodyQ->period[lc2][0] = c[i1-thisindex].AovHarm->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_LS) {
+	i1 = c->CodyQ->lastlsindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Ls->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_BLS) {
+	i1 = c->CodyQ->lastblsindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Bls->bper[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_PDM) {
+	i1 = c->CodyQ->lastpdmindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Pdm->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_FTP) {
+	i1 = c->CodyQ->lastftpindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Ftp->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_INJECTHARM) {
+	i1 = c->CodyQ->lastinjectharmindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Injectharm->periodinject[lc2];
+      } else if(c->CodyQ->pertype == PERTYPE_FIX) {
+	c->CodyQ->period[lc2][0] = c->CodyQ->fixedperiod;
+      } else if(c->CodyQ->pertype == PERTYPE_VAR) {
+	c->CodyQ->period[lc2][0] = EvaluateVariable_Double(lc, lc2, 0, c->CodyQ->fixedperiod_var);
+      } else if(c->CodyQ->pertype == PERTYPE_EXPR) {
+	c->CodyQ->period[lc2][0] = EvaluateExpression(lc, lc2, 0, c->CodyQ->fixedperiod_expr);
+      } else if(c->CodyQ->pertype == PERTYPE_FIXCOLUMN) {
+	getoutcolumnvalue(c->CodyQ->linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &(c->CodyQ->period[lc2][0]));
+      }
+      /* PERTYPE_SPECIFIED: period[lc2][0] already populated from the input list. */
+      RunCodyQCommand(p, c->CodyQ, lc2, lc);
+      break;
+
     case CNUM_AUTOCORR:
       /* Calculate the auto-correlation */
       i1 = 0;
@@ -2509,6 +2544,50 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	  }
 	  RunCodyMCommand(p, c->CodyM, lc, lc);
+	}
+      break;
+
+    case CNUM_CODYQ:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(c->CodyQ->pertype == PERTYPE_AOV) {
+	    i1 = c->CodyQ->lastaovindex;
+	    if(c[i1-thisindex].cnum == CNUM_AOV)
+	      c->CodyQ->period[lc][0] = c[i1-thisindex].Aov->peakperiods[lc][0];
+	    else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	      c->CodyQ->period[lc][0] = c[i1-thisindex].AovHarm->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_LS) {
+	    i1 = c->CodyQ->lastlsindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Ls->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_BLS) {
+	    i1 = c->CodyQ->lastblsindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Bls->bper[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_PDM) {
+	    i1 = c->CodyQ->lastpdmindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Pdm->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_FTP) {
+	    i1 = c->CodyQ->lastftpindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Ftp->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_INJECTHARM) {
+	    i1 = c->CodyQ->lastinjectharmindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Injectharm->periodinject[lc];
+	  } else if(c->CodyQ->pertype == PERTYPE_FIX) {
+	    c->CodyQ->period[lc][0] = c->CodyQ->fixedperiod;
+	  } else if(c->CodyQ->pertype == PERTYPE_VAR) {
+	    c->CodyQ->period[lc][0] = EvaluateVariable_Double(lc, lc, 0, c->CodyQ->fixedperiod_var);
+	  } else if(c->CodyQ->pertype == PERTYPE_EXPR) {
+	    c->CodyQ->period[lc][0] = EvaluateExpression(lc, lc, 0, c->CodyQ->fixedperiod_expr);
+	  } else if(c->CodyQ->pertype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->CodyQ->linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &(c->CodyQ->period[lc][0]));
+	  }
+	  /* PERTYPE_SPECIFIED: period[lc][0] already populated from the input list. */
+	  RunCodyQCommand(p, c->CodyQ, lc, lc);
 	}
       break;
 

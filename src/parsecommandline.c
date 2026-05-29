@@ -3785,6 +3785,196 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -CodyQ <"aov" | "ls" | "bls" | "pdm" | "ftp" | "injectharm" |
+       *        "fix" period | "fixcolumn" <colname|colnum> |
+       *        "list" ["column" col] | "var" varname | "expr" exprstring>
+       *        "trendwindow" <"var" v | "expr" e | Wt>
+       *        ["phasesmooth" <"var" v | "expr" e | f>]
+       *        ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-CodyQ",6) && strlen(argv[i]) == 6)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_CODYQ;
+	  if((c[cn].CodyQ = (_CodyQ *) malloc(sizeof(_CodyQ))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: phasesmooth = 0.25 (Cody), no maskpoints; numeric
+	     params start fixed-source; period storage is allocated later
+	     by initcommands or by RegisterDataFromInputList. */
+	  c[cn].CodyQ->phasesmooth = 0.25;
+	  c[cn].CodyQ->usemask = 0;
+	  c[cn].CodyQ->maskvar = NULL;
+	  c[cn].CodyQ->linkedcolumn = NULL;
+	  c[cn].CodyQ->fixedperiod = 0.0;
+	  c[cn].CodyQ->fixedperiod_var = NULL;
+	  c[cn].CodyQ->fixedperiod_expr = NULL;
+	  c[cn].CodyQ->period = NULL;
+	  c[cn].CodyQ->lastaovindex = -1;
+	  c[cn].CodyQ->lastlsindex = -1;
+	  c[cn].CodyQ->lastblsindex = -1;
+	  c[cn].CodyQ->lastpdmindex = -1;
+	  c[cn].CodyQ->lastftpindex = -1;
+	  c[cn].CodyQ->lastinjectharmindex = -1;
+	  VT_INIT_PARAM(c[cn].CodyQ, trendwindow);
+	  VT_INIT_PARAM(c[cn].CodyQ, phasesmooth);
+
+	  /* Required period source. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"aov")) {
+	    c[cn].CodyQ->pertype = PERTYPE_AOV;
+	    m = -1;
+	    for(l = 0; l < cn; l++)
+	      if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOAOV);
+	    c[cn].CodyQ->lastaovindex = m;
+	  } else if(!strcmp(argv[i],"ls")) {
+	    c[cn].CodyQ->pertype = PERTYPE_LS;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOLS);
+	    c[cn].CodyQ->lastlsindex = m;
+	  } else if(!strcmp(argv[i],"bls")) {
+	    c[cn].CodyQ->pertype = PERTYPE_BLS;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_BLS) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ bls requires a "
+	        "prior -BLS command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastblsindex = m;
+	  } else if(!strcmp(argv[i],"pdm")) {
+	    c[cn].CodyQ->pertype = PERTYPE_PDM;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ pdm requires a "
+	        "prior -PDM command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastpdmindex = m;
+	  } else if(!strcmp(argv[i],"ftp")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FTP;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_FTP) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ ftp requires a "
+	        "prior -FTP command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastftpindex = m;
+	  } else if(!strcmp(argv[i],"injectharm")) {
+	    c[cn].CodyQ->pertype = PERTYPE_INJECTHARM;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOINJECTHARM);
+	    c[cn].CodyQ->lastinjectharmindex = m;
+	  } else if(!strcmp(argv[i],"fix")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FIX;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    c[cn].CodyQ->fixedperiod = atof(argv[i]);
+	    if(c[cn].CodyQ->fixedperiod <= 0.0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ fix period "
+	        "'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else if(!strcmp(argv[i],"fixcolumn")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FIXCOLUMN;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    increaselinkedcols(p, &(c[cn].CodyQ->linkedcolumn), argv[i], cn);
+	  } else if(!strcmp(argv[i],"list")) {
+	    int kcol = 0;
+	    c[cn].CodyQ->pertype = PERTYPE_SPECIFIED;
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"column")) {
+	        i++;
+	        if(i >= argc) listcommands(argv[iterm],p);
+	        kcol = atoi(argv[i]);
+	      } else { i--; }
+	    } else { i--; }
+	    RegisterDataFromInputList(p,
+	                              (void *) (&(c[cn].CodyQ->period)),
+	                              VARTOOLS_TYPE_DOUBLE,
+	                              1, cn, 0, 0, NULL, kcol,
+	                              "CODYQ_PERIOD");
+	  } else if(!strcmp(argv[i],"var")) {
+	    c[cn].CodyQ->pertype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyQ->fixedperiod_var),
+	                                    VARTOOLS_VECTORTYPE_PERSTARDATA,
+	                                    VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i],"expr")) {
+	    c[cn].CodyQ->pertype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i],
+	                        &(c[cn].CodyQ->fixedperiod_expr));
+	  } else {
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* Required "trendwindow" <"var" v | "expr" e | Wt>. */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"trendwindow"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  VT_PARSE_DOUBLE(c[cn].CodyQ, trendwindow, argv, i);
+	  if(c[cn].CodyQ->trendwindow_source == VARTOOLS_SOURCE_FIXED &&
+	     !(c[cn].CodyQ->trendwindow > 0.0)) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -CodyQ trendwindow value "
+	      "'%s' must be > 0\n", argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "phasesmooth" <"var" v | "expr" e | f>.  Default 0.25.  When
+	     given as a literal it must be in (0, 1]; var/expr values are
+	     validated at runtime instead. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"phasesmooth")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyQ, phasesmooth, argv, i);
+	    if(c[cn].CodyQ->phasesmooth_source == VARTOOLS_SOURCE_FIXED &&
+	       (!(c[cn].CodyQ->phasesmooth > 0.0) || c[cn].CodyQ->phasesmooth > 1.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ phasesmooth value "
+	        "'%s' must be in (0, 1]\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].CodyQ->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyQ->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{

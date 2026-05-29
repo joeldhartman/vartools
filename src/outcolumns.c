@@ -1335,6 +1335,14 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->sigma_d), "%.17g", 1, 0, 0, 0, "CODYM_sigma_d_%d", l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyM->Npoints), "%d",    1, 0, 0, 0, "CODYM_Npoints_%d", l);
 	  break;
+	case CNUM_CODYQ:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Q),         "%.17g", 1, 0, 0, 0, "CODYQ_Q_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->period),    "%.17g", 2, 0, 0, 0, 0, "CODYQ_Period_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->RMS_raw),   "%.17g", 1, 0, 0, 0, "CODYQ_RMS_raw_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->RMS_resid), "%.17g", 1, 0, 0, 0, "CODYQ_RMS_resid_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Sigma),     "%.17g", 1, 0, 0, 0, "CODYQ_Sigma_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyQ->Npoints),   "%d",    1, 0, 0, 0, "CODYQ_Npoints_%d", l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

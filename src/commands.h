@@ -192,8 +192,9 @@
 #define CNUM_BEYONDNSIGMA 68
 #define CNUM_SLOPESTATS 69
 #define CNUM_CODYM 70
+#define CNUM_CODYQ 71
 
-#define TOT_CNUMS 71
+#define TOT_CNUMS 72
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -1281,6 +1282,42 @@ typedef struct {
   double *sigma_d;
   int *Npoints;
 } _CodyM;
+
+typedef struct {
+  /* Period source.  pertype takes one of the PERTYPE_* constants. */
+  int pertype;
+  int lastaovindex;
+  int lastlsindex;
+  int lastblsindex;
+  int lastpdmindex;
+  int lastftpindex;
+  int lastinjectharmindex;
+  double fixedperiod;
+  _Variable *fixedperiod_var;
+  _Expression *fixedperiod_expr;
+  OutColumn *linkedcolumn;
+  /* Period storage and CODYQ_Period output column ([Nlcs][1]).  Receives
+     the list-sourced period via RegisterDataFromInputList when
+     pertype == PERTYPE_SPECIFIED, and is filled by processcommand
+     period-resolution otherwise. */
+  double **period;
+  /* Long-term detrending boxcar full-width, in time-axis units. */
+  double trendwindow;
+  VT_PARAM_COMPANIONS(trendwindow);
+  /* Width of the phase-domain boxcar smoother, as a fraction of the
+     period (in (0, 1]).  Cody used 0.25; that is the parser default. */
+  double phasesmooth;
+  VT_PARAM_COMPANIONS(phasesmooth);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars */
+  double *Q;
+  double *RMS_raw;
+  double *RMS_resid;
+  double *Sigma;
+  int *Npoints;
+} _CodyQ;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2802,6 +2839,7 @@ typedef struct {
   _BeyondNsigma *BeyondNsigma;
   _Slopestats *Slopestats;
   _CodyM *CodyM;
+  _CodyQ *CodyQ;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;
