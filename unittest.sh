@@ -4710,7 +4710,7 @@ Starspot_inclination_0 =   1.00000
 Starspot_chi_0         =   0.00100
 Starspot_psi0_0        =   0.00100
 Starspot_mconst_0      =  10.60000
-Starspot_chi2perdof_0  =   0.00000
+Starspot_chi2perdof_0  = 113.13806
 
 EOF
 
