@@ -1107,6 +1107,187 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.slopestats(maxgap=-0.5)
 
+    # ----- CodyM ----------------------------------------------------------
+
+    def test_codym_basic(self):
+        args = cmd.CodyM(trendwindow=10)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10"]
+
+    def test_codym_two_stage(self):
+        args = cmd.CodyM(trendwindow=10, outlierwindow=0.1,
+                          sigclip=3)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10",
+                        "outlierwindow", "0.1",
+                        "sigclip", "3"]
+
+    def test_codym_sigclip_default_omitted(self):
+        # Default sigclip=5.0 stays off the CLI surface.
+        args = cmd.CodyM(trendwindow=10, sigclip=5.0)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10"]
+
+    def test_codym_sigclip_zero_emitted(self):
+        # sigclip=0 disables rejection and IS distinct from default 5.0.
+        args = cmd.CodyM(trendwindow=10, sigclip=0)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10", "sigclip", "0"]
+
+    def test_codym_expr_sources(self):
+        args = cmd.CodyM(trendwindow="5*2",
+                          sigclip="2.5*2")._to_cli_args()
+        assert args == ["-CodyM",
+                        "trendwindow", "expr", "5*2",
+                        "sigclip", "expr", "2.5*2"]
+
+    def test_codym_maskpoints(self):
+        args = cmd.CodyM(trendwindow=10, maskpoints="m")._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10", "maskpoints", "m"]
+
+    def test_codym_canonical_order_all(self):
+        # Strict parser order: trendwindow, outlierwindow, sigclip,
+        # maskpoints.
+        args = cmd.CodyM(
+            trendwindow=10,
+            outlierwindow=0.1,
+            sigclip=3,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-CodyM",
+            "trendwindow", "10",
+            "outlierwindow", "0.1",
+            "sigclip", "3",
+            "maskpoints", "m",
+        ]
+
+    def test_codym_rejects_zero_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=0)
+
+    def test_codym_rejects_negative_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=-5)
+
+    def test_codym_rejects_zero_outlierwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=10, outlierwindow=0)
+
+    def test_codym_rejects_negative_sigclip(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=10, sigclip=-1)
+
+    # ----- CodyQ ----------------------------------------------------------
+
+    def test_codyq_fix_period(self):
+        args = cmd.CodyQ(period=1.234, trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "1.234", "trendwindow", "10"]
+
+    def test_codyq_aov_period(self):
+        args = cmd.CodyQ(period="aov", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "aov", "trendwindow", "10"]
+
+    def test_codyq_pdm_period(self):
+        # The pdm/ftp keywords were added to _period_spec specifically
+        # for -CodyQ; confirm the keyword is passed through rather than
+        # interpreted as a bare variable name.
+        args = cmd.CodyQ(period="pdm", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "pdm", "trendwindow", "10"]
+
+    def test_codyq_ftp_period(self):
+        args = cmd.CodyQ(period="ftp", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "ftp", "trendwindow", "10"]
+
+    def test_codyq_bls_period(self):
+        args = cmd.CodyQ(period="bls", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "bls", "trendwindow", "10"]
+
+    def test_codyq_injectharm_period(self):
+        args = cmd.CodyQ(period="injectharm", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "injectharm", "trendwindow", "10"]
+
+    def test_codyq_fixcolumn_period(self):
+        args = cmd.CodyQ(period="fixcolumn Period_1_0",
+                          trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "fixcolumn", "Period_1_0",
+                        "trendwindow", "10"]
+
+    def test_codyq_list_period_with_column(self):
+        args = cmd.CodyQ(period="list column 2",
+                          trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "list", "column", "2",
+                        "trendwindow", "10"]
+
+    def test_codyq_expr_period(self):
+        args = cmd.CodyQ(period="2*P", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "expr", "2*P",
+                        "trendwindow", "10"]
+
+    def test_codyq_var_period(self):
+        args = cmd.CodyQ(period="myperiod", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "var", "myperiod",
+                        "trendwindow", "10"]
+
+    def test_codyq_phasesmooth_non_default(self):
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          phasesmooth=0.5)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0",
+                        "trendwindow", "10",
+                        "phasesmooth", "0.5"]
+
+    def test_codyq_phasesmooth_default_omitted(self):
+        # Default phasesmooth=0.25 stays off the CLI surface.
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          phasesmooth=0.25)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0", "trendwindow", "10"]
+
+    def test_codyq_maskpoints(self):
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          maskpoints="m")._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0", "trendwindow", "10",
+                        "maskpoints", "m"]
+
+    def test_codyq_canonical_order_all(self):
+        # Strict parser order: <period-source>, trendwindow, phasesmooth,
+        # maskpoints.
+        args = cmd.CodyQ(
+            period="aov",
+            trendwindow=10,
+            phasesmooth=0.5,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-CodyQ", "aov",
+            "trendwindow", "10",
+            "phasesmooth", "0.5",
+            "maskpoints", "m",
+        ]
+
+    def test_codyq_expr_sourced_trendwindow_and_phasesmooth(self):
+        args = cmd.CodyQ(period="aov",
+                          trendwindow="5*2",
+                          phasesmooth="1/4")._to_cli_args()
+        assert args == ["-CodyQ", "aov",
+                        "trendwindow", "expr", "5*2",
+                        "phasesmooth", "expr", "1/4"]
+
+    def test_codyq_rejects_zero_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=0)
+
+    def test_codyq_rejects_phasesmooth_zero(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=10, phasesmooth=0)
+
+    def test_codyq_rejects_phasesmooth_over_one(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=10, phasesmooth=1.5)
+
+    def test_codyq_rejects_zero_period(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=0, trendwindow=10)
+
+    def test_codyq_rejects_negative_period(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=-1.0, trendwindow=10)
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -3422,6 +3603,123 @@ class TestEndToEndPipelines:
         # The user-supplied minute values appear formatted as %.2f.
         assert "SLOPESTATS_median_abs_dmdt_BT5.00_0" in result.vars.index
         assert "SLOPESTATS_median_abs_dmdt_BT60.00_0" in result.vars.index
+
+    # -----------------------------------------------------------------------
+    # CodyM
+    # -----------------------------------------------------------------------
+
+    def test_codym_symmetric_gaussian_yields_M_near_zero(self):
+        """A symmetric Gaussian-noise LC should give |M| close to 0 once
+        the deciles are balanced about the median."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        # trendwindow >= LC duration -> detrend is a constant subtract
+        # (no effect on M); sigclip=0 disables rejection so the noise
+        # decile tails are intact.
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        # n=3000 decile statistics give per-LC M sample stddev ~ 0.05;
+        # 0.1 is a 2-sigma margin and still inside the |M| <= 0.25
+        # "symmetric" bin of Cody et al.
+        assert abs(M) < 0.1, f"M = {M} for symmetric Gaussian noise"
+
+    def test_codym_injected_dips_yield_positive_M(self):
+        """Adding a small fraction of faint excursions makes the
+        faint-decile mean fall further from the median than the
+        bright-decile mean -> M > 0 (a dipping signature)."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        dip_mask = rng.random(n) < 0.10
+        mag[dip_mask] += 0.15
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="dips")
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        assert M > 0.5, f"M = {M} for an injected-dip LC"
+
+    def test_codym_injected_bursts_yield_negative_M(self):
+        """Mirror of the dips test with bright excursions instead;
+        antisymmetry of the M definition produces M < 0."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        burst_mask = rng.random(n) < 0.10
+        mag[burst_mask] -= 0.15
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="bursts")
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        assert M < -0.5, f"M = {M} for an injected-burst LC"
+
+    # -----------------------------------------------------------------------
+    # CodyQ
+    # -----------------------------------------------------------------------
+
+    def test_codyq_sinusoid_at_true_period_yields_Q_near_zero(self):
+        """A clean sinusoid evaluated at its true period should give Q
+        close to 0 -- the phase model captures essentially all the
+        variance, leaving residuals at the noise floor."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        P = 2.0
+        mag = 0.1 * np.sin(2.0 * np.pi * t / P) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.CodyQ(period=P, trendwindow=100),
+        ]).run(lc)
+        Q = result.vars["CODYQ_Q_0"]
+        assert Q < 0.1, f"Q = {Q} at the true period of a clean sinusoid"
+
+    def test_codyq_sinusoid_at_wrong_period_yields_Q_near_one(self):
+        """At an incorrect period the phase model removes essentially
+        no variance, so rms_resid -> rms_raw and Q -> 1."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 2.0) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.CodyQ(period=1.37, trendwindow=100),
+        ]).run(lc)
+        Q = result.vars["CODYQ_Q_0"]
+        assert Q > 0.95, f"Q = {Q} at a wrong period of a clean sinusoid"
+
+    def test_codyq_aov_back_reference(self):
+        """The 'aov' period source picks up the primary peak of the
+        most-recent -aov; verify the pipeline-mode back-reference
+        resolves and Q matches the value obtained from a direct fix
+        at the same period."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        P_true = 2.0
+        mag = 0.1 * np.sin(2.0 * np.pi * t / P_true) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.aov(0.5, 4.0, 0.1, 5, npeaks=1, save_periodogram=False),
+            cmd.CodyQ(period="aov", trendwindow=100),
+        ]).run(lc)
+        P_used = result.vars["CODYQ_Period_1"]
+        Q = result.vars["CODYQ_Q_1"]
+        assert abs(P_used - P_true) < 0.01, f"AOV picked P={P_used}"
+        assert Q < 0.1, f"Q = {Q} via aov backref at true period"
 
     # -----------------------------------------------------------------------
     # MatchedFilter

@@ -37,6 +37,8 @@ from .manipulation import (
     percentileratios,
     beyondNsigma,
     slopestats,
+    CodyM,
+    CodyQ,
     rescalesig,
     ensemblerescalesig,
     stats,
@@ -120,7 +122,7 @@ __all__ = [
     "GetLSAmpThresh", "Phase",
     # manipulation
     "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm", "vonNeumann",
-    "percentileratios", "beyondNsigma", "slopestats",
+    "percentileratios", "beyondNsigma", "slopestats", "CodyM", "CodyQ",
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",

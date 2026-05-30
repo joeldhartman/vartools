@@ -638,6 +638,196 @@ class slopestats(VartoolsCommand):
         return args
 
 
+class CodyM(VartoolsCommand):
+    """Flux-asymmetry statistic M of Cody et al. 2014, AJ, 147, 82 (Eq. 7).
+
+    ``M`` quantifies whether a light curve is asymmetric with respect to
+    reflection about the median magnitude::
+
+        M = (<d_10%> - d_med) / sigma_d
+
+    where ``d_med`` is the median of the long-term-detrended,
+    outlier-filtered light curve, ``sigma_d`` is its standard deviation,
+    and ``<d_10%>`` is the mean of the combined faintest-decile and
+    brightest-decile values.  For magnitude-valued light curves
+    ``M > 0.25`` indicates a dipping curve (asymmetric toward faint
+    excursions), ``M < -0.25`` a bursting curve, and ``|M| <= 0.25`` a
+    symmetric one; the sign convention flips for flux input.
+
+    The kernel filters NaN magnitudes and (when ``maskpoints`` is given)
+    points with ``maskvar <= 0``, subtracts a boxcar-mean smooth of full
+    width ``trendwindow``, identifies sigma-clip outliers, then evaluates
+    ``M`` on the surviving values using deciles of ``round(0.1 * N')``
+    points each.  Two outlier-identification schemes are supported:
+
+    * **Two-stage (paper-faithful):** supply ``outlierwindow`` to build a
+      short-timescale residual on which the sigma clip operates.  Real
+      variability is removed in that residual, so the genuine dips and
+      bursts that ``M`` quantifies are not themselves clipped.
+    * **Single-stage:** omit ``outlierwindow``; the sigma clip operates
+      directly on the trend-detrended curve.  Simpler, but a deep
+      dip/burst can clip itself and bias ``M`` toward zero.
+
+    Parameters
+    ----------
+    trendwindow : float or str
+        Boxcar full width for the long-term detrend, in the same units
+        as the light-curve time axis.  Required.  Accepts a number, a
+        bare variable name (vartools ``var``), or an explicit
+        ``"var NAME"`` / ``"expr EXPR"`` string for per-LC sourcing.
+    outlierwindow : float or str, optional
+        Short-timescale boxcar full width that enables the two-stage
+        outlier-rejection scheme.  Same var/expr accepting form as
+        ``trendwindow``.  Default: omitted (single-stage).
+    sigclip : float or str, optional
+        Outlier-rejection threshold in sigma.  Default ``5.0``; ``0``
+        disables outlier rejection.  Accepts var/expr.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-CodyM``.
+    Citation: Cody et al. 2014 (AJ 147, 82).
+    """
+
+    _vt_name = "CodyM"
+
+    _DEFAULT_SIGCLIP = 5.0
+
+    def __init__(
+        self,
+        trendwindow,
+        outlierwindow=None,
+        sigclip=5.0,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.trendwindow = trendwindow
+        self.outlierwindow = outlierwindow
+        self.sigclip = sigclip
+        self.maskpoints = maskpoints
+
+        # Parse-time validation only when a literal numeric value was
+        # given.  var/expr-sourced values are validated per-LC at runtime
+        # by the kernel.
+        if isinstance(trendwindow, (int, float)) and trendwindow <= 0.0:
+            raise ValueError(f"trendwindow = {trendwindow} must be > 0")
+        if (outlierwindow is not None
+                and isinstance(outlierwindow, (int, float))
+                and outlierwindow <= 0.0):
+            raise ValueError(f"outlierwindow = {outlierwindow} must be > 0")
+        if isinstance(sigclip, (int, float)) and sigclip < 0.0:
+            raise ValueError(
+                f"sigclip = {sigclip} must be >= 0 (0 disables rejection)"
+            )
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-CodyM", "trendwindow"] + _varexpr(self.trendwindow)
+        if self.outlierwindow is not None:
+            args += ["outlierwindow"] + _varexpr(self.outlierwindow)
+        # Emit sigclip only when non-default, so the CLI surface stays
+        # tidy for the common case.
+        if not (isinstance(self.sigclip, (int, float))
+                and float(self.sigclip) == self._DEFAULT_SIGCLIP):
+            args += ["sigclip"] + _varexpr(self.sigclip)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class CodyQ(VartoolsCommand):
+    """Quasi-periodicity statistic Q of Cody et al. 2014, AJ, 147, 82 (Eq. 6).
+
+    ``Q`` measures how close the light curve is to the photometric noise
+    floor before and after a phase-folded periodic model is subtracted::
+
+        Q = (rms_resid^2 - sigma^2) / (rms_raw^2 - sigma^2)
+
+    where ``rms_raw`` is the standard deviation of the long-term-detrended
+    light curve, ``rms_resid`` is the standard deviation of the same
+    curve after subtraction of a boxcar-smoothed phase model at the
+    supplied period, and ``sigma^2`` is the mean of the per-point
+    squared errors.  ``Q`` is small (a few percent) for strictly
+    periodic light curves, ``~0.15-0.6`` for quasi-periodic ones, and
+    ``~0.6-1`` (or NaN, when the denominator collapses) for ones with
+    no detectable periodicity.
+
+    The kernel filters NaN magnitudes, ``sig <= 0`` points, and (when
+    ``maskpoints`` is given) ``maskvar <= 0`` points; subtracts a
+    boxcar-mean smooth of full width ``trendwindow``; phase-folds to
+    ``period``; and builds a circular boxcar smooth in the phase domain
+    with full width ``phasesmooth`` (a fraction of the period).  The
+    phase smoother is invariant under a global phase shift, so the
+    folding epoch is fixed at ``t[0]`` and is not exposed.
+
+    Parameters
+    ----------
+    period : float or str
+        Period source.  Accepts a number, a back-reference keyword
+        (``"ls"``, ``"aov"``, ``"pdm"``, ``"ftp"``, ``"bls"``,
+        ``"injectharm"``) to the most-recent corresponding command,
+        ``"fix P"``, ``"fixcolumn NAME"``, ``"list ['column' N]"``, a
+        bare variable name (vartools ``var``), or an explicit
+        ``"expr EXPR"`` string.
+    trendwindow : float or str
+        Boxcar full width for the long-term detrend, in the same units
+        as the light-curve time axis.  Required.  Accepts var/expr.
+    phasesmooth : float or str, optional
+        Phase-domain boxcar full width as a fraction of the period.
+        Default ``0.25`` (the paper value).  Must lie in ``(0, 1]``.
+        Accepts var/expr.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-CodyQ``.
+    Citation: Cody et al. 2014 (AJ 147, 82).
+    """
+
+    _vt_name = "CodyQ"
+
+    _DEFAULT_PHASESMOOTH = 0.25
+
+    def __init__(
+        self,
+        period,
+        trendwindow,
+        phasesmooth=0.25,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.period = period
+        self.trendwindow = trendwindow
+        self.phasesmooth = phasesmooth
+        self.maskpoints = maskpoints
+
+        # Parse-time validation only for literal numeric values; var/expr
+        # values are validated per-LC at runtime.
+        if isinstance(trendwindow, (int, float)) and trendwindow <= 0.0:
+            raise ValueError(f"trendwindow = {trendwindow} must be > 0")
+        if isinstance(phasesmooth, (int, float)) and (
+                phasesmooth <= 0.0 or phasesmooth > 1.0):
+            raise ValueError(
+                f"phasesmooth = {phasesmooth} must be in (0, 1]"
+            )
+        if isinstance(period, (int, float)) and period <= 0.0:
+            raise ValueError(f"period = {period} must be > 0")
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-CodyQ"] + _period_spec(self.period)
+        args += ["trendwindow"] + _varexpr(self.trendwindow)
+        if not (isinstance(self.phasesmooth, (int, float))
+                and float(self.phasesmooth) == self._DEFAULT_PHASESMOOTH):
+            args += ["phasesmooth"] + _varexpr(self.phasesmooth)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
+
+
 class rescalesig(VartoolsCommand):
     """Rescale per-point uncertainties so that χ²/dof = 1.
 

@@ -81,7 +81,7 @@ def _period_spec(period) -> List[str]:
     if isinstance(period, (int, float)):
         return ["fix", str(period)]
     s = str(period)
-    if (s.split()[0] in ("ls", "aov", "bls", "both", "injectharm",
+    if (s.split()[0] in ("ls", "aov", "pdm", "ftp", "bls", "both", "injectharm",
                           "rand", "logrand", "randfreq", "lograndfreq",
                           "fix", "list", "fixcolumn", "auto", "var", "expr")):
         return s.split()
