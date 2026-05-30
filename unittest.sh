@@ -5478,4 +5478,244 @@ EOF
 fi
 
 
+# -CodyM defaults (single-stage)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM defaults (single-stage)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34038915044589391
+CODYM_d10_0     = 0.0040003534728282799
+CODYM_dmed_0    = -0.0083847425301915024
+CODYM_sigma_d_0 = 0.036385108005927584
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM two-stage (outlierwindow + sigclip 3)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM two-stage (outlierwindow + sigclip 3)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10 outlierwindow 0.1 sigclip 3
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34169463392785115
+CODYM_d10_0     = 0.0040036509000816491
+CODYM_dmed_0    = -0.0084421319796881278
+CODYM_sigma_d_0 = 0.036423700122834544
+CODYM_Npoints_0 = 3289
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 outlierwindow 0.1 sigclip 3 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM sigclip 0 (rejection disabled)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM sigclip 0 (rejection disabled)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10 sigclip 0
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34038915044589391
+CODYM_d10_0     = 0.0040003534728282799
+CODYM_dmed_0    = -0.0083847425301915024
+CODYM_sigma_d_0 = 0.036385108005927584
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 sigclip 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM expr-sourced trendwindow / sigclip
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM expr-sourced parameters" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow expr "5.0" sigclip expr "5.0"
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.37083243160663965
+CODYM_d10_0     = 0.0066867655765035826
+CODYM_dmed_0    = -0.0062409714889124501
+CODYM_sigma_d_0 = 0.034861398204591568
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow expr "5.0" sigclip expr "5.0" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ fix period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ fix period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.021476790867738699
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.036385108005927584
+CODYQ_RMS_resid_0 = 0.0054261505762668374
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ aov-sourced period (exercises the period-backref dispatch)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ aov-sourced period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -aov 0.5 4.0 0.1 5 1 0 -CodyQ aov trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+Period_1_0         =     1.23371348
+AOV_1_0            = 8257.95780
+AOV_SNR_1_0        = 164.58451
+AOV_NEG_LN_FAP_1_0 = 4799.57972
+CODYQ_Q_1          = 0.021973712793508824
+CODYQ_Period_1     = 1.2337134841704938
+CODYQ_RMS_raw_1    = 0.036385108005927584
+CODYQ_RMS_resid_1  = 0.0054863886090008732
+CODYQ_Sigma_1      = 0.0010162080994057857
+CODYQ_Npoints_1    = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -aov 0.5 4.0 0.1 5 1 0 -CodyQ aov trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ phasesmooth (non-default 0.5)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ phasesmooth 0.5" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 phasesmooth 0.5
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.11757116907895332
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.036385108005927584
+CODYQ_RMS_resid_0 = 0.01251243080372607
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 phasesmooth 0.5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ expr-sourced period / trendwindow / phasesmooth
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ expr-sourced parameters" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ expr "1.234" trendwindow expr "5.0" phasesmooth expr "0.25"
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.073194472640070604
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.034861398204591568
+CODYQ_RMS_resid_0 = 0.0094821719887684536
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ expr "1.234" trendwindow expr "5.0" phasesmooth expr "0.25" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
