@@ -772,7 +772,7 @@ class CodyQ(VartoolsCommand):
         ``"injectharm"``) to the most-recent corresponding command,
         ``"fix P"``, ``"fixcolumn NAME"``, ``"list ['column' N]"``, a
         bare variable name (vartools ``var``), or an explicit
-        ``"expr EXPR"`` string.
+        ``"var NAME"`` / ``"expr EXPR"`` string.
     trendwindow : float or str
         Boxcar full width for the long-term detrend, in the same units
         as the light-curve time axis.  Required.  Accepts var/expr.
