@@ -435,6 +435,56 @@ void example(char *c, ProgramData *p)
 		    "Calculate the RMS of the light curve EXAMPLES/5, apply iterative 3 sigma clipping, calculate the RMS of the clipped light curve, and output the clipped light curve to EXAMPLES/OUTDIR1/5.clip.txt\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-CodyM",6) && strlen(c) == 6)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults (single-stage outlier rejection)\n");
+      printtostring(&s,
+		    "----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10\n\n");
+      printtostring(&s,
+		    "Compute the flux-asymmetry statistic M of Cody et al. 2014, AJ, 147, 82 (their Equation 7) for EXAMPLES/2. A boxcar-mean smooth of full width trendwindow=10 (in time-axis units) is subtracted to remove any long-term trend; the default sigclip=5 then identifies outliers on that trend-detrended curve, and M is computed on the curve with those points removed. Five columns are emitted: CODYM_M_0 (the statistic), CODYM_d10_0 (mean of the combined faintest-decile and brightest-decile values), CODYM_dmed_0 (median), CODYM_sigma_d_0 (standard deviation), and CODYM_Npoints_0 (the number of points surviving the filtering and outlier rejection). For magnitude-valued light curves M > 0.25 indicates a dipping curve (asymmetric toward faint excursions), M < -0.25 a bursting curve, and |M| <= 0.25 a symmetric one; the sign convention flips for flux input.\n\n");
+      printtostring(&s,
+		    "Example 2: two-stage outlier rejection (paper-faithful)\n");
+      printtostring(&s,
+		    "-------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-CodyM trendwindow 10 outlierwindow 0.1 sigclip 5\n\n");
+      printtostring(&s,
+		    "Same statistic, but outliers are now identified on a separate residual formed by subtracting a short-timescale boxcar smooth of full width outlierwindow=0.1 from the light curve. Real variability is largely removed in that residual, so only true glitches exceed the 5-sigma threshold; the genuine dips and bursts that M quantifies survive into the M calculation. CODYM_Npoints_0 may drop by a small number relative to the single-stage form when isolated noise spikes are present; deep dips and bright bursts are not removed. To disable outlier rejection entirely set sigclip=0.\n\n");
+      printtostring(&s,
+		    "trendwindow, outlierwindow and sigclip each accept a fixed value, or the \"var\" keyword followed by a per-light-curve variable name, or the \"expr\" keyword followed by an analytic expression evaluated per light curve. Cite Cody et al. 2014, AJ, 147, 82 if you use the -CodyM command.\n\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-CodyQ",6) && strlen(c) == 6)
+    {
+      printtostring(&s,
+		    "\nExample 1: literal-fix period\n");
+      printtostring(&s,
+		    "-----------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10\n\n");
+      printtostring(&s,
+		    "Compute the quasi-periodicity statistic Q of Cody et al. 2014, AJ, 147, 82 (their Equation 6) for EXAMPLES/2 at the fixed period P=1.234 days. A boxcar-mean smooth of full width trendwindow=10 (in time-axis units) is subtracted to remove any long-term trend; the detrended curve is then phase-folded to P and a circular boxcar smooth in phase (full width 0.25 of the period by default) is subtracted to produce the residual. Six columns are emitted: CODYQ_Q_0 (the statistic), CODYQ_Period_0 (the period used), CODYQ_RMS_raw_0 (standard deviation of the detrended curve), CODYQ_RMS_resid_0 (standard deviation of the phase-residual curve), CODYQ_Sigma_0 (root of the mean per-point squared errors), and CODYQ_Npoints_0 (the number of surviving points). Q is small (a few percent, possibly slightly negative) for a strictly periodic curve, roughly 0.15-0.6 for a quasi-periodic one, and roughly 0.6-1 for one with no detectable periodicity.\n\n");
+      printtostring(&s,
+		    "Example 2: period sourced from a prior -aov command\n");
+      printtostring(&s,
+		    "---------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-aov 0.5 4.0 0.1 5 1 0 \\\n");
+      printtostring(&s,
+		    "\t-CodyQ aov trendwindow 10\n\n");
+      printtostring(&s,
+		    "Same statistic, but Q is now evaluated at the primary peak period found by the preceding -aov command. The keyword \"aov\" instead of \"fix P\" instructs -CodyQ to copy the primary peak of the most recent -aov or -aov_harm command in the pipeline. The full set of period-source keywords is: \"aov\", \"ls\", \"bls\", \"pdm\", \"ftp\", and \"injectharm\" (back-references to the most recent corresponding command); \"fix P\" (literal value); \"fixcolumn <colname|colnum>\" (read from a prior output column); \"list\" [\"column\" col] (read from the input-list file); and \"var NAME\" / \"expr EXPR\" (per-light-curve sourcing).\n\n");
+      printtostring(&s,
+		    "trendwindow and phasesmooth each accept a fixed value, or the \"var\" keyword followed by a per-light-curve variable name, or the \"expr\" keyword followed by an analytic expression evaluated per light curve. Cite Cody et al. 2014, AJ, 147, 82 if you use the -CodyQ command.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-converttime",12) && strlen(c) == 12)
     {
       printtostring(&s,
