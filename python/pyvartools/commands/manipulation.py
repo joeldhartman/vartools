@@ -649,10 +649,12 @@ class CodyM(VartoolsCommand):
     where ``d_med`` is the median of the long-term-detrended,
     outlier-filtered light curve, ``sigma_d`` is its standard deviation,
     and ``<d_10%>`` is the mean of the combined faintest-decile and
-    brightest-decile values.  For magnitude-valued light curves
-    ``M > 0.25`` indicates a dipping curve (asymmetric toward faint
-    excursions), ``M < -0.25`` a bursting curve, and ``|M| <= 0.25`` a
-    symmetric one; the sign convention flips for flux input.
+    brightest-decile values.  For magnitude-valued light curves ``M``
+    moves in the positive direction for dipping signatures (asymmetric
+    toward faint excursions) and in the negative direction for bursting
+    signatures (asymmetric toward bright excursions); a value close to
+    zero indicates a symmetric magnitude distribution.  The sign
+    convention is reversed for flux input.
 
     The kernel filters NaN magnitudes and (when ``maskpoints`` is given)
     points with ``maskvar <= 0``, subtracts a boxcar-mean smooth of full
@@ -747,10 +749,12 @@ class CodyQ(VartoolsCommand):
     light curve, ``rms_resid`` is the standard deviation of the same
     curve after subtraction of a boxcar-smoothed phase model at the
     supplied period, and ``sigma^2`` is the mean of the per-point
-    squared errors.  ``Q`` is small (a few percent) for strictly
-    periodic light curves, ``~0.15-0.6`` for quasi-periodic ones, and
-    ``~0.6-1`` (or NaN, when the denominator collapses) for ones with
-    no detectable periodicity.
+    squared errors.  ``Q`` approaches 0 for a strictly periodic light
+    curve (the phase model captures essentially all the variance) and
+    approaches 1 for one with no detectable periodicity (the phase
+    model removes nothing; the denominator can collapse to a
+    non-positive value in this regime, yielding NaN); intermediate
+    values indicate quasi-periodic variability.
 
     The kernel filters NaN magnitudes, ``sig <= 0`` points, and (when
     ``maskpoints`` is given) ``maskvar <= 0`` points; subtracts a

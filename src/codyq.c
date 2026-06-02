@@ -28,9 +28,10 @@
  * light curve, rms_resid is the rms of the same curve after subtracting a
  * phase-folded boxcar-smoothed model at the user-supplied period, and
  * sigma^2 is the mean of the per-point squared errors over the points
- * used.  Q ~ 0 for strictly periodic light curves, Q ~ 0.15-0.6 for
- * quasi-periodic ones, and Q ~ 0.6-1 (or with the denominator
- * approaching zero) for aperiodic ones.
+ * used.  Q approaches 0 for strictly periodic light curves (the phase
+ * model captures essentially all the variance) and approaches 1 for
+ * light curves with no detectable periodicity (the phase model removes
+ * nothing); intermediate values indicate quasi-periodic variability.
  *
  * Procedure (following the paper):
  *   1. Reject NaN magnitudes, points with sig <= 0, and -- when

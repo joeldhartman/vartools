@@ -29,9 +29,12 @@
  *   sigma_d  = rms (standard deviation) of the curve,
  *   <d_10%>  = mean of the combined faintest-decile + brightest-decile values.
  *
- * For magnitude-valued light curves M > 0.25 indicates a "dipping" curve
- * (asymmetric toward faint excursions), M < -0.25 a "bursting" curve, and
- * |M| < 0.25 a symmetric one.  The sign convention flips for flux input.
+ * For magnitude-valued light curves M moves in the positive direction
+ * for dipping signatures (asymmetric toward faint excursions) and in
+ * the negative direction for bursting signatures (asymmetric toward
+ * bright excursions); a value close to zero indicates a symmetric
+ * magnitude distribution.  The sign convention is reversed for flux
+ * input.
  *
  * Procedure (following the paper):
  *   1. Reject NaN magnitudes and, when "maskpoints" is in effect, points
