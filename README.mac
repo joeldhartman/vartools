@@ -159,3 +159,22 @@ See the main ``README`` for details.
 * **Runtime error ``image not found`` for a Homebrew library** — after
   upgrading Homebrew, library versions may have changed.  Rebuild
   (``make clean && make``) after significant Homebrew upgrades.
+
+* **``pyvartools`` raises ``FileNotFoundError: Cannot find
+  libvartoolspipeline.dylib``** — pyvartools auto-discovers the shared
+  library through (1) the vartools binary's ``LC_RPATH`` load commands,
+  (2) sibling layouts (``../lib``, ``../data/vartools/USERLIBS``) of the
+  binary, and (3) ``DYLD_LIBRARY_PATH`` / dyld's standard search paths.
+  If none of those resolves, point pyvartools at the library
+  explicitly::
+
+      export VARTOOLS_LIBRARY=/path/to/src/.libs/libvartoolspipeline.dylib
+
+  or, equivalently, from Python::
+
+      import pyvartools
+      pyvartools.config.set_library('/path/to/libvartoolspipeline.dylib')
+
+  This commonly comes up when running pyvartools from a build tree
+  that hasn't been ``make install``-ed (libtool's ``.libs`` directory
+  is not on dyld's search path by default).
