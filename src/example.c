@@ -1925,6 +1925,30 @@ void example(char *c, ProgramData *p)
 		    "Calculate a variety of statistics for the magnitudes in a light curve, and for the magnitudes after adding gaussian noise to them. The call to -expr defines a new vector mag2 which is equal to mag with some gaussian noise added. In the call to stats we first tell it which variables to compute the statistics for (mag and mag2), we then give the statistics to compute. Note that the pct## statistics are percentiles (in this case the 10th, 20th, 80th and 90th percentiles).\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-structurefunction",18) && strlen(c) == 18)
+    {
+      printtostring(&s,
+		    "\nExample 1: structure function values at chosen lags\n");
+      printtostring(&s,
+		    "----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-structurefunction bins log 20 reportsfvalsintable 0.1,1,10\n\n");
+      printtostring(&s,
+		    "Compute the ensemble structure function (SF) of EXAMPLES/2 on 20 log-spaced lag bins from the smallest consecutive time spacing to the full baseline, with the default squared-difference estimator (Simonetti, Cordes and Heeschen 1985, ApJ, 296, 46). The \"reportsfvalsintable\" keyword takes a strictly increasing list of positive lag values; for each requested lag the kernel locates the SF bin containing it and emits four scalar columns: STRUCTUREFUNCTION_DT_k_0 (the actual bin centre), STRUCTUREFUNCTION_SF_k_0, STRUCTUREFUNCTION_SIGMA_SF_k_0, and STRUCTUREFUNCTION_NPAIRS_k_0, with k = 0..2. Lags that fall outside the lag range or in noise-dominated bins are emitted as NaN / 0.\n\n");
+      printtostring(&s,
+		    "Example 2: SF + damped-random-walk fit\n");
+      printtostring(&s,
+		    "--------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW\n\n");
+      printtostring(&s,
+		    "Fit a damped-random-walk (DRW, or Ornstein-Uhlenbeck / CAR(1)) model to the SF curve and report the long-term magnitude standard deviation sigma_long and damping time tau in the MacLeod et al. 2010, ApJ, 721, 1014 parameterisation. The DRW analytic SF is SF_DRW(dt) = sqrt(2)*sigma_long*sqrt(1 - exp(-dt/tau)); the fit minimises chi^2 = sum [(SF_obs - SF_model)/sigma_SF]^2 using a downhill simplex on (log SF_inf, log tau), starting from initial guesses derived from the data. Five scalar columns are emitted: STRUCTUREFUNCTION_SIGMA_0 (sigma_long), STRUCTUREFUNCTION_TAU_0, STRUCTUREFUNCTION_CHI2_0, STRUCTUREFUNCTION_DOF_0, and STRUCTUREFUNCTION_CONVERGED_0. EXAMPLES/2 carries an injected sinusoidal signal, so the DRW is the wrong model and chi^2 per degree of freedom is large; this is how the fit flags model misspecification. For real DRW data (e.g. quasar optical light curves with adequate baseline) the recovered (sigma_long, tau) approach the input values.\n\n");
+      printtostring(&s,
+		    "Other options: \"estimator mad\" switches to the absolute-deviation form (Hughes, Aller and Aller 1992, ApJ, 396, 469; Schmidt et al. 2010, ApJ, 714, 1194, their Equation 2), which is more robust to outliers; \"save outdir\" writes the full SF curve as a four-column aux file <outdir>/<lcname>.sf for offline plotting or further modelling; \"lagrange lagmin lagmax\" fixes the lag range explicitly (and each lag-range / sigma0 / tau0 parameter accepts a fixed value, a \"var\" keyword followed by a variable name, or an \"expr\" keyword followed by an analytic expression for per-light-curve sourcing). Cite Simonetti, Cordes and Heeschen 1985 if you use \"estimator squared\"; cite Hughes, Aller and Aller 1992 and Schmidt et al. 2010 if you use \"estimator mad\"; and cite Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895 (the CAR(1) introduction) together with MacLeod et al. 2010 if you use \"fitDRW\".\n\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-SYSREM",7) && strlen(c) == 7)
     {
       printtostring(&s,
