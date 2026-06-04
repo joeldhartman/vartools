@@ -771,6 +771,21 @@ void InitCommands(ProgramData *p, Command *c)
 	       (c[i].StructureFunction->converged  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
 	      vt_error(ERR_MEMALLOC);
 	  }
+	  if(c[i].StructureFunction->do_report_in_table) {
+	    int ne = c[i].StructureFunction->n_report_edges;
+	    if((c[i].StructureFunction->report_dt       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_sf       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_sigma_sf = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_npairs   = (int **)    malloc(Nlcs * sizeof(int *)))    == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j = 0; j < Nlcs; j++) {
+	      if((c[i].StructureFunction->report_dt[j]       = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_sf[j]       = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_sigma_sf[j] = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_npairs[j]   = (int *)    malloc(ne * sizeof(int)))    == NULL)
+	        vt_error(ERR_MEMALLOC);
+	    }
+	  }
 	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

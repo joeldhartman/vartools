@@ -1360,6 +1360,13 @@ typedef struct {
   int do_save;
   char outdir[MAXLEN];
   char suffix[8];
+  /* In-table per-edge SF reporting: for each user-supplied lag value
+   * report_edges[k] (k = 0..n_report_edges-1), emit four scalar columns
+   * with the values of the SF bin that contains the requested lag.
+   * Edges must be strictly increasing and > 0. */
+  int do_report_in_table;
+  int n_report_edges;
+  double *report_edges;
   /* mask */
   int usemask;
   _Variable *maskvar;
@@ -1369,6 +1376,12 @@ typedef struct {
   double *chi2;
   int *dof;
   int *converged;
+  /* outputs: per-LC per-edge arrays (allocated when do_report_in_table).
+   * Shape: [Nlcs][n_report_edges]. */
+  double **report_dt;
+  double **report_sf;
+  double **report_sigma_sf;
+  int    **report_npairs;
 } _StructureFunction;
 
 typedef struct {

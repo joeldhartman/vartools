@@ -172,6 +172,20 @@ static void sf_set_drw_nan(_StructureFunction *sf, int lcnum)
   sf->converged[lcnum]  = 0;
 }
 
+/* Write NaN / 0 to every per-edge output cell for this LC (when
+ * reportsfvalsintable is on).  report_dt = NaN by default; the kernel
+ * overrides it with the bin centre when the edge falls in a valid bin. */
+static void sf_set_report_nan(_StructureFunction *sf, int lcnum)
+{
+  int ke;
+  for(ke = 0; ke < sf->n_report_edges; ke++) {
+    sf->report_dt[lcnum][ke]       = sqrt(-1.0);
+    sf->report_sf[lcnum][ke]       = sqrt(-1.0);
+    sf->report_sigma_sf[lcnum][ke] = sqrt(-1.0);
+    sf->report_npairs[lcnum][ke]   = 0;
+  }
+}
+
 /* Build the array of bin edges (length Nbins+1) and centres (length
  * Nbins) for the resolved (lagmin, lagmax).  For BINS_EDGES the user-
  * supplied edges are copied verbatim and lagmin/lagmax are ignored.
@@ -384,6 +398,8 @@ void RunStructureFunctionCommand(ProgramData *p, _StructureFunction *sf,
    * success below. */
   if(sf->do_fit_drw)
     sf_set_drw_nan(sf, lcnum);
+  if(sf->do_report_in_table)
+    sf_set_report_nan(sf, lcnum);
 
   /* Resolve per-LC parameter values. */
   if(sf->have_lagrange) {
@@ -569,6 +585,23 @@ void RunStructureFunctionCommand(ProgramData *p, _StructureFunction *sf,
           sigma_SF[k] = sqrt(-1.0);
         }
       }
+    }
+  }
+
+  /* Optional in-table per-edge scalar output: for each user-supplied
+   * lag, locate the bin containing it and copy its (centre, SF,
+   * sigma_SF, n_pairs) into the output columns.  Out-of-range edges
+   * leave the per-LC defaults (NaN / 0) untouched. */
+  if(sf->do_report_in_table) {
+    int ke;
+    for(ke = 0; ke < sf->n_report_edges; ke++) {
+      int kb = sf_bin_index(sf, sf->report_edges[ke], edges, lagmin_eff,
+                            inv_logstep, inv_linstep);
+      if(kb < 0) continue;
+      sf->report_dt[lcnum][ke]       = centres[kb];
+      sf->report_sf[lcnum][ke]       = SF_curve[kb];
+      sf->report_sigma_sf[lcnum][ke] = sigma_SF[kb];
+      sf->report_npairs[lcnum][ke]   = (int) n_pairs[kb];
     }
   }
 

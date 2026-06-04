@@ -4001,6 +4001,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].StructureFunction->have_sigma0 = 0;
 	  c[cn].StructureFunction->have_tau0 = 0;
 	  c[cn].StructureFunction->do_save = 0;
+	  c[cn].StructureFunction->do_report_in_table = 0;
+	  c[cn].StructureFunction->n_report_edges = 0;
+	  c[cn].StructureFunction->report_edges = NULL;
 	  c[cn].StructureFunction->usemask = 0;
 	  c[cn].StructureFunction->maskvar = NULL;
 	  c[cn].StructureFunction->outdir[0] = '\0';
@@ -4183,6 +4186,69 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    } else {
 	      i--;
 	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "reportsfvalsintable" e1,e2,...,en
+	   * Emit four scalar columns (DT, SF, SIGMA_SF, NPAIRS) per
+	   * requested lag value, taken from the SF bin that contains it. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"reportsfvalsintable")) {
+	    int NE = 1, ie, ke, lentmp = 256, ne_pos = 0;
+	    char *tmpstring;
+	    double eval, prev;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    /* Count comma-separated edges. */
+	    for(ie = 0; argv[i][ie] != '\0'; ie++)
+	      if(argv[i][ie] == ',') NE++;
+	    if((c[cn].StructureFunction->report_edges = (double *) malloc(NE * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    {
+	      int i1e = 0, i2e = 0;
+	      for(ke = 0; ke < NE; ke++) {
+		while(argv[i][i2e] != '\0' && argv[i][i2e] != ',') i2e++;
+		if((i2e - i1e + 1) > lentmp) {
+		  lentmp = 2*(i2e - i1e + 1);
+		  if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		    vt_error(ERR_MEMALLOC);
+		}
+		for(ie = i1e; ie < i2e; ie++) tmpstring[ie - i1e] = argv[i][ie];
+		tmpstring[i2e - i1e] = '\0';
+		if(sscanf(tmpstring, "%lf", &eval) != 1) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "reportsfvalsintable: invalid lag value '%s'\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(!(eval > 0.0)) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "reportsfvalsintable: lag value '%s' must be > 0\n",
+		    tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(ne_pos > 0) {
+		  prev = c[cn].StructureFunction->report_edges[ne_pos - 1];
+		  if(!(eval > prev)) {
+		    fprintf(stderr,
+		      "Error parsing the command-line: -structurefunction "
+		      "reportsfvalsintable lag values must be strictly "
+		      "increasing (got '%g' after '%g')\n", eval, prev);
+		    listcommands(argv[iterm],p);
+		  }
+		}
+		c[cn].StructureFunction->report_edges[ne_pos++] = eval;
+		i1e = i2e + 1;
+		i2e = i2e + 1;
+	      }
+	    }
+	    free(tmpstring);
+	    c[cn].StructureFunction->n_report_edges = NE;
+	    c[cn].StructureFunction->do_report_in_table = 1;
 	  } else {
 	    i--;
 	  }

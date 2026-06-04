@@ -1351,6 +1351,19 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->dof),        "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_DOF_%d",       l);
 	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->converged),  "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_CONVERGED_%d", l);
 	  }
+	  if(c[l].StructureFunction->do_report_in_table) {
+	    int ke;
+	    for(ke = 0; ke < c[l].StructureFunction->n_report_edges; ke++) {
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_DT_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_dt),       "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_SF_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_sf),       "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_SIGMA_SF_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_sigma_sf), "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_NPAIRS_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->report_npairs),   "%d",    2, 0, 0, 0, ke, tmpstring, l);
+	    }
+	  }
 	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
