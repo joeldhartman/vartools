@@ -832,6 +832,275 @@ class CodyQ(VartoolsCommand):
         self.period = _resolve_period_backref(prev, self.period)
 
 
+class structurefunction(VartoolsCommand):
+    """Ensemble structure function with optional damped-random-walk fit.
+
+    Compute the per-light-curve ensemble structure function (SF) on lag
+    bins constructed from all pairs of observations.  Two estimators are
+    supported (selected by ``estimator``):
+
+    - ``"squared"`` (default) -- the squared-difference form with
+      bin-averaged noise subtraction::
+
+          SF^2(dt) = <(m_j - m_i)^2>_pairs in bin
+                   - <sigma_i^2 + sigma_j^2>_pairs in bin
+
+      This is the ``D^(1)(tau)`` of Simonetti, Cordes & Heeschen 1985,
+      ApJ, 296, 46.  Bins where the noise-subtracted variance is
+      non-positive are NaN.
+
+    - ``"mad"`` -- the absolute-deviation form with per-pair noise
+      subtraction (Hughes, Aller & Aller 1992; Schmidt et al. 2010
+      Equation 2)::
+
+          V(dt) = <(sqrt(pi)/2) * |m_j - m_i|
+                  - sqrt(sigma_i^2 + sigma_j^2)>_pairs in bin
+
+      More robust to outliers, biased low when the intrinsic variance
+      approaches the photometric noise floor; bins whose averaged
+      value goes non-positive are NaN.
+
+    Per-bin error bars are reported as ``sigma_SF = SF / sqrt(2 N_eff)``
+    (squared) or ``sigma_SF = SF / sqrt(N_eff / (pi/2 - 1))`` (mad),
+    where ``N_eff = min(N_pairs, N_obs/2)`` bounds the number of
+    effectively independent pairs.  This recovers the right
+    ``~SF / sqrt(N_obs)`` precision floor at long lags rather than
+    continuing to shrink as ``1 / sqrt(N_pairs)``.
+
+    When ``fitDRW=True``, a damped-random-walk (Ornstein-Uhlenbeck /
+    CAR(1)) model (Kelly, Bechtold & Siemiginowska 2009) is fit to the
+    well-determined SF bins via a Nelder-Mead simplex on
+    ``(log SF_inf, log tau)``, minimising
+    ``chi^2 = sum [(SF_obs - SF_model) / sigma_SF]^2``.  The DRW SF is
+    ``SF_DRW(dt) = SF_inf * sqrt(1 - exp(-dt / tau))`` with
+    ``SF_inf = sqrt(2) * sigma_long``; the reported scalar amplitude is
+    ``sigma_long`` (MacLeod et al. 2010 convention, mag).
+
+    Parameters
+    ----------
+    bins : {"log", "linear", "edges"}
+        Bin geometry selector.  ``"log"`` and ``"linear"`` require
+        ``Nbins``; ``"edges"`` requires ``edges``.
+    Nbins : int, optional
+        Number of bins for ``"log"`` / ``"linear"``.  Must be >= 2.
+    edges : sequence of float, optional
+        Strictly increasing list of positive bin edges for ``"edges"``
+        mode.  ``len(edges) - 1`` bins are produced.
+    lagrange : tuple (lagmin, lagmax), optional
+        Explicit lag-range edges for ``"log"`` / ``"linear"`` binning.
+        Each element may be a number, a bare variable name (vartools
+        ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"``
+        string.  If omitted (default), ``lagmin`` is the smallest
+        consecutive time spacing in the (filtered) light curve and
+        ``lagmax`` is the full baseline.  Ignored for ``"edges"``.
+    estimator : {"squared", "mad"}
+        SF estimator family.  Default ``"squared"``.
+    fitDRW : bool
+        Fit a DRW model to the SF bins.  When ``True``, emits five
+        scalar columns: ``STRUCTUREFUNCTION_SIGMA_N`` (= sigma_long,
+        mag), ``_TAU_N``, ``_CHI2_N``, ``_DOF_N``, ``_CONVERGED_N``.
+    sigma0 : float or str, optional
+        Initial guess for the DRW ``sigma_long`` (only valid with
+        ``fitDRW=True``).  Accepts var/expr.
+    tau0 : float or str, optional
+        Initial guess for the DRW damping time-scale.  Accepts var/expr.
+    reportsfvalsintable : sequence of float, optional
+        Strictly increasing list of positive lag values.  For each
+        requested lag ``e_k`` the wrapper emits four scalar columns
+        per light curve: ``STRUCTUREFUNCTION_DT_k_N`` (the actual bin
+        centre containing ``e_k``), ``_SF_k_N``, ``_SIGMA_SF_k_N``,
+        ``_NPAIRS_k_N``.  Out-of-range or noise-dominated bins yield
+        NaN / 0.
+    save_result : bool, str, or Output
+        Control the ``.sf`` aux file (one row per bin: ``dt_center``,
+        ``SF``, ``sigma_SF``, ``n_pairs``).
+
+        - ``False`` (default) -- no aux file.
+        - ``True`` -- write to a pipeline-managed temp dir and capture
+          into ``result.files["structurefunction_sf_N"]``.
+        - path string -- write to that directory, no capture.
+        - ``Output(path, capture=True)`` -- both.
+    maskpoints : str, optional
+        Mask variable; points with ``maskvar > 0`` contribute.
+
+    See Also
+    --------
+    CLI command: ``-structurefunction``.
+    Citations
+        ``estimator="squared"``: Simonetti, Cordes & Heeschen 1985,
+        ApJ, 296, 46.
+        ``estimator="mad"``: Hughes, Aller & Aller 1992, ApJ, 396, 469;
+        Schmidt et al. 2010, ApJ, 714, 1194 (Equation 2).
+        ``fitDRW``: Kelly, Bechtold & Siemiginowska 2009, ApJ, 698, 895;
+        MacLeod et al. 2010, ApJ, 721, 1014.
+    """
+
+    _vt_name = "structurefunction"
+    _DEFAULT_ESTIMATOR = "squared"
+
+    def __init__(
+        self,
+        bins: str,
+        Nbins: Optional[int] = None,
+        edges: Optional[Sequence[float]] = None,
+        lagrange=None,
+        estimator: str = "squared",
+        fitDRW: bool = False,
+        sigma0=None,
+        tau0=None,
+        reportsfvalsintable: Optional[Sequence[float]] = None,
+        save_result=False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        # Bin mode + parameter consistency
+        if bins not in ("log", "linear", "edges"):
+            raise ValueError(
+                f"bins must be 'log', 'linear', or 'edges'; got {bins!r}"
+            )
+
+        edges_list = None
+        if bins in ("log", "linear"):
+            if Nbins is None:
+                raise ValueError(f"bins={bins!r} requires Nbins")
+            if not isinstance(Nbins, int) or isinstance(Nbins, bool) \
+                    or Nbins < 2:
+                raise ValueError(
+                    f"Nbins = {Nbins!r} must be an integer >= 2"
+                )
+            if edges is not None:
+                raise ValueError(
+                    "edges is only valid for bins='edges'"
+                )
+        else:  # edges
+            if edges is None:
+                raise ValueError("bins='edges' requires edges")
+            edges_list = self._validate_edges(edges, "edges")
+            if len(edges_list) < 3:
+                raise ValueError(
+                    "bins='edges' requires at least 3 edges (giving "
+                    ">= 2 bins)"
+                )
+            if Nbins is not None:
+                raise ValueError(
+                    "Nbins is only valid for bins='log' or 'linear'"
+                )
+
+        if estimator not in ("squared", "mad"):
+            raise ValueError(
+                f"estimator must be 'squared' or 'mad'; got {estimator!r}"
+            )
+
+        if (sigma0 is not None or tau0 is not None) and not fitDRW:
+            raise ValueError(
+                "sigma0 / tau0 are only valid when fitDRW=True"
+            )
+        if isinstance(sigma0, (int, float)) and not isinstance(sigma0, bool) \
+                and sigma0 <= 0.0:
+            raise ValueError(f"sigma0 = {sigma0} must be > 0")
+        if isinstance(tau0, (int, float)) and not isinstance(tau0, bool) \
+                and tau0 <= 0.0:
+            raise ValueError(f"tau0 = {tau0} must be > 0")
+
+        if lagrange is not None:
+            if len(lagrange) != 2:
+                raise ValueError(
+                    "lagrange must be a 2-tuple (lagmin, lagmax)"
+                )
+            lmin, lmax = lagrange
+            if isinstance(lmin, (int, float)) and not isinstance(lmin, bool) \
+                    and lmin <= 0:
+                raise ValueError(f"lagrange lagmin = {lmin} must be > 0")
+            if (isinstance(lmin, (int, float)) and not isinstance(lmin, bool)
+                    and isinstance(lmax, (int, float))
+                    and not isinstance(lmax, bool)
+                    and lmax <= lmin):
+                raise ValueError(
+                    f"lagrange lagmax ({lmax}) must be > lagmin ({lmin})"
+                )
+
+        report_list = None
+        if reportsfvalsintable is not None:
+            report_list = self._validate_edges(
+                reportsfvalsintable, "reportsfvalsintable"
+            )
+
+        self.bins = bins
+        self.Nbins = Nbins
+        self.edges = list(edges_list) if edges_list is not None else None
+        self.lagrange = tuple(lagrange) if lagrange is not None else None
+        self.estimator = estimator
+        self.fitDRW = bool(fitDRW)
+        self.sigma0 = sigma0
+        self.tau0 = tau0
+        self.reportsfvalsintable = report_list
+        self.save_result = save_result
+        self.maskpoints = maskpoints
+
+    @staticmethod
+    def _validate_edges(values, name):
+        canonical = []
+        prev = None
+        for idx, val in enumerate(values):
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{name}[{idx}] must be a number, got {val!r}"
+                )
+            if v <= 0.0:
+                raise ValueError(f"{name}[{idx}] = {v} must be > 0")
+            if prev is not None and v <= prev:
+                raise ValueError(
+                    f"{name} must be strictly increasing "
+                    f"(got {v} after {prev})"
+                )
+            canonical.append(v)
+            prev = v
+        return canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-structurefunction", "bins"]
+        if self.bins == "edges":
+            args += ["edges", ",".join(repr(v) for v in self.edges)]
+        else:
+            args += [self.bins, str(self.Nbins)]
+
+        if self.lagrange is not None:
+            args += ["lagrange"]
+            args += _varexpr(self.lagrange[0])
+            args += _varexpr(self.lagrange[1])
+
+        if self.estimator != self._DEFAULT_ESTIMATOR:
+            args += ["estimator", self.estimator]
+
+        if self.fitDRW:
+            args += ["fitDRW"]
+            if self.sigma0 is not None:
+                args += ["sigma0"] + _varexpr(self.sigma0)
+            if self.tau0 is not None:
+                args += ["tau0"] + _varexpr(self.tau0)
+
+        if self.reportsfvalsintable is not None:
+            args += [
+                "reportsfvalsintable",
+                ",".join(repr(v) for v in self.reportsfvalsintable),
+            ]
+
+        if _should_emit(self.save_result):
+            outdir = getattr(self, "_outdir", ".")
+            spec = _norm_save(self.save_result)
+            actual_outdir = spec.path if spec.path is not None else outdir
+            args += ["save", actual_outdir]
+
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _output_file_specs(self):
+        if not _should_emit(self.save_result):
+            return {}
+        return {"sf": (".sf", None)}
+
+
 class rescalesig(VartoolsCommand):
     """Rescale per-point uncertainties so that χ²/dof = 1.
 

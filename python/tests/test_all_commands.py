@@ -1288,6 +1288,237 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.CodyQ(period=-1.0, trendwindow=10)
 
+    # ----- structurefunction --------------------------------------------
+
+    def test_sf_bins_log_basic(self):
+        args = cmd.structurefunction(bins="log", Nbins=20)._to_cli_args()
+        assert args == ["-structurefunction", "bins", "log", "20"]
+
+    def test_sf_bins_linear_basic(self):
+        args = cmd.structurefunction(bins="linear", Nbins=30)._to_cli_args()
+        assert args == ["-structurefunction", "bins", "linear", "30"]
+
+    def test_sf_bins_edges_basic(self):
+        args = cmd.structurefunction(
+            bins="edges", edges=[0.01, 0.1, 1.0, 10.0]
+        )._to_cli_args()
+        assert args[:2] == ["-structurefunction", "bins"]
+        assert args[2] == "edges"
+        # Comma list, no spaces.
+        assert args[3] == "0.01,0.1,1.0,10.0"
+
+    def test_sf_lagrange_literals(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, lagrange=(0.05, 50.0)
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "lagrange", "0.05", "50.0",
+        ]
+
+    def test_sf_lagrange_var_expr(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, lagrange=("myvar", "2*lo")
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "lagrange", "var", "myvar", "expr", "2*lo",
+        ]
+
+    def test_sf_estimator_default_suppressed(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, estimator="squared"
+        )._to_cli_args()
+        assert "estimator" not in args
+
+    def test_sf_estimator_mad_emitted(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, estimator="mad"
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "estimator", "mad"
+        ]
+
+    def test_sf_fitDRW_flag_only(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "fitDRW"
+        ]
+
+    def test_sf_fitDRW_with_sigma0_tau0(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True, sigma0=0.05, tau0=100.0
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "fitDRW", "sigma0", "0.05", "tau0", "100.0",
+        ]
+
+    def test_sf_fitDRW_sigma0_var_expr(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True,
+            sigma0="myvar", tau0="2*tau_init",
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "fitDRW",
+            "sigma0", "var", "myvar",
+            "tau0", "expr", "2*tau_init",
+        ]
+
+    def test_sf_reportsfvalsintable_basic(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, reportsfvalsintable=[0.1, 1.0, 10.0]
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "reportsfvalsintable", "0.1,1.0,10.0",
+        ]
+
+    def test_sf_maskpoints(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, maskpoints="m"
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "maskpoints", "m"
+        ]
+
+    def test_sf_canonical_order_all_keywords(self):
+        # Strict parser canonical order: bins, lagrange, estimator,
+        # fitDRW [sigma0, tau0], reportsfvalsintable, save, maskpoints.
+        args = cmd.structurefunction(
+            bins="log",
+            Nbins=20,
+            lagrange=(0.05, 50.0),
+            estimator="mad",
+            fitDRW=True,
+            sigma0=0.05,
+            tau0=100.0,
+            reportsfvalsintable=[0.1, 1.0, 10.0],
+            save_result="/tmp/sf_out",
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction",
+            "bins", "log", "20",
+            "lagrange", "0.05", "50.0",
+            "estimator", "mad",
+            "fitDRW", "sigma0", "0.05", "tau0", "100.0",
+            "reportsfvalsintable", "0.1,1.0,10.0",
+            "save", "/tmp/sf_out",
+            "maskpoints", "m",
+        ]
+
+    def test_sf_save_result_path(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, save_result="/tmp/out"
+        )._to_cli_args()
+        assert "save" in args
+        assert "/tmp/out" in args
+
+    def test_sf_output_file_specs_save_off(self):
+        c = cmd.structurefunction(bins="log", Nbins=20)
+        assert c._output_file_specs() == {}
+
+    def test_sf_output_file_specs_save_on(self):
+        c = cmd.structurefunction(bins="log", Nbins=20, save_result=True)
+        specs = c._output_file_specs()
+        assert "sf" in specs and specs["sf"] == (".sf", None)
+
+    def test_sf_rejects_bogus_bins_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="frobnicate", Nbins=20)
+
+    def test_sf_rejects_nbins_too_small(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=1)
+
+    def test_sf_rejects_log_without_nbins(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log")
+
+    def test_sf_rejects_edges_without_edges_list(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges")
+
+    def test_sf_rejects_edges_too_short(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges", edges=[0.01, 0.1])
+
+    def test_sf_rejects_edges_non_monotonic(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="edges", edges=[0.1, 0.05, 1.0]
+            )
+
+    def test_sf_rejects_edges_with_zero(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges", edges=[0.0, 1.0, 10.0])
+
+    def test_sf_rejects_nbins_in_edges_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="edges", edges=[0.1, 1, 10], Nbins=5
+            )
+
+    def test_sf_rejects_edges_in_log_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, edges=[0.1, 1.0]
+            )
+
+    def test_sf_rejects_bogus_estimator(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, estimator="rms")
+
+    def test_sf_rejects_sigma0_without_fitDRW(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, sigma0=0.05)
+
+    def test_sf_rejects_tau0_without_fitDRW(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, tau0=100.0)
+
+    def test_sf_rejects_negative_sigma0(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, fitDRW=True, sigma0=-1
+            )
+
+    def test_sf_rejects_zero_tau0(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, fitDRW=True, tau0=0
+            )
+
+    def test_sf_rejects_lagrange_lagmax_le_lagmin(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, lagrange=(50.0, 5.0)
+            )
+
+    def test_sf_rejects_lagrange_zero_lagmin(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, lagrange=(0.0, 5.0)
+            )
+
+    def test_sf_rejects_report_non_monotonic(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20,
+                reportsfvalsintable=[1.0, 0.5, 5.0],
+            )
+
+    def test_sf_rejects_report_with_zero(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20,
+                reportsfvalsintable=[0.0, 1.0, 5.0],
+            )
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
