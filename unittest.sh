@@ -5718,4 +5718,166 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -structurefunction default squared + fitDRW
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction squared + fitDRW" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+STRUCTUREFUNCTION_SIGMA_0     = 0.036289290761141714
+STRUCTUREFUNCTION_TAU_0       = 1.6593021004619268
+STRUCTUREFUNCTION_CHI2_0      = 6306.1228817830288
+STRUCTUREFUNCTION_DOF_0       = 18
+STRUCTUREFUNCTION_CONVERGED_0 = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction estimator mad + fitDRW
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction mad + fitDRW" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 estimator mad fitDRW
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+STRUCTUREFUNCTION_SIGMA_0     = 0.037832216909965015
+STRUCTUREFUNCTION_TAU_0       = 4.4931607195581433
+STRUCTUREFUNCTION_CHI2_0      = 9250.2078644940284
+STRUCTUREFUNCTION_DOF_0       = 18
+STRUCTUREFUNCTION_CONVERGED_0 = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 estimator mad fitDRW > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction reportsfvalsintable, log binning
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction reportsfvalsintable log binning" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 reportsfvalsintable 0.1,1,10
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.091613538155797869
+STRUCTUREFUNCTION_SF_0_0       = 0.015778077239596733
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.00027416304421348168
+STRUCTUREFUNCTION_NPAIRS_0_0   = 66716
+STRUCTUREFUNCTION_DT_1_0       = 0.84355225856387461
+STRUCTUREFUNCTION_SF_1_0       = 0.047899353327422942
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00083230879939836567
+STRUCTUREFUNCTION_NPAIRS_1_0   = 305964
+STRUCTUREFUNCTION_DT_2_0       = 7.7671971550547694
+STRUCTUREFUNCTION_SF_2_0       = 0.052837654135951463
+STRUCTUREFUNCTION_SIGMA_SF_2_0 = 0.0009181177076923576
+STRUCTUREFUNCTION_NPAIRS_2_0   = 1243684
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 reportsfvalsintable 0.1,1,10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction linear bins + explicit lagrange + reportsfvalsintable
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction linear binning + lagrange" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins linear 15 lagrange 0.05 20 reportsfvalsintable 0.1,1,10
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.71499999999999997
+STRUCTUREFUNCTION_SF_0_0       = 0.038561010626104786
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.00067004387801257274
+STRUCTUREFUNCTION_NPAIRS_0_0   = 601719
+STRUCTUREFUNCTION_DT_1_0       = 0.71499999999999997
+STRUCTUREFUNCTION_SF_1_0       = 0.038561010626104786
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00067004387801257274
+STRUCTUREFUNCTION_NPAIRS_1_0   = 601719
+STRUCTUREFUNCTION_DT_2_0       = 10.024999999999999
+STRUCTUREFUNCTION_SF_2_0       = 0.02448494063825175
+STRUCTUREFUNCTION_SIGMA_SF_2_0 = 0.00042545525420061014
+STRUCTUREFUNCTION_NPAIRS_2_0   = 251080
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins linear 15 lagrange 0.05 20 reportsfvalsintable 0.1,1,10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction edges binning + reportsfvalsintable
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction edges binning + reportsfvalsintable" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins edges 0.01,0.1,1,10 reportsfvalsintable 0.05,5
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.055
+STRUCTUREFUNCTION_SF_0_0       = 0.0096206851358344031
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.0001671709603271766
+STRUCTUREFUNCTION_NPAIRS_0_0   = 152719
+STRUCTUREFUNCTION_DT_1_0       = 5.5
+STRUCTUREFUNCTION_SF_1_0       = 0.053909790117470532
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00093674735819035393
+STRUCTUREFUNCTION_NPAIRS_1_0   = 2608466
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins edges 0.01,0.1,1,10 reportsfvalsintable 0.05,5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
