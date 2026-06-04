@@ -762,6 +762,16 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].CodyQ->Npoints   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_STRUCTUREFUNCTION:
+	  if(c[i].StructureFunction->do_fit_drw) {
+	    if((c[i].StructureFunction->sigma_long = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->tau        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->chi2       = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->dof        = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	       (c[i].StructureFunction->converged  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

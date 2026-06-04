@@ -193,8 +193,16 @@
 #define CNUM_SLOPESTATS 69
 #define CNUM_CODYM 70
 #define CNUM_CODYQ 71
+#define CNUM_STRUCTUREFUNCTION 72
 
-#define TOT_CNUMS 72
+#define TOT_CNUMS 73
+
+#define SF_BINS_LOG    0
+#define SF_BINS_LINEAR 1
+#define SF_BINS_EDGES  2
+
+#define SF_ESTIMATOR_SQUARED 0
+#define SF_ESTIMATOR_MAD     1
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -1318,6 +1326,50 @@ typedef struct {
   double *Sigma;
   int *Npoints;
 } _CodyQ;
+
+typedef struct {
+  /* Binning: SF_BINS_LOG, SF_BINS_LINEAR (Nbins bins between lagmin and
+   * lagmax), or SF_BINS_EDGES (Nbins+1 explicit edges supplied by the
+   * user; Nbins is the number of bins, i.e. one less than the edge list
+   * length).  user_edges is non-NULL only for SF_BINS_EDGES. */
+  int bin_mode;
+  int Nbins;
+  double *user_edges;
+  /* Estimator: SF_ESTIMATOR_SQUARED (default; second-order squared
+   * differences with bin-averaged noise subtraction) or
+   * SF_ESTIMATOR_MAD (first-order mean-absolute-deviation with per-pair
+   * noise subtraction, Schmidt 2010 Eq. 2). */
+  int estimator;
+  /* Optional explicit lag range (otherwise auto: min/max dt over the
+   * surviving points).  Each accepts a fixed value or a per-LC var/expr
+   * source. */
+  int have_lagrange;
+  double lagmin;
+  VT_PARAM_COMPANIONS(lagmin);
+  double lagmax;
+  VT_PARAM_COMPANIONS(lagmax);
+  /* DRW fit. */
+  int do_fit_drw;
+  int have_sigma0;
+  double sigma0;
+  VT_PARAM_COMPANIONS(sigma0);
+  int have_tau0;
+  double tau0;
+  VT_PARAM_COMPANIONS(tau0);
+  /* Aux-file output (4 columns: dt_center SF sigma_SF n_pairs). */
+  int do_save;
+  char outdir[MAXLEN];
+  char suffix[8];
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars (DRW fit only; allocated when do_fit_drw). */
+  double *sigma_long;
+  double *tau;
+  double *chi2;
+  int *dof;
+  int *converged;
+} _StructureFunction;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2840,6 +2892,7 @@ typedef struct {
   _Slopestats *Slopestats;
   _CodyM *CodyM;
   _CodyQ *CodyQ;
+  _StructureFunction *StructureFunction;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

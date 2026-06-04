@@ -3975,6 +3975,245 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -structurefunction
+       *   "bins" <"log" Nbins | "linear" Nbins | "edges" e1,e2,...,en>
+       *   ["lagrange" <"var" v | "expr" e | lagmin>
+       *               <"var" v | "expr" e | lagmax>]
+       *   ["fitDRW" ["sigma0" <"var" v | "expr" e | S>]
+       *             ["tau0"   <"var" v | "expr" e | T>]]
+       *   ["save" outdir]
+       *   ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-structurefunction",18) && strlen(argv[i]) == 18)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_STRUCTUREFUNCTION;
+	  if((c[cn].StructureFunction = (_StructureFunction *) malloc(sizeof(_StructureFunction))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].StructureFunction->bin_mode = -1;
+	  c[cn].StructureFunction->Nbins = 0;
+	  c[cn].StructureFunction->user_edges = NULL;
+	  c[cn].StructureFunction->estimator = SF_ESTIMATOR_SQUARED;
+	  c[cn].StructureFunction->have_lagrange = 0;
+	  c[cn].StructureFunction->do_fit_drw = 0;
+	  c[cn].StructureFunction->have_sigma0 = 0;
+	  c[cn].StructureFunction->have_tau0 = 0;
+	  c[cn].StructureFunction->do_save = 0;
+	  c[cn].StructureFunction->usemask = 0;
+	  c[cn].StructureFunction->maskvar = NULL;
+	  c[cn].StructureFunction->outdir[0] = '\0';
+	  sprintf(c[cn].StructureFunction->suffix, ".sf");
+	  VT_INIT_PARAM(c[cn].StructureFunction, lagmin);
+	  VT_INIT_PARAM(c[cn].StructureFunction, lagmax);
+	  VT_INIT_PARAM(c[cn].StructureFunction, sigma0);
+	  VT_INIT_PARAM(c[cn].StructureFunction, tau0);
+
+	  /* Required: "bins" <"log" Nbins | "linear" Nbins | "edges" e1,...,en> */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"bins"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"log") || !strcmp(argv[i],"linear")) {
+	    c[cn].StructureFunction->bin_mode =
+	      (!strcmp(argv[i],"log") ? SF_BINS_LOG : SF_BINS_LINEAR);
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%d", &(c[cn].StructureFunction->Nbins)) != 1 ||
+	       c[cn].StructureFunction->Nbins < 2) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction bins "
+		"Nbins value '%s' must be an integer >= 2\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else if(!strcmp(argv[i],"edges")) {
+	    int NE = 1, ie, ke, lentmp = 256, ne_pos = 0;
+	    char *tmpstring;
+	    double eval, prev;
+	    c[cn].StructureFunction->bin_mode = SF_BINS_EDGES;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    /* Count edge values (comma-separated). */
+	    for(ie = 0; argv[i][ie] != '\0'; ie++)
+	      if(argv[i][ie] == ',') NE++;
+	    if(NE < 3) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction bins "
+		"edges requires at least 3 comma-separated values (giving "
+		">= 2 bins); got '%s'\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    if((c[cn].StructureFunction->user_edges = (double *) malloc(NE * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    ne_pos = 0;
+	    {
+	      int i1e = 0, i2e = 0;
+	      for(ke = 0; ke < NE; ke++) {
+		while(argv[i][i2e] != '\0' && argv[i][i2e] != ',') i2e++;
+		if((i2e - i1e + 1) > lentmp) {
+		  lentmp = 2*(i2e - i1e + 1);
+		  if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		    vt_error(ERR_MEMALLOC);
+		}
+		for(ie = i1e; ie < i2e; ie++) tmpstring[ie - i1e] = argv[i][ie];
+		tmpstring[i2e - i1e] = '\0';
+		if(sscanf(tmpstring, "%lf", &eval) != 1) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "bins edges: invalid value '%s'\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(!(eval > 0.0)) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "bins edges: value '%s' must be > 0\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(ne_pos > 0) {
+		  prev = c[cn].StructureFunction->user_edges[ne_pos - 1];
+		  if(!(eval > prev)) {
+		    fprintf(stderr,
+		      "Error parsing the command-line: -structurefunction "
+		      "bins edges values must be strictly increasing (got "
+		      "'%g' after '%g')\n", eval, prev);
+		    listcommands(argv[iterm],p);
+		  }
+		}
+		c[cn].StructureFunction->user_edges[ne_pos++] = eval;
+		i1e = i2e + 1;
+		i2e = i2e + 1;
+	      }
+	    }
+	    free(tmpstring);
+	    c[cn].StructureFunction->Nbins = NE - 1;
+	  } else {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -structurefunction bins "
+	      "mode must be 'log', 'linear', or 'edges' (got '%s')\n",
+	      argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "lagrange" <var|expr|lagmin> <var|expr|lagmax>.  Comes
+	   * immediately after "bins" since it is part of specifying which
+	   * bins to compute. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"lagrange")) {
+	    c[cn].StructureFunction->have_lagrange = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].StructureFunction, lagmin, argv, i);
+	    if(c[cn].StructureFunction->lagmin_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].StructureFunction->lagmin > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction lagrange "
+		"lagmin value '%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].StructureFunction, lagmax, argv, i);
+	    if(c[cn].StructureFunction->lagmin_source == VARTOOLS_SOURCE_FIXED &&
+	       c[cn].StructureFunction->lagmax_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].StructureFunction->lagmax > c[cn].StructureFunction->lagmin)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction lagrange "
+		"lagmax value '%s' must be > lagmin\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "estimator" <"squared" | "mad"> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"estimator")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"squared")) {
+	      c[cn].StructureFunction->estimator = SF_ESTIMATOR_SQUARED;
+	    } else if(!strcmp(argv[i],"mad")) {
+	      c[cn].StructureFunction->estimator = SF_ESTIMATOR_MAD;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction "
+		"estimator must be 'squared' or 'mad' (got '%s')\n",
+		argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "fitDRW" ["sigma0" <var|expr|S>] ["tau0" <var|expr|T>] */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"fitDRW")) {
+	    c[cn].StructureFunction->do_fit_drw = 1;
+	    i++;
+	    if(i < argc && !strcmp(argv[i],"sigma0")) {
+	      c[cn].StructureFunction->have_sigma0 = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].StructureFunction, sigma0, argv, i);
+	      if(c[cn].StructureFunction->sigma0_source == VARTOOLS_SOURCE_FIXED &&
+		 !(c[cn].StructureFunction->sigma0 > 0.0)) {
+		fprintf(stderr,
+		  "Error parsing the command-line: -structurefunction fitDRW "
+		  "sigma0 value '%s' must be > 0\n", argv[i]);
+		listcommands(argv[iterm],p);
+	      }
+	      i++;
+	    }
+	    if(i < argc && !strcmp(argv[i],"tau0")) {
+	      c[cn].StructureFunction->have_tau0 = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].StructureFunction, tau0, argv, i);
+	      if(c[cn].StructureFunction->tau0_source == VARTOOLS_SOURCE_FIXED &&
+		 !(c[cn].StructureFunction->tau0 > 0.0)) {
+		fprintf(stderr,
+		  "Error parsing the command-line: -structurefunction fitDRW "
+		  "tau0 value '%s' must be > 0\n", argv[i]);
+		listcommands(argv[iterm],p);
+	      }
+	    } else {
+	      i--;
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "save" outdir */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"save")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    sprintf(c[cn].StructureFunction->outdir, "%s", argv[i]);
+	    c[cn].StructureFunction->do_save = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].StructureFunction->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].StructureFunction->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{

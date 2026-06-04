@@ -463,6 +463,23 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunCodyQCommand(p, c->CodyQ, lc2, lc);
       break;
 
+    case CNUM_STRUCTUREFUNCTION:
+      if(c->StructureFunction->do_save) {
+	i1 = 0; i2 = 0;
+	while(p->lcnames[lc][i1] != '\0') {
+	  if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	  i1++;
+	}
+	sprintf(outname, "%s/%s%s",
+	        c->StructureFunction->outdir,
+	        &p->lcnames[lc][i2],
+	        c->StructureFunction->suffix);
+	RunStructureFunctionCommand(p, c->StructureFunction, lc2, lc, outname);
+      } else {
+	RunStructureFunctionCommand(p, c->StructureFunction, lc2, lc, NULL);
+      }
+      break;
+
     case CNUM_AUTOCORR:
       /* Calculate the auto-correlation */
       i1 = 0;
@@ -2588,6 +2605,32 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  }
 	  /* PERTYPE_SPECIFIED: period[lc][0] already populated from the input list. */
 	  RunCodyQCommand(p, c->CodyQ, lc, lc);
+	}
+      break;
+
+    case CNUM_STRUCTUREFUNCTION:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(c->StructureFunction->do_save) {
+	    i1 = 0; i2 = 0;
+	    while(p->lcnames[lc][i1] != '\0') {
+	      if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	      i1++;
+	    }
+	    sprintf(outname, "%s/%s%s",
+	            c->StructureFunction->outdir,
+	            &p->lcnames[lc][i2],
+	            c->StructureFunction->suffix);
+	    RunStructureFunctionCommand(p, c->StructureFunction, lc, lc, outname);
+	  } else {
+	    RunStructureFunctionCommand(p, c->StructureFunction, lc, lc, NULL);
+	  }
 	}
       break;
 

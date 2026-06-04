@@ -1343,6 +1343,15 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Sigma),     "%.17g", 1, 0, 0, 0, "CODYQ_Sigma_%d", l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyQ->Npoints),   "%d",    1, 0, 0, 0, "CODYQ_Npoints_%d", l);
 	  break;
+	case CNUM_STRUCTUREFUNCTION:
+	  if(c[l].StructureFunction->do_fit_drw) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->sigma_long), "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_SIGMA_%d",     l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->tau),        "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_TAU_%d",       l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->chi2),       "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_CHI2_%d",      l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->dof),        "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_DOF_%d",       l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->converged),  "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_CONVERGED_%d", l);
+	  }
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);
