@@ -169,6 +169,7 @@ am__objects_1 = libvartoolspipeline_la-alarm.lo \
 	libvartoolspipeline_la-codym.lo \
 	libvartoolspipeline_la-codyq.lo \
 	libvartoolspipeline_la-structurefunction.lo \
+	libvartoolspipeline_la-drwfit.lo \
 	libvartoolspipeline_la-binarylcio.lo \
 	libvartoolspipeline_la-chi2rms.lo \
 	libvartoolspipeline_la-copylc.lo \
@@ -294,6 +295,7 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-error.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-example.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fft.Plo \
@@ -592,7 +594,7 @@ libvartools_la_SOURCES = vartools.c
 # those sources, so every symbol is compiled exactly once.
 PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
  matchedfilter.c matchedfilter_nfft.c vonneumann.c percentileratios.c beyondNsigma.c \
- slopestats.c codym.c codyq.c structurefunction.c \
+ slopestats.c codym.c codyq.c structurefunction.c drwfit.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \
@@ -794,6 +796,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-error.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-example.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fft.Plo@am__quote@ # am--include-marker
@@ -1005,6 +1008,13 @@ libvartoolspipeline_la-structurefunction.lo: structurefunction.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='structurefunction.c' object='libvartoolspipeline_la-structurefunction.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-structurefunction.lo `test -f 'structurefunction.c' || echo '$(srcdir)/'`structurefunction.c
+
+libvartoolspipeline_la-drwfit.lo: drwfit.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-drwfit.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-drwfit.Tpo -c -o libvartoolspipeline_la-drwfit.lo `test -f 'drwfit.c' || echo '$(srcdir)/'`drwfit.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-drwfit.Tpo $(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='drwfit.c' object='libvartoolspipeline_la-drwfit.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-drwfit.lo `test -f 'drwfit.c' || echo '$(srcdir)/'`drwfit.c
 
 libvartoolspipeline_la-binarylcio.lo: binarylcio.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-binarylcio.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-binarylcio.Tpo -c -o libvartoolspipeline_la-binarylcio.lo `test -f 'binarylcio.c' || echo '$(srcdir)/'`binarylcio.c
@@ -1626,6 +1636,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-error.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-example.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fft.Plo
@@ -1755,6 +1766,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-error.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-example.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fft.Plo

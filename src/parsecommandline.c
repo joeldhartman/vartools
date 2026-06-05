@@ -694,6 +694,124 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -drwfit
+       *   ["mean" <"fit" | "fix" <"var" v | "expr" e | mu> | "subtract">]
+       *   ["sigma0" <"var" v | "expr" e | S>]
+       *   ["tau0"   <"var" v | "expr" e | T>]
+       *   ["mean0"  <"var" v | "expr" e | M>]
+       *   ["maskpoints" maskvar]
+       *
+       * Strict-order trailing keywords per
+       * reference_strict_trailing_keyword_parser: each slot uses the
+       * positional i++/i-- pattern.  Wrong order or duplicates fall
+       * through and are rejected by the main parser as unknown tokens. */
+      else if(!strncmp(argv[i],"-drwfit",7) && strlen(argv[i]) == 7)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_DRWFIT;
+	  if((c[cn].DRWFit = (_DRWFit *) malloc(sizeof(_DRWFit))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].DRWFit->mean_mode   = DRWFIT_MEAN_FIT;
+	  c[cn].DRWFit->have_sigma0 = 0;
+	  c[cn].DRWFit->have_tau0   = 0;
+	  c[cn].DRWFit->have_mean0  = 0;
+	  c[cn].DRWFit->usemask     = 0;
+	  c[cn].DRWFit->maskvar     = NULL;
+	  VT_INIT_PARAM(c[cn].DRWFit, mu_fix);
+	  VT_INIT_PARAM(c[cn].DRWFit, sigma0);
+	  VT_INIT_PARAM(c[cn].DRWFit, tau0);
+	  VT_INIT_PARAM(c[cn].DRWFit, mean0);
+
+	  /* "mean" <"fit" | "fix" <var|expr|mu> | "subtract"> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"mean")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"fit")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_FIT;
+	    } else if(!strcmp(argv[i],"fix")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_FIX;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].DRWFit, mu_fix, argv, i);
+	    } else if(!strcmp(argv[i],"subtract")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_SUBTRACT;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit mean mode must be "
+		"'fit', 'fix', or 'subtract' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "sigma0" <var|expr|S> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"sigma0")) {
+	    c[cn].DRWFit->have_sigma0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, sigma0, argv, i);
+	    if(c[cn].DRWFit->sigma0_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].DRWFit->sigma0 > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit sigma0 value "
+		"'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "tau0" <var|expr|T> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"tau0")) {
+	    c[cn].DRWFit->have_tau0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, tau0, argv, i);
+	    if(c[cn].DRWFit->tau0_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].DRWFit->tau0 > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit tau0 value '%s' "
+		"must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "mean0" <var|expr|M> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"mean0")) {
+	    c[cn].DRWFit->have_mean0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, mean0, argv, i);
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].DRWFit->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].DRWFit->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       else if(!strncmp(argv[i],"-fluxtomag",10) && strlen(argv[i]) == 10)
 	{
 	  iterm = i;

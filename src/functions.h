@@ -457,6 +457,7 @@ void RunSlopestatsCommand(ProgramData *p, _Slopestats *ss, int lcnum, int lc_nam
 void RunCodyMCommand(ProgramData *p, _CodyM *cm, int lcnum, int lc_name_num);
 void RunCodyQCommand(ProgramData *p, _CodyQ *cq, int lcnum, int lc_name_num);
 void RunStructureFunctionCommand(ProgramData *p, _StructureFunction *sf, int lcnum, int lc_name_num, char *outname);
+void RunDRWFitCommand(ProgramData *p, _DRWFit *drw, int lcnum, int lc_name_num, char *outname);
 void GetDoubleParameterValue(int threadid, int lcid, double *outparam, int source, double fixvalue, double *inlistvec, OutColumn *column, _Expression *exprsn);
 void CreateOutputColumns_UserCommand(ProgramData *p, Command *c, int cnum);
 void dotab_buffer(char *c,int tabflag);

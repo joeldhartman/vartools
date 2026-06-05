@@ -1365,6 +1365,15 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    }
 	  }
 	  break;
+	case CNUM_DRWFIT:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->sigma_long), "%.17g", 1, 0, 0, 0, "DRWFIT_SIGMA_%d",      l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->tau),        "%.17g", 1, 0, 0, 0, "DRWFIT_TAU_%d",        l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->mu),         "%.17g", 1, 0, 0, 0, "DRWFIT_MU_%d",         l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->lnL),        "%.17g", 1, 0, 0, 0, "DRWFIT_LNL_%d",        l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->dlnL_noise), "%.17g", 1, 0, 0, 0, "DRWFIT_DLNL_NOISE_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->dlnL_inf),   "%.17g", 1, 0, 0, 0, "DRWFIT_DLNL_INF_%d",   l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].DRWFit->converged),  "%d",    1, 0, 0, 0, "DRWFIT_CONVERGED_%d",  l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);

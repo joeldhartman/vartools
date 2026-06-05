@@ -194,12 +194,17 @@
 #define CNUM_CODYM 70
 #define CNUM_CODYQ 71
 #define CNUM_STRUCTUREFUNCTION 72
+#define CNUM_DRWFIT 73
 
-#define TOT_CNUMS 73
+#define TOT_CNUMS 74
 
 #define SF_BINS_LOG    0
 #define SF_BINS_LINEAR 1
 #define SF_BINS_EDGES  2
+
+#define DRWFIT_MEAN_FIT      0
+#define DRWFIT_MEAN_FIX      1
+#define DRWFIT_MEAN_SUBTRACT 2
 
 #define SF_ESTIMATOR_SQUARED 0
 #define SF_ESTIMATOR_MAD     1
@@ -1383,6 +1388,45 @@ typedef struct {
   double **report_sigma_sf;
   int    **report_npairs;
 } _StructureFunction;
+
+/* -drwfit: direct CAR(1) / damped-random-walk maximum-likelihood fit via
+ * the Kelly, Bechtold & Siemiginowska 2009 (ApJ, 698, 895) state-space
+ * recursion.  The recursion is parameterised in sigma_long (the long-
+ * term magnitude standard deviation, MacLeod 2010 mag) and tau (the
+ * damping time-scale in the time-axis units of the input LC).  The
+ * fitted scalar output column SIGMA_N is sigma_long. */
+typedef struct {
+  /* Mean-handling mode (DRWFIT_MEAN_FIT | _FIX | _SUBTRACT defined in
+   * drwfit.c).  Defaults to fit; the "mean" keyword selects. */
+  int mean_mode;
+  /* Fixed-mu source when mean_mode == DRWFIT_MEAN_FIX.  Accepts a
+   * literal, a "var" varname, or an "expr" expression. */
+  double mu_fix;
+  VT_PARAM_COMPANIONS(mu_fix);
+  /* Optional user-supplied initial guesses; each accepts a literal or a
+   * "var" / "expr" source. */
+  int have_sigma0;
+  double sigma0;
+  VT_PARAM_COMPANIONS(sigma0);
+  int have_tau0;
+  double tau0;
+  VT_PARAM_COMPANIONS(tau0);
+  int have_mean0;
+  double mean0;
+  VT_PARAM_COMPANIONS(mean0);
+  /* maskpoints */
+  int usemask;
+  _Variable *maskvar;
+  /* Per-LC output scalars.  Allocated in initcommands.c at run start;
+   * populated by RunDRWFitCommand. */
+  double *sigma_long;   /* sigma_long (MacLeod mag) */
+  double *tau;          /* damping time-scale, time-axis units */
+  double *mu;           /* fitted long-term mean (NaN if subtract) */
+  double *lnL;          /* best-fit ln L */
+  double *dlnL_noise;   /* MacLeod ΔL_noise = lnL_best - lnL_{sigma->0} */
+  double *dlnL_inf;     /* MacLeod ΔL_∞     = lnL_best - lnL_{tau->∞} */
+  int    *converged;    /* 1 if amoeba converged with finite (sigma, tau) */
+} _DRWFit;
 
 typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
@@ -2906,6 +2950,7 @@ typedef struct {
   _CodyM *CodyM;
   _CodyQ *CodyQ;
   _StructureFunction *StructureFunction;
+  _DRWFit *DRWFit;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

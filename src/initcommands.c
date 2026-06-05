@@ -787,6 +787,16 @@ void InitCommands(ProgramData *p, Command *c)
 	    }
 	  }
 	  break;
+	case CNUM_DRWFIT:
+	  if((c[i].DRWFit->sigma_long = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->tau        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->mu         = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->lnL        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->dlnL_noise = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->dlnL_inf   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->converged  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
