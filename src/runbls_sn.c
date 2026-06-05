@@ -4109,7 +4109,7 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	Bls->maxexpdurfrac_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->maxexpdurfrac_var);
       }
       else {
-	Bls->maxexpdurfrac_val[lcnum] = Bls->minexpdurfrac;
+	Bls->maxexpdurfrac_val[lcnum] = Bls->maxexpdurfrac;
       }
       
       Bls->rmin_val[lcnum] = pow(((0.0848203*Bls->minexpdurfrac_val[lcnum]*pow(Bls->rho_val[lcnum],(-1.0/3.0)))/0.076),1.5);
