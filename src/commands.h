@@ -206,6 +206,13 @@
 #define DRWFIT_MEAN_FIX      1
 #define DRWFIT_MEAN_SUBTRACT 2
 
+/* Model kind for -drwfit correctlc / modelvar.  SMOOTHED = posterior
+ * mean of the latent DRW process given the full LC (Rauch-Tung-Striebel
+ * backward pass); FORECAST = one-step-ahead forward-filter mean given
+ * only earlier observations. */
+#define DRWFIT_MODEL_SMOOTHED 0
+#define DRWFIT_MODEL_FORECAST 1
+
 #define SF_ESTIMATOR_SQUARED 0
 #define SF_ESTIMATOR_MAD     1
 
@@ -1414,6 +1421,21 @@ typedef struct {
   int have_mean0;
   double mean0;
   VT_PARAM_COMPANIONS(mean0);
+  /* Aux-file output (8 columns: t, x, sig_meas, x_hat_fwd, Omega_fwd,
+   * chi_fwd, x_smoothed, Omega_smoothed) per LC.  Suffix is ".drwfit". */
+  int do_save;
+  char outdir[MAXLEN];
+  char suffix[8];
+  /* "correctlc" -- in-place subtract the chosen model from the LC's
+   * magnitudes before passing to the next command. */
+  int do_correctlc;
+  int correctlc_kind;   /* DRWFIT_MODEL_SMOOTHED | _FORECAST */
+  /* "modelvar" -- store the chosen model at every original LC index
+   * in a named per-LC vector variable. */
+  int do_modelvar;
+  int modelvar_kind;    /* DRWFIT_MODEL_SMOOTHED | _FORECAST */
+  char *modelvarname;   /* allocated at parse time */
+  _Variable *modelvar;  /* resolved by CheckCreateCommandOutputLCVariable */
   /* maskpoints */
   int usemask;
   _Variable *maskvar;

@@ -481,7 +481,20 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       break;
 
     case CNUM_DRWFIT:
-      RunDRWFitCommand(p, c->DRWFit, lc2, lc, NULL);
+      if(c->DRWFit->do_save) {
+	i1 = 0; i2 = 0;
+	while(p->lcnames[lc][i1] != '\0') {
+	  if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	  i1++;
+	}
+	sprintf(outname, "%s/%s%s",
+	        c->DRWFit->outdir,
+	        &p->lcnames[lc][i2],
+	        c->DRWFit->suffix);
+	RunDRWFitCommand(p, c->DRWFit, lc2, lc, outname);
+      } else {
+	RunDRWFitCommand(p, c->DRWFit, lc2, lc, NULL);
+      }
       break;
 
     case CNUM_AUTOCORR:
@@ -2647,7 +2660,20 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      continue;
 	    }
 	  }
-	  RunDRWFitCommand(p, c->DRWFit, lc, lc, NULL);
+	  if(c->DRWFit->do_save) {
+	    i1 = 0; i2 = 0;
+	    while(p->lcnames[lc][i1] != '\0') {
+	      if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	      i1++;
+	    }
+	    sprintf(outname, "%s/%s%s",
+	            c->DRWFit->outdir,
+	            &p->lcnames[lc][i2],
+	            c->DRWFit->suffix);
+	    RunDRWFitCommand(p, c->DRWFit, lc, lc, outname);
+	  } else {
+	    RunDRWFitCommand(p, c->DRWFit, lc, lc, NULL);
+	  }
 	}
       break;
 

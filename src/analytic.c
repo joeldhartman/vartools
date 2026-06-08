@@ -810,6 +810,10 @@ void CompileAllExpressions(ProgramData *p, Command *c)
     else if(c[i].cnum == CNUM_MANDELAGOLTRANSIT) {
       CheckCreateCommandOutputLCVariable(c[i].MandelAgolTransit->modelvarname,&(c[i].MandelAgolTransit->modelvar),p);
     }
+    else if(c[i].cnum == CNUM_DRWFIT) {
+      if(c[i].DRWFit->do_modelvar)
+	CheckCreateCommandOutputLCVariable(c[i].DRWFit->modelvarname,&(c[i].DRWFit->modelvar),p);
+    }
     else if(c[i].cnum == CNUM_MATCHCOMMAND) {
       SetupMatchCommandVariables(c[i].MatchCommand,p);
     }

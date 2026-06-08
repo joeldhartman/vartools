@@ -699,6 +699,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
        *   ["sigma0" <"var" v | "expr" e | S>]
        *   ["tau0"   <"var" v | "expr" e | T>]
        *   ["mean0"  <"var" v | "expr" e | M>]
+       *   ["save" outdir]
+       *   ["correctlc" <"smoothed" | "forecast">]
+       *   ["modelvar"  <"smoothed" | "forecast"> modelvarname]
        *   ["maskpoints" maskvar]
        *
        * Strict-order trailing keywords per
@@ -714,12 +717,21 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  if((c[cn].DRWFit = (_DRWFit *) malloc(sizeof(_DRWFit))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 
-	  c[cn].DRWFit->mean_mode   = DRWFIT_MEAN_FIT;
-	  c[cn].DRWFit->have_sigma0 = 0;
-	  c[cn].DRWFit->have_tau0   = 0;
-	  c[cn].DRWFit->have_mean0  = 0;
-	  c[cn].DRWFit->usemask     = 0;
-	  c[cn].DRWFit->maskvar     = NULL;
+	  c[cn].DRWFit->mean_mode      = DRWFIT_MEAN_FIT;
+	  c[cn].DRWFit->have_sigma0    = 0;
+	  c[cn].DRWFit->have_tau0      = 0;
+	  c[cn].DRWFit->have_mean0     = 0;
+	  c[cn].DRWFit->do_save        = 0;
+	  c[cn].DRWFit->outdir[0]      = '\0';
+	  sprintf(c[cn].DRWFit->suffix, ".drwfit");
+	  c[cn].DRWFit->do_correctlc   = 0;
+	  c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_SMOOTHED;
+	  c[cn].DRWFit->do_modelvar    = 0;
+	  c[cn].DRWFit->modelvar_kind  = DRWFIT_MODEL_SMOOTHED;
+	  c[cn].DRWFit->modelvarname   = NULL;
+	  c[cn].DRWFit->modelvar       = NULL;
+	  c[cn].DRWFit->usemask        = 0;
+	  c[cn].DRWFit->maskvar        = NULL;
 	  VT_INIT_PARAM(c[cn].DRWFit, mu_fix);
 	  VT_INIT_PARAM(c[cn].DRWFit, sigma0);
 	  VT_INIT_PARAM(c[cn].DRWFit, tau0);
@@ -792,6 +804,69 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    i++;
 	    if(i >= argc) listcommands(argv[iterm],p);
 	    VT_PARSE_DOUBLE(c[cn].DRWFit, mean0, argv, i);
+	  } else {
+	    i--;
+	  }
+
+	  /* "save" outdir -- write a per-LC 8-column aux file
+	   * <outdir>/<lcname>.drwfit  with columns
+	   *   t  x  sig_meas  x_hat_fwd  Omega_fwd  chi_fwd  x_smoothed  Omega_smoothed
+	   * NaN rows preserved for filtered-out points. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"save")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    sprintf(c[cn].DRWFit->outdir, "%s", argv[i]);
+	    c[cn].DRWFit->do_save = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "correctlc" <"smoothed" | "forecast">
+	   * Subtract the chosen model from p->mag[lcnum] in-place so the
+	   * next command receives the DRW-detrended LC. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"correctlc")) {
+	    c[cn].DRWFit->do_correctlc = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"smoothed")) {
+	      c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_SMOOTHED;
+	    } else if(!strcmp(argv[i],"forecast")) {
+	      c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_FORECAST;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit correctlc kind "
+		"must be 'smoothed' or 'forecast' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "modelvar" <"smoothed" | "forecast"> modelvarname
+	   * Store the chosen model in a named per-LC vector variable. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"modelvar")) {
+	    c[cn].DRWFit->do_modelvar = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"smoothed")) {
+	      c[cn].DRWFit->modelvar_kind = DRWFIT_MODEL_SMOOTHED;
+	    } else if(!strcmp(argv[i],"forecast")) {
+	      c[cn].DRWFit->modelvar_kind = DRWFIT_MODEL_FORECAST;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit modelvar kind "
+		"must be 'smoothed' or 'forecast' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if((c[cn].DRWFit->modelvarname =
+	        (char *) malloc(strlen(argv[i]) + 1)) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    sprintf(c[cn].DRWFit->modelvarname, "%s", argv[i]);
 	  } else {
 	    i--;
 	  }

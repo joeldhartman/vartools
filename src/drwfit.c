@@ -147,15 +147,31 @@ typedef struct {
  *   n          : number of observations (n >= 2)
  *   sigma_long : long-term magnitude standard deviation, > 0
  *   tau        : damping time-scale, time-axis units, > 0
- *   mu         : long-term mean of the process */
+ *   mu         : long-term mean of the process
+ *
+ * Optional outputs (each may be NULL; pass non-NULL only when the
+ * forward filter trajectory is wanted, e.g. before the RTS smoother):
+ *   x_hat_minus_out[i]  : prior mean at i (forecast, before observing x_i)
+ *   Omega_minus_out[i]  : prior variance at i
+ *   x_hat_plus_out[i]   : posterior mean at i (after Bayesian update with x_i)
+ *   Omega_plus_out[i]   : posterior variance at i
+ *
+ * The recorded x_hat_*_out arrays are in CENTERED coordinates
+ * (x* = x - mu); add mu when converting to a magnitude-scale prediction. */
 static double kelly_neg2lnL(const double *t, const double *x,
                             const double *sig2, int n,
-                            double sigma_long, double tau, double mu)
+                            double sigma_long, double tau, double mu,
+                            double *x_hat_minus_out, double *Omega_minus_out,
+                            double *x_hat_plus_out,  double *Omega_plus_out)
 {
-  double Omega, x_hat, x_star, K, a, one_minus_a2, var, resid, neg2lnL;
+  double Omega, x_hat, x_star_prev, K, a, one_minus_a2, var, resid, neg2lnL;
+  double x_hat_plus_prev, Omega_plus_prev;
   double dt_over_tau, sl2;
+  int    record_minus, record_plus;
   int    i;
   if(!(sigma_long > 0.0) || !(tau > 0.0)) return 1.0e300;
+  record_minus = (x_hat_minus_out != NULL || Omega_minus_out != NULL);
+  record_plus  = (x_hat_plus_out  != NULL || Omega_plus_out  != NULL);
   sl2     = sigma_long * sigma_long;
   Omega   = sl2;                         /* Eq. 9: Omega_0 = sigma_long^2 */
   x_hat   = 0.0;                          /* Eq. 8: x_hat_0 = 0 */
@@ -163,16 +179,29 @@ static double kelly_neg2lnL(const double *t, const double *x,
   for(i = 0; i < n; i++) {
     if(i > 0) {
       /* Update from i-1 -> i (Eqs. 10, 11, 12).  Use expm1 so 1 - a^2 is
-       * accurate when Delta t / tau is small (Kalman-filter cancellation
-       * pitfall: 1.0 - exp(-r) loses ~half its digits for r near 1e-8). */
+       * accurate when Delta t / tau is small (a known floating-point
+       * cancellation pitfall when the sample spacing is small compared
+       * to the damping time-scale).  The update is logically two steps:
+       *   posterior at i-1 = prior at i-1 + Bayesian update using x_{i-1}
+       *   prior at i       = dynamics(posterior at i-1, dt_{i-1 -> i})
+       * which lets the optional record_plus path capture the posterior. */
       dt_over_tau  = (t[i] - t[i-1]) / tau;
       one_minus_a2 = -expm1(-2.0 * dt_over_tau);   /* = 1 - exp(-2 dt/tau) = 1 - a^2 */
       a            = exp(-dt_over_tau);             /* needed for x_hat update */
       K            = Omega / (Omega + sig2[i-1]);
-      x_star       = x[i-1] - mu;
-      x_hat        = a * (x_hat + K * (x_star - x_hat));
-      Omega        = sl2 * one_minus_a2
-                     + (1.0 - one_minus_a2) * Omega * (1.0 - K);
+      x_star_prev  = x[i-1] - mu;
+      x_hat_plus_prev = x_hat + K * (x_star_prev - x_hat);
+      Omega_plus_prev = Omega * (1.0 - K);
+      if(record_plus) {
+        if(x_hat_plus_out) x_hat_plus_out[i-1] = x_hat_plus_prev;
+        if(Omega_plus_out) Omega_plus_out[i-1] = Omega_plus_prev;
+      }
+      x_hat = a * x_hat_plus_prev;
+      Omega = sl2 * one_minus_a2 + (1.0 - one_minus_a2) * Omega_plus_prev;
+    }
+    if(record_minus) {
+      if(x_hat_minus_out) x_hat_minus_out[i] = x_hat;
+      if(Omega_minus_out) Omega_minus_out[i] = Omega;
     }
     /* Likelihood contribution at observation i.  Eq. 6 in log form. */
     var = Omega + sig2[i];
@@ -180,8 +209,57 @@ static double kelly_neg2lnL(const double *t, const double *x,
     resid    = (x[i] - mu) - x_hat;
     neg2lnL += log(2.0 * M_PI * var) + resid * resid / var;
   }
+  /* Posterior at the final step (not advanced into an iter n) -- only
+   * the RTS smoother's initial conditions need this, so we only compute
+   * it when the caller asked for the plus arrays. */
+  if(record_plus && n > 0) {
+    K = Omega / (Omega + sig2[n-1]);
+    if(x_hat_plus_out) x_hat_plus_out[n-1] = x_hat + K * ((x[n-1] - mu) - x_hat);
+    if(Omega_plus_out) Omega_plus_out[n-1] = Omega * (1.0 - K);
+  }
   if(!isfinite(neg2lnL)) return 1.0e300;
   return neg2lnL;
+}
+
+/* Rauch-Tung-Striebel backward smoother for the CAR(1) Kalman filter.
+ * Given the forward filter's prior/posterior moments at each step, fills
+ * (x_smooth, Omega_smooth) with the smoothed posterior moments
+ * conditional on the full observation sequence.
+ *
+ * Smoother gain G_i = a_{i+1} * Omega_plus[i] / Omega_minus[i+1].
+ * Recurrence (running backward from i = n-1 to 0):
+ *   x_smooth_i   = x_hat_plus_i + G_i * (x_smooth_{i+1} - x_hat_minus_{i+1})
+ *   Omega_smooth_i = Omega_plus_i + G_i^2 * (Omega_smooth_{i+1} - Omega_minus_{i+1})
+ *
+ * Initial conditions at i = n-1: x_smooth = x_hat_plus, Omega_smooth = Omega_plus.
+ * O(n) work, no allocation.  All x_*_out arrays in centered coordinates. */
+static void kelly_rts_smoother(const double *t, int n, double tau,
+                               const double *x_hat_minus,
+                               const double *Omega_minus,
+                               const double *x_hat_plus,
+                               const double *Omega_plus,
+                               double *x_smooth, double *Omega_smooth)
+{
+  double dt, a, G;
+  int    i;
+  if(n <= 0) return;
+  x_smooth[n-1]     = x_hat_plus[n-1];
+  Omega_smooth[n-1] = Omega_plus[n-1];
+  for(i = n - 2; i >= 0; i--) {
+    dt = t[i+1] - t[i];
+    a  = exp(-dt / tau);
+    /* Smoother gain.  Omega_minus[i+1] is strictly positive whenever
+     * sigma_long > 0 (the prior variance after a forward step has the
+     * sigma_long^2 (1 - a^2) term).  The kernel guards sigma_long > 0
+     * before calling; defensive check just in case. */
+    if(!(Omega_minus[i+1] > 0.0)) {
+      G = 0.0;
+    } else {
+      G = a * Omega_plus[i] / Omega_minus[i+1];
+    }
+    x_smooth[i]     = x_hat_plus[i] + G * (x_smooth[i+1] - x_hat_minus[i+1]);
+    Omega_smooth[i] = Omega_plus[i] + G * G * (Omega_smooth[i+1] - Omega_minus[i+1]);
+  }
 }
 
 /* Closed-form -2 ln L_{sigma_long -> 0}: pure measurement noise.  Mu is
@@ -225,7 +303,8 @@ static double kelly_neg2lnL_tau_infinity_limit(const double *t,
   T_baseline = t[n-1] - t[0];
   if(!(T_baseline > 0.0)) return 1.0e300;
   tau_eff = T_baseline * DRWFIT_TAU_INFINITY_MULTIPLIER;
-  return kelly_neg2lnL(t, x, sig2, n, sigma_long, tau_eff, mu);
+  return kelly_neg2lnL(t, x, sig2, n, sigma_long, tau_eff, mu,
+                       NULL, NULL, NULL, NULL);
 }
 
 /* amoeba callback.  params encode (log sigma_long, log tau) when
@@ -245,7 +324,8 @@ static double drw_amoeba_neg2lnL(double *params, int Nparams, int Npoints,
   else                                 mu = up->mu_fixed;
   if(!isfinite(sigma_long) || !isfinite(tau) || !isfinite(mu))
     return 1.0e300;
-  return kelly_neg2lnL(t, x, sig2, Npoints, sigma_long, tau, mu);
+  return kelly_neg2lnL(t, x, sig2, Npoints, sigma_long, tau, mu,
+                       NULL, NULL, NULL, NULL);
 }
 
 /* Set all DRWFit output scalars to NaN / 0 for this LC.  Called at entry
@@ -393,24 +473,38 @@ static int drwfit_run_amoeba(int n, double *t, double *x, double *sig2,
 void RunDRWFitCommand(ProgramData *p, _DRWFit *drw, int lcnum,
                       int lc_name_num, char *outname)
 {
-  int    N_in, N_filt, i;
+  int    N_in, N_filt, i, j;
   double *t_filt = NULL, *m_filt = NULL, *s2_filt = NULL;
+  int    *orig_idx = NULL;
   double sigma_long_init, tau_init, mu_init;
   double sigma_long_fit, tau_fit, mu_fit, neg2lnL_best;
   double neg2lnL_noise, neg2lnL_inf;
   double sigma0_in = 0.0, tau0_in = 0.0, mean0_in = 0.0, mu_fixed = 0.0;
+  double wm_subtracted = 0.0;  /* mean=subtract: weighted mean removed */
   int    have_sigma0 = drw->have_sigma0;
   int    have_tau0   = drw->have_tau0;
   int    have_mean0  = drw->have_mean0;
   int    mean_mode   = drw->mean_mode;
   int    converged   = 0;
+  int    need_forecast, need_smoothed;
+  double *xhat_minus = NULL, *Omega_minus = NULL;
+  double *xhat_plus  = NULL, *Omega_plus  = NULL;
+  double *x_smooth   = NULL, *Omega_smooth = NULL;
+  double *model_smoothed = NULL, *model_forecast = NULL;
+  double  nan_val = sqrt(-1.0);
 
-  (void) outname;       /* No aux file in Phase A. */
-
-  /* Default-NaN every output column for this LC; updated on success. */
+  /* Default-NaN every scalar output column for this LC; updated on success. */
   drwfit_set_nan(drw, lcnum);
 
+  /* Default-NaN the modelvar at every original LC index.  Done early so a
+   * non-converged fit leaves the variable well-defined for downstream
+   * commands rather than holding stale data from a previous LC. */
   N_in = p->NJD[lcnum];
+  if(drw->do_modelvar && drw->modelvar != NULL) {
+    for(i = 0; i < N_in; i++)
+      (*((double ***) drw->modelvar->dataptr))[lcnum][i] = nan_val;
+  }
+
   if(N_in < 3) return;
 
   /* Resolve per-LC parameter values from var / expr sources. */
@@ -423,13 +517,16 @@ void RunDRWFitCommand(ProgramData *p, _DRWFit *drw, int lcnum,
   if(have_sigma0 && !(sigma0_in > 0.0)) have_sigma0 = 0;
   if(have_tau0   && !(tau0_in   > 0.0)) have_tau0   = 0;
 
-  if((t_filt  = (double *) malloc(N_in * sizeof(double))) == NULL ||
-     (m_filt  = (double *) malloc(N_in * sizeof(double))) == NULL ||
-     (s2_filt = (double *) malloc(N_in * sizeof(double))) == NULL)
+  if((t_filt   = (double *) malloc(N_in * sizeof(double))) == NULL ||
+     (m_filt   = (double *) malloc(N_in * sizeof(double))) == NULL ||
+     (s2_filt  = (double *) malloc(N_in * sizeof(double))) == NULL ||
+     (orig_idx = (int *)    malloc(N_in * sizeof(int)))    == NULL)
     vt_error(ERR_MEMALLOC);
 
   /* Filter NaN mags / non-positive errors / masked points.  require_sort
-   * = 1 in the parser, so t_filt[] inherits the ascending order. */
+   * = 1 in the parser, so t_filt[] inherits the ascending order.  We
+   * track orig_idx[i] = original index of the i-th surviving point so the
+   * smoother/forecast can be written back to the right LC positions. */
   N_filt = 0;
   for(i = 0; i < N_in; i++) {
     if(isnan(p->mag[lcnum][i])) continue;
@@ -439,29 +536,31 @@ void RunDRWFitCommand(ProgramData *p, _DRWFit *drw, int lcnum,
                                    drw->maskvar) > VARTOOLS_MASK_TINY))
         continue;
     }
-    t_filt[N_filt]  = p->t[lcnum][i];
-    m_filt[N_filt]  = p->mag[lcnum][i];
-    s2_filt[N_filt] = p->sig[lcnum][i] * p->sig[lcnum][i];
+    t_filt[N_filt]   = p->t[lcnum][i];
+    m_filt[N_filt]   = p->mag[lcnum][i];
+    s2_filt[N_filt]  = p->sig[lcnum][i] * p->sig[lcnum][i];
+    orig_idx[N_filt] = i;
     N_filt++;
   }
 
   if(N_filt < 3) {
-    free(t_filt); free(m_filt); free(s2_filt);
+    free(t_filt); free(m_filt); free(s2_filt); free(orig_idx);
     return;
   }
 
   /* mean=subtract: pre-subtract the weighted mean from the LC so the
-   * recursion sees a mean-zero series.  The fitted mu is meaningless
-   * (always 0) and is reported as NaN downstream. */
+   * recursion sees a mean-zero series.  Remember wm_subtracted so we
+   * can put the smoother / forecast back on the original magnitude
+   * scale when emitting models. */
   if(mean_mode == DRWFIT_MEAN_SUBTRACT) {
-    double w, wsum = 0.0, wxsum = 0.0, wm;
+    double w, wsum = 0.0, wxsum = 0.0;
     for(i = 0; i < N_filt; i++) {
       w      = 1.0 / s2_filt[i];
       wsum  += w;
       wxsum += w * m_filt[i];
     }
-    wm = (wsum > 0.0 ? wxsum / wsum : 0.0);
-    for(i = 0; i < N_filt; i++) m_filt[i] -= wm;
+    wm_subtracted = (wsum > 0.0 ? wxsum / wsum : 0.0);
+    for(i = 0; i < N_filt; i++) m_filt[i] -= wm_subtracted;
     mu_fixed = 0.0;
   }
 
@@ -493,12 +592,149 @@ void RunDRWFitCommand(ProgramData *p, _DRWFit *drw, int lcnum,
     drw->sigma_long[lcnum] = sigma_long_fit;
     drw->tau[lcnum]        = tau_fit;
     drw->mu[lcnum]         = (mean_mode == DRWFIT_MEAN_SUBTRACT)
-                             ? sqrt(-1.0) : mu_fit;
+                             ? nan_val : mu_fit;
     drw->lnL[lcnum]        = -0.5 * neg2lnL_best;
     drw->dlnL_noise[lcnum] = 0.5 * (neg2lnL_noise - neg2lnL_best);
     drw->dlnL_inf[lcnum]   = 0.5 * (neg2lnL_inf   - neg2lnL_best);
     drw->converged[lcnum]  = 1;
   }
 
-  free(t_filt); free(m_filt); free(s2_filt);
+  /* --- Phase B: filter trajectory + smoother + correctlc/modelvar/save -- */
+
+  /* Do we need to run the filter+smoother at all?  Only when there's a
+   * downstream consumer (save, correctlc, modelvar) AND the fit converged. */
+  need_forecast = (drw->do_save ||
+                   (drw->do_correctlc && drw->correctlc_kind == DRWFIT_MODEL_FORECAST) ||
+                   (drw->do_modelvar  && drw->modelvar_kind  == DRWFIT_MODEL_FORECAST));
+  need_smoothed = (drw->do_save ||
+                   (drw->do_correctlc && drw->correctlc_kind == DRWFIT_MODEL_SMOOTHED) ||
+                   (drw->do_modelvar  && drw->modelvar_kind  == DRWFIT_MODEL_SMOOTHED));
+
+  if(converged && (need_forecast || need_smoothed)) {
+    double center_offset;
+    /* center_offset is what we add to a centered (x*-scale) prediction
+     * to put it on the same magnitude scale as p->mag[lcnum][i].  For
+     * mean=fit/fix it's the fitted/fixed mu; for mean=subtract the
+     * recursion saw a mean-zero LC so we add back the weighted-mean
+     * offset that was subtracted from m_filt at the top. */
+    center_offset = (mean_mode == DRWFIT_MEAN_SUBTRACT)
+                    ? wm_subtracted : mu_fit;
+
+    if((xhat_minus  = (double *) malloc(N_filt * sizeof(double))) == NULL ||
+       (Omega_minus = (double *) malloc(N_filt * sizeof(double))) == NULL ||
+       (xhat_plus   = (double *) malloc(N_filt * sizeof(double))) == NULL ||
+       (Omega_plus  = (double *) malloc(N_filt * sizeof(double))) == NULL)
+      vt_error(ERR_MEMALLOC);
+
+    /* One final forward pass at the best-fit (sigma, tau, mu) with full
+     * recording.  Likelihood return value discarded (it equals
+     * neg2lnL_best up to amoeba tolerance). */
+    (void) kelly_neg2lnL(t_filt, m_filt, s2_filt, N_filt,
+                         sigma_long_fit, tau_fit, mu_fit,
+                         xhat_minus, Omega_minus,
+                         xhat_plus,  Omega_plus);
+
+    if(need_smoothed) {
+      if((x_smooth    = (double *) malloc(N_filt * sizeof(double))) == NULL ||
+         (Omega_smooth = (double *) malloc(N_filt * sizeof(double))) == NULL)
+        vt_error(ERR_MEMALLOC);
+      kelly_rts_smoother(t_filt, N_filt, tau_fit,
+                         xhat_minus, Omega_minus,
+                         xhat_plus,  Omega_plus,
+                         x_smooth, Omega_smooth);
+    }
+
+    /* Build per-original-LC-index model arrays (magnitude scale).  NaN
+     * at indices that were filtered out at the top. */
+    if((model_smoothed = (double *) malloc(N_in * sizeof(double))) == NULL ||
+       (model_forecast = (double *) malloc(N_in * sizeof(double))) == NULL)
+      vt_error(ERR_MEMALLOC);
+    for(i = 0; i < N_in; i++) {
+      model_smoothed[i] = nan_val;
+      model_forecast[i] = nan_val;
+    }
+    /* xhat_minus and x_smooth are in centered (x* = x - mu) coordinates,
+     * so adding center_offset converts to the magnitude scale matching
+     * p->mag[lcnum][orig_idx[j]]. */
+    for(j = 0; j < N_filt; j++) {
+      int oi = orig_idx[j];
+      if(need_forecast) model_forecast[oi] = center_offset + xhat_minus[j];
+      if(need_smoothed) model_smoothed[oi] = center_offset + x_smooth[j];
+    }
+
+    /* "save" aux file: 8 columns over all N_in original indices.
+     * Filtered-out rows have NaN for the model columns. */
+    if(drw->do_save && outname != NULL && outname[0] != '\0') {
+      FILE *fp = fopen(outname, "w");
+      if(fp == NULL) {
+        fprintf(stderr,
+          "Error: cannot open '%s' for writing the drwfit aux file\n",
+          outname);
+        exit(3);
+      }
+      fprintf(fp, "# t x sig_meas x_hat_fwd Omega_fwd chi_fwd x_smoothed Omega_smoothed\n");
+      /* Build an inverse map index_in_filtered[orig_index] = j or -1. */
+      int *inv = (int *) malloc(N_in * sizeof(int));
+      if(inv == NULL) vt_error(ERR_MEMALLOC);
+      for(i = 0; i < N_in; i++) inv[i] = -1;
+      for(j = 0; j < N_filt; j++) inv[orig_idx[j]] = j;
+      for(i = 0; i < N_in; i++) {
+        double xv = p->mag[lcnum][i];
+        double sv = p->sig[lcnum][i];
+        if(inv[i] < 0) {
+          fprintf(fp, "%.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g\n",
+                  p->t[lcnum][i], xv, sv,
+                  nan_val, nan_val, nan_val, nan_val, nan_val);
+        } else {
+          j = inv[i];
+          double xhat_fwd_mag    = center_offset + xhat_minus[j];
+          double xsmooth_mag     = center_offset + x_smooth[j];
+          double var_fwd         = Omega_minus[j] + s2_filt[j];
+          /* The recursion's residual is (x*_i - x_hat_minus_i) where
+           * x*_i = x_i - mu.  m_filt has wm_subtracted removed up-front
+           * in subtract mode (mu_fit = 0); in fit/fix mode m_filt is the
+           * original x and we still subtract mu_fit.  Both reduce to
+           * "centered observation minus centered prior". */
+          double x_star          = m_filt[j] - mu_fit;
+          double chi_fwd         = (x_star - xhat_minus[j]) / sqrt(var_fwd);
+          fprintf(fp, "%.17g %.17g %.17g %.17g %.17g %.17g %.17g %.17g\n",
+                  p->t[lcnum][i], xv, sv,
+                  xhat_fwd_mag, Omega_minus[j], chi_fwd,
+                  xsmooth_mag, Omega_smooth[j]);
+        }
+      }
+      free(inv);
+      fclose(fp);
+    }
+
+    /* "modelvar": copy chosen model into the per-LC variable.  NaN was
+     * pre-written for every LC index at the top of this function, so
+     * filtered-out points stay NaN automatically. */
+    if(drw->do_modelvar && drw->modelvar != NULL) {
+      double *src = (drw->modelvar_kind == DRWFIT_MODEL_FORECAST)
+                    ? model_forecast : model_smoothed;
+      for(i = 0; i < N_in; i++)
+        (*((double ***) drw->modelvar->dataptr))[lcnum][i] = src[i];
+    }
+
+    /* "correctlc": subtract chosen model from p->mag[lcnum] in place.
+     * Filtered-out points (NaN model) left untouched. */
+    if(drw->do_correctlc) {
+      double *src = (drw->correctlc_kind == DRWFIT_MODEL_FORECAST)
+                    ? model_forecast : model_smoothed;
+      for(i = 0; i < N_in; i++) {
+        if(!isnan(src[i])) p->mag[lcnum][i] -= src[i];
+      }
+    }
+  }
+
+  if(xhat_minus)     free(xhat_minus);
+  if(Omega_minus)    free(Omega_minus);
+  if(xhat_plus)      free(xhat_plus);
+  if(Omega_plus)     free(Omega_plus);
+  if(x_smooth)       free(x_smooth);
+  if(Omega_smooth)   free(Omega_smooth);
+  if(model_smoothed) free(model_smoothed);
+  if(model_forecast) free(model_forecast);
+  free(t_filt); free(m_filt); free(s2_filt); free(orig_idx);
 }
