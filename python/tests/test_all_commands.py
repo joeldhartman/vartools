@@ -1425,7 +1425,9 @@ class TestCLIArgsManipulation:
     def test_sf_output_file_specs_save_on(self):
         c = cmd.structurefunction(bins="log", Nbins=20, save_result=True)
         specs = c._output_file_specs()
-        assert "sf" in specs and specs["sf"] == (".sf", None)
+        # Logical name "result" matches the save_result attribute so the
+        # pipeline collector actually captures the file (was "sf", a no-op).
+        assert specs == {"result": (".sf", None)}
 
     def test_sf_rejects_bogus_bins_mode(self):
         with pytest.raises(ValueError):
@@ -3161,6 +3163,22 @@ class TestEndToEndPipelines:
             "linfit save_model with model_nameformat='%s.baldump' " \
             "must still populate result.files['linfit_model_0']"
         assert len(result.files["linfit_model_0"]) > 0
+
+    # -----------------------------------------------------------------------
+    # structurefunction file capture
+    # -----------------------------------------------------------------------
+
+    def test_structurefunction_save_result_capture(self):
+        # Regression: capture used to be a silent no-op because the logical
+        # name ("sf") did not match the save_result attribute, so the
+        # collector's getattr(cmd, "save_sf") returned False.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.structurefunction(bins="log", Nbins=20, save_result=True),
+        ]).run(lc)
+        assert "structurefunction_result_0" in result.files
+        df = result.files["structurefunction_result_0"]
+        assert len(df) > 0
 
     # -----------------------------------------------------------------------
     # drwfit

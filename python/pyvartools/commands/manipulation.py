@@ -917,7 +917,7 @@ class structurefunction(VartoolsCommand):
 
         - ``False`` (default) -- no aux file.
         - ``True`` -- write to a pipeline-managed temp dir and capture
-          into ``result.files["structurefunction_sf_N"]``.
+          into ``result.files["structurefunction_result_N"]``.
         - path string -- write to that directory, no capture.
         - ``Output(path, capture=True)`` -- both.
     maskpoints : str, optional
@@ -1098,7 +1098,10 @@ class structurefunction(VartoolsCommand):
     def _output_file_specs(self):
         if not _should_emit(self.save_result):
             return {}
-        return {"sf": (".sf", None)}
+        # Logical name must match the ``save_result`` attribute so the
+        # pipeline collector (which reads ``save_<logical_name>``) actually
+        # captures the file into ``result.files["structurefunction_result_N"]``.
+        return {"result": (".sf", None)}
 
 
 class drwfit(VartoolsCommand):
