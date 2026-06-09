@@ -5880,4 +5880,237 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -drwfit default (mean fit)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit mean fix
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit mean fix" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit mean fix 10.12
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.032414190615549295
+DRWFIT_TAU_0        = 0.73228894025417113
+DRWFIT_MU_0         = 10.119999999999999
+DRWFIT_LNL_0        = 15193.018493301399
+DRWFIT_DLNL_NOISE_0 = 2826062.4162593675
+DRWFIT_DLNL_INF_0   = 2788963.2565213577
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit mean fix 10.12 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit mean subtract
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit mean subtract" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit mean subtract
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.033936538303611118
+DRWFIT_TAU_0        = 0.79964531959857765
+DRWFIT_MU_0         = -nan
+DRWFIT_LNL_0        = 15192.274293364961
+DRWFIT_DLNL_NOISE_0 = 2826061.6720594247
+DRWFIT_DLNL_INF_0   = 2785766.9008519035
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit mean subtract > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit save aux file
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit save" > /dev/stderr
+
+drwsavedir=$(mktemp -d /tmp/vartools_unittest_drw.XXXXXX)
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit save $drwsavedir
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+
+aux_nlines = 3314
+# t x sig_meas x_hat_fwd Omega_fwd chi_fwd x_smoothed Omega_smoothed
+53725.173920000001 10.124599999999999 0.0011999999999999999 10.121998573339877 0.0010616538280247283 0.079785833858979222 10.124375071672379 1.2398035508810874e-06
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit save $drwsavedir > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    rm -rf $drwsavedir
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+echo "aux_nlines = $(wc -l < $drwsavedir/2.drwfit)" >> $testout
+head -2 $drwsavedir/2.drwfit >> $testout
+rm -rf $drwsavedir
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit correctlc smoothed -> chi2
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit correctlc smoothed" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+Chi2_1              =      0.46196
+Weighted_Mean_Mag_1 =   0.00000
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit correctlc forecast -> chi2
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit correctlc forecast" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit correctlc forecast -chi2
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+Chi2_1              =     22.22477
+Weighted_Mean_Mag_1 =  -0.00006
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit correctlc forecast -chi2 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit modelvar smoothed -> stats
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit modelvar smoothed" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit modelvar smoothed drwmod -stats drwmod mean,stddev
+EOF
+
+cat > $goodout <<EOF
+Name                  = EXAMPLES/2
+DRWFIT_SIGMA_0        = 0.03258302975514598
+DRWFIT_TAU_0          = 0.73943151146814923
+DRWFIT_MU_0           = 10.121998573339877
+DRWFIT_LNL_0          = 15193.055294575444
+DRWFIT_DLNL_NOISE_0   = 2826062.4530606419
+DRWFIT_DLNL_INF_0     = 2788614.1076523019
+DRWFIT_CONVERGED_0    = 1
+STATS_drwmod_MEAN_1   = 10.118017391296904
+STATS_drwmod_STDDEV_1 = 0.036618287232904424
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit modelvar smoothed drwmod -stats drwmod mean,stddev > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
