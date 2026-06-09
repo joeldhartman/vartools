@@ -1101,6 +1101,208 @@ class structurefunction(VartoolsCommand):
         return {"sf": (".sf", None)}
 
 
+class drwfit(VartoolsCommand):
+    """Direct maximum-likelihood damped-random-walk fit to a light curve.
+
+    Fit a damped-random-walk (DRW) model -- the continuous-time
+    first-order autoregressive CAR(1) / Ornstein-Uhlenbeck process,
+    equivalently a Gaussian process with a Matern-1/2 (exponential)
+    covariance kernel -- directly to a light curve by maximum likelihood.
+    The likelihood is evaluated with the Kelly, Bechtold & Siemiginowska
+    2009 (ApJ, 698, 895) state-space recursion (their Equations 6-13), so
+    each evaluation is ``O(N)`` with no matrix inversion.  A downhill
+    simplex (Nelder-Mead) minimises ``-2 ln L`` over
+    ``(log sigma_long, log tau)`` (or jointly with ``mu`` when fitting the
+    mean).
+
+    This direct-likelihood method recovers ``tau`` substantially more
+    accurately than fitting a DRW to the structure function
+    (:class:`structurefunction` with ``fitDRW=True``), especially on short
+    baselines (MacLeod et al. 2010 Section 4.2; Kelly 2009 Section 3.1).
+    The reported amplitude ``DRWFIT_SIGMA_N`` is ``sigma_long`` (the
+    long-term magnitude standard deviation, MacLeod 2010 convention, mag),
+    matching what :class:`structurefunction` emits so the two commands are
+    directly comparable on the same light curve.
+
+    Scalar output columns (``N`` = command position): ``DRWFIT_SIGMA_N``
+    (sigma_long, mag), ``_TAU_N`` (damping time-scale), ``_MU_N`` (fitted
+    long-term mean; NaN when ``mean="subtract"``), ``_LNL_N`` (best-fit
+    ln L), ``_DLNL_NOISE_N`` (ln L_best - ln L at sigma_long -> 0),
+    ``_DLNL_INF_N`` (ln L_best - ln L at tau -> infinity), and
+    ``_CONVERGED_N`` (1 if the amoeba converged).  The two Delta-ln-L
+    likelihood-ratio indicators measure detection against the
+    pure-noise and the tau -> infinity limits (see MacLeod 2010
+    Section 3.1).
+
+    Parameters
+    ----------
+    mean : {"fit", "subtract", "fix"}, optional
+        Long-term-mean handling.  ``None`` (default) leaves it to the
+        vartools default (``"fit"``).
+
+        - ``"fit"`` -- fit ``mu`` jointly with ``sigma_long`` and ``tau``
+          (3-parameter amoeba).
+        - ``"subtract"`` -- subtract the weighted mean before fitting;
+          the reported ``DRWFIT_MU_N`` is meaningless (NaN).
+        - ``"fix"`` -- hold ``mu`` at ``mean_value`` (2-parameter amoeba).
+    mean_value : float or str, optional
+        The fixed ``mu`` for ``mean="fix"``.  Required for, and only valid
+        with, ``mean="fix"``.  Accepts a number, a bare variable name
+        (vartools ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"``
+        string for per-light-curve sourcing.
+    sigma0 : float or str, optional
+        Initial guess for the amoeba's ``sigma_long``.  Accepts var/expr.
+        Default: derived from the light-curve variance.
+    tau0 : float or str, optional
+        Initial guess for the amoeba's ``tau``.  Accepts var/expr.
+        Default: ``0.1 * T_baseline``.
+    mean0 : float or str, optional
+        Initial guess for the amoeba's ``mu`` (only meaningful when the
+        mean is fit).  Accepts var/expr.  Default: the weighted mean.
+    save_result : bool, str, or Output
+        Control the ``.drwfit`` aux file (one row per original light-curve
+        point, NaN rows preserved for filtered-out points; eight columns
+        ``t x sig_meas x_hat_fwd Omega_fwd chi_fwd x_smoothed
+        Omega_smoothed`` from the forward Kalman filter and the RTS
+        backward smoother).
+
+        - ``False`` (default) -- no aux file.
+        - ``True`` -- write to a pipeline-managed temp dir and capture
+          into ``result.files["drwfit_result_N"]``.
+        - path string -- write to that directory, no capture.
+        - ``Output(path, capture=True)`` -- both.
+    correctlc : {"smoothed", "forecast"}, optional
+        Replace the in-memory light curve with the DRW residuals, in
+        place, so downstream commands operate on the corrected curve.
+
+        - ``"smoothed"`` -- subtract the RTS-smoothed model (uses past and
+          future points; whitens the curve toward the noise floor).
+        - ``"forecast"`` -- subtract the one-step-ahead Kalman forecast
+          (uses only past points; retains unexplained variability).
+    modelvar : sequence (mode, varname), optional
+        Store the DRW model into a new light-curve variable ``varname``
+        (usable by downstream commands such as ``-stats`` or ``-expr``)
+        without modifying the light curve.  ``mode`` is ``"smoothed"`` or
+        ``"forecast"`` with the same meaning as ``correctlc``.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute to the fit.
+
+    See Also
+    --------
+    structurefunction : structure-function-based DRW fit (less accurate
+        ``tau`` recovery; useful as an independent cross-check).
+    CLI command: ``-drwfit``.
+    Citations
+        Kelly, Bechtold & Siemiginowska 2009, ApJ, 698, 895;
+        MacLeod et al. 2010, ApJ, 721, 1014.
+    """
+
+    _vt_name = "drwfit"
+
+    _MEAN_MODES = ("fit", "subtract", "fix")
+    _MODEL_MODES = ("smoothed", "forecast")
+
+    def __init__(
+        self,
+        mean: Optional[str] = None,
+        mean_value=None,
+        sigma0=None,
+        tau0=None,
+        mean0=None,
+        save_result=False,
+        correctlc: Optional[str] = None,
+        modelvar=None,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        if mean is not None and mean not in self._MEAN_MODES:
+            raise ValueError(
+                f"mean must be one of {self._MEAN_MODES}; got {mean!r}"
+            )
+        if mean == "fix":
+            if mean_value is None:
+                raise ValueError("mean='fix' requires mean_value")
+        elif mean_value is not None:
+            raise ValueError(
+                "mean_value is only valid when mean='fix'"
+            )
+
+        if isinstance(sigma0, (int, float)) and not isinstance(sigma0, bool) \
+                and sigma0 <= 0.0:
+            raise ValueError(f"sigma0 = {sigma0} must be > 0")
+        if isinstance(tau0, (int, float)) and not isinstance(tau0, bool) \
+                and tau0 <= 0.0:
+            raise ValueError(f"tau0 = {tau0} must be > 0")
+
+        if correctlc is not None and correctlc not in self._MODEL_MODES:
+            raise ValueError(
+                f"correctlc must be one of {self._MODEL_MODES}; "
+                f"got {correctlc!r}"
+            )
+
+        modelvar_norm = None
+        if modelvar is not None:
+            if isinstance(modelvar, str) or len(modelvar) != 2:
+                raise ValueError(
+                    "modelvar must be a (mode, varname) pair, e.g. "
+                    "('smoothed', 'drwmod')"
+                )
+            mv_mode, mv_name = modelvar
+            if mv_mode not in self._MODEL_MODES:
+                raise ValueError(
+                    f"modelvar mode must be one of {self._MODEL_MODES}; "
+                    f"got {mv_mode!r}"
+                )
+            if not isinstance(mv_name, str) or not mv_name:
+                raise ValueError("modelvar varname must be a non-empty string")
+            modelvar_norm = (mv_mode, mv_name)
+
+        self.mean = mean
+        self.mean_value = mean_value
+        self.sigma0 = sigma0
+        self.tau0 = tau0
+        self.mean0 = mean0
+        self.save_result = save_result
+        self.correctlc = correctlc
+        self.modelvar = modelvar_norm
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-drwfit"]
+
+        if self.mean is not None:
+            args += ["mean", self.mean]
+            if self.mean == "fix":
+                args += _varexpr(self.mean_value)
+
+        if self.sigma0 is not None:
+            args += ["sigma0"] + _varexpr(self.sigma0)
+        if self.tau0 is not None:
+            args += ["tau0"] + _varexpr(self.tau0)
+        if self.mean0 is not None:
+            args += ["mean0"] + _varexpr(self.mean0)
+
+        if _should_emit(self.save_result):
+            outdir = getattr(self, "_outdir", ".")
+            spec = _norm_save(self.save_result)
+            actual_outdir = spec.path if spec.path is not None else outdir
+            args += ["save", actual_outdir]
+
+        if self.correctlc is not None:
+            args += ["correctlc", self.correctlc]
+
+        if self.modelvar is not None:
+            args += ["modelvar", self.modelvar[0], self.modelvar[1]]
+
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _output_file_specs(self):
+        if not _should_emit(self.save_result):
+            return {}
+        return {"result": (".drwfit", None)}
+
+
 class rescalesig(VartoolsCommand):
     """Rescale per-point uncertainties so that χ²/dof = 1.
 

@@ -40,6 +40,7 @@ from .manipulation import (
     CodyM,
     CodyQ,
     structurefunction,
+    drwfit,
     rescalesig,
     ensemblerescalesig,
     stats,
@@ -124,7 +125,7 @@ __all__ = [
     # manipulation
     "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm", "vonNeumann",
     "percentileratios", "beyondNsigma", "slopestats", "CodyM", "CodyQ",
-    "structurefunction",
+    "structurefunction", "drwfit",
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",

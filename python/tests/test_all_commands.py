@@ -1519,6 +1519,142 @@ class TestCLIArgsManipulation:
                 reportsfvalsintable=[0.0, 1.0, 5.0],
             )
 
+    # ----- drwfit ---------------------------------------------------------
+
+    def test_drwfit_default(self):
+        assert cmd.drwfit()._to_cli_args() == ["-drwfit"]
+
+    def test_drwfit_mean_fit(self):
+        args = cmd.drwfit(mean="fit")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fit"]
+
+    def test_drwfit_mean_subtract(self):
+        args = cmd.drwfit(mean="subtract")._to_cli_args()
+        assert args == ["-drwfit", "mean", "subtract"]
+
+    def test_drwfit_mean_fix_literal(self):
+        args = cmd.drwfit(mean="fix", mean_value=10.12)._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "10.12"]
+
+    def test_drwfit_mean_fix_var(self):
+        args = cmd.drwfit(mean="fix", mean_value="mu")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "var", "mu"]
+
+    def test_drwfit_mean_fix_expr(self):
+        args = cmd.drwfit(mean="fix", mean_value="2*m")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "expr", "2*m"]
+
+    def test_drwfit_init_guesses(self):
+        args = cmd.drwfit(sigma0=0.05, tau0=100.0, mean0=10.0)._to_cli_args()
+        assert args == [
+            "-drwfit",
+            "sigma0", "0.05", "tau0", "100.0", "mean0", "10.0",
+        ]
+
+    def test_drwfit_init_guesses_var_expr(self):
+        args = cmd.drwfit(sigma0="s", tau0="2*t")._to_cli_args()
+        assert args == [
+            "-drwfit", "sigma0", "var", "s", "tau0", "expr", "2*t",
+        ]
+
+    def test_drwfit_correctlc_smoothed(self):
+        args = cmd.drwfit(correctlc="smoothed")._to_cli_args()
+        assert args == ["-drwfit", "correctlc", "smoothed"]
+
+    def test_drwfit_correctlc_forecast(self):
+        args = cmd.drwfit(correctlc="forecast")._to_cli_args()
+        assert args == ["-drwfit", "correctlc", "forecast"]
+
+    def test_drwfit_modelvar_smoothed(self):
+        args = cmd.drwfit(modelvar=("smoothed", "drwmod"))._to_cli_args()
+        assert args == ["-drwfit", "modelvar", "smoothed", "drwmod"]
+
+    def test_drwfit_modelvar_forecast(self):
+        args = cmd.drwfit(modelvar=("forecast", "drwmod"))._to_cli_args()
+        assert args == ["-drwfit", "modelvar", "forecast", "drwmod"]
+
+    def test_drwfit_save_result_path(self):
+        args = cmd.drwfit(save_result="/tmp/out")._to_cli_args()
+        assert "save" in args and "/tmp/out" in args
+
+    def test_drwfit_maskpoints(self):
+        args = cmd.drwfit(maskpoints="m")._to_cli_args()
+        assert args == ["-drwfit", "maskpoints", "m"]
+
+    def test_drwfit_canonical_order_all_keywords(self):
+        # Strict parser canonical order: mean, sigma0, tau0, mean0,
+        # save, correctlc, modelvar, maskpoints.
+        args = cmd.drwfit(
+            mean="fix",
+            mean_value=10.0,
+            sigma0=0.05,
+            tau0=100.0,
+            mean0=10.0,
+            save_result="/tmp/drw_out",
+            correctlc="smoothed",
+            modelvar=("smoothed", "m"),
+            maskpoints="msk",
+        )._to_cli_args()
+        assert args == [
+            "-drwfit",
+            "mean", "fix", "10.0",
+            "sigma0", "0.05",
+            "tau0", "100.0",
+            "mean0", "10.0",
+            "save", "/tmp/drw_out",
+            "correctlc", "smoothed",
+            "modelvar", "smoothed", "m",
+            "maskpoints", "msk",
+        ]
+
+    def test_drwfit_output_file_specs_save_off(self):
+        assert cmd.drwfit()._output_file_specs() == {}
+
+    def test_drwfit_output_file_specs_save_on(self):
+        specs = cmd.drwfit(save_result=True)._output_file_specs()
+        # Logical name matches the save_result attribute so capture works.
+        assert specs == {"result": (".drwfit", None)}
+
+    def test_drwfit_rejects_bogus_mean(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="frobnicate")
+
+    def test_drwfit_rejects_fix_without_value(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="fix")
+
+    def test_drwfit_rejects_mean_value_without_fix(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean_value=10.0)
+
+    def test_drwfit_rejects_mean_value_with_subtract(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="subtract", mean_value=10.0)
+
+    def test_drwfit_rejects_negative_sigma0(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(sigma0=-1)
+
+    def test_drwfit_rejects_zero_tau0(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(tau0=0)
+
+    def test_drwfit_rejects_bogus_correctlc(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(correctlc="x")
+
+    def test_drwfit_rejects_bogus_modelvar_mode(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar=("x", "n"))
+
+    def test_drwfit_rejects_modelvar_not_pair(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar="smoothed")
+
+    def test_drwfit_rejects_modelvar_empty_name(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar=("smoothed", ""))
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -3025,6 +3161,53 @@ class TestEndToEndPipelines:
             "linfit save_model with model_nameformat='%s.baldump' " \
             "must still populate result.files['linfit_model_0']"
         assert len(result.files["linfit_model_0"]) > 0
+
+    # -----------------------------------------------------------------------
+    # drwfit
+    # -----------------------------------------------------------------------
+
+    def test_drwfit_default_scalars(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.drwfit()]).run(lc)
+        for col in ("DRWFIT_SIGMA_0", "DRWFIT_TAU_0", "DRWFIT_MU_0",
+                    "DRWFIT_LNL_0", "DRWFIT_CONVERGED_0"):
+            assert col in result.vars.index
+        assert int(float(result.vars["DRWFIT_CONVERGED_0"])) == 1
+        assert float(result.vars["DRWFIT_SIGMA_0"]) > 0
+        assert float(result.vars["DRWFIT_TAU_0"]) > 0
+
+    def test_drwfit_correctlc_smoothed_then_chi2(self):
+        # Smoothing whitens the curve toward (below) the noise floor.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.drwfit(correctlc="smoothed"),
+            cmd.chi2(),
+        ]).run(lc)
+        chi2_keys = [k for k in result.vars.index if "Chi2" in k]
+        assert chi2_keys
+        assert float(result.vars[chi2_keys[0]]) < 1.0
+
+    def test_drwfit_modelvar_smoothed_then_stats(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.drwfit(modelvar=("smoothed", "drwmod")),
+            cmd.stats("drwmod", "mean,stddev"),
+        ]).run(lc)
+        assert any("drwmod" in k and "MEAN" in k for k in result.vars.index)
+
+    def test_drwfit_save_result_capture(self):
+        # Logical name "result" matches the save_result attribute, so the
+        # .drwfit aux file is actually captured (unlike the SF "sf" name).
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.drwfit(save_result=True)]).run(lc)
+        assert "drwfit_result_0" in result.files
+        df = result.files["drwfit_result_0"]
+        # Eight columns auto-named from the "# t x sig_meas ..." header.
+        assert list(df.columns) == [
+            "t", "x", "sig_meas", "x_hat_fwd", "Omega_fwd", "chi_fwd",
+            "x_smoothed", "Omega_smoothed",
+        ]
+        assert len(df) > 0
 
     # -----------------------------------------------------------------------
     # Period search

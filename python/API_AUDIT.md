@@ -81,6 +81,7 @@ will not be released until it is fully featured.  As a result:
 | `CodyM` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `CodyQ` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `structurefunction` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `drwfit` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `rescalesig` | ✓ Complete | — | — | — | — | — |
 | `ensemblerescalesig` | ✓ Complete | — | — | — | — | — |
 | `stats` | ✓ Complete | — | — | — | — | — |
