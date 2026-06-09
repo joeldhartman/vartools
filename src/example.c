@@ -633,6 +633,28 @@ void example(char *c, ProgramData *p)
 		    "Same as Example 1, but explicitly specifying that the star's reference magnitude is in column 2 of the input list using the \"magcolumn\" keyword.\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-drwfit",7) && strlen(c) == 7)
+    {
+      printtostring(&s,
+		    "\nExample 1: direct maximum-likelihood DRW fit\n");
+      printtostring(&s,
+		    "--------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -drwfit\n\n");
+      printtostring(&s,
+		    "Fit a damped-random-walk (DRW; equivalently the Ornstein-Uhlenbeck / CAR(1) process) model directly to EXAMPLES/2 by maximum likelihood, using the Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895 state-space recursion (their Equations 6-13). Each likelihood evaluation is O(N) with no matrix inversion, and a downhill simplex jointly fits the long-term mean mu together with the long-term magnitude standard deviation sigma_long and the damping time tau. Seven scalar columns are emitted: DRWFIT_SIGMA_0 (sigma_long, in the MacLeod et al. 2010, ApJ, 721, 1014 convention, mag), DRWFIT_TAU_0, DRWFIT_MU_0, DRWFIT_LNL_0 (the best-fit ln L), DRWFIT_DLNL_NOISE_0 and DRWFIT_DLNL_INF_0 (likelihood-ratio detection indicators comparing the best-fit DRW to the pure-measurement-noise and the tau -> infinity limits), and DRWFIT_CONVERGED_0. This direct-likelihood method recovers tau substantially more accurately than fitting a DRW to the structure function (-structurefunction fitDRW), especially on short baselines, and DRWFIT_SIGMA_0 reports the same sigma_long that -structurefunction emits, so the two commands are directly comparable on the same light curve. EXAMPLES/2 carries an injected sinusoidal signal rather than genuine DRW variability, so the recovered parameters describe the best DRW approximation to that signal.\n\n");
+      printtostring(&s,
+		    "Example 2: correct the light curve with the DRW model\n");
+      printtostring(&s,
+		    "-----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2\n\n");
+      printtostring(&s,
+		    "Replace the in-memory light curve with the DRW residuals before passing it to the following commands. The \"correctlc smoothed\" option subtracts the Rauch-Tung-Striebel smoothed model, which uses both past and future points, whitening the curve toward the photometric noise floor; \"correctlc forecast\" instead subtracts the one-step-ahead Kalman forecast, which uses only past points and so retains the unexplained short-term variability. Here the trailing -chi2 reports the chi^2 per degree of freedom of the smoothed-corrected curve.\n\n");
+      printtostring(&s,
+		    "Other options: \"mean fix m\" holds the long-term mean at a fixed value m instead of fitting it, and \"mean subtract\" removes the weighted mean before fitting (DRWFIT_MU_0 is then reported as NaN). The initial simplex guesses can be overridden with \"sigma0\", \"tau0\" and \"mean0\" (each accepts a fixed value, a \"var\" keyword followed by a variable name, or an \"expr\" keyword followed by an analytic expression for per-light-curve sourcing). \"save outdir\" writes an eight-column per-point aux file outdir/lcname.drwfit (t, x, sig_meas, the forward Kalman state x_hat_fwd / Omega_fwd / standardized residual chi_fwd, and the smoothed state x_smoothed / Omega_smoothed) for goodness-of-fit diagnostics, with one row per original light-curve point and NaN rows preserved for filtered-out points. \"modelvar smoothed name\" (or \"modelvar forecast name\") stores the DRW model itself in a new light-curve variable for use by later commands without altering the light curve. Cite Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895, together with MacLeod et al. 2010, ApJ, 721, 1014, if you use this command.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19)
     {
       printtostring(&s,
