@@ -6113,4 +6113,238 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -runlength default (k=3)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 0
+RUNLENGTH_OUTHIGH_NRUNS_0   = 0
+RUNLENGTH_OUTHIGH_MEANLEN_0 = -nan
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 3
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 1.0 (tighter band: OUTHIGH runs appear, OUTLOW still empty)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 1.0" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 110
+RUNLENGTH_OUTHIGH_NRUNS_0   = 44
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 16.681818181818183
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 1.0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 0.5 (both OUTHIGH and OUTLOW runs present)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 0.5" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 0.5
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 182
+RUNLENGTH_OUTHIGH_NRUNS_0   = 24
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 54.291666666666664
+RUNLENGTH_OUTLOW_MAXLEN_0   = 222
+RUNLENGTH_OUTLOW_NRUNS_0    = 46
+RUNLENGTH_OUTLOW_MEANLEN_0  = 21.369565217391305
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 0.5
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 0.5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k expr "1.0" (expr-sourced k; matches the k 1.0 result)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k expr "1.0"
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 110
+RUNLENGTH_OUTHIGH_NRUNS_0   = 44
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 16.681818181818183
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k expr "1.0" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 0 (band collapses to the median: OUTHIGH==ABOVE, OUTLOW==BELOW)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 0" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 323
+RUNLENGTH_OUTHIGH_NRUNS_0   = 27
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 61.222222222222221
+RUNLENGTH_OUTLOW_MAXLEN_0   = 311
+RUNLENGTH_OUTLOW_NRUNS_0    = 23
+RUNLENGTH_OUTLOW_MEANLEN_0  = 71.956521739130437
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength maskpoints (mask a time range via -expr; command index 1)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -expr 'm=(t>53726.0)' -runlength maskpoints m
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_1    = 323
+RUNLENGTH_ABOVE_NRUNS_1     = 27
+RUNLENGTH_ABOVE_MEANLEN_1   = 57.074074074074076
+RUNLENGTH_BELOW_MAXLEN_1    = 311
+RUNLENGTH_BELOW_NRUNS_1     = 26
+RUNLENGTH_BELOW_MEANLEN_1   = 59.269230769230766
+RUNLENGTH_OUTHIGH_MAXLEN_1  = 0
+RUNLENGTH_OUTHIGH_NRUNS_1   = 0
+RUNLENGTH_OUTHIGH_MEANLEN_1 = -nan
+RUNLENGTH_OUTLOW_MAXLEN_1   = 0
+RUNLENGTH_OUTLOW_NRUNS_1    = 0
+RUNLENGTH_OUTLOW_MEANLEN_1  = -nan
+RUNLENGTH_MEDIAN_1          = 10.1044
+RUNLENGTH_MAD_1             = 0.043896800000000437
+RUNLENGTH_K_1               = 3
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -expr 'm=(t>53726.0)' -runlength maskpoints m > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
