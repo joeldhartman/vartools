@@ -21,7 +21,7 @@ endif
 # those sources, so every symbol is compiled exactly once.
 PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
  matchedfilter.c matchedfilter_nfft.c vonneumann.c percentileratios.c beyondNsigma.c \
- slopestats.c codym.c codyq.c structurefunction.c drwfit.c \
+ slopestats.c codym.c codyq.c structurefunction.c drwfit.c runlength.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \

@@ -2228,8 +2228,58 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].RMS_Bin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
+	  cn++;
+	}
+
+      /* -runlength ["k" <"var" varname | "expr" exprstring | k>]
+       *            ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-runlength",10) && strlen(argv[i]) == 10)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_RUNLENGTH;
+	  if((c[cn].Runlength = (_Runlength *) malloc(sizeof(_Runlength))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: k = 3.0 (fixed source), no maskpoints. */
+	  c[cn].Runlength->k = 3.0;
+	  c[cn].Runlength->usemask = 0;
+	  c[cn].Runlength->maskvar = NULL;
+	  VT_INIT_PARAM(c[cn].Runlength, k);
+
+	  /* "k" <"var" v | "expr" e | k> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"k")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].Runlength, k, argv, i);
+	    if(c[cn].Runlength->k_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].Runlength->k >= 0.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -runlength k value "
+	        "'%s' must be >= 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Runlength->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Runlength->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
 	  cn++;
 	}
 

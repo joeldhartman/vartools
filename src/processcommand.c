@@ -428,6 +428,10 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       RunCodyMCommand(p, c->CodyM, lc2, lc);
       break;
 
+    case CNUM_RUNLENGTH:
+      RunRunlengthCommand(p, c->Runlength, lc2, lc);
+      break;
+
     case CNUM_CODYQ:
       if(c->CodyQ->pertype == PERTYPE_AOV) {
 	i1 = c->CodyQ->lastaovindex;
@@ -2578,6 +2582,19 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    }
 	  }
 	  RunCodyMCommand(p, c->CodyM, lc, lc);
+	}
+      break;
+
+    case CNUM_RUNLENGTH:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunRunlengthCommand(p, c->Runlength, lc, lc);
 	}
       break;
 

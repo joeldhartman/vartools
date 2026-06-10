@@ -744,6 +744,24 @@ void InitCommands(ProgramData *p, Command *c)
 	     (c[i].CodyM->Npoints = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_RUNLENGTH:
+	  if((c[i].Runlength->above_maxlen    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->above_nruns     = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->above_meanlen   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->below_maxlen    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->below_nruns     = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->below_meanlen   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->outhigh_maxlen  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outhigh_nruns   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outhigh_meanlen = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->outlow_maxlen   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outlow_nruns    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outlow_meanlen  = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->medval          = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->madval          = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->kval            = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_CODYQ:
 	  /* period[Nlcs][1]: list-sourced periods are populated by
 	     RegisterDataFromInputList; for any other pertype we allocate

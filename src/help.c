@@ -961,6 +961,12 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
       printtostring(s,"-rmsbin Nbin bintime1...bintimeN [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
+  if(c == NULL || (!strncmp(c,"-runlength",10) && strlen(c) == 10))
+    {
+      printtostring(s,"-runlength [\"k\" <\"var\" varname | \"expr\" exprstring | k>]\n");
+      printtostring(s,"\t[\"maskpoints\" maskvar]\n");
+      commandfound = 1;
+    }
   if(c == NULL || (!strncmp(c,"-savelc",7) && strlen(c) == 7))
     {
       printtostring(s,"-savelc\n");
@@ -2065,6 +2071,12 @@ void help(char *c, ProgramData *p)
     {
       listcommands_noexit("-rmsbin",p,&s);
       printtostring(&s,"Similar to chi2bin, this calculates RMS after applying a moving mean filter.\n\nOptionally use the \"maskpoints\" keyword and provide the name of a vector to mask out points in the light curve from the calculation. Points with maskvar > 0 will be included in the calculation, while others will be excluded.\n\n");
+      commandfound = 1;
+    }
+  if(all == 1 || (!strncmp(c,"-runlength",10) && strlen(c) == 10))
+    {
+      listcommands_noexit("-runlength",p,&s);
+      printtostring(&s,"For each light curve, compute runs of consecutive points above the median, below the median, above k*MAD from the median, and below k*MAD from the median. A run is a maximal block of consecutive points, in time order, that all satisfy the condition.\n\nLet m be the median of the magnitude values and D = MAD = 1.483*median(|x-m|) their median absolute deviation, the same 1.483-scaled estimator reported by -stats, so the band m +/- k*D corresponds to roughly k Gaussian standard deviations. Four conditions are tracked, each on the points in time order: above (x > m), below (x < m), outhigh (x - m > k*D), and outlow (x - m < -k*D). The comparisons are strict, so a point exactly at the median is in band and breaks both the above and below runs. The two outlier conditions are sign-specific: a band excursion that crosses from the high side to the low side ends one run and begins another, and there is no combined sign-agnostic outlier run.\n\nFor each condition the command reports the length of the longest run, the number of runs, and the mean run length (the total number of satisfying points divided by the number of runs; reported as NaN when there are no runs). Points with NaN magnitudes, and -- when the \"maskpoints\" keyword is given -- points whose mask variable is <= 0, are removed before m and D are computed. The light curve is sorted in time before the scan if it is not already in time order.\n\nThe band half-width k defaults to 3.0 and may be given as a fixed value, or as \"var\" followed by the name of a light-curve-list variable, or as \"expr\" followed by an analytic expression evaluated per light curve.\n\nThe output columns are RUNLENGTH_ABOVE_MAXLEN_N, RUNLENGTH_ABOVE_NRUNS_N, RUNLENGTH_ABOVE_MEANLEN_N and the corresponding BELOW, OUTHIGH and OUTLOW triples, plus RUNLENGTH_MEDIAN_N (m), RUNLENGTH_MAD_N (the 1.483-scaled D) and RUNLENGTH_K_N (the k used), where N is the command number. When no point survives filtering the run statistics are reported as 0 / 0 / NaN and the median and MAD as NaN.\n\n");
       commandfound = 1;
     }
   if(all == 1 || (!strncmp(c,"-savelc",7) && strlen(c) == 7))

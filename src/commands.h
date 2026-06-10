@@ -195,8 +195,9 @@
 #define CNUM_CODYQ 71
 #define CNUM_STRUCTUREFUNCTION 72
 #define CNUM_DRWFIT 73
+#define CNUM_RUNLENGTH 74
 
-#define TOT_CNUMS 74
+#define TOT_CNUMS 75
 
 #define SF_BINS_LOG    0
 #define SF_BINS_LINEAR 1
@@ -1302,6 +1303,35 @@ typedef struct {
   double *sigma_d;
   int *Npoints;
 } _CodyM;
+
+typedef struct {
+  /* Outlier band half-width in MAD units; default 3.0.  The band is
+   * +/-k*MAD about the median, with MAD = 1.483*median(|x-median|). */
+  double k;
+  VT_PARAM_COMPANIONS(k);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars.  Four run categories (above / below the
+   * median, high / low outside the +/-k*MAD band), each with the longest
+   * run, number of runs, and mean run length; plus the median, MAD and k
+   * actually used. */
+  int    *above_maxlen;
+  int    *above_nruns;
+  double *above_meanlen;
+  int    *below_maxlen;
+  int    *below_nruns;
+  double *below_meanlen;
+  int    *outhigh_maxlen;
+  int    *outhigh_nruns;
+  double *outhigh_meanlen;
+  int    *outlow_maxlen;
+  int    *outlow_nruns;
+  double *outlow_meanlen;
+  double *medval;
+  double *madval;
+  double *kval;
+} _Runlength;
 
 typedef struct {
   /* Period source.  pertype takes one of the PERTYPE_* constants. */
@@ -2973,6 +3003,7 @@ typedef struct {
   _CodyQ *CodyQ;
   _StructureFunction *StructureFunction;
   _DRWFit *DRWFit;
+  _Runlength *Runlength;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

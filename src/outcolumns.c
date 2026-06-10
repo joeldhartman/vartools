@@ -1335,6 +1335,23 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->sigma_d), "%.17g", 1, 0, 0, 0, "CODYM_sigma_d_%d", l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyM->Npoints), "%d",    1, 0, 0, 0, "CODYM_Npoints_%d", l);
 	  break;
+	case CNUM_RUNLENGTH:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->above_maxlen),    "%d",    1, 0, 0, 0, "RUNLENGTH_ABOVE_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->above_nruns),     "%d",    1, 0, 0, 0, "RUNLENGTH_ABOVE_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->above_meanlen),   "%.17g", 1, 0, 0, 0, "RUNLENGTH_ABOVE_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->below_maxlen),    "%d",    1, 0, 0, 0, "RUNLENGTH_BELOW_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->below_nruns),     "%d",    1, 0, 0, 0, "RUNLENGTH_BELOW_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->below_meanlen),   "%.17g", 1, 0, 0, 0, "RUNLENGTH_BELOW_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outhigh_maxlen),  "%d",    1, 0, 0, 0, "RUNLENGTH_OUTHIGH_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outhigh_nruns),   "%d",    1, 0, 0, 0, "RUNLENGTH_OUTHIGH_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->outhigh_meanlen), "%.17g", 1, 0, 0, 0, "RUNLENGTH_OUTHIGH_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outlow_maxlen),   "%d",    1, 0, 0, 0, "RUNLENGTH_OUTLOW_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outlow_nruns),    "%d",    1, 0, 0, 0, "RUNLENGTH_OUTLOW_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->outlow_meanlen),  "%.17g", 1, 0, 0, 0, "RUNLENGTH_OUTLOW_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->medval),          "%.17g", 1, 0, 0, 0, "RUNLENGTH_MEDIAN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->madval),          "%.17g", 1, 0, 0, 0, "RUNLENGTH_MAD_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->kval),            "%.17g", 1, 0, 0, 0, "RUNLENGTH_K_%d", l);
+	  break;
 	case CNUM_CODYQ:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Q),         "%.17g", 1, 0, 0, 0, "CODYQ_Q_%d", l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->period),    "%.17g", 2, 0, 0, 0, 0, "CODYQ_Period_%d", l);
