@@ -1657,6 +1657,44 @@ class TestCLIArgsManipulation:
         with pytest.raises(ValueError):
             cmd.drwfit(modelvar=("smoothed", ""))
 
+    # ----- runlength ------------------------------------------------------
+
+    def test_runlength_default(self):
+        # Default k=3.0 stays off the CLI surface.
+        assert cmd.runlength()._to_cli_args() == ["-runlength"]
+
+    def test_runlength_k_literal(self):
+        args = cmd.runlength(k=1.0)._to_cli_args()
+        assert args == ["-runlength", "k", "1.0"]
+
+    def test_runlength_k_default_omitted(self):
+        assert cmd.runlength(k=3.0)._to_cli_args() == ["-runlength"]
+
+    def test_runlength_k_zero_emitted(self):
+        # k=0 collapses the band to the median and IS distinct from 3.0.
+        assert cmd.runlength(k=0)._to_cli_args() == ["-runlength", "k", "0"]
+
+    def test_runlength_k_var(self):
+        args = cmd.runlength(k="myk")._to_cli_args()
+        assert args == ["-runlength", "k", "var", "myk"]
+
+    def test_runlength_k_expr(self):
+        args = cmd.runlength(k="2*1.5")._to_cli_args()
+        assert args == ["-runlength", "k", "expr", "2*1.5"]
+
+    def test_runlength_maskpoints(self):
+        args = cmd.runlength(maskpoints="m")._to_cli_args()
+        assert args == ["-runlength", "maskpoints", "m"]
+
+    def test_runlength_canonical_order_all(self):
+        # Strict parser order: k, maskpoints.
+        args = cmd.runlength(k=0.5, maskpoints="m")._to_cli_args()
+        assert args == ["-runlength", "k", "0.5", "maskpoints", "m"]
+
+    def test_runlength_rejects_negative_k(self):
+        with pytest.raises(ValueError):
+            cmd.runlength(k=-1)
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -3226,6 +3264,82 @@ class TestEndToEndPipelines:
             "x_smoothed", "Omega_smoothed",
         ]
         assert len(df) > 0
+
+    # -----------------------------------------------------------------------
+    # runlength
+    # -----------------------------------------------------------------------
+
+    def test_runlength_scalars_present(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        for cat in ("ABOVE", "BELOW", "OUTHIGH", "OUTLOW"):
+            for stat in ("MAXLEN", "NRUNS", "MEANLEN"):
+                assert f"RUNLENGTH_{cat}_{stat}_0" in result.vars.index
+        for col in ("RUNLENGTH_MEDIAN_0", "RUNLENGTH_MAD_0",
+                    "RUNLENGTH_K_0"):
+            assert col in result.vars.index
+        assert float(result.vars["RUNLENGTH_MAD_0"]) > 0
+        assert float(result.vars["RUNLENGTH_K_0"]) == 3.0
+
+    def test_runlength_sinusoid_long_runs_no_outliers(self):
+        # A pure sinusoid yields long above/below runs (~ half a period in
+        # points) and, since MAD ~ 1.05*A, no points outside the +/-3*MAD
+        # band -> zero outlier runs.
+        n = 1000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 2.0)   # 200 pts/period
+        err = np.full(n, 0.001)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sine")
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_ABOVE_MAXLEN_0"])) > 50
+        assert int(float(result.vars["RUNLENGTH_BELOW_MAXLEN_0"])) > 50
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"])) == 0
+        assert int(float(result.vars["RUNLENGTH_OUTLOW_NRUNS_0"])) == 0
+
+    def test_runlength_sustained_excursion_one_outhigh_run(self):
+        # A contiguous faint-excursion block on otherwise tight noise gives
+        # exactly one OUTHIGH run spanning the block, and no OUTLOW run.
+        rng = np.random.default_rng(7)
+        n = 400
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(10.0, 0.01, n)
+        mag[150:175] += 0.5          # 25-point sustained excursion
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="block")
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_MAXLEN_0"])) == 25
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"])) == 1
+        # No comparably long low excursion (isolated noise-tail points may
+        # occur, but nothing sustained).
+        assert int(float(result.vars["RUNLENGTH_OUTLOW_MAXLEN_0"])) < 25
+
+    def test_runlength_k_zero_band_collapses_to_median(self):
+        # With k=0 the band has zero width, so outhigh == above and
+        # outlow == below exactly.
+        n = 500
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 1.5)
+        err = np.full(n, 0.001)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="collapse")
+        result = vt.Pipeline([cmd.runlength(k=0)]).run(lc)
+        assert float(result.vars["RUNLENGTH_K_0"]) == 0.0
+        assert (int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"]))
+                == int(float(result.vars["RUNLENGTH_ABOVE_NRUNS_0"])))
+        assert (int(float(result.vars["RUNLENGTH_OUTHIGH_MAXLEN_0"]))
+                == int(float(result.vars["RUNLENGTH_ABOVE_MAXLEN_0"])))
+        assert (int(float(result.vars["RUNLENGTH_OUTLOW_NRUNS_0"]))
+                == int(float(result.vars["RUNLENGTH_BELOW_NRUNS_0"])))
+
+    def test_runlength_maskpoints_changes_counts(self):
+        # Masking out half the points (via an -expr indicator) must still
+        # produce valid stats and a finite median over the kept subset.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.expr("mask=(t>53726.0)"),
+            cmd.runlength(maskpoints="mask"),
+        ]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_ABOVE_NRUNS_1"])) > 0
+        assert np.isfinite(float(result.vars["RUNLENGTH_MEDIAN_1"]))
 
     # -----------------------------------------------------------------------
     # Period search

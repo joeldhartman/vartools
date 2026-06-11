@@ -1306,6 +1306,88 @@ class drwfit(VartoolsCommand):
         return {"result": (".drwfit", None)}
 
 
+class runlength(VartoolsCommand):
+    """Run-length statistics about the median and the ``±k·MAD`` band.
+
+    For each light curve let ``m`` be the median of the (NaN- and
+    mask-filtered) magnitudes and ``D = MAD = 1.483·median(|x − m|)`` their
+    median absolute deviation -- the same 1.483-scaled estimator reported by
+    ``-stats``, so the band ``m ± k·D`` is roughly ``±k`` Gaussian standard
+    deviations.  A *run* is a maximal block of consecutive points, in time
+    order, that all satisfy one condition.  Four conditions are tracked:
+
+    * ``above``   : ``x > m``
+    * ``below``   : ``x < m``
+    * ``outhigh`` : ``x − m > k·D``
+    * ``outlow``  : ``x − m < −k·D``
+
+    Comparisons are strict, so a point exactly at the median is in band and
+    breaks both the above and below runs.  The two outlier conditions are
+    sign-specific: a band excursion that crosses from the high side to the
+    low side ends one run and begins another (there is no combined
+    sign-agnostic outlier run).  For each condition the command reports the
+    longest run, the number of runs, and the mean run length
+    (``npoints / nruns``, NaN when there are no runs).
+
+    Long runs above or below the median flag low-frequency coherent
+    variability or residual trends; long outlier runs flag sustained
+    excursions (flares, blends, systematics) as opposed to isolated bad
+    points.  This is a fast, robust serial-coherence descriptor that
+    complements the scatter statistics (``-rms``, ``-chi2``, the MAD of
+    ``-stats``) and the asymmetry / quasi-periodicity statistics
+    :class:`CodyM` / :class:`CodyQ`.  The light curve is sorted in time
+    before the scan if it is not already in time order.
+
+    Output columns (``N`` = command position): ``RUNLENGTH_ABOVE_MAXLEN_N``,
+    ``RUNLENGTH_ABOVE_NRUNS_N``, ``RUNLENGTH_ABOVE_MEANLEN_N`` and the
+    corresponding ``BELOW`` / ``OUTHIGH`` / ``OUTLOW`` triples, plus
+    ``RUNLENGTH_MEDIAN_N``, ``RUNLENGTH_MAD_N`` (the 1.483-scaled ``D``) and
+    ``RUNLENGTH_K_N`` (the ``k`` used).
+
+    Parameters
+    ----------
+    k : float or str, optional
+        Outlier band half-width in MAD units.  Default ``3.0``; must be
+        ``>= 0``.  Accepts a number, a bare variable name (vartools
+        ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"`` string for
+        per-LC sourcing.  Emitted on the command line only when it differs
+        from the default.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-runlength``.
+    """
+
+    _vt_name = "runlength"
+
+    _DEFAULT_K = 3.0
+
+    def __init__(
+        self,
+        k=3.0,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.k = k
+        self.maskpoints = maskpoints
+
+        # Validate only a literal numeric k; var/expr values are validated
+        # per-LC at runtime by the kernel.
+        if isinstance(k, (int, float)) and k < 0.0:
+            raise ValueError(f"k = {k} must be >= 0")
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-runlength"]
+        # Emit k only when non-default, keeping the common case tidy.
+        if not (isinstance(self.k, (int, float))
+                and float(self.k) == self._DEFAULT_K):
+            args += ["k"] + _varexpr(self.k)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
 class rescalesig(VartoolsCommand):
     """Rescale per-point uncertainties so that χ²/dof = 1.
 
