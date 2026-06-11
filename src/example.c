@@ -1821,6 +1821,28 @@ void example(char *c, ProgramData *p)
 		    "Apply a set of moving-mean filters to the light curves in the list EXAMPLES/lc_list and calculate mean, RMS, and expected RMS assuming white noise for each filter. We use 5 filters of 5.0, 10.0, 60.0, 1440.0, and 14400.0 minutes. Note that the \"filter\" here refers to replacing each point in the light curve with the mean of all points that are within the specified number of minutes of that point.\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-runlength",10) && strlen(c) == 10)
+    {
+      printtostring(&s,
+		    "\nExample 1: run-length statistics about the median and MAD\n");
+      printtostring(&s,
+		    "---------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -runlength\n\n");
+      printtostring(&s,
+		    "For EXAMPLES/2, count runs of consecutive points (in time order) above and below the median magnitude, and outside the +/-k*MAD band (k defaults to 3), where MAD = 1.483*median(|x-median|) is the 1.483-scaled median absolute deviation also reported by -stats. A run is a maximal block of consecutive points all satisfying one condition. For each of the four conditions -- above, below, outhigh (x-median > k*MAD) and outlow (x-median < -k*MAD) -- the longest run, the number of runs, and the mean run length are emitted, giving the twelve columns RUNLENGTH_ABOVE_MAXLEN_0 through RUNLENGTH_OUTLOW_MEANLEN_0, plus RUNLENGTH_MEDIAN_0, RUNLENGTH_MAD_0 and RUNLENGTH_K_0. Long runs above or below the median indicate low-frequency coherent variability or a residual trend; long outlier runs indicate sustained excursions (flares, blends, systematics) rather than isolated bad points. EXAMPLES/2 carries an injected sinusoid, so it shows long above and below runs (roughly half a period of points each) and, because the +/-3*MAD band is wider than the sinusoid amplitude, no outlier runs.\n\n");
+      printtostring(&s,
+		    "Example 2: surface sustained outlier runs with a tighter band\n");
+      printtostring(&s,
+		    "-------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -runlength k 0.5\n\n");
+      printtostring(&s,
+		    "Narrowing the band to +/-0.5*MAD brings the sinusoid peaks and troughs outside the band, so the outhigh and outlow runs become non-zero and trace the coherent excursions. The two outlier conditions are sign-specific: a run that would cross from the high side of the band to the low side is split into separate outhigh and outlow runs (there is no combined sign-agnostic outlier run). Points exactly at the median are in band and break both the above and below runs.\n\n");
+      printtostring(&s,
+		    "Other options: the band half-width k accepts a fixed value, a \"var\" keyword followed by a light-curve-list variable name, or an \"expr\" keyword followed by an analytic expression evaluated per light curve; \"maskpoints\" followed by a variable name restricts the statistics to points with that variable > 0. The light curve is sorted in time before the scan if it is not already in time order.\n\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-savelc",7) && strlen(c) == 7)
     {
       printtostring(&s,
