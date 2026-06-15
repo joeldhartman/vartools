@@ -1972,7 +1972,13 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    else
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
 	  }
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	  /* When "fixdepth" is given the Depth column already reports the
+	     fixed input depth (registered above), so only register the
+	     fitted depth here when the depth is being optimized -- otherwise
+	     BLSFixPerDurTc_Depth_%d would be defined twice.  Mirrors the
+	     !fixdepth guard on the fitted Qingress column below. */
+	  if(!c[l].BlsFixPerDurTc->fixdepth)
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qtran_%d",l);
 	  if(c[l].BlsFixPerDurTc->fittrap && !c[l].BlsFixPerDurTc->fixdepth)
 	    {

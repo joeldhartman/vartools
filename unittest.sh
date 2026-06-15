@@ -6347,4 +6347,46 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -BLSFixPerDurTc with fixdepth (regression: the fixed-depth path used to
+# register the BLSFixPerDurTc_Depth column twice and abort with
+# "defined more than once in an -inputlcformat option").
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLSFixPerDurTc fixdepth" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -oneline -BLSFixPerDurTc period fix 2.12345 duration fix 0.1 Tc fix 53727.0 fixdepth fix 0.01 qgress fix 0.1 0 0 0
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/3.transit
+BLSFixPerDurTc_Period_0               =   2.12345
+BLSFixPerDurTc_Duration_0             =   0.10000
+BLSFixPerDurTc_Tc_0                   = 53727
+BLSFixPerDurTc_Depth_0                =   0.01000
+BLSFixPerDurTc_Qingress_0             =   0.10000
+BLSFixPerDurTc_Qtran_0                =   0.04709
+BLSFixPerDurTc_deltaChi2_0            = -287.64103
+BLSFixPerDurTc_fraconenight_0         =   0.84688
+BLSFixPerDurTc_Npointsintransit_0     =   107
+BLSFixPerDurTc_Ntransits_0            =     2
+BLSFixPerDurTc_Npointsbeforetransit_0 =   150
+BLSFixPerDurTc_Npointsaftertransit_0  =    65
+BLSFixPerDurTc_Rednoise_0             =   0.00180
+BLSFixPerDurTc_Whitenoise_0           =   0.00522
+BLSFixPerDurTc_SignaltoPinknoise_0    =   1.10967
+BLSFixPerDurTc_MeanMag_0              =  10.16740
+
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -oneline -BLSFixPerDurTc period fix 2.12345 duration fix 0.1 Tc fix 53727.0 fixdepth fix 0.01 qgress fix 0.1 0 0 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
