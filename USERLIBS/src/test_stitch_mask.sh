@@ -91,4 +91,21 @@ run_method poly             poly 1
 run_method harmseries       harmseries per 1
 run_method median_grouptime median groupbytime 100
 
+# "noshiftmasked" opts out: masked dip points keep their original 10.2 value
+# while the out-of-transit points are still shifted to 10.0.
+rm -f $OUTLC
+$VARTOOLS -l $LIST -inlistvars 'per:2:double' -inputlcformat "$FMT" \
+    -stitch mag err mask lcnum median noshiftmasked -o $OUT > /dev/null 2>&1
+awk '
+  function approx(a,b) { d=a-b; if(d<0)d=-d; return d<1e-4 }
+  NR>=15 && NR<=17 {
+    if(!approx($2,10.2)) { printf "FAIL [noshiftmasked]: masked dip row %d mag=%s, expected 10.2\n", NR, $2; bad=1 }
+  }
+  (NR>=11 && NR<=14) || (NR>=18 && NR<=20) {
+    if(!approx($2,10.0)) { printf "FAIL [noshiftmasked]: OOT row %d mag=%s, expected 10.0\n", NR, $2; bad=1 }
+  }
+  END { exit bad }
+' $OUTLC
+echo "PASS [noshiftmasked]: masked dip points left unshifted, OOT points shifted"
+
 echo "All -stitch masked-shift regression checks passed."

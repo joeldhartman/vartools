@@ -38,6 +38,7 @@ typedef struct {
   double start_time;
   double time_step;
   int fitonly;
+  int noshiftmasked;
   int save_fitted_parameters;
   char coeffoutdir[MAXLEN];
   char coeffoutformat[MAXLEN];

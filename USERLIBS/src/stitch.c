@@ -62,7 +62,7 @@ int stitch_ParseCL(ProgramData *p, Command *c,
    by this function so that memory will be allocated as needed.
 
 Expected syntax for this command:
-   -stitch stitch_variable_list uncertainty_variable_list mask_variable_list lcnum_var [\"refnum_var\" refnum_var] <\"median\" | \"mean\" | \"weightedmean\" | \"poly\" order | \"harmseries\" period_var Nharm> [\"groupbytime\" time_bin [\"start\" firstbintime]] [\"fitonly\"] [\"save_fitted_parameters\" <outdir [\"format\"] fmt>] [\"add_stitchparams_fitsheader\"  [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"add_shifts_fitsheader\" keywordbase [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"shifts_file\" fieldlabelsvar starnamevar [\"append_refnum_to_fieldlabel\"] [\"in_shifts_file\" inshiftsfile1[,inshiftsfile2,...] [\"nobs_refit\" nobs_refit] [\"header_basename_only\"]] [\"out_shifts_file\" outshiftsfile1[,outshiftsfile2,...] [\"include_missing\"]]]
+   -stitch stitch_variable_list uncertainty_variable_list mask_variable_list lcnum_var [\"refnum_var\" refnum_var] <\"median\" | \"mean\" | \"weightedmean\" | \"poly\" order | \"harmseries\" period_var Nharm> [\"groupbytime\" time_bin [\"start\" firstbintime]] [\"fitonly\"] [\"noshiftmasked\"] [\"save_fitted_parameters\" <outdir [\"format\"] fmt>] [\"add_stitchparams_fitsheader\"  [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"add_shifts_fitsheader\" keywordbase [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"shifts_file\" fieldlabelsvar starnamevar [\"append_refnum_to_fieldlabel\"] [\"in_shifts_file\" inshiftsfile1[,inshiftsfile2,...] [\"nobs_refit\" nobs_refit] [\"header_basename_only\"]] [\"out_shifts_file\" outshiftsfile1[,outshiftsfile2,...] [\"include_missing\"]]]
 
 
   p = structure containing general program data. In most cases this 
@@ -382,6 +382,16 @@ Expected syntax for this command:
   if(i < argc) {
     if(!strcmp(argv[i],"fitonly")) {
       stitch->fitonly = 1;
+    } else
+      i--;
+  } else
+    i--;
+
+  stitch->noshiftmasked = 0;
+  i++;
+  if(i < argc) {
+    if(!strcmp(argv[i],"noshiftmasked")) {
+      stitch->noshiftmasked = 1;
     } else
       i--;
   } else
@@ -759,6 +769,8 @@ void stitch_ShowSyntax(FILE *outfile)
   VARTOOLS_printtostring(&s,
 			 "\t[\"fitonly\"]\n");
   VARTOOLS_printtostring(&s,
+			 "\t[\"noshiftmasked\"]\n");
+  VARTOOLS_printtostring(&s,
 			 "\t[\"save_fitted_parameters\" <outdir [\"format\"] fmt>]\n");
   VARTOOLS_printtostring(&s,
 			 "\t[\"add_stitchparams_fitsheader\" [\"primary\" | \"extension\"]\n");
@@ -807,6 +819,7 @@ void stitch_ShowHelp(FILE *outfile)
   VARTOOLS_printtostring(&s,"\t\"harmseries\" period_var Nharm - fit a harmonic series in time, with a period given by the variable period_var and a specified number of harmonics (0 to fit a simple sinusoid).\n\n");
   VARTOOLS_printtostring(&s,"\"groupbytime\" - Give this keyword to group the light curve segments into time bins, the shift model will assume a shared intrinsic shape for the light curve (constant if using the median, mean, or weightedmean methods, a polynomial in time if using the poly method, or a harmonic series if using the harmseries method) within a given time-bin, and overall additive shifts will be fit to match the different light curve segments within their respective bins (the shifts are global across all bins, while the intrinsic shape is independent within each bin). Give the time_bin to use for binning the segments in the same units of time as used in the light curve. To set the start time for the first time bin, use the optional \"start\" keyword, followed by the start time to use. Note that the routine will make sure that all segments can be tied together, and the bin-size will be increased until that is true.  For example, if one is stitching two light curve segments together, and they are disjoint in time such that each time-bin contains points from only one light curve segment, then the time bin-size will be increased until at least one bin contains points from both segments.\n\n");
   VARTOOLS_printtostring(&s,"\"fitonly\" - fit for the shifts between light curve segments, but do not remove them.\n\n");
+  VARTOOLS_printtostring(&s,"\"noshiftmasked\" - by default a masked point (one excluded from the shift fit by the mask_variable_list) still has the fitted per-segment shift applied to it, so that masking affects only the fit and not the correction. Give this keyword to instead leave masked points unshifted, so that masking excludes a point from both the fit and the correction.\n\n");
   VARTOOLS_printtostring(&s,"\"save_fitted_parameters\" - save the best fit parameters to a file. A separate file is used for each source in the input list. Specify the directory to save the files to. By default the coefficient files will have the same name as the input light curve (stripped of any leading directory names), with the \".stitch\" suffix appended. Use the \"format\" keyword to provide a rule for naming the files, where instances of \"%%s\" will be replaced with the input filename.\n\n");
   VARTOOLS_printtostring(&s,"\"add_stitchparams_fitsheader\" - log the vartools control parameters for stitching to the header of any light curve that is subsequently output in FITS format. Use the \"primary\" keyword to log the parameters to the primary header of the FITS file, or the \"extension\" keyword to log them in the first extension header. Use \"append\" to append the FITS header keywords to the header whether or not the keywords may already be present, or \"update\" to update any header keywords that may already be present.\n\n");
   VARTOOLS_printtostring(&s,"\"add_shifts_fitsheader\" - log the shifts determined by the -stitch command into the header of any light curve file that is subsequently output in FITS format. Here the basename of the keyword(s) used to store the shift values should be given. A good option is \"SHFT\". The values of lcnumvar associated with each shift will be indicated using two letters (AA for 0, AB for 1, AC for 2, etc). This will be followed by two letters indicating the value of refnumvar if relevant. Additional options are similar to those for the \"add_stitchparams_fitsheader\" option.\n\n");
@@ -2581,7 +2594,9 @@ void StitchAddInShiftsToHeader(ProgramData *p, _Stitch *stitch,
    by the same composite lcnum (and refnum, if userefnum) key that
    FormLCGroups stored in lcg[g].lcnumval.  Group 0 is the reference segment
    (shift 0); points whose segment never formed a group (e.g. a fully-masked
-   segment) match no group and are left unchanged. */
+   segment) match no group and are left unchanged.  If the user gave the
+   "noshiftmasked" keyword, masked points are also left unchanged, so that
+   masking excludes a point from both the fit and the correction. */
 void  StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num,
 				 int NLCgroups, _StitchLightCurveGroup *lcg,
 				 int vv)
@@ -2589,6 +2604,9 @@ void  StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num,
   int NJD, i, g, key, range;
   NJD = p->NJD[lc_num];
   for(i = 0; i < NJD; i++) {
+    if(stitch->noshiftmasked &&
+       stitch->stitchmaskvals[vv][lc_num][i] <= VARTOOLS_MASK_TINY)
+      continue;
     if(!stitch->userefnum) {
       key = stitch->lcnumval[lc_num][i];
     } else {
