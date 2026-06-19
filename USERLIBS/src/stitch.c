@@ -2572,6 +2572,46 @@ void StitchAddInShiftsToHeader(ProgramData *p, _Stitch *stitch,
   return;
 }
 
+/* Apply the fitted per-segment shifts (lcg[g].shiftvalue) to ALL points in
+   each segment, including points that were masked out of the fit.  Masking
+   (mask <= VARTOOLS_MASK_TINY) excludes a point from determining the shift,
+   but the shift must still be subtracted from it -- otherwise masked points
+   keep their original values while their unmasked neighbours are shifted,
+   inserting a spurious in-segment step.  Each point is mapped to its segment
+   by the same composite lcnum (and refnum, if userefnum) key that
+   FormLCGroups stored in lcg[g].lcnumval.  Group 0 is the reference segment
+   (shift 0); points whose segment never formed a group (e.g. a fully-masked
+   segment) match no group and are left unchanged. */
+void  StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num,
+				 int NLCgroups, _StitchLightCurveGroup *lcg,
+				 int vv)
+{
+  int NJD, i, g, key, range;
+  NJD = p->NJD[lc_num];
+  for(i = 0; i < NJD; i++) {
+    if(!stitch->userefnum) {
+      key = stitch->lcnumval[lc_num][i];
+    } else {
+      /* The composite key is only a bijection for refnumval within the
+	 [min,max] range seen among the unmasked points; a masked point with a
+	 refnumval outside that range belongs to no fitted segment, so skip it
+	 to avoid an accidental key collision. */
+      if(stitch->refnumval[lc_num][i] < stitch->minrefnumindx[lc_num] ||
+	 stitch->refnumval[lc_num][i] > stitch->maxrefnumindx[lc_num])
+	continue;
+      range = stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1;
+      key = stitch->lcnumval[lc_num][i]*range +
+	(stitch->refnumval[lc_num][i] - stitch->minrefnumindx[lc_num]);
+    }
+    for(g = 1; g < NLCgroups; g++) {
+      if(lcg[g].lcnumval == key) {
+	stitch->stitchvarvals[vv][lc_num][i] -= lcg[g].shiftvalue;
+	break;
+      }
+    }
+  }
+}
+
 void  StitchByStatistic(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg, int Ntimegroups, int Nusedtimegroups, _StitchTimeGroup *tg, int vv, FILE *coeffoutfile)
 {
   double **stats_vecs = NULL, **err_vecs = NULL;
@@ -2747,11 +2787,7 @@ void  StitchByStatistic(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc
   }
   
   if(!stitch->fitonly) {
-    for(i = 1; i < NLCgroups; i++) {
-      for(k = 0; k < lcg[i].Nlcs; k++) {
-	stitch->stitchvarvals[vv][lc_num][lcg[i].lcids[k]] -= Avector[ntgused + i - 1];
-      }
-    }
+    StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
 
   /* Save the parameters to an output file if requested */
@@ -3006,11 +3042,7 @@ void  StitchByPoly(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
   }
   
   if(!stitch->fitonly) {
-    for(i = 1; i < NLCgroups; i++) {
-      for(k = 0; k < lcg[i].Nlcs; k++) {
-	stitch->stitchvarvals[vv][lc_num][lcg[i].lcids[k]] -= Avector[ndecorrfrompoly + i - 1];
-      }
-    }
+    StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
 
   /* Save the parameters to an output file if requested */
@@ -3249,11 +3281,7 @@ void  StitchByHarm(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
   }
   
   if(!stitch->fitonly) {
-    for(i = 1; i < NLCgroups; i++) {
-      for(k = 0; k < lcg[i].Nlcs; k++) {
-	stitch->stitchvarvals[vv][lc_num][lcg[i].lcids[k]] -= Avector[ndecorrfromharm + i - 1];
-      }
-    }
+    StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
 
   /* Save the parameters to an output file if requested */
