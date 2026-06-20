@@ -170,6 +170,28 @@ def test_empty_file_returns_empty_frame(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# CLI-token assembly
+# ---------------------------------------------------------------------------
+
+def test_noshiftmasked_token():
+    """``noshiftmasked`` is emitted only when set, immediately after the
+    method (and after ``fitonly`` when both are given), matching the strict
+    keyword order of the C parser."""
+    from pyvartools.commands.userlibs import stitch
+
+    base = stitch("mag", "err", "mask", "lcnum", method="median")
+    assert "noshiftmasked" not in base._to_cli_args()
+
+    ns = stitch("mag", "err", "mask", "lcnum", method="median",
+                noshiftmasked=True)._to_cli_args()
+    assert ns.index("noshiftmasked") == ns.index("median") + 1
+
+    both = stitch("mag", "err", "mask", "lcnum", method="median",
+                  fitonly=True, noshiftmasked=True)._to_cli_args()
+    assert both.index("noshiftmasked") == both.index("fitonly") + 1
+
+
+# ---------------------------------------------------------------------------
 # Integration test against the real binary
 # ---------------------------------------------------------------------------
 

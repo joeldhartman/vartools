@@ -556,7 +556,10 @@ class stitch(_UserLibCommand):
     uncertainty_variables : str or list of str
         Uncertainty variable(s) paired with *stitch_variables*.
     mask_variables : str or list of str
-        Mask variable(s) — points with mask > 0 are excluded from fitting.
+        Mask variable(s) — points with mask > 0 are included in the fit,
+        while points with mask = 0 (or negative) are excluded.  By default
+        an excluded point still has the fitted per-segment shift applied to
+        it (see *noshiftmasked*).
     lcnum_var : str
         Variable identifying the light-curve segment for each point.
     method : str
@@ -572,6 +575,12 @@ class stitch(_UserLibCommand):
         *groupbytime* is set).
     fitonly : bool
         Fit shifts but do not subtract them.
+    noshiftmasked : bool
+        By default a masked point (one excluded from the shift fit) still
+        has the fitted per-segment shift applied to it, so that masking
+        affects only the fit and not the correction.  Set ``True`` to leave
+        masked points unshifted, so that masking excludes a point from both
+        the fit and the correction.
     save_fitted_parameters : bool | str | Output, optional
         Output directory for per-source fitted-parameter files.
     fitted_parameters_nameformat : str, optional
@@ -621,6 +630,7 @@ class stitch(_UserLibCommand):
         groupbytime: Optional[float] = None,
         groupbytime_start: Optional[float] = None,
         fitonly: bool = False,
+        noshiftmasked: bool = False,
         save_fitted_parameters=False,
         fitted_parameters_nameformat: Optional[str] = None,
         add_stitchparams_fitsheader: Union[bool, str] = False,
@@ -646,6 +656,7 @@ class stitch(_UserLibCommand):
         self.groupbytime = groupbytime
         self.groupbytime_start = groupbytime_start
         self.fitonly = fitonly
+        self.noshiftmasked = noshiftmasked
         self.save_fitted_parameters = save_fitted_parameters
         self.fitted_parameters_nameformat = fitted_parameters_nameformat
         self.add_stitchparams_fitsheader = add_stitchparams_fitsheader
@@ -686,6 +697,8 @@ class stitch(_UserLibCommand):
                 args += ["start", str(self.groupbytime_start)]
         if self.fitonly:
             args += ["fitonly"]
+        if self.noshiftmasked:
+            args += ["noshiftmasked"]
         params_spec = _norm_save(self.save_fitted_parameters)
         if _should_emit(params_spec):
             args += ["save_fitted_parameters", params_spec.path or outdir]
