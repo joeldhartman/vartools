@@ -1,5 +1,5 @@
 userlibsdir = $(USERLIBSDIR)
-userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la medlc.la ftuneven.la hatpiflag.la stitch.la
+userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la medlc.la ftuneven.la hatpiflag.la stitch.la unstitch.la
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
 
 if HAVE_GSL
@@ -43,6 +43,10 @@ hatpiflag_la_LDFLAGS = -module
 stitch_la_SOURCES = stitch.c stitch.h
 stitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
 stitch_la_LDFLAGS = -module
+
+unstitch_la_SOURCES = unstitch.c unstitch.h
+unstitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+unstitch_la_LDFLAGS = -module
 
 libmacula_la_SOURCES = macula.f90
 libmacula_la_LIBADD = $(FLIBS)
