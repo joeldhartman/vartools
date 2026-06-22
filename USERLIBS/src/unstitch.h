@@ -11,13 +11,31 @@
    shifts file stores +shiftvalue, so -unstitch does x_old = x_cur + value.
 */
 
+#define UNSTITCH_SOURCE_INSHIFTSFILE 0
+#define UNSTITCH_SOURCE_FITSHEADER   1
+
 typedef struct {
   int nvar;                 /* number of variables to un-shift */
+
+  int source;               /* UNSTITCH_SOURCE_INSHIFTSFILE or _FITSHEADER */
 
   /* The magnitude variable(s) to un-shift (modified in place) */
   char **varnames;
   double ***varvals;
   _Variable **vars;
+
+  /* "fitsheader" source: read the shifts from keywords written by -stitch's
+     add_shifts_fitsheader option into the input FITS header.  Points are
+     keyed to shifts by lcnum (and refnum, if given), matched against the
+     keyword comments ("Shift for variable V LCgroup L [REFID R]").  The
+     header stores -shiftvalue, so unstitch subtracts the keyword value. */
+  char keywordbase[MAXLEN];
+  int **fits_lcnumval;
+  _Variable *fits_lcnumvar;
+  int fits_userefnum;
+  int **fits_refnumval;
+  _Variable *fits_refnumvar;
+  int fits_hdu;             /* 1 = primary header, 2 = first extension */
 
   /* Optional mask: points with mask > VARTOOLS_MASK_TINY are "unmasked".
      Only unmasked points are required to have a shift (coverage check);
@@ -26,6 +44,11 @@ typedef struct {
   char *maskname;
   double **maskvals;
   _Variable *maskvar;
+  /* When set (and maskpoints is given), masked points are left completely
+     unchanged -- never shifted, even if they match a shift.  This inverts a
+     -stitch run that used its "noshiftmasked" option.  Without it, masked
+     points that match a shift ARE shifted (inverting a default -stitch). */
+  int noshiftmasked;
 
   /* Per-point field-label string + optional refnum appended to it */
   char ***field_labels_vals;

@@ -46,6 +46,7 @@ stitch_la_LDFLAGS = -module
 
 unstitch_la_SOURCES = unstitch.c unstitch.h
 unstitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+unstitch_la_CPPFLAGS = $(INCLUDECFITSIO)
 unstitch_la_LDFLAGS = -module
 
 libmacula_la_SOURCES = macula.f90

@@ -1,7 +1,20 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include "../../src/vartools.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "unstitch.h"
+
+/* The "fitsheader" source reads shift keywords directly from the input FITS
+   header via cfitsio.  The cfitsio symbols are resolved at run time from
+   libvartoolspipeline (which has cfitsio statically linked and exports its
+   symbols); only the header is needed at compile time.  Everything cfitsio
+   is guarded by HAVE_CFITSIO so the library still builds without it. */
+#ifdef HAVE_CFITSIO
+#include "fitsio.h"
+#endif
 
 /* User-defined command -unstitch: the inverse of -stitch.  It adds
    previously-determined per-segment shifts back to a light curve to restore
@@ -15,6 +28,7 @@
 */
 
 void DoUnstitch(ProgramData *p, _Unstitch *u, int lc_name_num, int lc_num);
+void DoUnstitch_FitsHeader(ProgramData *p, _Unstitch *u, int lc_name_num, int lc_num);
 void unstitch_ReadInshifts_File(ProgramData *p, Command *c, _Unstitch *u, int vv);
 
 void unstitch_Initialize(char *commandname,
@@ -88,10 +102,12 @@ int unstitch_ParseCL(ProgramData *p, Command *c,
 				&(u->vars[k]));
   }
 
-  /* Source: currently only "in_shifts_file" is supported. */
+  /* Source dispatch: "in_shifts_file" (read shifts from a file) or
+     "fitsheader" (read shifts from the input FITS header). */
   i++;
   if(i >= argc) return 1;
-  if(strcmp(argv[i],"in_shifts_file")) return 1;
+  if(!strcmp(argv[i],"in_shifts_file")) {
+  u->source = UNSTITCH_SOURCE_INSHIFTSFILE;
 
   /* fieldlabelsvar */
   i++;
@@ -175,6 +191,62 @@ int unstitch_ParseCL(ProgramData *p, Command *c,
     i--;
   }
 
+  } /* end of "in_shifts_file" source */
+  else if(!strcmp(argv[i],"fitsheader")) {
+#ifndef HAVE_CFITSIO
+    fprintf(stderr,"Error parsing the unstitch command - the \"fitsheader\" source requires that vartools was compiled with cfitsio support, which is not the case for this build.\n");
+    return 1;
+#else
+    u->source = UNSTITCH_SOURCE_FITSHEADER;
+
+    /* keywordbase */
+    i++;
+    if(i >= argc) return 1;
+    sprintf(u->keywordbase,"%s",argv[i]);
+
+    /* lcnum_var */
+    i++;
+    if(i >= argc) return 1;
+    VARTOOLS_RegisterDataVector(p, c, (void *) (&(u->fits_lcnumval)),
+				VARTOOLS_TYPE_INT, 0,
+				VARTOOLS_SOURCE_EXISTINGVARIABLE,
+				0, NULL, argv[i],
+				(char) VARTOOLS_VECTORTYPE_LC,
+				&(u->fits_lcnumvar));
+
+    /* optional "refnum_var" refnum_var */
+    u->fits_userefnum = 0;
+    i++;
+    if(i < argc && !strcmp(argv[i],"refnum_var")) {
+      u->fits_userefnum = 1;
+      i++;
+      if(i >= argc) return 1;
+      VARTOOLS_RegisterDataVector(p, c, (void *) (&(u->fits_refnumval)),
+				  VARTOOLS_TYPE_INT, 0,
+				  VARTOOLS_SOURCE_EXISTINGVARIABLE,
+				  0, NULL, argv[i],
+				  (char) VARTOOLS_VECTORTYPE_LC,
+				  &(u->fits_refnumvar));
+    } else {
+      i--;
+    }
+
+    /* optional "primary" | "extension" (default primary) */
+    u->fits_hdu = 1;
+    i++;
+    if(i < argc) {
+      if(!strcmp(argv[i],"primary")) u->fits_hdu = 1;
+      else if(!strcmp(argv[i],"extension")) u->fits_hdu = 2;
+      else i--;
+    } else {
+      i--;
+    }
+#endif
+  }
+  else {
+    return 1;
+  }
+
   /* optional "maskpoints" maskvar */
   u->usemask = 0;
   i++;
@@ -190,6 +262,19 @@ int unstitch_ParseCL(ProgramData *p, Command *c,
 				&(u->maskvar));
   } else {
     i--;
+  }
+
+  /* optional "noshiftmasked" */
+  u->noshiftmasked = 0;
+  i++;
+  if(i < argc && !strcmp(argv[i],"noshiftmasked")) {
+    u->noshiftmasked = 1;
+  } else {
+    i--;
+  }
+  if(u->noshiftmasked && !u->usemask) {
+    fprintf(stderr,"Error parsing the unstitch command - the \"noshiftmasked\" keyword requires that \"maskpoints\" is also given (there is otherwise no mask to identify masked points).\n");
+    return 1;
   }
 
   /* Output column: number of points un-shifted per light curve */
@@ -208,9 +293,11 @@ void unstitch_ShowSyntax(FILE *outfile)
   s.s = NULL; s.space = 0; s.len_s = 0; s.Nchar_cur_line = 0;
   VARTOOLS_printtostring(&s,"-unstitch\n");
   VARTOOLS_printtostring(&s,"\tunstitch_variable_list\n");
-  VARTOOLS_printtostring(&s,"\t\"in_shifts_file\" fieldlabelsvar starnamevar file1[,file2,...]\n");
+  VARTOOLS_printtostring(&s,"\t<\"in_shifts_file\" fieldlabelsvar starnamevar file1[,file2,...]\n");
   VARTOOLS_printtostring(&s,"\t\t[\"append_refnum_to_fieldlabel\" refnum_var]\n");
-  VARTOOLS_printtostring(&s,"\t[\"maskpoints\" maskvar]\n");
+  VARTOOLS_printtostring(&s,"\t | \"fitsheader\" keywordbase lcnum_var [\"refnum_var\" refnum_var]\n");
+  VARTOOLS_printtostring(&s,"\t\t[\"primary\" | \"extension\"]>\n");
+  VARTOOLS_printtostring(&s,"\t[\"maskpoints\" maskvar [\"noshiftmasked\"]]\n");
   fprintf(outfile,"%s",s.s);
 }
 
@@ -218,12 +305,14 @@ void unstitch_ShowHelp(FILE *outfile)
 {
   OutText s;
   s.s = NULL; s.space = 0; s.len_s = 0; s.Nchar_cur_line = 0;
-  VARTOOLS_printtostring(&s,"Undo a previous -stitch operation by adding the determined per-segment shifts back to the light curve, restoring the original magnitudes. The shifts are read from a file produced by the \"out_shifts_file\" option of -stitch.\n\n");
-  VARTOOLS_printtostring(&s,"unstitch_variable_list - A comma-separated list of light curve variables to un-shift (typically mag). Use one input shifts file per variable, in the same order.\n\n");
+  VARTOOLS_printtostring(&s,"Undo a previous -stitch operation by adding the determined per-segment shifts back to the light curve, restoring the original magnitudes. The shifts are read either from a file produced by the \"out_shifts_file\" option of -stitch, or from the keywords that the \"add_shifts_fitsheader\" option of -stitch wrote into the FITS header of the input light curve.\n\n");
+  VARTOOLS_printtostring(&s,"unstitch_variable_list - A comma-separated list of light curve variables to un-shift (typically mag). For the \"in_shifts_file\" source use one input shifts file per variable, in the same order.\n\n");
   VARTOOLS_printtostring(&s,"\"in_shifts_file\" - Read the shifts from a file. First provide the name of a light curve variable storing a string field identifier (or telescope ID) for each observation; this is used to match points to the shifts in the file. Then provide the name of an input list variable storing the string star name for each light curve, used to select the matching line of the file. Finally provide a comma-separated list of shifts files to read, one per variable being un-shifted. The file format is that written by the \"out_shifts_file\" option of -stitch. The stored shift is added back to each matching point (the inverse of how -stitch subtracts it).\n\n");
   VARTOOLS_printtostring(&s,"\"append_refnum_to_fieldlabel\" - If the shifts file was written with this option, give it here as well, followed by the refnum_var, so the field labels are reconstructed in the same way for matching.\n\n");
-  VARTOOLS_printtostring(&s,"\"maskpoints\" - Optionally give a mask variable. Points with a mask value greater than 0 are treated as in-use (unmasked); points with a mask value of 0 (or negative) are masked. Masked points are exempt from the coverage check below and are left unchanged if they have no matching shift.\n\n");
-  VARTOOLS_printtostring(&s,"Coverage: -unstitch requires that every unmasked point has a matching shift in the file. If any unmasked point's star or field label is missing from the file the command quits with an error, since this indicates that the wrong set of shifts is being used to un-stitch the light curve.\n\n");
+  VARTOOLS_printtostring(&s,"\"fitsheader\" - Read the shifts from the FITS header of the input light curve, as written by the \"add_shifts_fitsheader\" option of -stitch. Give the keyword basename that was used (e.g. SHFT), followed by the lcnum_var that identifies the light curve segment for each point. Optionally give \"refnum_var\" followed by the refnum variable if the shifts were determined with a refnum_var. By default the keywords are read from the primary header; give \"extension\" to read them from the first extension header instead. Each point is matched to a shift by its lcnum (and refnum) value against the keyword comments; the header stores the shift as the change that was applied, so the inverse (the original magnitude) is recovered by subtracting it. This source requires that vartools was compiled with cfitsio support and that the input light curve is in FITS format. Note that the shift is recovered to the precision stored in the FITS keyword, which may be slightly less than the full machine precision available through \"in_shifts_file\".\n\n");
+  VARTOOLS_printtostring(&s,"\"maskpoints\" - Optionally give a mask variable. Points with a mask value greater than 0 are treated as in-use (unmasked); points with a mask value of 0 (or negative) are masked. Masked points are exempt from the coverage check below. By default a masked point that has a matching shift is still shifted (this correctly inverts a default -stitch, which shifts all points); a masked point with no matching shift is left unchanged.\n\n");
+  VARTOOLS_printtostring(&s,"\"noshiftmasked\" - Only valid together with \"maskpoints\". When given, masked points are left completely unchanged -- they are never shifted, even if they match a shift. Use this to invert a -stitch run that used its own \"noshiftmasked\" option (so that masked points were not shifted by -stitch); otherwise -unstitch would over-correct those points.\n\n");
+  VARTOOLS_printtostring(&s,"Coverage: -unstitch requires that every unmasked point has a matching shift. If any unmasked point has no matching shift (its star/field label is missing from the file, or no matching keyword is present in the header) the command quits with an error, since this indicates that the wrong set of shifts is being used to un-stitch the light curve.\n\n");
   VARTOOLS_printtostring(&s,"Output: the column Npoints_shifted reports the number of points that received a shift (summed over the variables) for each light curve.\n\n");
   fprintf(outfile,"%s",s.s);
 }
@@ -253,7 +342,10 @@ void unstitch_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
 {
   _Unstitch *u;
   u = (_Unstitch *) userdata;
-  DoUnstitch(p, u, lc_name_num, lc_num);
+  if(u->source == UNSTITCH_SOURCE_FITSHEADER)
+    DoUnstitch_FitsHeader(p, u, lc_name_num, lc_num);
+  else
+    DoUnstitch(p, u, lc_name_num, lc_num);
 }
 
 /* ------------------------------------------------------------------------
@@ -466,6 +558,8 @@ void unstitch_Apply_InShifts(_Unstitch *u, ProgramData *p, int lcnum, int lc_nam
   int i;
   for(i=0; i < p->NJD[lcnum]; i++) {
     if(fieldlabels_indx[i] >= 0) {
+      if(u->noshiftmasked && u->usemask && u->maskvals[lcnum][i] <= VARTOOLS_MASK_TINY)
+	continue;   /* masked point left unchanged */
       u->varvals[vv][lcnum][i] += u->in_shift_values[vv][shiftid][fieldlabels_indx[i]];
       u->Npoints_shifted[lcnum] += 1;
     } else if(!u->usemask || u->maskvals[lcnum][i] > VARTOOLS_MASK_TINY) {
@@ -517,4 +611,139 @@ void DoUnstitch(ProgramData *p, _Unstitch *u, int lc_name_num, int lc_num)
   }
 
   if(fieldlabels_indx != NULL) free(fieldlabels_indx);
+}
+
+/* "fitsheader" source: read the per-segment shifts from the input FITS header
+   keywords that -stitch wrote with its add_shifts_fitsheader option, and add
+   them back.  The keyword comments ("Shift for variable V LCgroup L [REFID R]")
+   are the authoritative key -- the keyword character encoding is not uniquely
+   invertible for the refnum case, so we match on the parsed comment instead.
+   The header stores -shiftvalue, so we SUBTRACT the keyword value to restore
+   the original magnitude. */
+void DoUnstitch_FitsHeader(ProgramData *p, _Unstitch *u, int lc_name_num, int lc_num)
+{
+#ifdef HAVE_CFITSIO
+  fitsfile *fptr = NULL;
+  int status = 0;
+  int nkeys, kk, hdutype;
+  int vv, i, baselen;
+  char keyname[FLEN_KEYWORD], value[FLEN_VALUE], comment[FLEN_COMMENT];
+  /* table of shift records parsed from the header */
+  int *map_V = NULL, *map_L = NULL, *map_R = NULL, *map_hasR = NULL;
+  double *map_val = NULL;
+  int nmap = 0, sizemap = 0;
+  int V, L, R, Rq, hasR, np, matched;
+  int *matchidx = NULL;
+  int miss_found, miss_L0, miss_R0, has_second, second_L, second_R;
+
+  u->Npoints_shifted[lc_num] = 0;
+  if(p->NJD[lc_num] <= 0)
+    return;
+
+  baselen = strlen(u->keywordbase);
+
+  fits_open_file(&fptr, p->lcnames[lc_name_num], READONLY, &status);
+  if(status) {
+    fprintf(stderr,"Error in -unstitch: cannot open the input light curve \"%s\" as a FITS file to read shift keywords (cfitsio status %d). The \"fitsheader\" source requires a FITS-format input light curve.\n", p->lcnames[lc_name_num], status);
+    exit(1);
+  }
+  fits_movabs_hdu(fptr, u->fits_hdu, &hdutype, &status);
+  if(status) {
+    fprintf(stderr,"Error in -unstitch: cannot move to HDU %d of the input FITS file \"%s\" (cfitsio status %d).\n", u->fits_hdu, p->lcnames[lc_name_num], status);
+    exit(1);
+  }
+
+  /* Collect every keyword whose name starts with keywordbase and whose comment
+     is a -stitch shift record. */
+  fits_get_hdrspace(fptr, &nkeys, NULL, &status);
+  for(kk = 1; kk <= nkeys; kk++) {
+    keyname[0] = '\0'; value[0] = '\0'; comment[0] = '\0';
+    if(fits_read_keyn(fptr, kk, keyname, value, comment, &status)) { status = 0; continue; }
+    if(baselen > 0 && strncmp(keyname, u->keywordbase, baselen) != 0) continue;
+    np = sscanf(comment, "Shift for variable %d LCgroup %d REFID %d", &V, &L, &R);
+    if(np == 3) {
+      hasR = 1;
+    } else {
+      np = sscanf(comment, "Shift for variable %d LCgroup %d", &V, &L);
+      if(np != 2) continue;   /* not a stitch shift keyword */
+      hasR = 0;
+      R = 0;
+    }
+    if(nmap >= sizemap) {
+      sizemap = sizemap ? sizemap*2 : 16;
+      if((map_V = (int *) realloc(map_V, sizemap*sizeof(int))) == NULL ||
+	 (map_L = (int *) realloc(map_L, sizemap*sizeof(int))) == NULL ||
+	 (map_R = (int *) realloc(map_R, sizemap*sizeof(int))) == NULL ||
+	 (map_hasR = (int *) realloc(map_hasR, sizemap*sizeof(int))) == NULL ||
+	 (map_val = (double *) realloc(map_val, sizemap*sizeof(double))) == NULL)
+	VARTOOLS_error(ERR_MEMALLOC);
+    }
+    map_V[nmap] = V; map_L[nmap] = L; map_R[nmap] = R;
+    map_hasR[nmap] = hasR; map_val[nmap] = atof(value);
+    nmap++;
+  }
+  status = 0;
+  fits_close_file(fptr, &status);
+
+  /* Apply, one variable at a time.  -stitch omits the reference segment's
+     keyword (its shift is 0), so a single segment with no matching keyword is
+     taken to be that reference and left unchanged.  If two or more distinct
+     unmasked segments lack a keyword, the header does not cover the light
+     curve (wrong keywordbase/HDU, or the LC was not stitched) and we quit. */
+  if((matchidx = (int *) malloc(p->NJD[lc_num]*sizeof(int))) == NULL)
+    VARTOOLS_error(ERR_MEMALLOC);
+  for(vv = 0; vv < u->nvar; vv++) {
+    miss_found = 0; has_second = 0;
+    miss_L0 = 0; miss_R0 = 0; second_L = 0; second_R = 0;
+    /* Pass 1: resolve each point and detect uncovered segments. */
+    for(i = 0; i < p->NJD[lc_num]; i++) {
+      L = u->fits_lcnumval[lc_num][i];
+      Rq = u->fits_userefnum ? u->fits_refnumval[lc_num][i] : 0;
+      matched = -1;
+      for(kk = 0; kk < nmap; kk++) {
+	if(map_V[kk] != vv || map_L[kk] != L) continue;
+	if(u->fits_userefnum) {
+	  if(!map_hasR[kk] || map_R[kk] != Rq) continue;
+	} else {
+	  if(map_hasR[kk]) continue;
+	}
+	matched = kk;
+	break;
+      }
+      matchidx[i] = matched;
+      if(matched < 0 && (!u->usemask || u->maskvals[lc_num][i] > VARTOOLS_MASK_TINY)) {
+	if(!miss_found) {
+	  miss_found = 1; miss_L0 = L; miss_R0 = Rq;
+	} else if(!has_second && (L != miss_L0 || (u->fits_userefnum && Rq != miss_R0))) {
+	  has_second = 1; second_L = L; second_R = Rq;
+	}
+      }
+    }
+    if(has_second) {
+      fprintf(stderr,"Error in -unstitch: HDU %d of \"%s\" (keywordbase %s) is missing shift keywords for two or more distinct segments of variable %s (e.g. LCgroup %d%s and LCgroup %d%s); at most one segment (the reference, shift 0) may be absent. Check that the correct keywordbase, HDU, and lcnum/refnum variables are being used.\n",
+	      u->fits_hdu, p->lcnames[lc_name_num], u->keywordbase, u->varnames[vv],
+	      miss_L0, (u->fits_userefnum ? " (refnum given)" : ""),
+	      second_L, (u->fits_userefnum ? " (refnum given)" : ""));
+      exit(1);
+    }
+    /* Pass 2: apply the matched shifts (the single missing segment, if any,
+       is the reference and is left unchanged). */
+    for(i = 0; i < p->NJD[lc_num]; i++) {
+      if(matchidx[i] >= 0) {
+	if(u->noshiftmasked && u->usemask && u->maskvals[lc_num][i] <= VARTOOLS_MASK_TINY)
+	  continue;   /* masked point left unchanged */
+	u->varvals[vv][lc_num][i] -= map_val[matchidx[i]];
+	u->Npoints_shifted[lc_num] += 1;
+      }
+    }
+  }
+  free(matchidx);
+
+  if(map_V != NULL) free(map_V);
+  if(map_L != NULL) free(map_L);
+  if(map_R != NULL) free(map_R);
+  if(map_hasR != NULL) free(map_hasR);
+  if(map_val != NULL) free(map_val);
+#endif
+  return;
 }
