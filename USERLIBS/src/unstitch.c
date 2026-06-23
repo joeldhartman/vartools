@@ -366,7 +366,25 @@ void unstitch_ShowExample(FILE *outfile)
 	  "    -rms \\\n"
 	  "    -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt \\\n"
 	  "    -rms -oneline\n\n"
-	  "The list file EXAMPLES/lc_list_unstitch combines two light-curve segments (EXAMPLES/2 and EXAMPLES/2.shifted, the latter being EXAMPLES/2 with +0.3 mag added) into a single light curve, assigning per-segment field labels fA and fB (through the \"combinelc\" form of -inlistvars) and the star name star1. The first command stitches the segments together and writes the determined per-segment shifts to EXAMPLES/OUTDIR1/shifts.txt. The second command stitches again and then undoes it with -unstitch, reading those same shifts: the three -rms outputs show that the combined scatter is inflated by the inter-segment offset, drops after stitching, and returns to the inflated value after un-stitching, confirming that -unstitch restores the original magnitudes. In normal use the -stitch and -unstitch steps are run on separate occasions, with EXAMPLES/OUTDIR1/shifts.txt carried between them.\n");
+	  "The list file EXAMPLES/lc_list_unstitch combines two light-curve segments (EXAMPLES/2 and EXAMPLES/2.shifted, the latter being EXAMPLES/2 with +0.3 mag added) into a single light curve, assigning per-segment field labels fA and fB (through the \"combinelc\" form of -inlistvars) and the star name star1. The first command stitches the segments together and writes the determined per-segment shifts to EXAMPLES/OUTDIR1/shifts.txt. The second command stitches again and then undoes it with -unstitch, reading those same shifts: the three -rms outputs show that the combined scatter is inflated by the inter-segment offset, drops after stitching, and returns to the inflated value after un-stitching, confirming that -unstitch restores the original magnitudes. In normal use the -stitch and -unstitch steps are run on separate occasions, with EXAMPLES/OUTDIR1/shifts.txt carried between them.\n\n");
+  fprintf(outfile,
+	  "Alternatively the shifts can be carried in the FITS header rather than a separate file:\n\n"
+	  "vartools -L USERLIBS/src/.libs/stitch.so \\\n"
+	  "    -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum \\\n"
+	  "    -inlistvars 'field:2:combinelc:string,star:3:string' \\\n"
+	  "    -expr 'mask=mag*0+1' \\\n"
+	  "    -stitch mag err mask lcnum median add_shifts_fitsheader SHFT \\\n"
+	  "    -o EXAMPLES/OUTDIR1 nameformat unstitch.stitched.fits allcols fits \\\n"
+	  "    -oneline\n\n"
+	  "vartools -L USERLIBS/src/.libs/stitch.so -L USERLIBS/src/.libs/unstitch.so \\\n"
+	  "    -i EXAMPLES/OUTDIR1/unstitch.stitched.fits \\\n"
+	  "    -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' \\\n"
+	  "    -rms \\\n"
+	  "    -unstitch mag fitsheader SHFT lcnum strip_fitsheader SHFT \\\n"
+	  "    -rms \\\n"
+	  "    -o EXAMPLES/OUTDIR1/unstitch.restored.fits allcols fits copyheader \\\n"
+	  "    -oneline\n\n"
+	  "The first command stitches the segments and writes the result to a FITS light curve, logging the per-segment shifts into its header with keywords whose names begin with SHFT (add_shifts_fitsheader). The second command reads that FITS light curve, recovers the shifts from those header keywords with the \"fitsheader\" source of -unstitch (the lcnum variable identifies which segment each point belongs to), and adds them back; the two -rms values show the scatter returning from the stitched value to the original inflated value. The \"strip_fitsheader SHFT\" option removes the now-stale SHFT keywords from the output FITS header (carried over by copyheader), so the restored light curve is written without them.\n");
 }
 
 void unstitch_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc_num)
