@@ -6522,4 +6522,117 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -stitch refmag: shift all groups to a reference magnitude.  Without
+# groupbytime the median method puts every group's median on the reference
+# value, so the combined median equals it.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -stitch refmag normalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 -stats mag median -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                     = EXAMPLES/2
+Stitch_NLCGroups_1       = 2
+Stitch_NTimeGroups_1     = 1
+Stitch_NFitParamsTotal_1 = 2
+STATS_mag_MEDIAN_2       = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 -stats mag median -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -stitch refmag round-trip with -unstitch: the reference group now carries a
+# real shift, which is recorded and rolled back.  The mean moves to the
+# reference value after stitching and back to the original after un-stitching.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -stitch refmag round-trip with -unstitch" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 shifts_file field star out_shifts_file EXAMPLES/OUTDIR1/refmag_shifts.txt -oneline
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median refmag fix 12.0 -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/refmag_shifts.txt -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Mean_Mag_1                 =  10.26802
+RMS_1                      =   0.15441
+Expected_RMS_1             =   0.00102
+Npoints_1                  =  6626
+Stitch_NLCGroups_2         = 2
+Stitch_NTimeGroups_2       = 1
+Stitch_NFitParamsTotal_2   = 2
+Mean_Mag_3                 =  12.00812
+RMS_3                      =   0.03663
+Expected_RMS_3             =   0.00102
+Npoints_3                  =  6626
+Unstitch_Npoints_shifted_4 = 6626
+Mean_Mag_5                 =  10.26802
+RMS_5                      =   0.15441
+Expected_RMS_5             =   0.00102
+Npoints_5                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 shifts_file field star out_shifts_file EXAMPLES/OUTDIR1/refmag_shifts.txt -oneline > /dev/null 2>&1 ; $VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median refmag fix 12.0 -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/refmag_shifts.txt -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/refmag_shifts.txt
+
+
+# -unstitch fitsheader after a poly stitch -- regression guard for the
+# add_shifts_fitsheader keyword comment (the poly/harmseries methods used to
+# write "variable number", which the -unstitch parser did not match).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch fitsheader after poly stitch" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum poly 2 add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat poly_ft.fits allcols fits
+./vartools -i EXAMPLES/OUTDIR1/poly_ft.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/OUTDIR1/poly_ft.fits
+Mean_Mag_0                 =  10.11802
+RMS_0                      =   0.03663
+Expected_RMS_0             =   0.00102
+Npoints_0                  =  6626
+Unstitch_Npoints_shifted_1 = 3313
+Mean_Mag_2                 =  10.26802
+RMS_2                      =   0.15441
+Expected_RMS_2             =   0.00102
+Npoints_2                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum poly 2 add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat poly_ft.fits allcols fits > /dev/null 2>&1 ; $VARTOOLS -i EXAMPLES/OUTDIR1/poly_ft.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/poly_ft.fits
+
+
 rm -f $testc $testout $goodout
