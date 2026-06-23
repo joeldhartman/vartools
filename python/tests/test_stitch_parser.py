@@ -191,6 +191,32 @@ def test_noshiftmasked_token():
     assert both.index("noshiftmasked") == both.index("fitonly") + 1
 
 
+def test_refmag_token():
+    """``refmag`` emits a fix/list/fixcolumn/expr value spec, only when set."""
+    from pyvartools.commands.userlibs import stitch
+
+    base = stitch("mag", "err", "mask", "lcnum", method="median")
+    assert "refmag" not in base._to_cli_args()
+
+    # a number -> "fix value"
+    num = stitch("mag", "err", "mask", "lcnum", method="median",
+                 refmag=12.0)._to_cli_args()
+    assert num[-3:] == ["refmag", "fix", "12.0"]
+
+    # explicit spec strings pass through
+    for spec, tail in [("fix 5.0", ["refmag", "fix", "5.0"]),
+                       ("expr target", ["refmag", "expr", "target"]),
+                       ("list column 3", ["refmag", "list", "column", "3"])]:
+        args = stitch("mag", "err", "mask", "lcnum", method="median",
+                      refmag=spec)._to_cli_args()
+        assert args[-len(tail):] == tail
+
+    # a bare identifier is treated as an expression
+    bare = stitch("mag", "err", "mask", "lcnum", method="median",
+                  refmag="meanmag")._to_cli_args()
+    assert bare[-2:] == ["expr", "meanmag"]
+
+
 # ---------------------------------------------------------------------------
 # Integration test against the real binary
 # ---------------------------------------------------------------------------
@@ -230,3 +256,24 @@ def test_end_to_end_capture(tmp_path):
     # shift for LCgroup_2 should be approximately ±0.3.
     lcg2 = shifts[shifts.term == "LCgroup_2"].value.iloc[0]
     assert math.isclose(abs(lcg2), 0.3, abs_tol=0.05)
+
+
+@needs_binary
+def test_end_to_end_refmag_normalize(tmp_path):
+    """``refmag`` shifts all groups to the reference magnitude: with the
+    median method (no groupbytime) the combined median lands on the value."""
+    lc1 = os.path.join(EXAMPLES_DIR, "2")
+    lc2 = os.path.join(EXAMPLES_DIR, "2.shifted")
+    if not (os.path.isfile(lc1) and os.path.isfile(lc2)):
+        pytest.skip("Example LCs not present")
+
+    result = (vt.Pipeline()
+              .expr("mask=mag*0+1")
+              .stitch("mag", "err", "mask", "lcnum", method="median",
+                      refmag=12.0)
+              .stats("mag", "median")
+              ).run_combinelc([lc1, lc2])
+    assert result.error is None
+    medkeys = [k for k in result.vars.index if "STATS_mag_MEDIAN" in k]
+    assert len(medkeys) == 1, list(result.vars.index)
+    assert math.isclose(float(result.vars[medkeys[0]]), 12.0, abs_tol=1e-6)

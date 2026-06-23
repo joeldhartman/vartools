@@ -581,6 +581,15 @@ class stitch(_UserLibCommand):
         affects only the fit and not the correction.  Set ``True`` to leave
         masked points unshifted, so that masking excludes a point from both
         the fit and the correction.
+    refmag : float or str, optional
+        Shift all groups to a reference magnitude rather than adopting one
+        group as the (unshifted) reference.  A number is passed as
+        ``fix value``; a string is one of ``"fix V"`` / ``"list"`` /
+        ``"fixcolumn COL"`` / ``"expr E"``, or a bare expression.  For
+        median/mean/weightedmean without ``groupbytime`` every group's
+        statistic is shifted to the value; with ``groupbytime`` or for
+        ``poly``/``harmseries`` the reference group's level (its median for
+        poly/harmseries) is tied to it.
     save_fitted_parameters : bool | str | Output, optional
         Output directory for per-source fitted-parameter files.
     fitted_parameters_nameformat : str, optional
@@ -631,6 +640,7 @@ class stitch(_UserLibCommand):
         groupbytime_start: Optional[float] = None,
         fitonly: bool = False,
         noshiftmasked: bool = False,
+        refmag=None,
         save_fitted_parameters=False,
         fitted_parameters_nameformat: Optional[str] = None,
         add_stitchparams_fitsheader: Union[bool, str] = False,
@@ -657,6 +667,7 @@ class stitch(_UserLibCommand):
         self.groupbytime_start = groupbytime_start
         self.fitonly = fitonly
         self.noshiftmasked = noshiftmasked
+        self.refmag = refmag
         self.save_fitted_parameters = save_fitted_parameters
         self.fitted_parameters_nameformat = fitted_parameters_nameformat
         self.add_stitchparams_fitsheader = add_stitchparams_fitsheader
@@ -699,6 +710,8 @@ class stitch(_UserLibCommand):
             args += ["fitonly"]
         if self.noshiftmasked:
             args += ["noshiftmasked"]
+        if self.refmag is not None:
+            args += ["refmag"] + _extparam(self.refmag)
         params_spec = _norm_save(self.save_fitted_parameters)
         if _should_emit(params_spec):
             args += ["save_fitted_parameters", params_spec.path or outdir]
