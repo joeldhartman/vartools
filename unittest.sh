@@ -6389,4 +6389,137 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -unstitch: undo a -stitch, restoring the original magnitudes.  Round-trip
+# test reading the shifts from a file: the combined RMS is inflated by the
+# inter-segment offset, drops after -stitch, and returns to the inflated value
+# after -unstitch.  (Requires the stitch.so/unstitch.so user libraries.)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch in_shifts_file round-trip" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Mean_Mag_1                 =  10.26802
+RMS_1                      =   0.15441
+Expected_RMS_1             =   0.00102
+Npoints_1                  =  6626
+Stitch_NLCGroups_2         = 2
+Stitch_NTimeGroups_2       = 1
+Stitch_NFitParamsTotal_2   = 2
+Mean_Mag_3                 =  10.11802
+RMS_3                      =   0.03663
+Expected_RMS_3             =   0.00102
+Npoints_3                  =  6626
+Unstitch_Npoints_shifted_4 = 6626
+Mean_Mag_5                 =  10.26802
+RMS_5                      =   0.15441
+Expected_RMS_5             =   0.00102
+Npoints_5                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -unstitch reading the shifts from the FITS header that -stitch wrote with
+# add_shifts_fitsheader.  First -stitch writes a FITS light curve with SHFT*
+# keywords; then -unstitch reads them back and restores the original RMS.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch fitsheader round-trip" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat unstitch_test.fits allcols fits
+./vartools -i EXAMPLES/OUTDIR1/unstitch_test.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/OUTDIR1/unstitch_test.fits
+Mean_Mag_0                 =  10.11802
+RMS_0                      =   0.03663
+Expected_RMS_0             =   0.00102
+Npoints_0                  =  6626
+Unstitch_Npoints_shifted_1 = 3313
+Mean_Mag_2                 =  10.26802
+RMS_2                      =   0.15441
+Expected_RMS_2             =   0.00102
+Npoints_2                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat unstitch_test.fits allcols fits > /dev/null 2>&1 ; $VARTOOLS -i EXAMPLES/OUTDIR1/unstitch_test.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/unstitch_test.fits
+
+
+# -unstitch with noshiftmasked: masked points are left unshifted, so fewer
+# points receive a shift (here the masked segment-1 points are skipped).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch noshiftmasked" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask noshiftmasked -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Unstitch_Npoints_shifted_1 = 6396
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask noshiftmasked -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Same as above WITHOUT noshiftmasked: a masked point that matches a shift is
+# still shifted, so all matched points are shifted.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch maskpoints (masked matched points still shifted)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Unstitch_Npoints_shifted_1 = 6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 rm -f $testc $testout $goodout
