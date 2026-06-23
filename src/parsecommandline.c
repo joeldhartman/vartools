@@ -12855,6 +12855,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA->outputfitmask = 0;
 	  c[cn].TFA->outputfitmaskvarname = NULL;
 	  c[cn].TFA->outputfitmaskvar = NULL;
+	  c[cn].TFA->do_refmag = 0;
+	  c[cn].TFA->refmag_usemedian = 0;
+	  VT_INIT_PARAM(c[cn].TFA, refmag);
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -13046,6 +13049,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    i--;
 
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"refmag")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA->do_refmag = 1;
+	      if(!c[cn].TFA->correctlc) {
+		fprintf(stderr, "-TFA: 'refmag' requires correctlc to be enabled; the corrected light curve must be written for its level to be reset\n");
+		listcommands(argv[iterm],p);
+	      }
+	      VT_PARSE_DOUBLE(c[cn].TFA, refmag, argv, i);
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA->refmag_usemedian = 1;
+		} else
+		  i--;
+	      } else
+		i--;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
@@ -13074,6 +13102,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA_SR->usefitmask = 0;
 	  c[cn].TFA_SR->fitmaskvarname = NULL;
 	  c[cn].TFA_SR->fitmaskvar = NULL;
+	  c[cn].TFA_SR->outputfitmask = 0;
+	  c[cn].TFA_SR->outputfitmaskvarname = NULL;
+	  c[cn].TFA_SR->outputfitmaskvar = NULL;
+	  c[cn].TFA_SR->do_refmag = 0;
+	  c[cn].TFA_SR->refmag_usemedian = 0;
+	  VT_INIT_PARAM(c[cn].TFA_SR, refmag);
 
 	  if(i < argc)
 	    {
@@ -13517,6 +13551,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		vt_error(ERR_MEMALLOC);
 	      sprintf(c[cn].TFA_SR->outputfitmaskvarname,"%s",argv[i]);
 	      c[cn].TFA_SR->outputfitmask = 1;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"refmag")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA_SR->do_refmag = 1;
+	      if(!c[cn].TFA_SR->correctlc) {
+		fprintf(stderr, "-TFA_SR: 'refmag' requires correctlc to be enabled; the corrected light curve must be written for its level to be reset\n");
+		listcommands(argv[iterm],p);
+	      }
+	      VT_PARSE_DOUBLE(c[cn].TFA_SR, refmag, argv, i);
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA_SR->refmag_usemedian = 1;
+		} else
+		  i--;
+	      } else
+		i--;
 	    } else
 	      i--;
 	  }

@@ -1651,6 +1651,8 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2);
 	  else
 	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], 0, NULL, NULL, lc2);
+	  if(c->TFA->do_refmag && c->TFA->correctlc)
+	    tfa_reset_level(p, p->NJD[lc2], p->mag[lc2], c->TFA->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA, refmag, lc, lc2), &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2]);
 	}
       break;
 
@@ -1726,6 +1728,8 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2, lc2);
 	  else
 	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, 0, NULL, NULL, lc2, lc2);
+	  if(c->TFA_SR->do_refmag && c->TFA_SR->correctlc)
+	    tfa_reset_level(p, p->NJD[lc2], p->mag[lc2], c->TFA_SR->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA_SR, refmag, lc, lc2), &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2]);
 	}
       break;
 
@@ -4006,6 +4010,8 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],p->matchstringid,p->stringid[lc],p->stringid_idx[lc], 0);
 	      else
 		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],0,NULL,NULL, 0);
+	      if(c->TFA->do_refmag && c->TFA->correctlc)
+		tfa_reset_level(p, p->NJD[lc], p->mag[lc], c->TFA->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA, refmag, lc, lc), &c->TFA->ave_out[lc], &c->TFA->rms_out[lc]);
 	    }
 	}
       break;
@@ -4090,6 +4096,8 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,p->matchstringid,p->stringid[lc],p->stringid_idx[lc], lc, 0);
 	      else
 		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,0,NULL,NULL, lc, 0);
+	      if(c->TFA_SR->do_refmag && c->TFA_SR->correctlc)
+		tfa_reset_level(p, p->NJD[lc], p->mag[lc], c->TFA_SR->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA_SR, refmag, lc, lc), &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc]);
 	    }
 	}
       break;

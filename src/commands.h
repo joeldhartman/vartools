@@ -1509,6 +1509,10 @@ typedef struct {
   int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
+  int do_refmag;          /* reset the corrected LC's level to a reference mag */
+  int refmag_usemedian;   /* reset the median rather than the mean */
+  double refmag;
+  VT_PARAM_COMPANIONS(refmag);
 } _TFA;
 
 typedef struct {
@@ -1539,6 +1543,10 @@ typedef struct {
   int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
+  int do_refmag;          /* reset the corrected LC's level to a reference mag */
+  int refmag_usemedian;   /* reset the median rather than the mean */
+  double refmag;
+  VT_PARAM_COMPANIONS(refmag);
 } _TFA_SR;
 
 typedef struct {

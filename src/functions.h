@@ -180,6 +180,7 @@ double getminsini(double a, double e, double omega, double p);
 void fitmandelagoltransit_amoeba(ProgramData *p, int N, double *t, double *mag, double *sig, double *P, double *T0, double *r, double *a, double *inc, double *bimpact, double *e, double *omega, double *mconst, int type, double *ldcoeffs, int fitephem, int fitr, int fita, int fitinclterm, int fite, int fitomega, int fitmconst, int *fitldcoeffs, double *chi2_, int correctlc, int omodel, char *modelname, int fitRV, char *RVfilename, char *omodelRVcurve, double *K, double *gamma, int fitK, int fitgamma, int refititer, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, char *modelvarname, _Variable *modelvar, int threadid);
 void initialize_tfa(_TFA *tfa, ProgramData *p);
 void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double *e, double lcx, double lcy, char *lc_name, char *coeff_file_name, int coeff_flag, int correctlc, int outlc, char *lc_out_name, double *ave_out, double *rms_out, int matchstringid, char **stringid, int *stringid_idx, int threadid);
+void tfa_reset_level(ProgramData *p, int N, double *m, int usemedian, double refmagval, double *ave_out, double *rms_out);
 void do_sysrem(ProgramData *p, _Sysrem *Sysrem, int numlc, int *Njd_in, double **t_in, double **mag_in, double **sig_in, char **lcnames, int matchstringid, char ***stringid, int **stringid_idx);
 void initialize_sysrem(_Sysrem *Sysrem, int numlcs, int matchstringid);
 int binlc_parsevarstring(_Binlc *c);
