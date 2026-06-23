@@ -731,6 +731,16 @@ void VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum,
   va_end(varlist);
 }
 
+void VARTOOLS_Delete_Keyword_From_OutputLC_FitsHeader(ProgramData *p, int lcnum,
+						     char *keyname, int hdutouse,
+						     int prefixmatch)
+{
+  VARTOOLS_FUNCTION_POINTER_STRUCT.Delete_Keyword_From_OutputLC_FitsHeader(p, lcnum,
+									  keyname,
+									  hdutouse,
+									  prefixmatch);
+}
+
 int VARTOOLS_findX(double *x, double xval, int i1, int N)
 {
   return(VARTOOLS_FUNCTION_POINTER_STRUCT.findX(x, xval, i1, N));

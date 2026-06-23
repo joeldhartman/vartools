@@ -158,11 +158,14 @@ void VARTOOLS_mysortstringint(int, int, char **, int *);
 
 void VARTOOLS_docorr(double *mag, double *err, int Npoints, int ndecorr, double **decorr, int *order, double *Avector, double *A_errvector, double mag_ave, int zeropoint, int usemask, _Variable *maskvar, int lcindex, int threadindex);
 
-void VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, 
+void VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum,
 						 char *keyname,
-						 char *comment, int hdutouse, 
+						 char *comment, int hdutouse,
 						 int updateexisting,
 						 int dtype, ...);
+void VARTOOLS_Delete_Keyword_From_OutputLC_FitsHeader(ProgramData *p, int lcnum,
+						      char *keyname, int hdutouse,
+						      int prefixmatch);
 int VARTOOLS_findX(double *, double, int, int);
 
 int VARTOOLS_findX_string(char **, int *, char *, int, int);

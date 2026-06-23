@@ -80,4 +80,8 @@ typedef struct {
   void (*RegisterTrackedOpenFile)(ProgramData *, FILE *);
   int (*parseone)(char *, void *, int);
   void (*printtostring)(OutText *, const char*);
+  /* Appended at the end to preserve the offsets of the existing members for
+     the binary<->userlib ABI. */
+  void (*Delete_Keyword_From_OutputLC_FitsHeader)(ProgramData *, int, char *,
+						  int, int);
 } _VARTOOLS_FUNCTION_POINTER_STRUCT;

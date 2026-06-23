@@ -81,6 +81,10 @@ void vAdd_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keynam
 					char *comment, int hdutouse, int updateexisting,
 					int dtype, va_list argp);
 
+void Delete_Keyword_From_OutputLC_FitsHeader(ProgramData *p, int lcnum,
+					     char *keyname, int hdutouse,
+					     int prefixmatch);
+
 int load_user_library(char *libname, ProgramData *p, int islib, ...) {
 
 
@@ -4224,6 +4228,7 @@ void Set_Function_Pointers_Callback(_VARTOOLS_FUNCTION_POINTER_STRUCT *fptr){
   fptr->mysortstringint = &mysortstringint;
   fptr->docorr = &docorr;
   fptr->vAdd_Keyword_To_OutputLC_FitsHeader = &vAdd_Keyword_To_OutputLC_FitsHeader;
+  fptr->Delete_Keyword_From_OutputLC_FitsHeader = &Delete_Keyword_From_OutputLC_FitsHeader;
   fptr->findX = &findX;
   fptr->findX_string = &findX_string;
   fptr->RegisterTrackedOpenFile = &RegisterTrackedOpenFile;

@@ -211,9 +211,19 @@ typedef struct {
 } _vartools_header_entry;
 
 typedef struct {
+  char *keyname;
+  int keyname_veclen;
+  int hdutouse;
+  int prefixmatch;     /* 1 = delete all keywords starting with keyname */
+} _vartools_header_delete_entry;
+
+typedef struct {
   int N_added_keywords;
   int size_added_keywords_vec;
   _vartools_header_entry *hdrterms;
+  int N_deleted_keywords;
+  int size_deleted_keywords_vec;
+  _vartools_header_delete_entry *delterms;
 } _vartools_outlcfits_header_additions;
 
 typedef struct {
