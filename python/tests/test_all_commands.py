@@ -2267,6 +2267,49 @@ class TestCLIArgsFitting:
         idx = args.index("period")
         assert args[idx+1] == "ls"
 
+    # ------- TFA / TFA_SR refmag (reset corrected-LC level) -------
+
+    def test_tfa_refmag_absent_by_default(self):
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0)._to_cli_args()
+        assert "refmag" not in args
+
+    def test_tfa_refmag_fixed(self):
+        """A numeric refmag emits the bare value (built-in fix/var/expr
+        spec — no explicit "fix" keyword) as the final tokens."""
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                       refmag=12.0)._to_cli_args()
+        assert args[-2:] == ["refmag", "12.0"]
+
+    def test_tfa_refmag_usemedian(self):
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                       refmag=12.0, refmag_usemedian=True)._to_cli_args()
+        assert args[-3:] == ["refmag", "12.0", "usemedian"]
+
+    def test_tfa_refmag_var_and_expr(self):
+        # bare identifier -> "var"
+        a = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    refmag="targetmag")._to_cli_args()
+        assert a[-3:] == ["refmag", "var", "targetmag"]
+        # explicit expr passes through
+        b = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    refmag="expr 12.0+1.0")._to_cli_args()
+        assert b[-3:] == ["refmag", "expr", "12.0+1.0"]
+
+    def test_tfa_refmag_requires_correct_lc(self):
+        with pytest.raises(ValueError):
+            cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    correct_lc=False, refmag=12.0)._to_cli_args()
+
+    def test_tfa_sr_refmag(self):
+        args = cmd.TFA_SR("trends.txt", "dates.txt", 10.0,
+                          refmag=12.0, refmag_usemedian=True)._to_cli_args()
+        assert args[-3:] == ["refmag", "12.0", "usemedian"]
+
+    def test_tfa_sr_refmag_requires_correct_lc(self):
+        with pytest.raises(ValueError):
+            cmd.TFA_SR("trends.txt", "dates.txt", 10.0,
+                       correct_lc=False, refmag=12.0)._to_cli_args()
+
     def test_sysrem_basic(self):
         args = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._to_cli_args()
         assert args[0] == "-SYSREM"

@@ -51,6 +51,14 @@ class TFA(VartoolsCommand):
         excluded from the trend fit.
     outfitmask : str, optional
         Name of a variable into which the applied fit mask is written.
+    refmag : float or str, optional
+        Reset the level of the corrected light curve to this reference
+        magnitude (requires ``correct_lc=True``).  A number sets a fixed
+        value; a bare identifier is read as a per-LC variable (``var``);
+        any other string is evaluated as a per-LC expression (``expr``).
+    refmag_usemedian : bool
+        With ``refmag``, set the median rather than the mean of the
+        corrected light curve to the reference magnitude.
 
     See Also
     --------
@@ -77,6 +85,8 @@ class TFA(VartoolsCommand):
         weight_by_template_stddev: bool = False,
         fitmask: Optional[str] = None,
         outfitmask: Optional[str] = None,
+        refmag: Optional[Union[float, str]] = None,
+        refmag_usemedian: bool = False,
     ) -> None:
         self.trendlist = trendlist
         self.dates_file = dates_file
@@ -93,9 +103,16 @@ class TFA(VartoolsCommand):
         self.weight_by_template_stddev = weight_by_template_stddev
         self.fitmask = fitmask
         self.outfitmask = outfitmask
+        self.refmag = refmag
+        self.refmag_usemedian = refmag_usemedian
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
+        if self.refmag is not None and not self.correct_lc:
+            raise ValueError(
+                "TFA: refmag requires correct_lc=True (the corrected "
+                "light curve must be produced for its level to be reset)"
+            )
         args = ["-TFA", self.trendlist]
         if self.readformat is not None:
             args += ["readformat"] + [str(x) for x in self.readformat]
@@ -117,6 +134,9 @@ class TFA(VartoolsCommand):
             args += _bool("useMAD", self.useMAD)
         args += _flag("fitmask", self.fitmask)
         args += _flag("outfitmask", self.outfitmask)
+        if self.refmag is not None:
+            args += ["refmag"] + _varexpr(self.refmag)
+            args += _bool("usemedian", self.refmag_usemedian)
         return args
 
     def _output_file_specs(self):
@@ -188,6 +208,14 @@ class TFA_SR(VartoolsCommand):
         excluded from the trend fit.
     outfitmask : str, optional
         Name of a variable into which the applied fit mask is written.
+    refmag : float or str, optional
+        Reset the level of the corrected light curve to this reference
+        magnitude (requires ``correct_lc=True``).  A number sets a fixed
+        value; a bare identifier is read as a per-LC variable (``var``);
+        any other string is evaluated as a per-LC expression (``expr``).
+    refmag_usemedian : bool
+        With ``refmag``, set the median rather than the mean of the
+        corrected light curve to the reference magnitude.
 
     See Also
     --------
@@ -219,6 +247,8 @@ class TFA_SR(VartoolsCommand):
         outfitmask: Optional[str] = None,
         decorr_params: Optional[str] = None,
         signal_period: Optional[Union[float, str]] = None,
+        refmag: Optional[Union[float, str]] = None,
+        refmag_usemedian: bool = False,
     ) -> None:
         self.trendlist = trendlist
         self.dates_file = dates_file
@@ -240,9 +270,16 @@ class TFA_SR(VartoolsCommand):
         self.outfitmask = outfitmask
         self.decorr_params = decorr_params
         self.signal_period = signal_period
+        self.refmag = refmag
+        self.refmag_usemedian = refmag_usemedian
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
+        if self.refmag is not None and not self.correct_lc:
+            raise ValueError(
+                "TFA_SR: refmag requires correct_lc=True (the corrected "
+                "light curve must be produced for its level to be reset)"
+            )
         args = ["-TFA_SR", self.trendlist]
         if self.readformat is not None:
             args += ["readformat"] + [str(x) for x in self.readformat]
@@ -272,6 +309,9 @@ class TFA_SR(VartoolsCommand):
             args += _bool("useMAD", self.useMAD)
         args += _flag("fitmask", self.fitmask)
         args += _flag("outfitmask", self.outfitmask)
+        if self.refmag is not None:
+            args += ["refmag"] + _varexpr(self.refmag)
+            args += _bool("usemedian", self.refmag_usemedian)
         return args
 
     def _resolve_back_references(self, prev) -> None:
