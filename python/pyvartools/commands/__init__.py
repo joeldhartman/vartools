@@ -115,6 +115,7 @@ from .userlibs import (
     magadd,
     splinedetrend,
     stitch,
+    unstitch,
 )
 
 __all__ = [
@@ -145,5 +146,5 @@ __all__ = [
     "UserCommand",
     # typed USERLIB wrappers
     "fastchi2", "ftuneven", "hatpiflag", "jktebop", "macula",
-    "magadd", "splinedetrend", "stitch",
+    "magadd", "splinedetrend", "stitch", "unstitch",
 ]

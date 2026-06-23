@@ -741,6 +741,168 @@ class stitch(_UserLibCommand):
         return {"fitted_parameters": (".stitch", _parse_stitch_fitted_params)}
 
 
+class unstitch(_UserLibCommand):
+    """Undo a previous ``-stitch``, restoring the original magnitudes
+    (USERLIB ``-unstitch``).
+
+    The per-segment shifts are read either from a file written by ``-stitch``'s
+    ``out_shifts_file`` option (*source* ``"in_shifts_file"``) or from the
+    keywords ``-stitch``'s ``add_shifts_fitsheader`` option wrote into the input
+    FITS header (*source* ``"fitsheader"``), and added back.
+
+    Parameters
+    ----------
+    unstitch_variables : str or list of str
+        Variable(s) to un-shift (typically ``"mag"``).  For the
+        ``"in_shifts_file"`` source, use one input shifts file per variable, in
+        the same order.
+    source : str
+        ``"in_shifts_file"`` or ``"fitsheader"``.
+    fieldlabelsvar : str, optional
+        (``in_shifts_file``) Per-point string field identifier used to match
+        points to shifts in the file.  **Required** for this source.
+    starnamevar : str, optional
+        (``in_shifts_file``) Per-LC string star name selecting the file line.
+        **Required** for this source.
+    in_shifts_file : str or list of str, optional
+        (``in_shifts_file``) Shifts file(s), one per variable.  **Required**
+        for this source.
+    append_refnum_to_fieldlabel : str, optional
+        (``in_shifts_file``) If the file was written with this option, give the
+        refnum variable here so the field labels are reconstructed identically.
+    keywordbase : str, optional
+        (``fitsheader``) Keyword basename ``-stitch`` used (e.g. ``"SHFT"``).
+        **Required** for this source.
+    lcnum_var : str, optional
+        (``fitsheader``) Variable identifying the segment for each point.
+        **Required** for this source.
+    refnum_var : str, optional
+        (``fitsheader``) Refnum variable, if the shifts used one.
+    hdu : str, optional
+        (``fitsheader``) ``"primary"`` (default) or ``"extension"`` — which
+        header to read the keywords from.
+    maskpoints : str, optional
+        Mask variable.  Masked points (mask <= 0) are exempt from the coverage
+        check.  By default a masked point that matches a shift is still
+        shifted; see *noshiftmasked*.
+    noshiftmasked : bool
+        Leave masked points completely unchanged (never shifted).  Requires
+        *maskpoints*.  Use this to invert a ``-stitch`` run that used its own
+        ``noshiftmasked`` option.
+    strip_fitsheader : str, optional
+        Keyword basename to remove from the output FITS header (e.g. with
+        ``-o ... fits copyheader``).  Every keyword starting with it is removed.
+    strip_stitchparams : bool
+        Also remove the fixed ``STCH*`` stitch-parameter keywords.
+    strip_hdu : str, optional
+        ``"primary"`` (default) or ``"extension"`` — which header to strip.
+    lib_path : str, optional
+
+    See Also
+    --------
+    USERLIB extension command: ``-unstitch``.  The inverse of ``-stitch``.
+    """
+
+    _vt_name = "unstitch"
+
+    def __init__(
+        self,
+        unstitch_variables: Union[str, List[str]],
+        source: str,
+        fieldlabelsvar: Optional[str] = None,
+        starnamevar: Optional[str] = None,
+        in_shifts_file: Union[str, List[str], None] = None,
+        append_refnum_to_fieldlabel: Optional[str] = None,
+        keywordbase: Optional[str] = None,
+        lcnum_var: Optional[str] = None,
+        refnum_var: Optional[str] = None,
+        hdu: Optional[str] = None,
+        maskpoints: Optional[str] = None,
+        noshiftmasked: bool = False,
+        strip_fitsheader: Optional[str] = None,
+        strip_stitchparams: bool = False,
+        strip_hdu: Optional[str] = None,
+        lib_path: Optional[str] = None,
+    ) -> None:
+        if source not in ("in_shifts_file", "fitsheader"):
+            raise ValueError(
+                "unstitch: source must be 'in_shifts_file' or 'fitsheader', "
+                "got %r" % (source,)
+            )
+        if source == "in_shifts_file":
+            if fieldlabelsvar is None or starnamevar is None or in_shifts_file is None:
+                raise ValueError(
+                    "unstitch: source 'in_shifts_file' requires fieldlabelsvar, "
+                    "starnamevar, and in_shifts_file"
+                )
+        else:  # fitsheader
+            if keywordbase is None or lcnum_var is None:
+                raise ValueError(
+                    "unstitch: source 'fitsheader' requires keywordbase and "
+                    "lcnum_var"
+                )
+        if noshiftmasked and maskpoints is None:
+            raise ValueError(
+                "unstitch: noshiftmasked requires maskpoints"
+            )
+        for name, val in (("hdu", hdu), ("strip_hdu", strip_hdu)):
+            if val is not None and val not in ("primary", "extension"):
+                raise ValueError(
+                    "unstitch: %s must be 'primary' or 'extension', got %r"
+                    % (name, val)
+                )
+
+        self.unstitch_variables = unstitch_variables
+        self.source = source
+        self.fieldlabelsvar = fieldlabelsvar
+        self.starnamevar = starnamevar
+        self.in_shifts_file = in_shifts_file
+        self.append_refnum_to_fieldlabel = append_refnum_to_fieldlabel
+        self.keywordbase = keywordbase
+        self.lcnum_var = lcnum_var
+        self.refnum_var = refnum_var
+        self.hdu = hdu
+        self.maskpoints = maskpoints
+        self.noshiftmasked = noshiftmasked
+        self.strip_fitsheader = strip_fitsheader
+        self.strip_stitchparams = strip_stitchparams
+        self.strip_hdu = strip_hdu
+        self.lib_path = lib_path
+
+    @staticmethod
+    def _joinlist(v) -> str:
+        if isinstance(v, (list, tuple)):
+            return ",".join(str(x) for x in v)
+        return str(v)
+
+    def _to_cli_args(self) -> List[str]:
+        args: List[str] = self._libprefix() + ["-unstitch"]
+        args += [self._joinlist(self.unstitch_variables)]
+        if self.source == "in_shifts_file":
+            args += ["in_shifts_file", self.fieldlabelsvar, self.starnamevar,
+                     self._joinlist(self.in_shifts_file)]
+            if self.append_refnum_to_fieldlabel is not None:
+                args += ["append_refnum_to_fieldlabel",
+                         self.append_refnum_to_fieldlabel]
+        else:  # fitsheader
+            args += ["fitsheader", self.keywordbase, self.lcnum_var]
+            if self.refnum_var is not None:
+                args += ["refnum_var", self.refnum_var]
+            if self.hdu is not None:
+                args += [self.hdu]
+        if self.maskpoints is not None:
+            args += ["maskpoints", self.maskpoints]
+            if self.noshiftmasked:
+                args += ["noshiftmasked"]
+        if self.strip_fitsheader is not None:
+            args += ["strip_fitsheader", self.strip_fitsheader]
+            if self.strip_stitchparams:
+                args += ["stitchparams"]
+            if self.strip_hdu is not None:
+                args += [self.strip_hdu]
+        return args
+
+
 # -----------------------------------------------------------------------------
 # jktebop — detached-eclipsing-binary model.
 # -----------------------------------------------------------------------------
