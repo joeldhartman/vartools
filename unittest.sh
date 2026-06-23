@@ -3910,6 +3910,110 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -TFA refmag (reset mean of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA refmag" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/3.transit
+Mean_Mag_0     =  10.16727
+RMS_0          =   0.00542
+Expected_RMS_0 =   0.00104
+Npoints_0      =  3417
+TFA_MeanMag_1  =  12.00000
+TFA_RMS_1      =   0.00471
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -TFA refmag usemedian (reset median of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA refmag usemedian" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 usemedian \
+    -stats mag median
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/3.transit
+Mean_Mag_0         =  10.16727
+RMS_0              =   0.00542
+Expected_RMS_0     =   0.00104
+Npoints_0          =  3417
+TFA_MeanMag_1      =  12.00031
+TFA_RMS_1          =   0.00471
+STATS_mag_MEDIAN_2 = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 usemedian \
+    -stats mag median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -TFA_SR refmag usemedian (reset median of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA_SR refmag usemedian" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA_SR EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 \
+        0 0.001 100 harm 0 0 period fix 1.2345 refmag 12.0 usemedian \
+    -stats mag median
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/3.transit
+Mean_Mag_0         =  10.16727
+RMS_0              =   0.00542
+Expected_RMS_0     =   0.00104
+Npoints_0          =  3417
+TFA_SR_MeanMag_1   =  12.00030
+TFA_SR_RMS_1       =   0.00471
+STATS_mag_MEDIAN_2 = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA_SR EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 \
+        0 0.001 100 harm 0 0 period fix 1.2345 refmag 12.0 usemedian \
+    -stats mag median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -TFA_SR example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -TFA_SR example 1" > /dev/stderr
