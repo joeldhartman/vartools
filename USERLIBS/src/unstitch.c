@@ -277,6 +277,34 @@ int unstitch_ParseCL(ProgramData *p, Command *c,
     return 1;
   }
 
+  /* optional "strip_fitsheader" keywordbase ["stitchparams"] ["primary"|"extension"] */
+  u->strip_fitsheader = 0;
+  u->strip_stitchparams = 0;
+  u->strip_hdutouse = 0;
+  i++;
+  if(i < argc && !strcmp(argv[i],"strip_fitsheader")) {
+    u->strip_fitsheader = 1;
+    i++;
+    if(i >= argc) return 1;
+    sprintf(u->strip_keywordbase,"%s",argv[i]);
+    i++;
+    if(i < argc && !strcmp(argv[i],"stitchparams")) {
+      u->strip_stitchparams = 1;
+    } else {
+      i--;
+    }
+    i++;
+    if(i < argc) {
+      if(!strcmp(argv[i],"primary")) u->strip_hdutouse = 0;
+      else if(!strcmp(argv[i],"extension")) u->strip_hdutouse = 1;
+      else i--;
+    } else {
+      i--;
+    }
+  } else {
+    i--;
+  }
+
   /* Output column: number of points un-shifted per light curve */
   VARTOOLS_RegisterDataVector(p, c, (void *) (&(u->Npoints_shifted)),
 			      VARTOOLS_TYPE_INT, 0, VARTOOLS_SOURCE_COMPUTED,
@@ -298,6 +326,8 @@ void unstitch_ShowSyntax(FILE *outfile)
   VARTOOLS_printtostring(&s,"\t | \"fitsheader\" keywordbase lcnum_var [\"refnum_var\" refnum_var]\n");
   VARTOOLS_printtostring(&s,"\t\t[\"primary\" | \"extension\"]>\n");
   VARTOOLS_printtostring(&s,"\t[\"maskpoints\" maskvar [\"noshiftmasked\"]]\n");
+  VARTOOLS_printtostring(&s,"\t[\"strip_fitsheader\" keywordbase [\"stitchparams\"]\n");
+  VARTOOLS_printtostring(&s,"\t\t[\"primary\" | \"extension\"]]\n");
   fprintf(outfile,"%s",s.s);
 }
 
@@ -312,6 +342,7 @@ void unstitch_ShowHelp(FILE *outfile)
   VARTOOLS_printtostring(&s,"\"fitsheader\" - Read the shifts from the FITS header of the input light curve, as written by the \"add_shifts_fitsheader\" option of -stitch. Give the keyword basename that was used (e.g. SHFT), followed by the lcnum_var that identifies the light curve segment for each point. Optionally give \"refnum_var\" followed by the refnum variable if the shifts were determined with a refnum_var. By default the keywords are read from the primary header; give \"extension\" to read them from the first extension header instead. Each point is matched to a shift by its lcnum (and refnum) value against the keyword comments; the header stores the shift as the change that was applied, so the inverse (the original magnitude) is recovered by subtracting it. This source requires that vartools was compiled with cfitsio support and that the input light curve is in FITS format. Note that the shift is recovered to the precision stored in the FITS keyword, which may be slightly less than the full machine precision available through \"in_shifts_file\".\n\n");
   VARTOOLS_printtostring(&s,"\"maskpoints\" - Optionally give a mask variable. Points with a mask value greater than 0 are treated as in-use (unmasked); points with a mask value of 0 (or negative) are masked. Masked points are exempt from the coverage check below. By default a masked point that has a matching shift is still shifted (this correctly inverts a default -stitch, which shifts all points); a masked point with no matching shift is left unchanged.\n\n");
   VARTOOLS_printtostring(&s,"\"noshiftmasked\" - Only valid together with \"maskpoints\". When given, masked points are left completely unchanged -- they are never shifted, even if they match a shift. Use this to invert a -stitch run that used its own \"noshiftmasked\" option (so that masked points were not shifted by -stitch); otherwise -unstitch would over-correct those points.\n\n");
+  VARTOOLS_printtostring(&s,"\"strip_fitsheader\" - Optionally remove the stitch keywords from the header of any light curve subsequently output in FITS format (for example, with -o ... fits copyheader, which carries the input FITS header through to the output). Give the keyword basename that -stitch used; every keyword whose name begins with it is removed. Optionally give \"stitchparams\" to also remove the fixed STCH* stitch-parameter keywords written by -stitch's add_stitchparams_fitsheader option. By default the keywords are removed from the primary header; give \"extension\" to remove them from the first extension header instead. This is a no-op if the output is not FITS or the keywords are not present, and is independent of which shift source is used.\n\n");
   VARTOOLS_printtostring(&s,"Coverage: -unstitch requires that every unmasked point has a matching shift. If any unmasked point has no matching shift (its star/field label is missing from the file, or no matching keyword is present in the header) the command quits with an error, since this indicates that the wrong set of shifts is being used to un-stitch the light curve.\n\n");
   VARTOOLS_printtostring(&s,"Output: the column Npoints_shifted reports the number of points that received a shift (summed over the variables) for each light curve.\n\n");
   fprintf(outfile,"%s",s.s);
@@ -346,6 +377,18 @@ void unstitch_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
     DoUnstitch_FitsHeader(p, u, lc_name_num, lc_num);
   else
     DoUnstitch(p, u, lc_name_num, lc_num);
+
+  /* Queue removal of the stitch keywords from the output FITS header (applied
+     when the light curve is written; a no-op if the output is not FITS or the
+     keywords are absent). */
+  if(u->strip_fitsheader) {
+    VARTOOLS_Delete_Keyword_From_OutputLC_FitsHeader(p, lc_num,
+						     u->strip_keywordbase,
+						     u->strip_hdutouse, 1);
+    if(u->strip_stitchparams)
+      VARTOOLS_Delete_Keyword_From_OutputLC_FitsHeader(p, lc_num, "STCH",
+						       u->strip_hdutouse, 1);
+  }
 }
 
 /* ------------------------------------------------------------------------

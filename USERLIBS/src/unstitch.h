@@ -50,6 +50,15 @@ typedef struct {
      points that match a shift ARE shifted (inverting a default -stitch). */
   int noshiftmasked;
 
+  /* Optional: strip the stitch keywords from the output FITS header.  Removes
+     every keyword whose name starts with strip_keywordbase (and, if
+     strip_stitchparams is set, the fixed STCH* stitch-parameter keywords) from
+     the chosen HDU of any FITS light curve subsequently written. */
+  int strip_fitsheader;
+  char strip_keywordbase[MAXLEN];
+  int strip_stitchparams;
+  int strip_hdutouse;       /* 0 = primary, 1 = first extension */
+
   /* Per-point field-label string + optional refnum appended to it */
   char ***field_labels_vals;
   int **field_labels_vals_indx;
