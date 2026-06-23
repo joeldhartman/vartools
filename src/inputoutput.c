@@ -1531,93 +1531,75 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   }
 
   if(p->fits_header_adds != NULL) {
-    /* Cast through (void *) at assignment to allow either fits_update_key or
-       fits_write_key whose signatures differ slightly in const-qualification
-       across cfitsio versions; we know the actual call shape below is fixed. */
+    /* Apply the queued keyword additions and deletions in the order they were
+       requested (their seq, set by N_header_ops at queue time), so that an
+       add / delete / add sequence behaves as written -- e.g. a -unstitch
+       strip_fitsheader followed by a -stitch add_shifts_fitsheader with the
+       same keywordbase replaces the old keywords with the new ones, rather
+       than the strip removing the freshly-written keywords.  Cast through
+       (void *) so that either fits_update_key or fits_write_key (whose
+       const-qualification differs across cfitsio versions) can be called.
+       hdutouse 0 = primary (HDU 1); 1 = first extension (the data bin-table,
+       which is the HDU the file is positioned at here). */
     int (*fitskeyfunctocall)(fitsfile *, int, char *, ...);
     void *fitskeyvalptr;
-    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
-      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 0)
-	continue;
-      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
-      } else {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
-      }
-      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
-      case TDOUBLE:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
-	break;
-      case TINT:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
-	break;
-      case TLONG:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
-	break;
-      case TSTRING:
-	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
-	break;
-      default:
-	vt_error(ERR_CODEERROR);
-	break;
-      }
-      fitskeyfunctocall(outfile,
-			p->fits_header_adds[threadid].hdrterms[i].datatype, 
-			p->fits_header_adds[threadid].hdrterms[i].keyname, 
-			fitskeyvalptr,
-			p->fits_header_adds[threadid].hdrterms[i].comment,
-			&status);
-    }
+    int ai = 0, di = 0;
+    int Nadd = p->fits_header_adds[threadid].N_added_keywords;
+    int Ndel = p->fits_header_adds[threadid].N_deleted_keywords;
+    int bintablehdu = 1, curhdu, targethdu, do_add;
+    int nhk, hk, dkstat, dprefixlen;
+    char dkname[FLEN_KEYWORD], dkval[FLEN_VALUE], dkcomment[FLEN_COMMENT];
+    _vartools_header_entry *ae;
+    _vartools_header_delete_entry *de;
 
-    fits_movabs_hdu(outfile, 1, NULL, &status2);
-    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
-      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 1)
-	continue;
-      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
-      } else {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
-      }
-      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
-      case TDOUBLE:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
-	break;
-      case TINT:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
-	break;
-      case TLONG:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
-	break;
-      case TSTRING:
-	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
-	break;
-      default:
-	vt_error(ERR_CODEERROR);
-	break;
-      }
-      fitskeyfunctocall(outfile,
-			p->fits_header_adds[threadid].hdrterms[i].datatype,
-			p->fits_header_adds[threadid].hdrterms[i].keyname,
-			fitskeyvalptr,
-			p->fits_header_adds[threadid].hdrterms[i].comment,
-			&status);
-    }
+    fits_get_hdu_num(outfile, &bintablehdu);
+    curhdu = bintablehdu;
 
-    /* Apply any queued keyword deletions (e.g. -unstitch strip_fitsheader).
-       Iterate the relevant HDU's header from the end so that deleting a
-       record does not shift the indices of records still to be checked. */
-    {
-      int idel, nhk, hk, dkstat, dprefixlen;
-      char dkname[FLEN_KEYWORD], dkval[FLEN_VALUE], dkcomment[FLEN_COMMENT];
-      _vartools_header_delete_entry *de;
-      for(idel = 0; idel < p->fits_header_adds[threadid].N_deleted_keywords; idel++) {
-	de = &(p->fits_header_adds[threadid].delterms[idel]);
+    while(ai < Nadd || di < Ndel) {
+      if(ai < Nadd && di < Ndel)
+	do_add = (p->fits_header_adds[threadid].hdrterms[ai].seq <=
+		  p->fits_header_adds[threadid].delterms[di].seq);
+      else
+	do_add = (ai < Nadd);
+
+      if(do_add) {
+	ae = &(p->fits_header_adds[threadid].hdrterms[ai]);
+	ai++;
+	targethdu = (ae->hdutouse == 1) ? bintablehdu : 1;
+	if(curhdu != targethdu) {
+	  status2 = 0;
+	  fits_movabs_hdu(outfile, targethdu, NULL, &status2);
+	  curhdu = targethdu;
+	}
+	if(ae->updateexisting) {
+	  fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
+	} else {
+	  fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
+	}
+	switch(ae->datatype) {
+	case TDOUBLE: fitskeyvalptr = &(ae->dbl_val); break;
+	case TINT:    fitskeyvalptr = &(ae->int_val); break;
+	case TLONG:   fitskeyvalptr = &(ae->long_val); break;
+	case TSTRING: fitskeyvalptr = ae->string_val; break;
+	default: vt_error(ERR_CODEERROR); break;
+	}
+	fitskeyfunctocall(outfile, ae->datatype, ae->keyname,
+			  fitskeyvalptr, ae->comment, &status);
+      } else {
+	de = &(p->fits_header_adds[threadid].delterms[di]);
+	di++;
 	if(de->keyname == NULL) continue;
 	dprefixlen = strlen(de->keyname);
 	if(dprefixlen <= 0) continue;
-	status2 = 0;
-	fits_movabs_hdu(outfile, (de->hdutouse == 1 ? 2 : 1), NULL, &status2);
-	if(status2) { status2 = 0; continue; }
+	targethdu = (de->hdutouse == 1) ? bintablehdu : 1;
+	if(curhdu != targethdu) {
+	  status2 = 0;
+	  fits_movabs_hdu(outfile, targethdu, NULL, &status2);
+	  if(status2) { status2 = 0; curhdu = -1; continue; }
+	  curhdu = targethdu;
+	}
+	/* Iterate the header from the end so deleting a record does not shift
+	   the indices of records still to be checked. */
 	dkstat = 0;
 	fits_get_hdrspace(outfile, &nhk, NULL, &dkstat);
 	for(hk = nhk; hk >= 1; hk--) {
@@ -1635,11 +1617,11 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
 	  fits_delete_record(outfile, hk, &dkstat);
 	}
       }
-      if(p->fits_header_adds[threadid].N_deleted_keywords > 0) {
-	status2 = 0;
-	fits_movabs_hdu(outfile, 1, NULL, &status2);
-      }
     }
+
+    /* Leave the output positioned at the primary header. */
+    status2 = 0;
+    fits_movabs_hdu(outfile, 1, NULL, &status2);
   }
 
 
@@ -2414,6 +2396,7 @@ void vAdd_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keynam
   i = p->fits_header_adds[lcnum].N_added_keywords;
   p->fits_header_adds[lcnum].hdrterms[i].hdutouse = hdutouse;
   p->fits_header_adds[lcnum].hdrterms[i].updateexisting = updateexisting;
+  p->fits_header_adds[lcnum].hdrterms[i].seq = p->fits_header_adds[lcnum].N_header_ops++;
   switch(dtype) {
   case VARTOOLS_TYPE_DOUBLE:
     p->fits_header_adds[lcnum].hdrterms[i].datatype = TDOUBLE;
@@ -2538,6 +2521,7 @@ void Delete_Keyword_From_OutputLC_FitsHeader(ProgramData *p, int lcnum,
   i = p->fits_header_adds[lcnum].N_deleted_keywords;
   p->fits_header_adds[lcnum].delterms[i].hdutouse = hdutouse;
   p->fits_header_adds[lcnum].delterms[i].prefixmatch = prefixmatch;
+  p->fits_header_adds[lcnum].delterms[i].seq = p->fits_header_adds[lcnum].N_header_ops++;
   if(keyname != NULL) {
     if(strlen(keyname)+1 > p->fits_header_adds[lcnum].delterms[i].keyname_veclen) {
       if(!p->fits_header_adds[lcnum].delterms[i].keyname_veclen) {
@@ -2818,6 +2802,7 @@ void Reset_outlc_fitsheader_additions(ProgramData *p, int lcnum)
       }
       p->fits_header_adds[lcnum].N_deleted_keywords = 0;
     }
+    p->fits_header_adds[lcnum].N_header_ops = 0;
   }
 }
 

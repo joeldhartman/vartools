@@ -484,6 +484,7 @@ void InitCommands(ProgramData *p, Command *c)
       p->fits_header_adds[i].N_deleted_keywords = 0;
       p->fits_header_adds[i].size_deleted_keywords_vec = 0;
       p->fits_header_adds[i].delterms = NULL;
+      p->fits_header_adds[i].N_header_ops = 0;
     }
   } else if(p->Ncopycommands > 0 && Nlcs > 1 && p->fileflag) {
     if((p->fits_header_adds = (_vartools_outlcfits_header_additions *) realloc(p->fits_header_adds,Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL)
@@ -495,6 +496,7 @@ void InitCommands(ProgramData *p, Command *c)
       p->fits_header_adds[j].N_deleted_keywords = 0;
       p->fits_header_adds[j].size_deleted_keywords_vec = 0;
       p->fits_header_adds[j].delterms = NULL;
+      p->fits_header_adds[j].N_header_ops = 0;
     }
   }
 

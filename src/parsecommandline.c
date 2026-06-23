@@ -183,6 +183,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      p->fits_header_adds[j].N_deleted_keywords = 0;
 	      p->fits_header_adds[j].size_deleted_keywords_vec = 0;
 	      p->fits_header_adds[j].delterms = NULL;
+	      p->fits_header_adds[j].N_header_ops = 0;
 	      p->skipfaillc[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
 		vt_error(ERR_MEMALLOC);
