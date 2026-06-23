@@ -3,10 +3,15 @@
 #include <stdlib.h>
 #include "stitch.h"
 
-void DoStitch(ProgramData *p, _Stitch *stitch, int lc_name_num, 
+void DoStitch(ProgramData *p, _Stitch *stitch, int lc_name_num,
 			 int lc_num);
 
 void stitch_ReadInshifts_File(ProgramData *p, Command *c, _Stitch *stitch, int vv);
+
+double StitchGroupLevel(ProgramData *p, _Stitch *stitch, int lc_num, _StitchLightCurveGroup *grp, int vv, int statmethod);
+void StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg, int vv);
+void StitchWriteShiftKeywords(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg, int vv);
+void StitchRefMagNoFit(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg, int vv, int statmethod);
 
 /* This is the source code for a sample user-defined command
    to be used with vartools.
@@ -62,7 +67,7 @@ int stitch_ParseCL(ProgramData *p, Command *c,
    by this function so that memory will be allocated as needed.
 
 Expected syntax for this command:
-   -stitch stitch_variable_list uncertainty_variable_list mask_variable_list lcnum_var [\"refnum_var\" refnum_var] <\"median\" | \"mean\" | \"weightedmean\" | \"poly\" order | \"harmseries\" period_var Nharm> [\"groupbytime\" time_bin [\"start\" firstbintime]] [\"fitonly\"] [\"noshiftmasked\"] [\"save_fitted_parameters\" <outdir [\"format\"] fmt>] [\"add_stitchparams_fitsheader\"  [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"add_shifts_fitsheader\" keywordbase [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"shifts_file\" fieldlabelsvar starnamevar [\"append_refnum_to_fieldlabel\"] [\"in_shifts_file\" inshiftsfile1[,inshiftsfile2,...] [\"nobs_refit\" nobs_refit] [\"header_basename_only\"]] [\"out_shifts_file\" outshiftsfile1[,outshiftsfile2,...] [\"include_missing\"]]]
+   -stitch stitch_variable_list uncertainty_variable_list mask_variable_list lcnum_var [\"refnum_var\" refnum_var] <\"median\" | \"mean\" | \"weightedmean\" | \"poly\" order | \"harmseries\" period_var Nharm> [\"groupbytime\" time_bin [\"start\" firstbintime]] [\"fitonly\"] [\"noshiftmasked\"] [\"refmag\" <\"fix\" value | \"list\" | \"fixcolumn\" col | \"expr\" expr>] [\"save_fitted_parameters\" <outdir [\"format\"] fmt>] [\"add_stitchparams_fitsheader\"  [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"add_shifts_fitsheader\" keywordbase [\"primary\" | \"extension\"] [\"append\" | \"update\"]] [\"shifts_file\" fieldlabelsvar starnamevar [\"append_refnum_to_fieldlabel\"] [\"in_shifts_file\" inshiftsfile1[,inshiftsfile2,...] [\"nobs_refit\" nobs_refit] [\"header_basename_only\"]] [\"out_shifts_file\" outshiftsfile1[,outshiftsfile2,...] [\"include_missing\"]]]
 
 
   p = structure containing general program data. In most cases this 
@@ -394,6 +399,25 @@ Expected syntax for this command:
       stitch->noshiftmasked = 1;
     } else
       i--;
+  } else
+    i--;
+
+  /* "refmag" <"fix" value | "list" | "fixcolumn" col | "expr" expr> --
+     optionally shift all groups to a reference magnitude value rather than to
+     one (unshifted) reference group. */
+  stitch->use_refmag = 0;
+  stitch->refmagval = NULL;
+  i++;
+  if(i < argc && !strcmp(argv[i],"refmag")) {
+    stitch->use_refmag = 1;
+    i++;
+    if(i >= argc) return 1;
+    if(VARTOOLS_ParseFixSpecFixcolumn(p, c, &i, argv, argc, 1,
+				      VARTOOLS_TYPE_DOUBLE,
+				      (void *) (&(stitch->refmagval)),
+				      0, 0, "REFMAG"))
+      return 1;
+    i--;
   } else
     i--;
 
@@ -771,6 +795,8 @@ void stitch_ShowSyntax(FILE *outfile)
   VARTOOLS_printtostring(&s,
 			 "\t[\"noshiftmasked\"]\n");
   VARTOOLS_printtostring(&s,
+			 "\t[\"refmag\" <\"fix\" value | \"list\" | \"fixcolumn\" col | \"expr\" expr>]\n");
+  VARTOOLS_printtostring(&s,
 			 "\t[\"save_fitted_parameters\" <outdir [\"format\"] fmt>]\n");
   VARTOOLS_printtostring(&s,
 			 "\t[\"add_stitchparams_fitsheader\" [\"primary\" | \"extension\"]\n");
@@ -820,6 +846,7 @@ void stitch_ShowHelp(FILE *outfile)
   VARTOOLS_printtostring(&s,"\"groupbytime\" - Give this keyword to group the light curve segments into time bins, the shift model will assume a shared intrinsic shape for the light curve (constant if using the median, mean, or weightedmean methods, a polynomial in time if using the poly method, or a harmonic series if using the harmseries method) within a given time-bin, and overall additive shifts will be fit to match the different light curve segments within their respective bins (the shifts are global across all bins, while the intrinsic shape is independent within each bin). Give the time_bin to use for binning the segments in the same units of time as used in the light curve. To set the start time for the first time bin, use the optional \"start\" keyword, followed by the start time to use. Note that the routine will make sure that all segments can be tied together, and the bin-size will be increased until that is true.  For example, if one is stitching two light curve segments together, and they are disjoint in time such that each time-bin contains points from only one light curve segment, then the time bin-size will be increased until at least one bin contains points from both segments.\n\n");
   VARTOOLS_printtostring(&s,"\"fitonly\" - fit for the shifts between light curve segments, but do not remove them.\n\n");
   VARTOOLS_printtostring(&s,"\"noshiftmasked\" - by default a masked point (one excluded from the shift fit by the mask_variable_list) still has the fitted per-segment shift applied to it, so that masking affects only the fit and not the correction. Give this keyword to instead leave masked points unshifted, so that masking excludes a point from both the fit and the correction.\n\n");
+  VARTOOLS_printtostring(&s,"\"refmag\" - by default one group is adopted as the reference (left unshifted) and all other groups are shifted to match it. Give this keyword, followed by a value specification, to instead shift all groups to a reference magnitude value. Provide the value as a fixed number (\"fix\" value), a per-light-curve value from the input list (\"list\"), an existing variable (\"fixcolumn\" colname), or an analytic expression (\"expr\" expr). For the median, mean, and weightedmean methods without \"groupbytime\", every group's corresponding statistic is shifted to the reference magnitude. With \"groupbytime\", or for the poly and harmseries methods, the relative alignment between groups is still determined by the fit and the reference group's overall level (its median for poly/harmseries) is tied to the reference magnitude. A single light curve segment is also normalized to the reference magnitude. The shifts applied to every group (including the reference group) are recorded in any output shifts file or FITS header, so that -unstitch can undo them.\n\n");
   VARTOOLS_printtostring(&s,"\"save_fitted_parameters\" - save the best fit parameters to a file. A separate file is used for each source in the input list. Specify the directory to save the files to. By default the coefficient files will have the same name as the input light curve (stripped of any leading directory names), with the \".stitch\" suffix appended. Use the \"format\" keyword to provide a rule for naming the files, where instances of \"%%s\" will be replaced with the input filename.\n\n");
   VARTOOLS_printtostring(&s,"\"add_stitchparams_fitsheader\" - log the vartools control parameters for stitching to the header of any light curve that is subsequently output in FITS format. Use the \"primary\" keyword to log the parameters to the primary header of the FITS file, or the \"extension\" keyword to log them in the first extension header. Use \"append\" to append the FITS header keywords to the header whether or not the keywords may already be present, or \"update\" to update any header keywords that may already be present.\n\n");
   VARTOOLS_printtostring(&s,"\"add_shifts_fitsheader\" - log the shifts determined by the -stitch command into the header of any light curve file that is subsequently output in FITS format. Here the basename of the keyword(s) used to store the shift values should be given. A good option is \"SHFT\". The values of lcnumvar associated with each shift will be indicated using two letters (AA for 0, AB for 1, AC for 2, etc). This will be followed by two letters indicating the value of refnumvar if relevant. Additional options are similar to those for the \"add_stitchparams_fitsheader\" option.\n\n");
@@ -1371,11 +1398,9 @@ void PrepareOutShifts(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_n
 	    VARTOOLS_error(ERR_MEMALLOC);
 	}
       sprintf(out_shift_labels[N_shift_out],"%s", stitch->field_labels_vals[lc_num][lcg[i].lcids[0]]);
-      if(i > 0) {
-	ll = snprintf(NULL, 0, "%.17g", lcg[i].shiftvalue) + 1;
-      } else {
-	ll = snprintf(NULL, 0, "%.17g", 0.0) + 1;
-      }
+      /* lcg[i].shiftvalue is 0 for the reference group in the default mode, and
+	 the (nonzero) reference-magnitude shift when "refmag" is used. */
+      ll = snprintf(NULL, 0, "%.17g", lcg[i].shiftvalue) + 1;
       if(ll > size_out_shift_values_str[N_shift_out]) {
 	if(!size_out_shift_values_str[N_shift_out]) {
 	  size_out_shift_values_str[N_shift_out] = ll;
@@ -1387,11 +1412,7 @@ void PrepareOutShifts(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_n
 	    VARTOOLS_error(ERR_MEMALLOC);
 	}
       }
-      if(i > 0) {
-	sprintf(out_shift_values_str[N_shift_out],"%.17g",lcg[i].shiftvalue);
-      } else {
-	sprintf(out_shift_values_str[N_shift_out],"%.17g",0.0);
-      }
+      sprintf(out_shift_values_str[N_shift_out],"%.17g",lcg[i].shiftvalue);
       Nobs_out_shift[N_shift_out] = lcg[i].Nlcs;
       N_shift_out += 1;
     }
@@ -2379,9 +2400,16 @@ double stitch_get_mean_uncertainty(int N, double *errvals) {
 void SetStitchResultsNothingToDo(ProgramData *p, _Stitch *stitch, 
 				 int lc_name_num, int lc_num, int NLCgroups,
 				 _StitchLightCurveGroup *lcg, int Ntimegroups, 
-				 int Nusedtimegroups, _StitchTimeGroup *tg, 
+				 int Nusedtimegroups, _StitchTimeGroup *tg,
 				 int vv)
 {
+  /* With "refmag" but no cross-group fit (single group, or groups that never
+     share a time bin), normalize each group independently to the reference
+     magnitude.  Skip this on the in_shifts_file apply path (the LC has already
+     been corrected with stored shifts there). */
+  if(stitch->use_refmag && !stitch->is_in_shifts_file)
+    StitchRefMagNoFit(p, stitch, lc_name_num, lc_num, NLCgroups, lcg, vv,
+		      stitch->stitchmethod);
   stitch->Nlcgroups_used[lc_num] = NLCgroups;
   stitch->Ntimegroups_used[lc_num] = 0;
   stitch->Nparamtotal_used[lc_num] = 0;
@@ -2592,11 +2620,14 @@ void StitchAddInShiftsToHeader(ProgramData *p, _Stitch *stitch,
    keep their original values while their unmasked neighbours are shifted,
    inserting a spurious in-segment step.  Each point is mapped to its segment
    by the same composite lcnum (and refnum, if userefnum) key that
-   FormLCGroups stored in lcg[g].lcnumval.  Group 0 is the reference segment
-   (shift 0); points whose segment never formed a group (e.g. a fully-masked
-   segment) match no group and are left unchanged.  If the user gave the
-   "noshiftmasked" keyword, masked points are also left unchanged, so that
-   masking excludes a point from both the fit and the correction. */
+   FormLCGroups stored in lcg[g].lcnumval.  Group 0 is normally the reference
+   segment (shift 0), but with the "refmag" option every group -- including
+   group 0 -- carries a nonzero shift, so the loop below runs from g = 0
+   (subtracting a 0 shift for group 0 in the default case is a harmless no-op).
+   Points whose segment never formed a group (e.g. a fully-masked segment)
+   match no group and are left unchanged.  If the user gave the "noshiftmasked"
+   keyword, masked points are also left unchanged, so that masking excludes a
+   point from both the fit and the correction. */
 void  StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num,
 				 int NLCgroups, _StitchLightCurveGroup *lcg,
 				 int vv)
@@ -2621,13 +2652,146 @@ void  StitchApplyShiftsAllPoints(ProgramData *p, _Stitch *stitch, int lc_num,
       key = stitch->lcnumval[lc_num][i]*range +
 	(stitch->refnumval[lc_num][i] - stitch->minrefnumindx[lc_num]);
     }
-    for(g = 1; g < NLCgroups; g++) {
+    for(g = 0; g < NLCgroups; g++) {
       if(lcg[g].lcnumval == key) {
 	stitch->stitchvarvals[vv][lc_num][i] -= lcg[g].shiftvalue;
 	break;
       }
     }
   }
+}
+
+/* Compute the overall statistic (median/mean/weightedmean per statmethod;
+   median for the poly/harmseries methods) of a single light-curve group's
+   surviving points -- used by the "refmag" option to find each group's level
+   relative to the requested reference magnitude. */
+double StitchGroupLevel(ProgramData *p, _Stitch *stitch, int lc_num,
+			_StitchLightCurveGroup *grp, int vv, int statmethod)
+{
+  int k, n;
+  double *vals = NULL, *errs = NULL, result = 0.0;
+  n = grp->Nlcs;
+  if(n <= 0) return 0.0;
+  if((vals = (double *) malloc(n*sizeof(double))) == NULL)
+    VARTOOLS_error(ERR_MEMALLOC);
+  if(statmethod == VARTOOLS_STITCH_METHOD_WEIGHTEDMEAN) {
+    if((errs = (double *) malloc(n*sizeof(double))) == NULL)
+      VARTOOLS_error(ERR_MEMALLOC);
+  }
+  for(k = 0; k < n; k++) {
+    vals[k] = stitch->stitchvarvals[vv][lc_num][grp->lcids[k]];
+    if(errs != NULL)
+      errs[k] = stitch->stitcherrvals[vv][lc_num][grp->lcids[k]];
+  }
+  switch(statmethod) {
+  case VARTOOLS_STITCH_METHOD_MEAN:
+    result = VARTOOLS_getmean(n, vals);
+    break;
+  case VARTOOLS_STITCH_METHOD_WEIGHTEDMEAN:
+    result = VARTOOLS_getweightedmean(n, vals, errs);
+    break;
+  default:   /* MEDIAN, and the poly / harmseries methods */
+    result = VARTOOLS_median(n, vals);
+    break;
+  }
+  if(vals != NULL) free(vals);
+  if(errs != NULL) free(errs);
+  return result;
+}
+
+/* Add the determined per-group shifts to the output FITS header, one keyword
+   per group, when add_shifts_fitsheader is set.  The keyword value stored is
+   -lcg[i].shiftvalue (the change applied to the magnitude); -unstitch recovers
+   the original by subtracting it.  The keyword comment ("Shift for variable V
+   LCgroup L [REFID R]") is the authoritative key parsed by -unstitch.  With
+   "refmag" every group (including group 0) has a real shift, so all groups are
+   written; otherwise group 0 (the unshifted reference) is omitted. */
+void StitchWriteShiftKeywords(ProgramData *p, _Stitch *stitch, int lc_name_num,
+			      int lc_num, int NLCgroups,
+			      _StitchLightCurveGroup *lcg, int vv)
+{
+  int i, i0, ll, kk;
+  int minlcnum, maxlcnum, Nlcnum;
+  char varnumchar, lcgroupnumchar, lcrefnumchar1, lcrefnumchar2;
+  char *nextrefidchar1touse = NULL, *nextrefidchar2touse = NULL;
+  char fitshdrkeyword[MAXLEN], fitshdrcomment[MAXLEN];
+
+  if(!stitch->add_shifts_fitsheader) return;
+  i0 = stitch->use_refmag ? 0 : 1;
+
+  if(!stitch->userefnum) {
+    for(i = i0; i < NLCgroups; i++) {
+      varnumchar = 'A' + (char) (vv < 26 ? vv : (vv % 26));
+      if(lcg[i].lcnumval < 26)
+	lcgroupnumchar = 'A' + (char) (lcg[i].lcnumval);
+      else
+	lcgroupnumchar = 'A' + (char) ((lcg[i].lcnumval) % 26);
+      sprintf(fitshdrkeyword, "%s%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar);
+      sprintf(fitshdrcomment, "Shift for variable %d LCgroup %d", vv, lcg[i].lcnumval);
+      VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -lcg[i].shiftvalue);
+    }
+  } else {
+    if(p->NJD[lc_num] > 0) {
+      minlcnum = stitch->lcnumval[lc_num][0];
+      maxlcnum = stitch->lcnumval[lc_num][0];
+      for(i = 1; i < p->NJD[lc_num]; i++) {
+	if(stitch->lcnumval[lc_num][i] < minlcnum) minlcnum = stitch->lcnumval[lc_num][i];
+	if(stitch->lcnumval[lc_num][i] > maxlcnum) maxlcnum = stitch->lcnumval[lc_num][i];
+      }
+      Nlcnum = (maxlcnum - minlcnum) + 1;
+      if((nextrefidchar1touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL ||
+	 (nextrefidchar2touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL)
+	VARTOOLS_error(ERR_MEMALLOC);
+      for(i = 0; i < Nlcnum; i++) {
+	nextrefidchar1touse[i] = 'A';
+	nextrefidchar2touse[i] = 'A';
+      }
+    }
+    for(i = i0; i < NLCgroups; i++) {
+      varnumchar = 'A' + (char) (vv < 26 ? vv : (vv % 26));
+      ll = (lcg[i].lcnumval / (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1));
+      kk = ((lcg[i].lcnumval % (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1)));
+      if(ll < 26)
+	lcgroupnumchar = 'A' + (char) ll;
+      else
+	lcgroupnumchar = 'A' + (char) (ll % 26);
+      lcrefnumchar1 = nextrefidchar1touse[ll];
+      lcrefnumchar2 = nextrefidchar2touse[ll];
+      nextrefidchar2touse[ll] += (char) 1;
+      if(nextrefidchar2touse[ll] > 'Z') {
+	nextrefidchar2touse[ll] = 'A';
+	nextrefidchar1touse[ll] += (char) 1;
+	if(nextrefidchar1touse[ll] > 'Z') {
+	  nextrefidchar1touse[ll] = 'A';
+	}
+      }
+      sprintf(fitshdrkeyword, "%s%c%c%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar, lcrefnumchar1, lcrefnumchar2);
+      sprintf(fitshdrcomment, "Shift for variable %d LCgroup %d REFID %d", vv, ll, kk + stitch->minrefnumindx[lc_num]);
+      VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -lcg[i].shiftvalue);
+    }
+    if(nextrefidchar1touse != NULL) free(nextrefidchar1touse);
+    if(nextrefidchar2touse != NULL) free(nextrefidchar2touse);
+  }
+}
+
+/* "refmag" handling for the cases where no cross-group fit is performed (a
+   single group, or groups that never share a time bin): shift each group
+   independently so its own level equals the reference magnitude, then apply
+   and record.  statmethod selects the per-group statistic (median for the
+   poly/harmseries callers). */
+void StitchRefMagNoFit(ProgramData *p, _Stitch *stitch, int lc_name_num,
+		       int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg,
+		       int vv, int statmethod)
+{
+  int i;
+  if(!stitch->use_refmag) return;
+  for(i = 0; i < NLCgroups; i++) {
+    if(lcg[i].Nlcs > 0)
+      lcg[i].shiftvalue = StitchGroupLevel(p, stitch, lc_num, &(lcg[i]), vv, statmethod) - stitch->refmagval[lc_num];
+  }
+  if(!stitch->fitonly)
+    StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
+  StitchWriteShiftKeywords(p, stitch, lc_name_num, lc_num, NLCgroups, lcg, vv);
 }
 
 void  StitchByStatistic(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num, int NLCgroups, _StitchLightCurveGroup *lcg, int Ntimegroups, int Nusedtimegroups, _StitchTimeGroup *tg, int vv, FILE *coeffoutfile)
@@ -2803,7 +2967,15 @@ void  StitchByStatistic(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc
   for(i = 1; i < NLCgroups; i++) {
     lcg[i].shiftvalue = Avector[ntgused + i - 1];
   }
-  
+
+  /* refmag: offset every group (including the reference group 0) so the
+     reference group's level equals the requested reference magnitude. */
+  if(stitch->use_refmag) {
+    double refoff = StitchGroupLevel(p, stitch, lc_num, &(lcg[0]), vv, stitch->stitchmethod) - stitch->refmagval[lc_num];
+    for(i = 0; i < NLCgroups; i++)
+      lcg[i].shiftvalue += refoff;
+  }
+
   if(!stitch->fitonly) {
     StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
@@ -2834,74 +3006,14 @@ void  StitchByStatistic(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc
 	ll++;
       }
     }
-    for(i=1; i < NLCgroups; i++) {
-      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -Avector[ntgused + i - 1]);
+    for(i = (stitch->use_refmag ? 0 : 1); i < NLCgroups; i++) {
+      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -lcg[i].shiftvalue);
     }
     fprintf(coeffoutfile,"\n");
   }
 
   /* Add parameter values to the output light curve FITS header if requested */
-  if(stitch->add_shifts_fitsheader) {
-    if(!stitch->userefnum) {
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	if(lcg[i].lcnumval < 26)
-	  lcgroupnumchar = 'A' + (char) (lcg[i].lcnumval);
-	else
-	  lcgroupnumchar = 'A' + (char) ((lcg[i].lcnumval) % 26);
-	sprintf(fitshdrkeyword, "%s%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar);
-	sprintf(fitshdrcomment, "Shift for variable %d LCgroup %d", vv, lcg[i].lcnumval);
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ntgused + i - 1]);
-      }
-    }
-    else {
-      if(p->NJD[lc_num] > 0) {
-	minlcnum = stitch->lcnumval[lc_num][0];
-	maxlcnum = stitch->lcnumval[lc_num][0];
-	for(i=1; i < p->NJD[lc_num]; i++) {
-	  if(stitch->lcnumval[lc_num][i] < minlcnum) minlcnum = stitch->lcnumval[lc_num][i];
-	  if(stitch->lcnumval[lc_num][i] > maxlcnum) maxlcnum = stitch->lcnumval[lc_num][i];
-	}
-	Nlcnum = (maxlcnum - minlcnum) + 1;
-	if((nextrefidchar1touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL ||
-	   (nextrefidchar2touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL)
-	  VARTOOLS_error(ERR_MEMALLOC);
-	for(i=0; i < Nlcnum; i++) {
-	  nextrefidchar1touse[i] = 'A';
-	  nextrefidchar2touse[i] = 'A';
-	}
-      }
-
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	ll = (lcg[i].lcnumval / (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1));
-	kk = ((lcg[i].lcnumval % (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1)));
-	if(ll < 26)
-	  lcgroupnumchar = 'A' + (char) ll;
-	else
-	  lcgroupnumchar = 'A' + (char) (ll % 26);
-	lcrefnumchar1 = nextrefidchar1touse[ll];
-	lcrefnumchar2 = nextrefidchar2touse[ll];
-	nextrefidchar2touse[ll] += (char) 1;
-	if(nextrefidchar2touse[ll] > 'Z') {
-	  nextrefidchar2touse[ll] = 'A';
-	  nextrefidchar1touse[ll] += (char) 1;
-	  if(nextrefidchar1touse[ll] > 'Z') {
-	    nextrefidchar1touse[ll] = 'A';
-	  }
-	}
-	sprintf(fitshdrkeyword, "%s%c%c%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar, lcrefnumchar1, lcrefnumchar2);
-	sprintf(fitshdrcomment, "Shift for variable %d LCgroup %d REFID %d", vv, ll, kk + stitch->minrefnumindx[lc_num]);
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ntgused + i - 1]);
-      }
-    }
-  }
+  StitchWriteShiftKeywords(p, stitch, lc_name_num, lc_num, NLCgroups, lcg, vv);
 
   stitch->Nlcgroups_used[lc_num] = NLCgroups;
   stitch->Ntimegroups_used[lc_num] = ntgused;
@@ -3058,7 +3170,15 @@ void  StitchByPoly(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
   for(i = 1; i < NLCgroups; i++) {
     lcg[i].shiftvalue = Avector[ndecorrfrompoly + i - 1];
   }
-  
+
+  /* refmag: tie the reference group's median to the reference magnitude and
+     offset every group (including group 0) with it. */
+  if(stitch->use_refmag) {
+    double refoff = StitchGroupLevel(p, stitch, lc_num, &(lcg[0]), vv, stitch->stitchmethod) - stitch->refmagval[lc_num];
+    for(i = 0; i < NLCgroups; i++)
+      lcg[i].shiftvalue += refoff;
+  }
+
   if(!stitch->fitonly) {
     StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
@@ -3078,72 +3198,14 @@ void  StitchByPoly(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
 	}
       }
     }
-    for(i=1; i < NLCgroups; i++) {
-      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -Avector[ndecorrfrompoly + i - 1]);
+    for(i = (stitch->use_refmag ? 0 : 1); i < NLCgroups; i++) {
+      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -lcg[i].shiftvalue);
     }
     fprintf(coeffoutfile,"\n");
   }
 
   /* Add parameter values to the output light curve FITS header if requested */
-  if(stitch->add_shifts_fitsheader) {
-    if(!stitch->userefnum) {
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	if(lcg[i].lcnumval < 26)
-	  lcgroupnumchar = 'A' + (char) (lcg[i].lcnumval);
-	else
-	  lcgroupnumchar = 'A' + (char) ((lcg[i].lcnumval) % 26);
-	sprintf(fitshdrkeyword, "%s%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar);
-	sprintf(fitshdrcomment, "Shift for variable number %d LCgroup %d", vv, lcg[i].lcnumval);
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ndecorrfrompoly + i - 1]);
-      }
-    } else {
-      if(p->NJD[lc_num] > 0) {
-	minlcnum = stitch->lcnumval[lc_num][0];
-	maxlcnum = stitch->lcnumval[lc_num][0];
-	for(i=1; i < p->NJD[lc_num]; i++) {
-	  if(stitch->lcnumval[lc_num][i] < minlcnum) minlcnum = stitch->lcnumval[lc_num][i];
-	  if(stitch->lcnumval[lc_num][i] > maxlcnum) maxlcnum = stitch->lcnumval[lc_num][i];
-	}
-	Nlcnum = (maxlcnum - minlcnum) + 1;
-	if((nextrefidchar1touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL ||
-	   (nextrefidchar2touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL)
-	  VARTOOLS_error(ERR_MEMALLOC);
-	for(i=0; i < Nlcnum; i++) {
-	  nextrefidchar1touse[i] = 'A';
-	  nextrefidchar2touse[i] = 'A';
-	}
-      }
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	ll = (lcg[i].lcnumval / (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1));
-	kk = ((lcg[i].lcnumval % (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1)));
-	if(ll < 26)
-	  lcgroupnumchar = 'A' + (char) ll;
-	else
-	  lcgroupnumchar = 'A' + (char) (ll % 26);
-	lcrefnumchar1 = nextrefidchar1touse[ll];
-	lcrefnumchar2 = nextrefidchar2touse[ll];
-	nextrefidchar2touse[ll] += (char) 1;
-	if(nextrefidchar2touse[ll] > 'Z') {
-	  nextrefidchar2touse[ll] = 'A';
-	  nextrefidchar1touse[ll] += (char) 1;
-	  if(nextrefidchar1touse[ll] > 'Z') {
-	    nextrefidchar1touse[ll] = 'A';
-	  }
-	}
-	sprintf(fitshdrkeyword, "%s%c%c%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar, lcrefnumchar1, lcrefnumchar2);
-	sprintf(fitshdrcomment, "Shift for variable number %d LCgroup %d REFID %d", vv, ll, kk + stitch->minrefnumindx[lc_num]);
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ndecorrfrompoly + i - 1]);
-      }
-    }
-  }
+  StitchWriteShiftKeywords(p, stitch, lc_name_num, lc_num, NLCgroups, lcg, vv);
 
   stitch->Nlcgroups_used[lc_num] = NLCgroups;
   stitch->Ntimegroups_used[lc_num] = ntgused;
@@ -3297,7 +3359,15 @@ void  StitchByHarm(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
   for(i = 1; i < NLCgroups; i++) {
     lcg[i].shiftvalue = Avector[ndecorrfromharm + i - 1];
   }
-  
+
+  /* refmag: tie the reference group's median to the reference magnitude and
+     offset every group (including group 0) with it. */
+  if(stitch->use_refmag) {
+    double refoff = StitchGroupLevel(p, stitch, lc_num, &(lcg[0]), vv, stitch->stitchmethod) - stitch->refmagval[lc_num];
+    for(i = 0; i < NLCgroups; i++)
+      lcg[i].shiftvalue += refoff;
+  }
+
   if(!stitch->fitonly) {
     StitchApplyShiftsAllPoints(p, stitch, lc_num, NLCgroups, lcg, vv);
   }
@@ -3325,77 +3395,14 @@ void  StitchByHarm(ProgramData *p, _Stitch *stitch, int lc_name_num, int lc_num,
 	}
       }
     }
-    for(i=1; i < NLCgroups; i++) {
-      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -Avector[ndecorrfromharm + i - 1]);
+    for(i = (stitch->use_refmag ? 0 : 1); i < NLCgroups; i++) {
+      fprintf(coeffoutfile,"LCgroup_%d shift: %.17g\n", i+1, -lcg[i].shiftvalue);
     }
     fprintf(coeffoutfile,"\n");
   }
 
   /* Add parameter values to the output light curve FITS header if requested */
-  if(stitch->add_shifts_fitsheader) {
-    if(!stitch->userefnum) {
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	if(lcg[i].lcnumval < 26)
-	  lcgroupnumchar = 'A' + (char) (lcg[i].lcnumval);
-	else
-	  lcgroupnumchar = 'A' + (char) ((lcg[i].lcnumval) % 26);
-	sprintf(fitshdrkeyword, "%s%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar);
-	sprintf(fitshdrcomment, "Shift for variable number %d LCgroup %d", vv, (lcg[i].lcnumval));
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ndecorrfromharm + i - 1]);
-      }
-    } else {
-      if(p->NJD[lc_num] > 0) {
-	minlcnum = stitch->lcnumval[lc_num][0];
-	maxlcnum = stitch->lcnumval[lc_num][0];
-	for(i=1; i < p->NJD[lc_num]; i++) {
-	  if(stitch->lcnumval[lc_num][i] < minlcnum) minlcnum = stitch->lcnumval[lc_num][i];
-	  if(stitch->lcnumval[lc_num][i] > maxlcnum) maxlcnum = stitch->lcnumval[lc_num][i];
-	}
-	Nlcnum = (maxlcnum - minlcnum) + 1;
-	if((nextrefidchar1touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL ||
-	   (nextrefidchar2touse = (char *) malloc(Nlcnum*sizeof(char))) == NULL)
-	  VARTOOLS_error(ERR_MEMALLOC);
-	for(i=0; i < Nlcnum; i++) {
-	  nextrefidchar1touse[i] = 'A';
-	  nextrefidchar2touse[i] = 'A';
-	}
-      }
-      for(i=1; i < NLCgroups; i++) {
-	if(vv < 26)
-	  varnumchar = 'A' + (char) vv;
-	else
-	  varnumchar = 'A' + (char) (vv % 26);
-	ll = (lcg[i].lcnumval / (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1));
-	kk = ((lcg[i].lcnumval % (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1)));
-
-	if(ll < 26)
-	  lcgroupnumchar = 'A' + (char) ll;
-	else
-	  lcgroupnumchar = 'A' + (char) (ll % 26);
-	lcrefnumchar1 = nextrefidchar1touse[ll];
-	lcrefnumchar2 = nextrefidchar2touse[ll];
-	nextrefidchar2touse[ll] += (char) 1;
-	if(nextrefidchar2touse[ll] > 'Z') {
-	  nextrefidchar2touse[ll] = 'A';
-	  nextrefidchar1touse[ll] += (char) 1;
-	  if(nextrefidchar1touse[ll] > 'Z') {
-	    nextrefidchar1touse[ll] = 'A';
-	  }
-	}
-	sprintf(fitshdrkeyword, "%s%c%c%c%c", stitch->keywordbase, varnumchar, lcgroupnumchar, lcrefnumchar1, lcrefnumchar2);
-	
-	/*ll = (lcg[i].lcnumval / (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1));
-	kk = ((lcg[i].lcnumval % (stitch->maxrefnumindx[lc_num] - stitch->minrefnumindx[lc_num] + 1)));*/
-
-	sprintf(fitshdrcomment, "Shift for variable number %d LCgroup %d REFID %d", vv, ll, kk + stitch->minrefnumindx[lc_num]);
-	VARTOOLS_Add_Keyword_To_OutputLC_FitsHeader(p, lc_num, fitshdrkeyword, fitshdrcomment, stitch->add_shifts_fitsheader_hdutouse, stitch->add_shifts_fitsheader_updateexistingkeyword, VARTOOLS_TYPE_DOUBLE, -Avector[ndecorrfromharm + i - 1]);
-      }
-    }
-  }
+  StitchWriteShiftKeywords(p, stitch, lc_name_num, lc_num, NLCgroups, lcg, vv);
 
   stitch->Nlcgroups_used[lc_num] = NLCgroups;
   stitch->Ntimegroups_used[lc_num] = ntgused;
