@@ -10310,6 +10310,39 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  /* mergepeakdf: frequency-resolution factor used to decide whether two
+	     spectrum peaks are the same detection.  Absent => fixed factor 1.0
+	     (Df = 1/T, the Rayleigh resolution).  "transit" mult => Df = mult*q/T
+	     using the per-candidate fitted transit width q; a bare number => Df =
+	     factor/T. */
+	  c[cn].Bls->mergepeakdf_mode = 0;
+	  c[cn].Bls->mergepeakdf_val = 1.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"mergepeakdf")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"transit")) {
+		c[cn].Bls->mergepeakdf_mode = 1;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].Bls->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].Bls->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLS: 'mergepeakdf transit' multiplier must be a positive number; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      } else {
+		c[cn].Bls->mergepeakdf_mode = 0;
+		c[cn].Bls->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].Bls->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLS: 'mergepeakdf' factor must be a positive number, or use 'transit <mult>'; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      }
+	    } else
+	      i--;
+	  } else
+	    i--;
 	  c[cn].Bls->usemask = 0;
 	  c[cn].Bls->maskvar = NULL;
 	  i++;
@@ -10903,6 +10936,36 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  /* mergepeakdf: see -BLS.  Absent => Df = 1/T; "transit" mult =>
+	     Df = mult*q/T; bare number => Df = factor/T. */
+	  c[cn].BlsFixDurTc->mergepeakdf_mode = 0;
+	  c[cn].BlsFixDurTc->mergepeakdf_val = 1.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"mergepeakdf")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"transit")) {
+		c[cn].BlsFixDurTc->mergepeakdf_mode = 1;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].BlsFixDurTc->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'mergepeakdf transit' multiplier must be a positive number; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      } else {
+		c[cn].BlsFixDurTc->mergepeakdf_mode = 0;
+		c[cn].BlsFixDurTc->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'mergepeakdf' factor must be a positive number, or use 'transit <mult>'; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      }
+	    } else
+	      i--;
+	  } else
+	    i--;
 	  c[cn].BlsFixDurTc->usemask = 0;
 	  c[cn].BlsFixDurTc->maskvar = NULL;
 	  i++;
@@ -10915,7 +10978,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
 	  cn++;
 	}

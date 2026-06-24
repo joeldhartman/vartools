@@ -1314,6 +1314,7 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
   double *freqarray = NULL;
   double global_best_sr_ave_inv, global_best_sr_stddev_inv;
   double kmisave, kkmisave, kmasave, mindt, qmi_test;
+  double dffac;
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
   long double val1, val2, val3;
@@ -1891,10 +1892,11 @@ the periodogram, and then search it for peaks    *
     {
       if(p[i] > 0)
 	{
+	  dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -1925,10 +1927,11 @@ the periodogram, and then search it for peaks    *
 	{
 	  if(p[i] > minbest)
 	    {
+	      dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+		  if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		    {
 		      if(p[i] > snval[j])
 			{
@@ -2638,6 +2641,7 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
   double global_best_sr_ave, global_best_sr_stddev, global_best_sr_ave_inv, global_best_sr_stddev_inv, qmi_test, mindt;
+  double dffac;
   double *freqarray = NULL;
   double *probvals = NULL;
   double *srshiftvals = NULL;
@@ -3223,10 +3227,11 @@ the periodogram, and then search it for peaks    *
     {
       if(p[i] > 0)
 	{
+	  dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -3257,10 +3262,11 @@ the periodogram, and then search it for peaks    *
 	{
 	  if(p[i] > minbest)
 	    {
+	      dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+		  if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		    {
 		      if(p[i] > snval[j])
 			{

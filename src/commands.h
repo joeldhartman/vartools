@@ -922,6 +922,8 @@ typedef struct {
   double **harmdeltachi2;
   int usemask;
   _Variable *maskvar;
+  int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
+  double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
 } _Bls;
 
 typedef struct {
@@ -1009,6 +1011,8 @@ typedef struct {
   int fittrap;
   int usemask;
   _Variable *maskvar;
+  int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
+  double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
 } _BlsFixDurTc;
 
 typedef struct {
