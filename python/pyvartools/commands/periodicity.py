@@ -1086,6 +1086,18 @@ class BLS(VartoolsCommand):
         frequency.
     reportharmonics : bool
         Report period harmonics (½, ⅓, …) as additional candidates.
+    mergepeakdf : float, optional
+        Fixed factor for the frequency resolution ``Df = mergepeakdf / T``
+        used to decide whether two spectrum peaks are the same detection
+        (``T`` is the time baseline).  Default (``None``) uses ``Df = 1/T``,
+        the Rayleigh resolution; ``mergepeakdf=1.0`` is equivalent.  Mutually
+        exclusive with ``mergepeakdf_transit``.
+    mergepeakdf_transit : float, optional
+        Transit-aware multiplier: ``Df = mergepeakdf_transit · q / T``, where
+        ``q`` is the per-candidate fitted fractional transit width.  Resolves
+        peaks on the scale a box transit actually smears (finer than ``1/T``);
+        a value of order a few is recommended.  Mutually exclusive with
+        ``mergepeakdf``.
     maskpoints : str, optional
         Mask variable; points with ``maskvar ≤ 0`` are excluded from
         the BLS spectrum.
@@ -1133,6 +1145,8 @@ class BLS(VartoolsCommand):
         adjust_qmin: bool = False,
         reduce_nbins: bool = False,
         reportharmonics: bool = False,
+        mergepeakdf: Optional[float] = None,
+        mergepeakdf_transit: Optional[float] = None,
         maskpoints: Optional[str] = None,
     ) -> None:
         self.minper = minper
@@ -1167,7 +1181,19 @@ class BLS(VartoolsCommand):
         self.adjust_qmin = adjust_qmin
         self.reduce_nbins = reduce_nbins
         self.reportharmonics = reportharmonics
+        self.mergepeakdf = mergepeakdf
+        self.mergepeakdf_transit = mergepeakdf_transit
         self.maskpoints = maskpoints
+
+        if self.mergepeakdf is not None and self.mergepeakdf_transit is not None:
+            raise ValueError(
+                "cmd.BLS: pass either mergepeakdf (fixed Df factor) or "
+                "mergepeakdf_transit (transit multiplier), not both."
+            )
+        if self.mergepeakdf is not None and self.mergepeakdf <= 0:
+            raise ValueError("cmd.BLS: mergepeakdf must be a positive number.")
+        if self.mergepeakdf_transit is not None and self.mergepeakdf_transit <= 0:
+            raise ValueError("cmd.BLS: mergepeakdf_transit must be a positive number.")
 
         # vartools' default "optimal" frequency grid only works when
         # density_mode=True (which uses stellar density to bound the
@@ -1233,6 +1259,10 @@ class BLS(VartoolsCommand):
             if self.reduce_nbins:
                 args += ["reduce-nbins"]
         args += _bool("reportharmonics", self.reportharmonics)
+        if self.mergepeakdf_transit is not None:
+            args += ["mergepeakdf", "transit", str(self.mergepeakdf_transit)]
+        elif self.mergepeakdf is not None:
+            args += ["mergepeakdf", str(self.mergepeakdf)]
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -1402,6 +1432,14 @@ class BLSFixDurTc(VartoolsCommand):
         ``save_periodogram``; key ``BLSFixDurTc_jdcurve_N``.
     ojdcurve_jdstep : float
         Time step (days) for the JD-curve output.  Default 0.02.
+    mergepeakdf : float, optional
+        Fixed factor for the peak-merge frequency resolution
+        ``Df = mergepeakdf / T``; default (``None``) uses ``Df = 1/T``.
+        Mutually exclusive with ``mergepeakdf_transit``.  See :class:`BLS`.
+    mergepeakdf_transit : float, optional
+        Transit-aware multiplier: ``Df = mergepeakdf_transit · q / T`` with
+        ``q`` the per-candidate fitted transit width.  Mutually exclusive
+        with ``mergepeakdf``.  See :class:`BLS`.
     maskpoints : str, optional
         Mask variable; points with ``maskvar ≤ 0`` are excluded.
 
@@ -1433,6 +1471,8 @@ class BLSFixDurTc(VartoolsCommand):
         ophcurve_phstep: float = 0.005,
         save_jdcurve=False,
         ojdcurve_jdstep: float = 0.02,
+        mergepeakdf: Optional[float] = None,
+        mergepeakdf_transit: Optional[float] = None,
         maskpoints: Optional[str] = None,
     ) -> None:
         self.duration = duration
@@ -1454,7 +1494,19 @@ class BLSFixDurTc(VartoolsCommand):
         self.ophcurve_phstep = ophcurve_phstep
         self.save_jdcurve = save_jdcurve
         self.ojdcurve_jdstep = ojdcurve_jdstep
+        self.mergepeakdf = mergepeakdf
+        self.mergepeakdf_transit = mergepeakdf_transit
         self.maskpoints = maskpoints
+
+        if self.mergepeakdf is not None and self.mergepeakdf_transit is not None:
+            raise ValueError(
+                "cmd.BLSFixDurTc: pass either mergepeakdf (fixed Df factor) or "
+                "mergepeakdf_transit (transit multiplier), not both."
+            )
+        if self.mergepeakdf is not None and self.mergepeakdf <= 0:
+            raise ValueError("cmd.BLSFixDurTc: mergepeakdf must be a positive number.")
+        if self.mergepeakdf_transit is not None and self.mergepeakdf_transit <= 0:
+            raise ValueError("cmd.BLSFixDurTc: mergepeakdf_transit must be a positive number.")
 
     def _to_cli_args(self) -> List[str]:
         outdir = getattr(self, "_outdir", ".")
@@ -1480,6 +1532,10 @@ class BLSFixDurTc(VartoolsCommand):
         if _should_emit(jd_spec):
             args += ["ojdcurve", jd_spec.path or outdir,
                      str(self.ojdcurve_jdstep)]
+        if self.mergepeakdf_transit is not None:
+            args += ["mergepeakdf", "transit", str(self.mergepeakdf_transit)]
+        elif self.mergepeakdf is not None:
+            args += ["mergepeakdf", str(self.mergepeakdf)]
         args += _flag("maskpoints", self.maskpoints)
         return args
 

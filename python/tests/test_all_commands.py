@@ -489,6 +489,50 @@ class TestCLIArgsPeriodicity:
         assert "qgress" in args
         assert "0.2" in args
 
+    # ------- BLS / BLSFixDurTc mergepeakdf (peak-merge resolution) -------
+
+    def test_bls_mergepeakdf_absent_by_default(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000)._to_cli_args()
+        assert "mergepeakdf" not in args
+
+    def test_bls_mergepeakdf_fixed(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=1.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1] == "1.0"
+        assert "transit" not in args
+
+    def test_bls_mergepeakdf_transit(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000,
+                       mergepeakdf_transit=3.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1:i + 3] == ["transit", "3.0"]
+
+    def test_bls_mergepeakdf_before_maskpoints(self):
+        # C parser order: reportharmonics, mergepeakdf, then maskpoints.
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=2.0,
+                       maskpoints="m")._to_cli_args()
+        assert args.index("mergepeakdf") < args.index("maskpoints")
+
+    def test_bls_mergepeakdf_mutually_exclusive(self):
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=1.0,
+                    mergepeakdf_transit=3.0)
+
+    def test_bls_mergepeakdf_positive(self):
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=0.0)
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf_transit=-1.0)
+
+    def test_blsfixdurtc_mergepeakdf(self):
+        args = cmd.BLSFixDurTc(duration=0.05, Tc=1.0,
+                               mergepeakdf_transit=3.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1:i + 3] == ["transit", "3.0"]
+        fixed = cmd.BLSFixDurTc(duration=0.05, Tc=1.0,
+                                mergepeakdf=1.0)._to_cli_args()
+        assert fixed[fixed.index("mergepeakdf") + 1] == "1.0"
+
     def test_blsfixperdurtc_minimal(self):
         args = cmd.BLSFixPerDurTc(period=1.5, duration=0.05,
                                    Tc=1.0)._to_cli_args()
