@@ -1076,6 +1076,105 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -BLS mergepeakdf 1.0 reproduces the default merge resolution (1/T)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf 1.0 == default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf 1.0
+(output compared against the same -BLS command with no mergepeakdf keyword)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -BLS mergepeakdf transit changes the peak selection (finer resolution)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf transit changes peaks" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf transit 0.5
+(expected to differ from the default; finer Df resolves nearby peaks)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf transit 0.5 \
+> $testout
+
+if diff $goodout $testout > /dev/null 2>&1 ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+mergepeakdf transit 0.5 did not change the BLS peak selection
+EOF
+fi
+
+# -BLS mergepeakdf rejects a non-positive factor
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf bad value errors" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf -1
+(expected to exit with an error)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf -1 \
+> $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+mergepeakdf with a non-positive factor should have failed but exited 0
+EOF
+fi
+
+# -BLSFixDurTc mergepeakdf 1.0 reproduces the default merge resolution
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLSFixDurTc mergepeakdf 1.0 == default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 mergepeakdf 1.0
+(output compared against the same command with no mergepeakdf keyword)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 mergepeakdf 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -BLSFixPer example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLSFixPer example 1" > /dev/stderr
