@@ -45,6 +45,25 @@ AC_SUBST([LIBLTDL])
 
 # Checks for programs.
 AC_PROG_CC
+
+# VARTOOLS contains legacy K&R-style function definitions and an historical
+# exit() prototype.  GCC 14/15 and recent Apple Clang default to -std=gnu23,
+# under which both become hard errors ("old-style function definition",
+# "conflicting types for 'exit'").  Pin the compiler to gnu17 -- the last
+# standard that still permits this code -- when it accepts the flag, unless
+# the user has already chosen a standard via CFLAGS.
+case " $CFLAGS " in
+  *" -std="*) ;;                        # respect a user-supplied -std=...
+  *)
+    AC_MSG_CHECKING([whether $CC accepts -std=gnu17])
+    vt_save_CFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS -std=gnu17"
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[]])],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no]); CFLAGS="$vt_save_CFLAGS"])
+    ;;
+esac
+
 AC_PROG_AWK
 AC_PROG_INSTALL
 AC_PROG_LN_S
