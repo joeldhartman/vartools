@@ -53,6 +53,21 @@ platform-specific companion files for details:
     README.windows   Windows (WSL recommended; MSYS2 alternative)
 
 
+3.1 Building from a git clone
+-----------------------------
+
+A released source tarball ships a ready-to-run ``configure`` script, so the
+quick-start steps above are all you need — do **not** run ``autoreconf``.
+
+If you are building from a fresh ``git clone`` and choose to regenerate the
+build system, ``libtoolize`` will refuse to overwrite the in-tree
+``libltdl`` files (``'libltdl/COPYING.LIB' exists``).  Pass ``--force``::
+
+    autoreconf --install --force
+    ./configure --prefix=$HOME/.local
+    make
+
+
 4. Dependencies
 ---------------
 
