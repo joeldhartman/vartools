@@ -409,7 +409,6 @@ void frprmn_sysrem(p,ftol,iter,fret,numlc,numJD, mag,sig,mag_ave,sigma_clip,satu
 void nrerror(error_text)
      char *error_text;
 {
-  void exit();
   fprintf(stderr," Run error....");
   fprintf(stderr,"%s\n",error_text);
   fprintf(stderr,"Goodbye ! \n");
