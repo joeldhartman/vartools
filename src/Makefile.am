@@ -35,7 +35,8 @@ PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ft
  restricttimes.c mcmcfit.c wwz.c callrunpython.c callrunR.c fft.c \
  matchcommand.c pipeline_api.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 
 lib_LTLIBRARIES += libvartoolspipeline.la
@@ -60,7 +61,8 @@ endif
 bin_PROGRAMS = vartools
 vartools_SOURCES = main.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 vartools_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 vartools_LDADD = libvartoolspipeline.la libvartools.la
