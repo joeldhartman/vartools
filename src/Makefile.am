@@ -19,7 +19,9 @@ endif
 # Pipeline library: all vartools sources except main.c, plus pipeline_api.c.
 # The vartools binary links against this library instead of re-compiling
 # those sources, so every symbol is compiled exactly once.
-PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
+PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
+ matchedfilter.c matchedfilter_nfft.c vonneumann.c percentileratios.c beyondNsigma.c \
+ slopestats.c codym.c codyq.c structurefunction.c drwfit.c runlength.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \
@@ -33,7 +35,8 @@ PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
  restricttimes.c mcmcfit.c wwz.c callrunpython.c callrunR.c fft.c \
  matchcommand.c pipeline_api.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 
 lib_LTLIBRARIES += libvartoolspipeline.la
@@ -44,7 +47,7 @@ libvartoolspipeline_la_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) \
  -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 libvartoolspipeline_la_LDFLAGS = -version-info 1:0:0
 libvartoolspipeline_la_LIBADD = libvartools.la \
- $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+ $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
 libvartoolspipeline_la_DEPENDENCIES = libvartools.la
 if PYTHON_USE
 libvartoolspipeline_la_LIBADD += libvartoolsrunpython.la
@@ -58,7 +61,8 @@ endif
 bin_PROGRAMS = vartools
 vartools_SOURCES = main.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 vartools_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 vartools_LDADD = libvartoolspipeline.la libvartools.la
@@ -71,4 +75,4 @@ if R_USE
 vartools_LDADD += libvartoolsrunR.la
 vartools_DEPENDENCIES += libvartoolsrunR.la
 endif
-vartools_LDADD += $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
+vartools_LDADD += $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)

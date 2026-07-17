@@ -12,6 +12,8 @@ from .periodicity import (
     LS,
     aov,
     aov_harm,
+    PDM,
+    FTP,
     BLS,
     BLSFixPer,
     BLSFixDurTc,
@@ -31,6 +33,15 @@ from .manipulation import (
     chi2,
     chi2bin,
     alarm,
+    vonNeumann,
+    percentileratios,
+    beyondNsigma,
+    slopestats,
+    CodyM,
+    CodyQ,
+    structurefunction,
+    drwfit,
+    runlength,
     rescalesig,
     ensemblerescalesig,
     stats,
@@ -47,6 +58,7 @@ from .manipulation import (
     restorelc,
     difffluxtomag,
     fluxtomag,
+    magtoflux,
     changeerror,
     changevariable,
     copylc,
@@ -72,6 +84,7 @@ from .fitting import (
     nonlinfit,
     addnoise,
     findblends,
+    MatchedFilter,
 )
 
 # Miscellaneous / utility commands
@@ -102,25 +115,29 @@ from .userlibs import (
     magadd,
     splinedetrend,
     stitch,
+    unstitch,
 )
 
 __all__ = [
     "VartoolsCommand",
     # periodicity
-    "LS", "aov", "aov_harm", "BLS", "BLSFixPer", "BLSFixDurTc",
+    "LS", "aov", "aov_harm", "PDM", "FTP", "BLS", "BLSFixPer", "BLSFixDurTc",
     "BLSFixPerDurTc", "autocorrelation", "dftclean", "wwz",
     "GetLSAmpThresh", "Phase",
     # manipulation
-    "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm",
+    "clip", "rms", "rmsbin", "chi2", "chi2bin", "alarm", "vonNeumann",
+    "percentileratios", "beyondNsigma", "slopestats", "CodyM", "CodyQ",
+    "structurefunction", "drwfit", "runlength",
     "rescalesig", "ensemblerescalesig", "stats", "harmonicfilter",
     "fourierfilter", "Killharm", "linfit",
     "Injectharm", "Injecttransit", "sortlc", "restricttimes", "restoretimes",
-    "savelc", "restorelc", "difffluxtomag", "fluxtomag", "changeerror",
+    "savelc", "restorelc", "difffluxtomag", "fluxtomag", "magtoflux", "changeerror",
     "changevariable", "copylc", "medianfilter", "expr", "print_cols",
     "FFT", "IFFT", "resample", "decorr", "Jstet",
     # fitting
     "TFA", "TFA_SR", "SYSREM", "MandelAgolTransit", "SoftenedTransit",
     "Starspot", "microlens", "nonlinfit", "addnoise", "findblends",
+    "MatchedFilter",
     # misc
     "addfitskeyword", "converttime", "R", "python", "match", "o",
     "ifcmd", "elifcmd", "elsecmd", "ficmd",
@@ -129,5 +146,5 @@ __all__ = [
     "UserCommand",
     # typed USERLIB wrappers
     "fastchi2", "ftuneven", "hatpiflag", "jktebop", "macula",
-    "magadd", "splinedetrend", "stitch",
+    "magadd", "splinedetrend", "stitch", "unstitch",
 ]

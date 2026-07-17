@@ -151,6 +151,13 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       fluxtomag(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc2), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc2));
       break;
 
+    case CNUM_MAGTOFLUX:
+      /* Convert from magnitudes to flux (inverse of -fluxtomag) */
+      magtoflux(p->t[lc2],p->mag[lc2],p->sig[lc2],p->NJD[lc2],
+		c->Magtoflux->normalize ? 0.0 : VT_EVAL_DOUBLE(c->Magtoflux, mag_constant1, lc, lc2),
+		c->Magtoflux->normalize);
+      break;
+
     case CNUM_EXPRESSION:
       /* Evaluate an analytic expression */
       RunExpressionCommand(lc, lc2, p, c->ExpressionCommand);
@@ -378,7 +385,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_JSTET:
       /* Calculate JSTET */
-      getJstet(p->NJD[lc2], c->Jstet->Jstet_time, c->Jstet->wkmax, p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &c->Jstet->jst[lc2], &c->Jstet->kur[lc2], &c->Jstet->lst[lc2], lc2, lc, c->Jstet->usemask, c->Jstet->maskvar);
+      getJstet(p->NJD[lc2], c->Jstet->Jstet_time, c->Jstet->wkmax, c->Jstet->skipnormalize, p->t[lc2], p->mag[lc2], p->sig[lc2], &d1, &c->Jstet->jst[lc2], &c->Jstet->kur[lc2], &c->Jstet->lst[lc2], lc2, lc, c->Jstet->usemask, c->Jstet->maskvar);
       break;
 
     case CNUM_ADDFITSKEYWORD:
@@ -395,6 +402,103 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
       c->Alarm->alarmvals[lc2] = doalarm(p->NJD[lc2], p->mag[lc2], p->sig[lc2],
 					 lc2, lc, c->Alarm->usemask,
 					 c->Alarm->maskvar);
+      break;
+
+    case CNUM_VONNEUMANN:
+      c->VonNeumann->etavals[lc2] = dovonneumann(p->NJD[lc2], p->mag[lc2], p->sig[lc2],
+						 c->VonNeumann->weighted,
+						 c->VonNeumann->usemask,
+						 c->VonNeumann->maskvar,
+						 lc2, lc);
+      break;
+
+    case CNUM_PERCENTILERATIOS:
+      RunPercentileratiosCommand(p, c->Percentileratios, lc2, lc);
+      break;
+
+    case CNUM_BEYONDNSIGMA:
+      RunBeyondNsigmaCommand(p, c->BeyondNsigma, lc2, lc);
+      break;
+
+    case CNUM_SLOPESTATS:
+      RunSlopestatsCommand(p, c->Slopestats, lc2, lc);
+      break;
+
+    case CNUM_CODYM:
+      RunCodyMCommand(p, c->CodyM, lc2, lc);
+      break;
+
+    case CNUM_RUNLENGTH:
+      RunRunlengthCommand(p, c->Runlength, lc2, lc);
+      break;
+
+    case CNUM_CODYQ:
+      if(c->CodyQ->pertype == PERTYPE_AOV) {
+	i1 = c->CodyQ->lastaovindex;
+	if(c[i1-thisindex].cnum == CNUM_AOV)
+	  c->CodyQ->period[lc2][0] = c[i1-thisindex].Aov->peakperiods[lc2][0];
+	else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	  c->CodyQ->period[lc2][0] = c[i1-thisindex].AovHarm->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_LS) {
+	i1 = c->CodyQ->lastlsindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Ls->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_BLS) {
+	i1 = c->CodyQ->lastblsindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Bls->bper[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_PDM) {
+	i1 = c->CodyQ->lastpdmindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Pdm->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_FTP) {
+	i1 = c->CodyQ->lastftpindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Ftp->peakperiods[lc2][0];
+      } else if(c->CodyQ->pertype == PERTYPE_INJECTHARM) {
+	i1 = c->CodyQ->lastinjectharmindex;
+	c->CodyQ->period[lc2][0] = c[i1-thisindex].Injectharm->periodinject[lc2];
+      } else if(c->CodyQ->pertype == PERTYPE_FIX) {
+	c->CodyQ->period[lc2][0] = c->CodyQ->fixedperiod;
+      } else if(c->CodyQ->pertype == PERTYPE_VAR) {
+	c->CodyQ->period[lc2][0] = EvaluateVariable_Double(lc, lc2, 0, c->CodyQ->fixedperiod_var);
+      } else if(c->CodyQ->pertype == PERTYPE_EXPR) {
+	c->CodyQ->period[lc2][0] = EvaluateExpression(lc, lc2, 0, c->CodyQ->fixedperiod_expr);
+      } else if(c->CodyQ->pertype == PERTYPE_FIXCOLUMN) {
+	getoutcolumnvalue(c->CodyQ->linkedcolumn, lc2, lc, VARTOOLS_TYPE_DOUBLE, &(c->CodyQ->period[lc2][0]));
+      }
+      /* PERTYPE_SPECIFIED: period[lc2][0] already populated from the input list. */
+      RunCodyQCommand(p, c->CodyQ, lc2, lc);
+      break;
+
+    case CNUM_STRUCTUREFUNCTION:
+      if(c->StructureFunction->do_save) {
+	i1 = 0; i2 = 0;
+	while(p->lcnames[lc][i1] != '\0') {
+	  if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	  i1++;
+	}
+	sprintf(outname, "%s/%s%s",
+	        c->StructureFunction->outdir,
+	        &p->lcnames[lc][i2],
+	        c->StructureFunction->suffix);
+	RunStructureFunctionCommand(p, c->StructureFunction, lc2, lc, outname);
+      } else {
+	RunStructureFunctionCommand(p, c->StructureFunction, lc2, lc, NULL);
+      }
+      break;
+
+    case CNUM_DRWFIT:
+      if(c->DRWFit->do_save) {
+	i1 = 0; i2 = 0;
+	while(p->lcnames[lc][i1] != '\0') {
+	  if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	  i1++;
+	}
+	sprintf(outname, "%s/%s%s",
+	        c->DRWFit->outdir,
+	        &p->lcnames[lc][i2],
+	        c->DRWFit->suffix);
+	RunDRWFitCommand(p, c->DRWFit, lc2, lc, outname);
+      } else {
+	RunDRWFitCommand(p, c->DRWFit, lc2, lc, NULL);
+      }
       break;
 
     case CNUM_AUTOCORR:
@@ -415,6 +519,21 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
     case CNUM_AOV:
       /* Calculate the AoV with phase binning */
       RunAOVCommand(p, c, c->Aov, lc2, lc, thisindex);
+      break;
+
+    case CNUM_PDM:
+      /* Phase Dispersion Minimization period search */
+      RunPDMCommand(p, c, c->Pdm, lc2, lc, thisindex);
+      break;
+
+    case CNUM_FTP:
+      /* Fast Template Periodogram (Hoffman+ 2021) */
+      RunFTPCommand(p, c, c->Ftp, lc2, lc, thisindex);
+      break;
+
+    case CNUM_MATCHEDFILTER:
+      /* Inverse-variance matched filter at LC time points */
+      RunMatchedFilterCommand(p, c, c->MatchedFilter, lc2, lc, thisindex);
       break;
 
     case CNUM_HARMAOV:
@@ -1062,7 +1181,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 #else
 			  c->BlsFixDurTc->p
 #endif
-			  ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc2],c->BlsFixDurTc->bt0[lc2],c->BlsFixDurTc->bpow[lc2],c->BlsFixDurTc->sde[lc2],c->BlsFixDurTc->snval[lc2],c->BlsFixDurTc->depth[lc2],c->BlsFixDurTc->qtran[lc2],c->BlsFixDurTc->chisqrplus[lc2],&c->BlsFixDurTc->chisqrminus[lc2],&c->BlsFixDurTc->bperpos[lc2],&c->BlsFixDurTc->meanmagval[lc2], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc2], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc2], c->BlsFixDurTc->Nt[lc2], c->BlsFixDurTc->Nbefore[lc2], c->BlsFixDurTc->Nafter[lc2], c->BlsFixDurTc->rednoise[lc2], c->BlsFixDurTc->whitenoise[lc2], c->BlsFixDurTc->sigtopink[lc2], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc2], c->BlsFixDurTc->OOTmag[lc2], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep, lc2, lc, c->BlsFixDurTc->usemask, c->BlsFixDurTc->maskvar);
+			  ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc2],c->BlsFixDurTc->bt0[lc2],c->BlsFixDurTc->bpow[lc2],c->BlsFixDurTc->sde[lc2],c->BlsFixDurTc->snval[lc2],c->BlsFixDurTc->depth[lc2],c->BlsFixDurTc->qtran[lc2],c->BlsFixDurTc->chisqrplus[lc2],&c->BlsFixDurTc->chisqrminus[lc2],&c->BlsFixDurTc->bperpos[lc2],&c->BlsFixDurTc->meanmagval[lc2], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc2], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc2], c->BlsFixDurTc->Nt[lc2], c->BlsFixDurTc->Nbefore[lc2], c->BlsFixDurTc->Nafter[lc2], c->BlsFixDurTc->rednoise[lc2], c->BlsFixDurTc->whitenoise[lc2], c->BlsFixDurTc->sigtopink[lc2], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc2], c->BlsFixDurTc->OOTmag[lc2], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep, lc2, lc, c->BlsFixDurTc->usemask, c->BlsFixDurTc->maskvar, c->BlsFixDurTc->mergepeakdf_mode, c->BlsFixDurTc->mergepeakdf_val);
 	  } else {
 	    if(!p->quiet_mode) {
 	      fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLS.\n", thisindex, lc, p->lcnames[lc]);
@@ -1532,6 +1651,8 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2);
 	  else
 	    detrend_tfa(p, c->TFA, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2], 0, NULL, NULL, lc2);
+	  if(c->TFA->do_refmag && c->TFA->correctlc)
+	    tfa_reset_level(p, p->NJD[lc2], p->mag[lc2], c->TFA->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA, refmag, lc, lc2), &c->TFA->ave_out[lc2], &c->TFA->rms_out[lc2]);
 	}
       break;
 
@@ -1607,6 +1728,8 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, p->matchstringid, p->stringid[lc2], p->stringid_idx[lc2], lc2, lc2);
 	  else
 	    detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc2], p->t[lc2], p->mag[lc2], p->sig[lc2], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2], d1, s1, 0, NULL, NULL, lc2, lc2);
+	  if(c->TFA_SR->do_refmag && c->TFA_SR->correctlc)
+	    tfa_reset_level(p, p->NJD[lc2], p->mag[lc2], c->TFA_SR->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA_SR, refmag, lc, lc2), &c->TFA_SR->ave_out[lc2], &c->TFA_SR->rms_out[lc2]);
 	}
       break;
 
@@ -1968,6 +2091,21 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  }
 	}
 	fluxtomag(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],VT_EVAL_DOUBLE(c->Fluxtomag, mag_constant1, lc, lc), VT_EVAL_DOUBLE(c->Fluxtomag, offset, lc, lc));
+      }
+      break;
+
+    case CNUM_MAGTOFLUX:
+      /* Convert from magnitudes to flux (inverse of -fluxtomag) */
+      for(lc=0;lc<p->Nlcs;lc++) {
+	if(p->isifcommands) {
+	  if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	    SkipCommand(p, c, thisindex, lc, lc);
+	    continue;
+	  }
+	}
+	magtoflux(p->t[lc],p->mag[lc],p->sig[lc],p->NJD[lc],
+		  c->Magtoflux->normalize ? 0.0 : VT_EVAL_DOUBLE(c->Magtoflux, mag_constant1, lc, lc),
+		  c->Magtoflux->normalize);
       }
       break;
 
@@ -2362,7 +2500,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	      continue;
 	    }
 	  }
-	  getJstet(p->NJD[lc], c->Jstet->Jstet_time, c->Jstet->wkmax, p->t[lc], p->mag[lc], p->sig[lc], &d1, &c->Jstet->jst[lc], &c->Jstet->kur[lc], &c->Jstet->lst[lc], lc, lc, c->Jstet->usemask, c->Jstet->maskvar);
+	  getJstet(p->NJD[lc], c->Jstet->Jstet_time, c->Jstet->wkmax, c->Jstet->skipnormalize, p->t[lc], p->mag[lc], p->sig[lc], &d1, &c->Jstet->jst[lc], &c->Jstet->kur[lc], &c->Jstet->lst[lc], lc, lc, c->Jstet->usemask, c->Jstet->maskvar);
 	}
       break;
 
@@ -2379,6 +2517,184 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	  c->Alarm->alarmvals[lc] = doalarm(p->NJD[lc], p->mag[lc], p->sig[lc],
 					 lc, lc, c->Alarm->usemask,
 					 c->Alarm->maskvar);
+	}
+      break;
+
+    case CNUM_VONNEUMANN:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  c->VonNeumann->etavals[lc] = dovonneumann(p->NJD[lc], p->mag[lc], p->sig[lc],
+						    c->VonNeumann->weighted,
+						    c->VonNeumann->usemask,
+						    c->VonNeumann->maskvar,
+						    lc, lc);
+	}
+      break;
+
+    case CNUM_PERCENTILERATIOS:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunPercentileratiosCommand(p, c->Percentileratios, lc, lc);
+	}
+      break;
+
+    case CNUM_BEYONDNSIGMA:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunBeyondNsigmaCommand(p, c->BeyondNsigma, lc, lc);
+	}
+      break;
+
+    case CNUM_SLOPESTATS:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunSlopestatsCommand(p, c->Slopestats, lc, lc);
+	}
+      break;
+
+    case CNUM_CODYM:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunCodyMCommand(p, c->CodyM, lc, lc);
+	}
+      break;
+
+    case CNUM_RUNLENGTH:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  RunRunlengthCommand(p, c->Runlength, lc, lc);
+	}
+      break;
+
+    case CNUM_CODYQ:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(c->CodyQ->pertype == PERTYPE_AOV) {
+	    i1 = c->CodyQ->lastaovindex;
+	    if(c[i1-thisindex].cnum == CNUM_AOV)
+	      c->CodyQ->period[lc][0] = c[i1-thisindex].Aov->peakperiods[lc][0];
+	    else if(c[i1-thisindex].cnum == CNUM_HARMAOV)
+	      c->CodyQ->period[lc][0] = c[i1-thisindex].AovHarm->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_LS) {
+	    i1 = c->CodyQ->lastlsindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Ls->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_BLS) {
+	    i1 = c->CodyQ->lastblsindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Bls->bper[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_PDM) {
+	    i1 = c->CodyQ->lastpdmindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Pdm->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_FTP) {
+	    i1 = c->CodyQ->lastftpindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Ftp->peakperiods[lc][0];
+	  } else if(c->CodyQ->pertype == PERTYPE_INJECTHARM) {
+	    i1 = c->CodyQ->lastinjectharmindex;
+	    c->CodyQ->period[lc][0] = c[i1-thisindex].Injectharm->periodinject[lc];
+	  } else if(c->CodyQ->pertype == PERTYPE_FIX) {
+	    c->CodyQ->period[lc][0] = c->CodyQ->fixedperiod;
+	  } else if(c->CodyQ->pertype == PERTYPE_VAR) {
+	    c->CodyQ->period[lc][0] = EvaluateVariable_Double(lc, lc, 0, c->CodyQ->fixedperiod_var);
+	  } else if(c->CodyQ->pertype == PERTYPE_EXPR) {
+	    c->CodyQ->period[lc][0] = EvaluateExpression(lc, lc, 0, c->CodyQ->fixedperiod_expr);
+	  } else if(c->CodyQ->pertype == PERTYPE_FIXCOLUMN) {
+	    getoutcolumnvalue(c->CodyQ->linkedcolumn, lc, lc, VARTOOLS_TYPE_DOUBLE, &(c->CodyQ->period[lc][0]));
+	  }
+	  /* PERTYPE_SPECIFIED: period[lc][0] already populated from the input list. */
+	  RunCodyQCommand(p, c->CodyQ, lc, lc);
+	}
+      break;
+
+    case CNUM_STRUCTUREFUNCTION:
+      for(lc=0;lc<p->Nlcs;lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(c->StructureFunction->do_save) {
+	    i1 = 0; i2 = 0;
+	    while(p->lcnames[lc][i1] != '\0') {
+	      if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	      i1++;
+	    }
+	    sprintf(outname, "%s/%s%s",
+	            c->StructureFunction->outdir,
+	            &p->lcnames[lc][i2],
+	            c->StructureFunction->suffix);
+	    RunStructureFunctionCommand(p, c->StructureFunction, lc, lc, outname);
+	  } else {
+	    RunStructureFunctionCommand(p, c->StructureFunction, lc, lc, NULL);
+	  }
+	}
+      break;
+
+    case CNUM_DRWFIT:
+      for(lc = 0; lc < p->Nlcs; lc++)
+	{
+	  if(p->isifcommands) {
+	    if(!TestIf(p->IfStack[lc], p, c, lc, lc) || p->skipfaillc[lc]) {
+	      SkipCommand(p, c, thisindex, lc, lc);
+	      continue;
+	    }
+	  }
+	  if(c->DRWFit->do_save) {
+	    i1 = 0; i2 = 0;
+	    while(p->lcnames[lc][i1] != '\0') {
+	      if(p->lcnames[lc][i1] == '/') i2 = i1 + 1;
+	      i1++;
+	    }
+	    sprintf(outname, "%s/%s%s",
+	            c->DRWFit->outdir,
+	            &p->lcnames[lc][i2],
+	            c->DRWFit->suffix);
+	    RunDRWFitCommand(p, c->DRWFit, lc, lc, outname);
+	  } else {
+	    RunDRWFitCommand(p, c->DRWFit, lc, lc, NULL);
+	  }
 	}
       break;
 
@@ -3181,7 +3497,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 #else
 			      c->BlsFixDurTc->p
 #endif
-			      ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc],c->BlsFixDurTc->bt0[lc],c->BlsFixDurTc->bpow[lc],c->BlsFixDurTc->sde[lc],c->BlsFixDurTc->snval[lc],c->BlsFixDurTc->depth[lc],c->BlsFixDurTc->qtran[lc],c->BlsFixDurTc->chisqrplus[lc],&c->BlsFixDurTc->chisqrminus[lc],&c->BlsFixDurTc->bperpos[lc],&c->BlsFixDurTc->meanmagval[lc], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc], c->BlsFixDurTc->Nt[lc], c->BlsFixDurTc->Nbefore[lc], c->BlsFixDurTc->Nafter[lc], c->BlsFixDurTc->rednoise[lc], c->BlsFixDurTc->whitenoise[lc], c->BlsFixDurTc->sigtopink[lc], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc], c->BlsFixDurTc->OOTmag[lc], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep, lc, lc, c->BlsFixDurTc->usemask, c->BlsFixDurTc->maskvar);
+			      ,c->BlsFixDurTc->Npeak,c->BlsFixDurTc->bper[lc],c->BlsFixDurTc->bt0[lc],c->BlsFixDurTc->bpow[lc],c->BlsFixDurTc->sde[lc],c->BlsFixDurTc->snval[lc],c->BlsFixDurTc->depth[lc],c->BlsFixDurTc->qtran[lc],c->BlsFixDurTc->chisqrplus[lc],&c->BlsFixDurTc->chisqrminus[lc],&c->BlsFixDurTc->bperpos[lc],&c->BlsFixDurTc->meanmagval[lc], c->BlsFixDurTc->timezone, c->BlsFixDurTc->fraconenight[lc], c->BlsFixDurTc->operiodogram, outname, c->BlsFixDurTc->omodel, outname2, c->BlsFixDurTc->correctlc,p->ascii, c->BlsFixDurTc->nt[lc], c->BlsFixDurTc->Nt[lc], c->BlsFixDurTc->Nbefore[lc], c->BlsFixDurTc->Nafter[lc], c->BlsFixDurTc->rednoise[lc], c->BlsFixDurTc->whitenoise[lc], c->BlsFixDurTc->sigtopink[lc], c->BlsFixDurTc->fittrap, c->BlsFixDurTc->qingress[lc], c->BlsFixDurTc->OOTmag[lc], c->BlsFixDurTc->ophcurve, outname3, c->BlsFixDurTc->phmin, c->BlsFixDurTc->phmax, c->BlsFixDurTc->phstep, c->BlsFixDurTc->ojdcurve, outname4, c->BlsFixDurTc->jdstep, lc, lc, c->BlsFixDurTc->usemask, c->BlsFixDurTc->maskvar, c->BlsFixDurTc->mergepeakdf_mode, c->BlsFixDurTc->mergepeakdf_val);
 	      } else {
 		if(!p->quiet_mode) {
 		  fprintf(stderr,"Warning: skipping -BLSFixDurTc command index %d for light curve number: %d, filename: %s. The light curve is either too short, or an invalid set of parameter options were supplied to BLSFixDurTc.\n", thisindex, lc, p->lcnames[lc]);
@@ -3694,6 +4010,8 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],p->matchstringid,p->stringid[lc],p->stringid_idx[lc], 0);
 	      else
 		detrend_tfa(p, c->TFA, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA->lcx[lc][0], c->TFA->lcy[lc][0], p->lcnames[lc], outname2, c->TFA->ocoeff, c->TFA->correctlc, c->TFA->omodel, outname, &c->TFA->ave_out[lc], &c->TFA->rms_out[lc],0,NULL,NULL, 0);
+	      if(c->TFA->do_refmag && c->TFA->correctlc)
+		tfa_reset_level(p, p->NJD[lc], p->mag[lc], c->TFA->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA, refmag, lc, lc), &c->TFA->ave_out[lc], &c->TFA->rms_out[lc]);
 	    }
 	}
       break;
@@ -3778,6 +4096,8 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,p->matchstringid,p->stringid[lc],p->stringid_idx[lc], lc, 0);
 	      else
 		detrend_tfa_sr(p, c->TFA_SR, p->NJD[lc], p->t[lc], p->mag[lc], p->sig[lc], c->TFA_SR->lcx[lc][0], c->TFA_SR->lcy[lc][0], p->lcnames[lc], outname2, c->TFA_SR->ocoeff, c->TFA_SR->correctlc, c->TFA_SR->omodel, outname, &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc], d1, s1,0,NULL,NULL, lc, 0);
+	      if(c->TFA_SR->do_refmag && c->TFA_SR->correctlc)
+		tfa_reset_level(p, p->NJD[lc], p->mag[lc], c->TFA_SR->refmag_usemedian, VT_EVAL_DOUBLE(c->TFA_SR, refmag, lc, lc), &c->TFA_SR->ave_out[lc], &c->TFA_SR->rms_out[lc]);
 	    }
 	}
       break;

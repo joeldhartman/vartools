@@ -366,9 +366,11 @@ medflag - 0 means average bin, 1 means median bin, 2 means weighted average bin
 
 binsize_Nbins_flag - 0 means that the binsize (in units of time) is specified, 1 means the number of bins is specified.
 
-firstbinflag - 0 means that the first bin starts at t[0], 1 means the first bin starts at t[0] - firstbin/binsize; This is only relevant if T0source = -1
+firstbinflag - 0 means that the first bin starts at t[0], 1 means the first bin is shifted by a "binshift" / "firstbinshift" keyword; the binshift_mult flag selects the formula (see below). This is only relevant if T0source = -1.
 
-T0source - -1 means that firstbinflag settings apply (bin starts at t[0] or t[0] - firstbin/binsize);
+binshift_mult - 0 (legacy "firstbinshift" keyword) means t0 -= firstbin / binsize; 1 (new "binshift" keyword) means t0 -= firstbin * binsize, with firstbin a dimensionless fraction-of-binwidth shift (canonical 0..1).
+
+T0source - -1 means that firstbinflag settings apply;
            PERTYPE_FIXCOLUMN - it comes from a previously computed output column
            PERTYPE_FIX - it is specified on the command line
            PERTYPE_SPECIFIED - it comes from the input list
@@ -491,10 +493,20 @@ tflag - 0 means the output time for each bin is the time at the center of the bi
 	Nbins = ceil((t1 - t0)/binsize);
       }
   
-    /* adjust the initial time if needed */
+    /* adjust the initial time if needed.  binshift_mult chooses which
+       keyword the user passed:
+         "binshift" => binshift_mult=1 => t0 -= firstbin * binsize
+             (firstbin is the dimensionless fraction-of-binwidth shift;
+             canonical use 0 <= firstbin < 1).
+         "firstbinshift" => binshift_mult=0 => t0 -= firstbin / binsize
+             (legacy formula, dimensionally inconsistent but retained
+             for backward compatibility). */
     if(firstbinflag)
       {
-	t0 = t0 - firstbin/binsize;
+	if(c->binshift_mult)
+	  t0 = t0 - firstbin * binsize;
+	else
+	  t0 = t0 - firstbin / binsize;
       }
   } else {
     if(T0source == PERTYPE_FIXCOLUMN) {

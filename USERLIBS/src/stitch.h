@@ -38,6 +38,9 @@ typedef struct {
   double start_time;
   double time_step;
   int fitonly;
+  int noshiftmasked;
+  int use_refmag;        /* shift all groups to a reference magnitude value */
+  double *refmagval;     /* per-LC reference magnitude target (fix/var/expr) */
   int save_fitted_parameters;
   char coeffoutdir[MAXLEN];
   char coeffoutformat[MAXLEN];

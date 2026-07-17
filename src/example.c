@@ -115,6 +115,98 @@ void example(char *c, ProgramData *p)
 		    "Runs the harmonic-fitting AoV period-finding algorithm on the light curve EXAMPLES/2. 1 harmonic is used (i.e. the model is a simple sine-curve). Periods between 0.1 and 10.0 days are searched. The coarse search is done at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case). The fine search around the peaks is done at a frequency resolution of 0.01/T. The top 2 peaks are identified, between each cycle the best-fit signal is removed and the periodogram is regenerated. The periodogram is output to the directory EXAMPLES/OUTDIR1. The filename will be 2.aov_harm. An iterative 5-sigma clipping is applied when identifying peaks in the periodogram.\n");
       commandfound = 1;
     }
+  if(!strncmp(c,"-PDM",4) && strlen(c) == 4)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM linterp Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \\\n");
+      printtostring(&s,
+		    "\t\tclip 5. 1 whiten\n\n");
+      printtostring(&s,
+		    "Runs the Phase Dispersion Minimization (PDM) period-finding algorithm on the light curve EXAMPLES/2 using the \"linterp\" variant (linear interpolation between bin means at the bin centres; this is the cuvarbase default).  20 phase-bins are used.  Periods between 0.1 and 10.0 days are searched.  The coarse search is done at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case).  The fine search around the peaks is done at a frequency resolution of 0.01/T.  The top 5 peaks are identified; between each cycle the best-fit phase-bin model is subtracted from the light curve and the periodogram is regenerated.  The periodogram is output to the directory EXAMPLES/OUTDIR1 (filename 2.pdm) with one column per whitening cycle.  An iterative 5-sigma clipping is applied when computing the periodogram mean/RMS used for the SNR.  PDM_Theta_N_M reports the theta statistic for each peak (lower = stronger signal); PDM_NEG_LN_FAP_N_M reports the negative natural logarithm of the analytic Schwarzenberg-Czerny 1997 false-alarm probability with an effective-trials-factor correction.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM multicover Nbin 8 Nc 4 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Same search but using the \"multicover\" variant: 8 phase bins per cover and 4 phase-shifted bin sets (shift by 1/(Nbin*Nc) between covers).  Theta is the per-cover average, which reduces the bin-edge sensitivity of the step variant at the cost of an increased computation time.  Schwarzenberg-Czerny 1997 explicitly notes that the analytic FAP distribution is unknown for Nc > 1; for multicover the reported PDM_NEG_LN_FAP_N_M is the single-cover Beta((N-Nb)/2, (Nb-1)/2) value evaluated on the multicover theta -- conservative.  Use the \"bootstrap\" keyword (see below) for an empirical FAP calibration.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-PDM tophat dphi 0.05 0.5 2.0 0.5 0.05 2 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Same idea but with the \"tophat\" binless variant: for each point the per-point model is the weighted mean of phase-neighbours within a window of half-width dphi=0.05.  There is no fixed bin grid.  Periods between 0.5 and 2.0 days are searched here (a narrower range than the binned variants above because the binless model costs O(N^2) per trial frequency).  The \"gauss\" variant works the same way but uses a Gaussian phase kernel of sigma dphi instead of a hard window.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -randseed 1 \\\n");
+      printtostring(&s,
+		    "\t-PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 0 \\\n");
+      printtostring(&s,
+		    "\t\tbootstrap 2000\n\n");
+      printtostring(&s,
+		    "Same linterp search, but with the FAP recalibrated empirically via 2000 shuffled-light-curve bootstrap trials (sampling magnitudes with replacement, mirroring -LS's bootstrap method).  PDM_NEG_LN_FAP_N_M is then read from the bootstrap distribution rather than the Schwarzenberg-Czerny analytic Beta; for peaks more extreme than any bootstrap trial a log-log polynomial fit to the most-extreme 10% of the bootstrap distribution is used to extrapolate.  Bootstrap can be used to calibrate the FAP -- in practice it may be too slow for large analysis projects.  The \"-randseed\" option fixes the RNG seed for reproducibility.\n\n");
+      printtostring(&s,
+		    "Cite Stellingwerf, R. F. 1978, ApJ, 224, 953 and Schwarzenberg-Czerny, A. 1997, ApJ, 489, 941 if you use this command.  The \"linterp\" variant follows the implementation in cuvarbase (https://github.com/johnh2o2/cuvarbase, package developed by John Hoffman, the linterp PDM contribution was written by Attila Bodi).\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-FTP",4) && strlen(c) == 4)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-FTP file EXAMPLES/2.ftptemplate 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1\n\n");
+      printtostring(&s,
+		    "Runs the Fast Template Periodogram (FTP, Hoffman et al. 2021) on the light curve EXAMPLES/2.  The template is read from the two-column file EXAMPLES/2.ftptemplate (one row \"1.0  0.0\" -- a pure cosine, H=1, which makes FTP degenerate to a Lomb-Scargle-like search but with the FTP power normalisation P in [0, 1], where 1 = exact fit).  Periods between 0.1 and 10.0 days are searched.  The coarse search uses a frequency resolution of 0.1/T (T=31.1d for EXAMPLES/2); the fine search around the peaks uses 0.01/T.  The top 3 peaks are reported.  The periodogram is dumped to EXAMPLES/OUTDIR1 (filename 2.ftp).  Output columns FTP_Period_N_M / FTP_Power_N_M / FTP_SNR_N_M / FTP_Theta_N_M / FTP_NEG_LN_FAP_N_M report the per-peak period, FTP-power statistic, signal-to-noise ratio, best-fit phase shift, and estimated negative natural logarithm of the false alarm probability.  FTP_NegAmp_N_M flags peaks where the best fit had theta_1 < 0 (a flipped template, which for a non-symmetric M(phi) is generally not a real signal).\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \\\n");
+      printtostring(&s,
+		    "\t\t0.1 10. 0.1 0.01 3 0 \\\n");
+      printtostring(&s,
+		    "\t\tclip 5. 1 whiten\n\n");
+      printtostring(&s,
+		    "Same search but with the \"fitlc\" template-source mode: the template is built by fitting a 6-harmonic (Nharm=5, so harmonics above the fundamental count to 5 plus the fundamental itself = 6 c_n,s_n pairs) Fourier series to the light curve EXAMPLES/2 at the fixed period 1.235 days.  The resulting c_n,s_n template is then used to search EXAMPLES/2 for the top 3 peaks with iterative whitening between peaks (each peak's closed-form FTP-template fit is subtracted from the LC before the next peak is found).  Each peak gets its own clipped mean/RMS for the SNR (output columns Mean_FTP_Power_N_M, RMS_FTP_Power_N_M instead of the per-LC pair).  The 5-sigma iterative clipping defaults match -aov / -PDM.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -randseed 1 \\\n");
+      printtostring(&s,
+		    "\t-FTP inline 1 1.0 0.0 0.3 0.0 \\\n");
+      printtostring(&s,
+		    "\t\t0.1 10. 0.1 0.01 2 0 \\\n");
+      printtostring(&s,
+		    "\t\tfixperiodSNR fix 1.235 bootstrap 500\n\n");
+      printtostring(&s,
+		    "Search with an inline-specified template (Nharm=1, so two c_n,s_n pairs: c_1=1.0 s_1=0.0 c_2=0.3 s_2=0.0 -- a cosine fundamental plus a 0.3-amplitude second harmonic).  The top 2 peaks are reported, plus the FTP statistic at the fixed period 1.235 days (FTP_PeriodFix / FTP_Power_PeriodFix / FTP_SNR_PeriodFix / FTP_Theta_PeriodFix).  By default the FTP_NEG_LN_FAP column reports the analytic GLS Beta -log(FAP); passing bootstrap 500 overrides this with an empirical calibration from 500 shuffled-LC trials.  The \"-randseed\" option fixes the RNG seed for reproducibility.  Bootstrap can also be combined with whiten and fixperiodSNR (the bootstrap distribution is then calibrated once from the original light curve, before whitening starts).\n\n");
+      printtostring(&s,
+		    "Cite Hoffman, J. et al., 2021, arXiv:2101.12348 if you use this command.  The reference Python implementation is at https://github.com/PrincetonUniversity/FastTemplatePeriodogram (package developed by John Hoffman).\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-matchedfilter",14) && strlen(c) == 14)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template gauss 0.5 2.0 mode window signs both 3 0\n\n");
+      printtostring(&s,
+		    "Run an inverse-variance matched filter on the light curve EXAMPLES/2 using a Gaussian template of sigma=0.5 d and an outer truncation support of +/-2 d around each trial centre.  The top 3 peaks of |SNR(tau)| are reported (signs both keeps positive- and negative-amplitude matches in the same ranking).  Output columns MatchedFilter_Time_N_M / MatchedFilter_SNR_N_M / MatchedFilter_Amplitude_N_M report each peak's trial centre, signed SNR, and the perturbation amplitude in light-curve units.  Per-LC columns MatchedFilter_Mean_SNR_M and MatchedFilter_RMS_SNR_M are computed over the sign-filtered trial grid.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/3.transit -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template box 0.083 0.5 mode window signs negative 1 0\n\n");
+      printtostring(&s,
+		    "Search EXAMPLES/3.transit for an injected box-shaped dip with a 2-hour (0.083 d) width.  signs negative keeps only inverted (dip) matches in the ranking; a real transit returns a strongly-negative SNR with a small-but-negative amplitude.  support_halfwidth=0.5 d gives the matched-filter a wide enough local baseline that the c-offset term cleanly absorbs the out-of-transit magnitude.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-matchedfilter template expr \"exp(-s/0.005) * (s>0)\" 0.02 \\\n");
+      printtostring(&s,
+		    "\t\tmode window signs negative 5 0 min_separation 0.05 whiten\n\n");
+      printtostring(&s,
+		    "Search for exponentially-decaying flare-shaped events with a 0.005-day decay timescale.  The template-source mode is expr, with the time-relative variable s bound to (t_i - tau) inside the support window.  The (s>0) factor zeroes the template before the trial centre so only post-peak decay contributes.  min_separation 0.05 d enforces a 0.05-day exclusion radius around each peak so neighbouring features are reported as separate peaks.  The whiten keyword subtracts the best-fit template at each peak from a working copy of the LC before searching for the next; the original LC is restored on return.\n\n");
+      printtostring(&s,
+		    "Cite Davenport, J. R. A., Hawley, S. L., Hebb, L. et al. 2014, ApJ, 797, 122 (ADS bibcode 2014ApJ...797..122D) if you use this command's flare named-template kind.  The matched-filter formulation itself is standard; Turin, G. L. 1960, IRE Transactions on Information Theory, IT-6, 311 (\"An introduction to matched filters\") is the canonical reference.\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-autocorrelation",16) && strlen(c) == 16)
     {
       printtostring(&s,
@@ -123,6 +215,30 @@ void example(char *c, ProgramData *p)
 		    "\t-autocorrelation 0.0 10. 0.05 EXAMPLES/OUTDIR1\n\n");
       printtostring(&s,
 		    "Compute the discrete auto-correlation function (DACF) of the light curve EXAMPLES/2. The DACF is calculated between time-lags of 0 and 10.0 days with a time-step of 0.05 days. It is output to the directory EXAMPLES/OUTDIR1 with the filename 2.autocorr\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-beyondNsigma",13) && strlen(c) == 13)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -beyondNsigma\n\n");
+      printtostring(&s,
+		    "Compute, for the light curve EXAMPLES/2, the fraction of magnitudes that lie more than N*sigma above the median and more than N*sigma below the median, where sigma is the sample standard deviation, for the default N values 1, 3, and 5. The output columns BEYONDNSIGMA_frac_above_NX.XX_0 and BEYONDNSIGMA_frac_below_NX.XX_0 report these fractions. For Gaussian-distributed scatter the expected one-tailed values are 0.1587, 0.00135, and 2.87e-7 for N=1, 3, and 5 respectively; departures from these values are diagnostic of asymmetry, heavy tails, or genuine outliers.\n\n");
+      printtostring(&s,
+		    "\nExample 2: custom N values with the MAD-based scale\n");
+      printtostring(&s,
+		    "---------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-beyondNsigma Nvalues 0.5,1.0,1.5 useMAD\n\n");
+      printtostring(&s,
+		    "Same statistics computed at a user-supplied list of N values (floating-point allowed; duplicates and N <= 0 are rejected at parse time) and using 1.483*median(|x - median(x)|) as the scale instead of the sample standard deviation. The MAD-based scale is robust to heavy tails or outliers in the magnitude distribution: outliers inflate the stddev and widen the N*sigma threshold, while MAD reflects the bulk's scale and the same thresholds correctly flag the outliers.\n\n");
+      printtostring(&s,
+		    "The N=1 instance of this statistic corresponds to the Beyond1Std feature defined by Nun et al. 2015, arXiv:1506.00010 (the FATS package for variable-star feature engineering); cite that work if you use the -beyondNsigma command.\n\n");
       commandfound = 1;
     }
   if(!strncmp(c,"-binlc",6) && strlen(c) == 6)
@@ -319,6 +435,56 @@ void example(char *c, ProgramData *p)
 		    "Calculate the RMS of the light curve EXAMPLES/5, apply iterative 3 sigma clipping, calculate the RMS of the clipped light curve, and output the clipped light curve to EXAMPLES/OUTDIR1/5.clip.txt\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-CodyM",6) && strlen(c) == 6)
+    {
+      printtostring(&s,
+		    "\nExample 1: dipping signature (injected transits)\n");
+      printtostring(&s,
+		    "------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/3.transit -oneline -CodyM trendwindow 10\n\n");
+      printtostring(&s,
+		    "Compute the flux-asymmetry statistic M of Cody et al. 2014, AJ, 147, 82 (their Equation 7) on a light curve with an injected transit signal. A boxcar-mean smooth of full width trendwindow=10 (in time-axis units) is subtracted to remove any long-term trend; the default sigclip=5 then identifies outliers on that trend-detrended curve, and M is computed on the curve with those points removed. Five columns are emitted: CODYM_M_0 (the statistic), CODYM_d10_0 (mean of the combined faintest-decile and brightest-decile values), CODYM_dmed_0 (median), CODYM_sigma_d_0 (standard deviation), and CODYM_Npoints_0 (the number of points surviving the filtering and outlier rejection). For magnitude-valued light curves M moves in the positive direction for dipping signatures (faint excursions like the injected transits here) and in the negative direction for bursting signatures (bright excursions); a value close to zero indicates a symmetric magnitude distribution. The sign convention is reversed for flux input.\n\n");
+      printtostring(&s,
+		    "Example 2: bursting signature (injected microlensing event)\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/4.microlensinject -oneline \\\n");
+      printtostring(&s,
+		    "\t-CodyM trendwindow 100\n\n");
+      printtostring(&s,
+		    "Same statistic on a light curve with an injected microlensing event. M moves strongly in the negative (bursting) direction. trendwindow should be larger than the variability timescale you want to keep -- the microlensing event spans many days, so a 100-day boxcar (essentially a constant subtract on a ~30-day light curve) preserves it; a shorter trendwindow would partly track the event and shrink M toward zero.\n\n");
+      printtostring(&s,
+		    "The optional outlierwindow keyword enables the paper-faithful two-stage outlier-rejection scheme: outliers are identified on a short-timescale residual (mag minus boxcar smooth of full width outlierwindow) rather than on the trend-detrended curve. Real variability is largely removed in that residual, so only true glitches exceed the sigma threshold and the genuine dips and bursts that M quantifies survive into the M calculation. Setting sigclip=0 disables outlier rejection entirely. trendwindow, outlierwindow and sigclip each accept a fixed value, or the \"var\" keyword followed by a per-light-curve variable name, or the \"expr\" keyword followed by an analytic expression evaluated per light curve. Cite Cody et al. 2014, AJ, 147, 82 if you use the -CodyM command.\n\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-CodyQ",6) && strlen(c) == 6)
+    {
+      printtostring(&s,
+		    "\nExample 1: literal-fix period\n");
+      printtostring(&s,
+		    "-----------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10\n\n");
+      printtostring(&s,
+		    "Compute the quasi-periodicity statistic Q of Cody et al. 2014, AJ, 147, 82 (their Equation 6) for EXAMPLES/2 at the fixed period P=1.234 days. A boxcar-mean smooth of full width trendwindow=10 (in time-axis units) is subtracted to remove any long-term trend; the detrended curve is then phase-folded to P and a circular boxcar smooth in phase (full width 0.25 of the period by default) is subtracted to produce the residual. Six columns are emitted: CODYQ_Q_0 (the statistic), CODYQ_Period_0 (the period used), CODYQ_RMS_raw_0 (standard deviation of the detrended curve), CODYQ_RMS_resid_0 (standard deviation of the phase-residual curve), CODYQ_Sigma_0 (root of the mean per-point squared errors), and CODYQ_Npoints_0 (the number of surviving points). Q approaches 0 for a strictly periodic light curve (the phase model captures essentially all the variance) and approaches 1 for one with no detectable periodicity (the phase model removes nothing); intermediate values indicate quasi-periodic variability.\n\n");
+      printtostring(&s,
+		    "Example 2: period sourced from a prior -aov command\n");
+      printtostring(&s,
+		    "---------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-aov 0.5 4.0 0.1 5 1 0 \\\n");
+      printtostring(&s,
+		    "\t-CodyQ aov trendwindow 10\n\n");
+      printtostring(&s,
+		    "Same statistic, but Q is now evaluated at the primary peak period found by the preceding -aov command. The keyword \"aov\" instead of \"fix P\" instructs -CodyQ to copy the primary peak of the most recent -aov or -aov_harm command in the pipeline. The full set of period-source keywords is: \"aov\", \"ls\", \"bls\", \"pdm\", \"ftp\", and \"injectharm\" (back-references to the most recent corresponding command); \"fix P\" (literal value); \"fixcolumn <colname|colnum>\" (read from a prior output column); \"list\" [\"column\" col] (read from the input-list file); and \"var NAME\" / \"expr EXPR\" (per-light-curve sourcing).\n\n");
+      printtostring(&s,
+		    "trendwindow and phasesmooth each accept a fixed value, or the \"var\" keyword followed by a per-light-curve variable name, or the \"expr\" keyword followed by an analytic expression evaluated per light curve. Cite Cody et al. 2014, AJ, 147, 82 if you use the -CodyQ command.\n\n");
+      commandfound = 1;
+    }
   if(!strncmp(c,"-converttime",12) && strlen(c) == 12)
     {
       printtostring(&s,
@@ -465,6 +631,28 @@ void example(char *c, ProgramData *p)
 		    "\t-difffluxtomag 25.0 0.0 magcolumn 2 -rms\n\n");
       printtostring(&s,
 		    "Same as Example 1, but explicitly specifying that the star's reference magnitude is in column 2 of the input list using the \"magcolumn\" keyword.\n");
+      commandfound = 1;
+    }
+  if(!strncmp(c,"-drwfit",7) && strlen(c) == 7)
+    {
+      printtostring(&s,
+		    "\nExample 1: direct maximum-likelihood DRW fit\n");
+      printtostring(&s,
+		    "--------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -drwfit\n\n");
+      printtostring(&s,
+		    "Fit a damped-random-walk (DRW; equivalently the Ornstein-Uhlenbeck / CAR(1) process) model directly to EXAMPLES/2 by maximum likelihood, using the Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895 state-space recursion (their Equations 6-13). Each likelihood evaluation is O(N) with no matrix inversion, and a downhill simplex jointly fits the long-term mean mu together with the long-term magnitude standard deviation sigma_long and the damping time tau. Seven scalar columns are emitted: DRWFIT_SIGMA_0 (sigma_long, in the MacLeod et al. 2010, ApJ, 721, 1014 convention, mag), DRWFIT_TAU_0, DRWFIT_MU_0, DRWFIT_LNL_0 (the best-fit ln L), DRWFIT_DLNL_NOISE_0 and DRWFIT_DLNL_INF_0 (likelihood-ratio detection indicators comparing the best-fit DRW to the pure-measurement-noise and the tau -> infinity limits), and DRWFIT_CONVERGED_0. This direct-likelihood method recovers tau substantially more accurately than fitting a DRW to the structure function (-structurefunction fitDRW), especially on short baselines, and DRWFIT_SIGMA_0 reports the same sigma_long that -structurefunction emits, so the two commands are directly comparable on the same light curve. EXAMPLES/2 carries an injected sinusoidal signal rather than genuine DRW variability, so the recovered parameters describe the best DRW approximation to that signal.\n\n");
+      printtostring(&s,
+		    "Example 2: correct the light curve with the DRW model\n");
+      printtostring(&s,
+		    "-----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2\n\n");
+      printtostring(&s,
+		    "Replace the in-memory light curve with the DRW residuals before passing it to the following commands. The \"correctlc smoothed\" option subtracts the Rauch-Tung-Striebel smoothed model, which uses both past and future points, whitening the curve toward the photometric noise floor; \"correctlc forecast\" instead subtracts the one-step-ahead Kalman forecast, which uses only past points and so retains the unexplained short-term variability. Here the trailing -chi2 reports the chi^2 per degree of freedom of the smoothed-corrected curve.\n\n");
+      printtostring(&s,
+		    "Other options: \"mean fix m\" holds the long-term mean at a fixed value m instead of fitting it, and \"mean subtract\" removes the weighted mean before fitting (DRWFIT_MU_0 is then reported as NaN). The initial simplex guesses can be overridden with \"sigma0\", \"tau0\" and \"mean0\" (each accepts a fixed value, a \"var\" keyword followed by a variable name, or an \"expr\" keyword followed by an analytic expression for per-light-curve sourcing). \"save outdir\" writes an eight-column per-point aux file outdir/lcname.drwfit (t, x, sig_meas, the forward Kalman state x_hat_fwd / Omega_fwd / standardized residual chi_fwd, and the smoothed state x_smoothed / Omega_smoothed) for goodness-of-fit diagnostics, with one row per original light-curve point and NaN rows preserved for filtered-out points. \"modelvar smoothed name\" (or \"modelvar forecast name\") stores the DRW model itself in a new light-curve variable for use by later commands without altering the light curve. Cite Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895, together with MacLeod et al. 2010, ApJ, 721, 1014, if you use this command.\n\n");
       commandfound = 1;
     }
   if(!strncmp(c,"-ensemblerescalesig",19) && strlen(c) == 19)
@@ -937,6 +1125,38 @@ void example(char *c, ProgramData *p)
 		    "Run the Lomb-Scargle period-finding algorithm on the light curve EXAMPLES/2. Search for periods between 0.1 and 10.0 days at a frequency resolution of 0.1/T (T is the time-span of the lc, 31.1d in this case). Report the top 5 peaks, and output the periodogram to EXAMPLES/OUTDIR1 (the filename will be EXAMPLES/OUTDIR1/2.ls). Pre-whiten the light curve and re-apply L-S before finding the next peak, and use a 5 sigma iterative clipping in determining the spectroscopic S/N.\n");
       commandfound =1;
     }
+  if(!strncmp(c,"-magtoflux",10) && strlen(c) == 10)
+    {
+      printtostring(&s,
+		    "\nExample 1: round-trip with -fluxtomag\n");
+      printtostring(&s,
+		    "-------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-rms \\\n");
+      printtostring(&s,
+		    "\t-fluxtomag 25.0 0 \\\n");
+      printtostring(&s,
+		    "\t-magtoflux 25.0 \\\n");
+      printtostring(&s,
+		    "\t-rms\n\n");
+      printtostring(&s,
+		    "Convert the magnitude light curve EXAMPLES/2 to flux with -fluxtomag using a zero-point of 25.0, then invert with -magtoflux using the same zero-point. The two -rms calls before and after the round-trip should give identical statistics (preserved to roughly 10^-14 in magnitude; the printed five-decimal output is bit-identical).\n\n");
+      printtostring(&s,
+		    "\nExample 2: normalize to median flux of 1\n");
+      printtostring(&s,
+		    "----------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-magtoflux normalize \\\n");
+      printtostring(&s,
+		    "\t-stats mag median,min,max\n\n");
+      printtostring(&s,
+		    "Convert EXAMPLES/2 to flux and normalize the output so that the median flux is 1. This mode is useful when the absolute zero-point is unknown or unimportant (e.g. when subsequent commands only care about relative variability). The reported median should be 1.0 exactly; the min and max bracket the fractional variability of the light curve.\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-MandelAgolTransit",18) && strlen(c) == 18)
     {
       printtostring(&s,
@@ -1076,6 +1296,28 @@ void example(char *c, ProgramData *p)
 		    "\t\tcolumnformat \"t:%11.5f,phase:%8.5f,mag:%7.4f,err:%7.4f\"\n\n");
       printtostring(&s,
 		    "Example illustrating the use of the \"nameformat\" and \"columnformat\" keywords for the -o command. Light curves are read-in from the list, the -LS command is used to find the periods. The -expr command then defines a new vector \"phase\" which is initialized to the times in the light curves. The -changevariable command causes subsequent commands to use phase in cases where the time would normally be used. This, together with the following -Phase command, causes the vector \"phase\" to store the light curve phase for the period found with -LS. The light curves are then output to the directory EXAMPLES/OUTDIR1. The nameformat keyword gives the rule for naming the output files. The first light curve (\"EXAMPLES/1\") will yield output to the file \"EXAMPLES/OUTDIR1/file_1_00001_simout.txt\", the second (\"EXAMPLES/2\") to the file \"EXAMPLES/OUTDIR1/file_2_00002_simout.txt\", and so on. If the nameformat had not been given, the first file would have been output to \"EXAMPLES/OUTDIR1/1\" and so on. The columnformat keyword specifies how the data will be formatted in the output light curve. Here we indicate that four quantities, the time, phase, magnitude, and error will be included in the output. We also give printf like formatting rules for each of these to make the output easier to read. If columnformat had not been given, then only t, mag and err would have been output, and they would have all been output using the formats %17.9f, %9.5f, and %9.5f respectively.\n");
+      commandfound=1;
+    }
+  if(!strncmp(c,"-percentileratios",17) && strlen(c) == 17)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -percentileratios\n\n");
+      printtostring(&s,
+		    "Compute robust scatter statistics on the magnitude distribution of EXAMPLES/2 using the default percentile pairs (5:95 and 1:99). The output columns PERCENTILERATIOS_amp_PCTp_PCTq_0 report the amplitude pct(q) - pct(p) and PERCENTILERATIOS_asym_PCTp_PCTq_0 report the asymmetry (pct(q) - median) / (median - pct(p)). PERCENTILERATIOS_medmeddev_over_stddev_0 reports the raw median-absolute-deviation-from-the-median divided by the sample standard deviation; for independent Gaussian noise this tends to 0.6745 in the large-N limit, with larger values indicating significant outliers and smaller values indicating lighter-than-Gaussian tails.\n\n");
+      printtostring(&s,
+		    "\nExample 2: custom percentile pairs with floats\n");
+      printtostring(&s,
+		    "----------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-percentileratios percentilepairs 10:90,20:80,2.5:97.5\n\n");
+      printtostring(&s,
+		    "Same statistics computed against a user-supplied list of percentile pairs. Pairs may use floating-point percentiles (e.g. 2.5:97.5), are validated at parse time (0 < p, q < 100 and p != q), and pairs given with p > q are silently canonicalized to p < q before they are emitted as column names.\n\n");
       commandfound=1;
     }
   if(!strncmp(c,"-Phase",6) && strlen(c) == 6)
@@ -1579,6 +1821,28 @@ void example(char *c, ProgramData *p)
 		    "Apply a set of moving-mean filters to the light curves in the list EXAMPLES/lc_list and calculate mean, RMS, and expected RMS assuming white noise for each filter. We use 5 filters of 5.0, 10.0, 60.0, 1440.0, and 14400.0 minutes. Note that the \"filter\" here refers to replacing each point in the light curve with the mean of all points that are within the specified number of minutes of that point.\n");
       commandfound=1;
     }
+  if(!strncmp(c,"-runlength",10) && strlen(c) == 10)
+    {
+      printtostring(&s,
+		    "\nExample 1: run-length statistics about the median and MAD\n");
+      printtostring(&s,
+		    "---------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -runlength\n\n");
+      printtostring(&s,
+		    "For EXAMPLES/2, count runs of consecutive points (in time order) above and below the median magnitude, and outside the +/-k*MAD band (k defaults to 3), where MAD = 1.483*median(|x-median|) is the 1.483-scaled median absolute deviation also reported by -stats. A run is a maximal block of consecutive points all satisfying one condition. For each of the four conditions -- above, below, outhigh (x-median > k*MAD) and outlow (x-median < -k*MAD) -- the longest run, the number of runs, and the mean run length are emitted, giving the twelve columns RUNLENGTH_ABOVE_MAXLEN_0 through RUNLENGTH_OUTLOW_MEANLEN_0, plus RUNLENGTH_MEDIAN_0, RUNLENGTH_MAD_0 and RUNLENGTH_K_0. Long runs above or below the median indicate low-frequency coherent variability or a residual trend; long outlier runs indicate sustained excursions (flares, blends, systematics) rather than isolated bad points. EXAMPLES/2 carries an injected sinusoid, so it shows long above and below runs (roughly half a period of points each) and, because the +/-3*MAD band is wider than the sinusoid amplitude, no outlier runs.\n\n");
+      printtostring(&s,
+		    "Example 2: surface sustained outlier runs with a tighter band\n");
+      printtostring(&s,
+		    "-------------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -runlength k 0.5\n\n");
+      printtostring(&s,
+		    "Narrowing the band to +/-0.5*MAD brings the sinusoid peaks and troughs outside the band, so the outhigh and outlow runs become non-zero and trace the coherent excursions. The two outlier conditions are sign-specific: a run that would cross from the high side of the band to the low side is split into separate outhigh and outlow runs (there is no combined sign-agnostic outlier run). Points exactly at the median are in band and break both the above and below runs.\n\n");
+      printtostring(&s,
+		    "Other options: the band half-width k accepts a fixed value, a \"var\" keyword followed by a light-curve-list variable name, or an \"expr\" keyword followed by an analytic expression evaluated per light curve; \"maskpoints\" followed by a variable name restricts the statistics to points with that variable > 0. The light curve is sorted in time before the scan if it is not already in time order.\n\n");
+      commandfound=1;
+    }
   if(!strncmp(c,"-savelc",7) && strlen(c) == 7)
     {
       printtostring(&s,
@@ -1610,6 +1874,30 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "An example of running a battery of variability selection algorithms on a number of light curves in parallel. We first save the initial state of the light curve using the -savelc command, then apply iterative 5-sigma clipping to the light curve. We save the 5-sigma clipped light curve. We then run the -LS and -aov period finding algorithms. We then restore the light curve to its state before the 5-sigma clipping and apply 10-sigma clipping and run BLS (BLS would be sensitive to eclipses. To search for eclipses we would want to use a less aggressive sigma-clipping). After BLS we restore the light curve to its state after the 5-sigma clipping was applied and replace the errors in the light curve with the RMS. Finally we run the -autocorrelation command on the light curve which will output the autocorrelation function to the EXAMPLES/OUTDIR1 directory (see for example EXAMPLES/OUTDIR1/2.autocorr which is periodic and has a first peak at 1.23 days).\n");
       commandfound=1;
+    }
+  if(!strncmp(c,"-slopestats",11) && strlen(c) == 11)
+    {
+      printtostring(&s,
+		    "\nExample 1: defaults\n");
+      printtostring(&s,
+		    "-------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -slopestats\n\n");
+      printtostring(&s,
+		    "Compute, for the light curve EXAMPLES/2, per-pair slope statistics over consecutive points (after time-sorting). For each pair (t_i, m_i), (t_{i+1}, m_{i+1}) the slope s_i = (m_{i+1} - m_i) / (t_{i+1} - t_i) is formed, and five statistics are reported: SLOPESTATS_median_abs_dmdt_0 (= median(|s_i|)), SLOPESTATS_max_abs_dmdt_0 (= max(|s_i|)), SLOPESTATS_mad_dmdt_0 (= 1.483*median(|s_i - median(s_i)|)), and the threshold fractions SLOPESTATS_frac_above_T3.00_0 and SLOPESTATS_frac_below_T3.00_0 (= number of slopes above or below 3*sigma from the mean, divided by N_pairs; sigma is the sample standard deviation of the slopes). The default threshold list is T = 3; pass the threshold keyword followed by a comma-separated list of values to override.\n\n");
+      printtostring(&s,
+		    "\nExample 2: binning, multiple thresholds, maximum-gap filter\n");
+      printtostring(&s,
+		    "-----------------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-slopestats bintime 10,30 threshold 1,3 maxgap 0.5\n\n");
+      printtostring(&s,
+		    "Same statistics, but now computed after first phase-binning the light curve. The bintime keyword takes a comma-separated list of bin sizes in MINUTES (assuming the time axis is in days); a separate set of output columns is emitted per bin size, with the binwidth tagged in the column name as _BTX.XX. Within each bin, an unweighted average of (t, m) is taken, and consecutive-bin slopes are formed from those averages. The threshold keyword extends the report to multiple T values (each strictly positive; duplicates rejected at parse time). The maxgap keyword (in days) drops any consecutive pair whose time separation exceeds the given value, which suppresses spurious large slopes that span long observational gaps.\n\n");
+      printtostring(&s,
+		    "The max_abs_dmdt statistic corresponds to the MaxSlope feature of Richards et al. 2011, ApJ, 733, 10. The frac_above_T*sigma and frac_below_T*sigma statistics are slope-domain generalizations of the magnitude-domain Beyond1Std feature of the same paper, extended to a user-supplied list of T values and split into signed above/below counts. Cite Richards et al. 2011 if you use the -slopestats command.\n\n");
+      commandfound = 1;
     }
   if(!strcmp(c,"-sortlc"))
     {
@@ -1679,6 +1967,30 @@ void example(char *c, ProgramData *p)
 		    "\t\tmean,weightedmean,median,stddev,meddev,medmeddev,MAD,kurtosis,skewness,pct10,pct20,pct80,pct90,max,min,sum\n\n");
       printtostring(&s,
 		    "Calculate a variety of statistics for the magnitudes in a light curve, and for the magnitudes after adding gaussian noise to them. The call to -expr defines a new vector mag2 which is equal to mag with some gaussian noise added. In the call to stats we first tell it which variables to compute the statistics for (mag and mag2), we then give the statistics to compute. Note that the pct## statistics are percentiles (in this case the 10th, 20th, 80th and 90th percentiles).\n");
+      commandfound=1;
+    }
+  if(!strncmp(c,"-structurefunction",18) && strlen(c) == 18)
+    {
+      printtostring(&s,
+		    "\nExample 1: structure function values at chosen lags\n");
+      printtostring(&s,
+		    "----------------------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline \\\n");
+      printtostring(&s,
+		    "\t-structurefunction bins log 20 reportsfvalsintable 0.1,1,10\n\n");
+      printtostring(&s,
+		    "Compute the ensemble structure function (SF) of EXAMPLES/2 on 20 log-spaced lag bins from the smallest consecutive time spacing to the full baseline, with the default squared-difference estimator (Simonetti, Cordes and Heeschen 1985, ApJ, 296, 46). The \"reportsfvalsintable\" keyword takes a strictly increasing list of positive lag values; for each requested lag the kernel locates the SF bin containing it and emits four scalar columns: STRUCTUREFUNCTION_DT_k_0 (the actual bin centre), STRUCTUREFUNCTION_SF_k_0, STRUCTUREFUNCTION_SIGMA_SF_k_0, and STRUCTUREFUNCTION_NPAIRS_k_0, with k = 0..2. Lags that fall outside the lag range or in noise-dominated bins are emitted as NaN / 0.\n\n");
+      printtostring(&s,
+		    "Example 2: SF + damped-random-walk fit\n");
+      printtostring(&s,
+		    "--------------------------------------\n");
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW\n\n");
+      printtostring(&s,
+		    "Fit a damped-random-walk (DRW, or Ornstein-Uhlenbeck / CAR(1)) model to the SF curve and report the long-term magnitude standard deviation sigma_long and damping time tau in the MacLeod et al. 2010, ApJ, 721, 1014 parameterisation. The DRW analytic SF is SF_DRW(dt) = sqrt(2)*sigma_long*sqrt(1 - exp(-dt/tau)); the fit minimises chi^2 = sum [(SF_obs - SF_model)/sigma_SF]^2 using a downhill simplex on (log SF_inf, log tau), starting from initial guesses derived from the data. Five scalar columns are emitted: STRUCTUREFUNCTION_SIGMA_0 (sigma_long), STRUCTUREFUNCTION_TAU_0, STRUCTUREFUNCTION_CHI2_0, STRUCTUREFUNCTION_DOF_0, and STRUCTUREFUNCTION_CONVERGED_0. EXAMPLES/2 carries an injected sinusoidal signal, so the DRW is the wrong model and chi^2 per degree of freedom is large; this is how the fit flags model misspecification. For real DRW data (e.g. quasar optical light curves with adequate baseline) the recovered (sigma_long, tau) approach the input values.\n\n");
+      printtostring(&s,
+		    "Other options: \"estimator mad\" switches to the absolute-deviation form (Hughes, Aller and Aller 1992, ApJ, 396, 469; Schmidt et al. 2010, ApJ, 714, 1194, their Equation 2), which is more robust to outliers; \"save outdir\" writes the full SF curve as a four-column aux file <outdir>/<lcname>.sf for offline plotting or further modelling; \"lagrange lagmin lagmax\" fixes the lag range explicitly (and each lag-range / sigma0 / tau0 parameter accepts a fixed value, a \"var\" keyword followed by a variable name, or an \"expr\" keyword followed by an analytic expression for per-light-curve sourcing). Cite Simonetti, Cordes and Heeschen 1985 if you use \"estimator squared\"; cite Hughes, Aller and Aller 1992 and Schmidt et al. 2010 if you use \"estimator mad\"; and cite Kelly, Bechtold and Siemiginowska 2009, ApJ, 698, 895 (the CAR(1) introduction) together with MacLeod et al. 2010 if you use \"fitDRW\".\n\n");
       commandfound=1;
     }
   if(!strncmp(c,"-SYSREM",7) && strlen(c) == 7)
@@ -1826,6 +2138,18 @@ void example(char *c, ProgramData *p)
       printtostring(&s,
 		    "This example illustrates the use of simultaneous decorrelation against light-curve specific trends. In this case we process the light curve EXAMPLES/1 and give the \"decorr\" keyword to the -TFA_SR command. We set iterativeflag=0 after the \"decorr\" keyword to have the routine simultaneously fit the light-curve specific trends and the TFA templates given in EXAMPLES/trendlist_tfa (this is more correct than if we iterated, but would run significantly slower than the iterative procedure if we were processing several light curves). We read in one column to decorrelate from the light curve (set Nlcterms=1), we take that to be the first column in the light curve (set lccolumn1=1; the JD in this case) and we fit a 2nd order polynomial in that term (set lcorder1=2). We still have to provide a source for the signal in addition to the decorrelation, in this case we use binning with 100 bins (as in Example 2), but we do not provide a period (so the binning is done in time rather than phase). In this example we use the -decorr command rather than -aov and -Killharm to illustrate how -TFA vs. -TFA_SR affects the light curve. Note that -TFA_SR does not reduce the signal, the way -TFA does, but does reduce the residual RMS compared with not applying trend-filtering at all.\n\n");
       commandfound=1;
+    }
+  if(!strncmp(c,"-vonNeumann",11) && strlen(c) == 11)
+    {
+      printtostring(&s,
+		    "\nvartools -i EXAMPLES/2 -oneline -vonNeumann\n\n");
+      printtostring(&s,
+		    "Compute the von Neumann (1941) ratio eta = delta^2/s^2 (mean-square successive difference divided by the variance) for the light curve EXAMPLES/2.  The light curve is time-sorted automatically before the calculation.  For uncorrelated Gaussian noise E[eta] = 2; smoothly-varying (correlated) signals drive eta well below 2.  EXAMPLES/2 is a strongly periodic light curve, so the reported eta near 0.026 (much less than 2) reflects the strong sample-to-sample correlation.\n\n");
+      printtostring(&s,
+		    "vartools -i EXAMPLES/2 -oneline -vonNeumann weighted\n\n");
+      printtostring(&s,
+		    "Same calculation with the inverse-variance-weighted form: per-point weights w_i = 1/sigma_i^2 enter the variance and pairwise weights w_pair_i = 1/(sigma_i^2 + sigma_{i+1}^2) enter the successive-difference sum.  A (2N/(N-1)) prefactor restores E[eta_w] = 2 for white noise under any sigma distribution (a raw ratio-of-weighted-averages instead converges to <w>/<w_pair>, which equals 2 only for homoscedastic errors).  For homoscedastic sigma the weighted form reduces exactly to the unweighted form.  Cite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367; for astronomical applications see Sokolovsky, K. V., et al. 2017, MNRAS, 464, 274.\n\n");
+      commandfound = 1;
     }
   if(!strcmp(c,"-wwz"))
     {

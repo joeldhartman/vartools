@@ -772,8 +772,10 @@ class Pipeline:
             # for output files (delivered via -setlcname), or falls back to
             # the literal "stdin" if lc.name is empty.
             files = self._collect_output_files(lc.name or "stdin",
-                                               work_outdir, tmpdir)
-            files.update(self._collect_global_output_files())
+                                               work_outdir, tmpdir,
+                                               command_offset=_command_offset)
+            files.update(self._collect_global_output_files(
+                command_offset=_command_offset))
             files.update(self._collect_o_captures_single(lc.name))
 
         return Result(var=stats, lc=out_lc, files=files,
@@ -2449,8 +2451,10 @@ class Pipeline:
         # (e.g. SYSREM otrends) are handled.
         if getattr(self, "_lib_save_tmpdir", None):
             files.update(self._collect_output_files(
-                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir))
-            files.update(self._collect_global_output_files())
+                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir,
+                command_offset=command_offset))
+            files.update(self._collect_global_output_files(
+                command_offset=command_offset))
         return Result(var=stats, lc=None, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
@@ -2492,8 +2496,10 @@ class Pipeline:
         files = self._collect_library_o_captures()
         if getattr(self, "_lib_save_tmpdir", None):
             files.update(self._collect_output_files(
-                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir))
-            files.update(self._collect_global_output_files())
+                lc.name, self._lib_save_tmpdir, self._lib_save_tmpdir,
+                command_offset=command_offset))
+            files.update(self._collect_global_output_files(
+                command_offset=command_offset))
         return Result(var=stats, lc=out_lc, files=files,
                       known_commands=[c._vt_name for c in self.commands])
 
@@ -3508,16 +3514,19 @@ class Pipeline:
         return self._lib_save_tmpdir
 
     def _collect_output_files(
-        self, lc_name: str, outdir: str, tmpdir: str
+        self, lc_name: str, outdir: str, tmpdir: str,
+        command_offset: int = 0,
     ) -> dict:
         """Read any output files requested via save_*=True on commands.
 
         Keys in the returned dict have the form
-        ``"{command._vt_name}_{logical_name}_{idx}"`` where *idx* is the
-        zero-based position of the command in the pipeline.  This ensures
-        that two commands of the same type (e.g. two ``LS`` runs) or two
-        different commands that share a logical name (e.g. ``LS`` and
-        ``BLS`` both using ``"periodogram"``) never clobber each other.
+        ``"{command._vt_name}_{logical_name}_{command_offset + idx}"``
+        where *idx* is the command's position in the pipeline.  In a
+        single ``Pipeline.run`` segment ``command_offset`` is 0, so the
+        suffix is just the command index.  In a chained call
+        (``Result.X(...)`` after a prior segment), ``command_offset`` is
+        the running command count so suffixes keep growing across
+        segments and don't collide with prior-segment files.
         """
         files = {}
         base = Path(lc_name).name  # strip directory from lc name
@@ -3576,11 +3585,11 @@ class Pipeline:
                         df = ncols(candidate)
                     else:
                         df = _read_vt_table(candidate, ncols=ncols)
-                    key = f"{command._vt_name}_{logical_name}_{idx}"
+                    key = f"{command._vt_name}_{logical_name}_{command_offset + idx}"
                     files[key] = df
         return files
 
-    def _collect_global_output_files(self) -> dict:
+    def _collect_global_output_files(self, command_offset: int = 0) -> dict:
         """Read back single-global-file outputs (mode=``"file"``).
 
         Unlike ``_collect_output_files`` (which is called per LC in a
@@ -3609,7 +3618,7 @@ class Pipeline:
                     df = ncols(path)
                 else:
                     df = _read_vt_table(path, ncols=ncols)
-                key = f"{command._vt_name}_{logical_name}_{idx}"
+                key = f"{command._vt_name}_{logical_name}_{command_offset + idx}"
                 files[key] = df
         return files
 

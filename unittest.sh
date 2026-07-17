@@ -253,6 +253,630 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -PDM step + whiten + clip + fixperiodSNR (kitchen-sink for the binned variant)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM step example (whiten + clip + fixperiodSNR)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \\
+        clip 5. 1 whiten fixperiodSNR fix 1.23
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+PDM_Period_1_0             =     1.23533969
+PDM_Theta_1_0              =   0.00921
+PDM_SNR_1_0                =  17.42831
+PDM_NEG_LN_FAP_1_0         = 7661.36542
+Mean_PDM_Theta_1_0         =   0.95440
+RMS_PDM_Theta_1_0          =   0.05423
+PDM_Period_2_0             =     0.41177659
+PDM_Theta_2_0              =   0.74208
+PDM_SNR_2_0                =  14.52558
+PDM_NEG_LN_FAP_2_0         = 445.63998
+Mean_PDM_Theta_2_0         =   0.96921
+RMS_PDM_Theta_2_0          =   0.01564
+PDM_Period_3_0             =     0.13003471
+PDM_Theta_3_0              =   0.73551
+PDM_SNR_3_0                =  21.09527
+PDM_NEG_LN_FAP_3_0         = 460.06408
+Mean_PDM_Theta_3_0         =   0.97450
+RMS_PDM_Theta_3_0          =   0.01133
+PDM_Period_4_0             =     0.12051363
+PDM_Theta_4_0              =   0.89627
+PDM_SNR_4_0                =  10.07335
+PDM_NEG_LN_FAP_4_0         = 142.51052
+Mean_PDM_Theta_4_0         =   0.97893
+RMS_PDM_Theta_4_0          =   0.00821
+PDM_Period_5_0             =     1.23583047
+PDM_Theta_5_0              =   0.93104
+PDM_SNR_5_0                =   6.27604
+PDM_NEG_LN_FAP_5_0         =  83.29278
+Mean_PDM_Theta_5_0         =   0.98118
+RMS_PDM_Theta_5_0          =   0.00799
+PDM_PeriodFix_0            =     1.23000000
+PDM_Theta_PeriodFix_0      =   0.03920
+PDM_SNR_PeriodFix_0        =  16.87531
+PDM_NEG_LN_FAP_PeriodFix_0 = 5276.51053
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM step Nbin 20 0.1 10. 0.1 0.01 5 1 EXAMPLES/OUTDIR1 \
+        clip 5. 1 whiten fixperiodSNR fix 1.23 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM linterp (cuvarbase-style linear interpolation)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM linterp example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23533969
+PDM_Theta_1_0      =   0.01007
+PDM_SNR_1_0        =  25.41518
+PDM_NEG_LN_FAP_1_0 = 7575.47185
+PDM_Period_2_0     =     1.23430983
+PDM_Theta_2_0      =   0.01051
+PDM_SNR_2_0        =  25.40352
+PDM_NEG_LN_FAP_2_0 = 7504.80798
+PDM_Period_3_0     =     5.12387576
+PDM_Theta_3_0      =   0.24953
+PDM_SNR_3_0        =  19.06841
+PDM_NEG_LN_FAP_3_0 = 2271.59452
+Mean_PDM_Theta_0   =   0.96899
+RMS_PDM_Theta_0    =   0.03773
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM linterp Nbin 8 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM multicover Nb=8 Nc=2 (Stellingwerf 1978 phase-shifted bin sets)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM multicover example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM multicover Nbin 8 Nc 2 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23583047
+PDM_Theta_1_0      =   0.04353
+PDM_SNR_1_0        =  24.17856
+PDM_NEG_LN_FAP_1_0 = 5156.62302
+PDM_Period_2_0     =     1.23617277
+PDM_Theta_2_0      =   0.04393
+PDM_SNR_2_0        =  24.16814
+PDM_NEG_LN_FAP_2_0 = 5141.53737
+PDM_Period_3_0     =     1.23627201
+PDM_Theta_3_0      =   0.04427
+PDM_SNR_3_0        =  24.15924
+PDM_NEG_LN_FAP_3_0 = 5128.78059
+Mean_PDM_Theta_0   =   0.96911
+RMS_PDM_Theta_0    =   0.03828
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM multicover Nbin 8 Nc 2 0.1 10. 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -PDM tophat (binless variant; narrow period range to keep O(N^2) tractable)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -PDM tophat example" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -PDM tophat dphi 0.05 0.5 2. 0.5 0.05 2 1 EXAMPLES/OUTDIR1
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+PDM_Period_1_0     =     1.23616481
+PDM_Theta_1_0      =   0.00518
+PDM_SNR_1_0        =   6.04755
+PDM_NEG_LN_FAP_1_0 = 8677.09428
+PDM_Period_2_0     =     1.24334228
+PDM_Theta_2_0      =   0.07385
+PDM_SNR_2_0        =   5.55584
+PDM_NEG_LN_FAP_2_0 = 4285.07168
+Mean_PDM_Theta_0   =   0.84974
+RMS_PDM_Theta_0    =   0.13965
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -PDM tophat dphi 0.05 0.5 2. 0.5 0.05 2 1 EXAMPLES/OUTDIR1 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -FTP fitlc kitchen-sink (clip + whiten + fixperiodSNR + bootstrap; H=6 -> auto picks brute)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP fitlc example (whiten + clip + fixperiodSNR + bootstrap)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -randseed 1 -oneline -ascii \\
+    -FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \\
+         0.1 2.0 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \\
+         clip 5. 1 whiten fixperiodSNR fix 1.23 bootstrap 50
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+FTP_Period_1_0             =     1.23533969
+FTP_Power_1_0              =  0.997292
+FTP_SNR_1_0                =  52.14676
+FTP_NegAmp_1_0             =  0
+FTP_Theta_1_0              =   0.225002
+Mean_FTP_Power_1_0         =  0.014503
+RMS_FTP_Power_1_0          =  0.018847
+FTP_NEG_LN_FAP_1_0         = 6149.56719
+FTP_Period_2_0             =     0.50066949
+FTP_Power_2_0              =  0.029086
+FTP_SNR_2_0                =   9.73551
+FTP_NegAmp_2_0             =  0
+FTP_Theta_2_0              =   1.389912
+Mean_FTP_Power_2_0         =  0.002899
+RMS_FTP_Power_2_0          =  0.002690
+FTP_NEG_LN_FAP_2_0         =  26.40274
+FTP_Period_3_0             =     1.03998832
+FTP_Power_3_0              =  0.014850
+FTP_SNR_3_0                =   5.63535
+FTP_NegAmp_3_0             =  0
+FTP_Theta_3_0              =   0.891631
+Mean_FTP_Power_3_0         =  0.002348
+RMS_FTP_Power_3_0          =  0.002218
+FTP_NEG_LN_FAP_3_0         =  11.24951
+FTP_PeriodFix_0            =     1.23000000
+FTP_Power_PeriodFix_0      =  0.966744
+FTP_SNR_PeriodFix_0        =  50.52585
+FTP_NegAmp_PeriodFix_0     =  0
+FTP_Theta_PeriodFix_0      =   5.459909
+FTP_NEG_LN_FAP_PeriodFix_0 = 3538.62647
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -randseed 1 -oneline -ascii \
+    -FTP fitlc EXAMPLES/2 ascii 1 2 3 5 1.235 \
+         0.1 2.0 0.1 0.01 3 1 EXAMPLES/OUTDIR1 \
+         clip 5. 1 whiten fixperiodSNR fix 1.23 bootstrap 50 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP file template-source mode + method brute (H=1 pure-cosine template)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP file template + method brute" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -FTP file EXAMPLES/2.ftptemplate 0.1 2.0 0.1 0.01 2 0 \\
+         method brute
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+FTP_Period_1_0     =     1.23533969
+FTP_Power_1_0      =  0.997214
+FTP_SNR_1_0        =  52.34578
+FTP_NegAmp_1_0     =  0
+FTP_Theta_1_0      =   2.848311
+FTP_NEG_LN_FAP_1_0 = 9730.84827
+FTP_Period_2_0     =     1.24227410
+FTP_Power_2_0      =  0.938111
+FTP_SNR_2_0        =  49.19779
+FTP_NegAmp_2_0     =  1
+FTP_Theta_2_0      =   0.878884
+FTP_NEG_LN_FAP_2_0 = 4599.21147
+Mean_FTP_Power_0   =  0.014436
+RMS_FTP_Power_0    =  0.018775
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -FTP file EXAMPLES/2.ftptemplate 0.1 2.0 0.1 0.01 2 0 \
+         method brute \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP inline template-source mode + noerr + posamponly + maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP inline template + noerr + posamponly + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -expr 'mask=1' \\
+    -FTP inline 1 0.7 0.0 0.2 0.0 \\
+         0.1 2.0 0.1 0.01 2 0 \\
+         noerr posamponly maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+FTP_Period_1_1     =     1.23583047
+FTP_Power_1_1      =  0.927988
+FTP_SNR_1_1        =  63.96991
+FTP_NegAmp_1_1     =  0
+FTP_Theta_1_1      =   1.119990
+FTP_NEG_LN_FAP_1_1 = 4348.50074
+FTP_Period_2_1     =     1.24205364
+FTP_Power_2_1      =  0.881964
+FTP_SNR_2_1        =  60.76213
+FTP_NegAmp_2_1     =  0
+FTP_Theta_2_1      =   1.974284
+FTP_NEG_LN_FAP_2_1 = 3530.66532
+Mean_FTP_Power_1   =  0.010171
+RMS_FTP_Power_1    =  0.014348
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -expr 'mask=1' \
+    -FTP inline 1 0.7 0.0 0.2 0.0 \
+         0.1 2.0 0.1 0.01 2 0 \
+         noerr posamponly maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -FTP filelist template-source mode (per-LC template path read from input list)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -FTP filelist mode via -l input list" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_ftp -header -ascii \\
+    -FTP filelist column 2 0.1 2.0 0.1 0.01 2 0
+EOF
+
+cat > $goodout <<EOF
+#Name FTP_Period_1_0 FTP_Power_1_0 FTP_SNR_1_0 FTP_NegAmp_1_0 FTP_Theta_1_0 FTP_NEG_LN_FAP_1_0 FTP_Period_2_0 FTP_Power_2_0 FTP_SNR_2_0 FTP_NegAmp_2_0 FTP_Theta_2_0 FTP_NEG_LN_FAP_2_0 Mean_FTP_Power_0 RMS_FTP_Power_0
+EXAMPLES/2     1.23533969  0.997205  52.36389  0   2.851575 9725.52032     1.24227410  0.938042  49.21161  0   4.029896 4597.37373  0.014433  0.018768
+EXAMPLES/3     1.14782073  0.034710  11.18858  1   0.580350  54.61598     1.14814991  0.034693  11.18264  0   1.070191  54.58580  0.002568  0.002873
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_ftp -header -ascii \
+    -FTP filelist column 2 0.1 2.0 0.1 0.01 2 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter named gauss + window + whiten + maskpoints (kitchen sink)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template gauss + window + whiten + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -expr 'mask=1' \\
+    -matchedfilter template gauss 0.5 2.0 mode window signs both 3 0 \\
+        min_separation 0.5 whiten maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_1      =   53730.432890000
+MatchedFilter_SNR_1_1       = 1089.23988
+MatchedFilter_Amplitude_1_1 =    0.0898513
+MatchedFilter_Time_2_1      =   53742.262190000
+MatchedFilter_SNR_2_1       = -814.09733
+MatchedFilter_Amplitude_2_1 =   -0.0730215
+MatchedFilter_Time_3_1      =   53735.302880000
+MatchedFilter_SNR_3_1       = 729.10371
+MatchedFilter_Amplitude_3_1 =    0.0733817
+MatchedFilter_Mean_SNR_1    =   0.24496
+MatchedFilter_RMS_SNR_1     = 537.22078
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -expr 'mask=1' \
+    -matchedfilter template gauss 0.5 2.0 mode window signs both 3 0 \
+        min_separation 0.5 whiten maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter named box + window + signs negative on EXAMPLES/3.transit
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template box + signs negative recovers transit" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -oneline -ascii \\
+    -matchedfilter template box 0.083 0.5 mode window signs negative 1 0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/3.transit
+MatchedFilter_Time_1_0      =   53727.183210000
+MatchedFilter_SNR_1_0       = -61.49018
+MatchedFilter_Amplitude_1_0 =    -0.007167
+MatchedFilter_Mean_SNR_0    = -11.72187
+MatchedFilter_RMS_SNR_0     =  12.42548
+
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -oneline -ascii \
+    -matchedfilter template box 0.083 0.5 mode window signs negative 1 0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter nfft mode (smooth template; cross-check vs window)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template gauss + mode nfft" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template gauss 0.5 2.0 mode nfft signs both 2 0 \\
+        min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.428770000
+MatchedFilter_SNR_1_0       = 1006.39329
+MatchedFilter_Amplitude_1_0 =    0.0862446
+MatchedFilter_Time_2_0      =   53740.360810000
+MatchedFilter_SNR_2_0       = 808.77966
+MatchedFilter_Amplitude_2_0 =    0.0900151
+MatchedFilter_Mean_SNR_0    = -30.16562
+MatchedFilter_RMS_SNR_0     = 546.79044
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template gauss 0.5 2.0 mode nfft signs both 2 0 \
+        min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter file template-source mode (2-col ASCII)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template file" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template file EXAMPLES/2.mftemplate 2.0 \\
+        mode window signs positive 2 0 min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.432890000
+MatchedFilter_SNR_1_0       = 1089.20798
+MatchedFilter_Amplitude_1_0 =    0.0899192
+MatchedFilter_Time_2_0      =   53740.336210000
+MatchedFilter_SNR_2_0       = 742.80993
+MatchedFilter_Amplitude_2_0 =     0.093375
+MatchedFilter_Mean_SNR_0    = 471.45552
+MatchedFilter_RMS_SNR_0     = 296.24227
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template file EXAMPLES/2.mftemplate 2.0 \
+        mode window signs positive 2 0 min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -matchedfilter expr template-source mode (analytic expression)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -matchedfilter template expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -ascii \\
+    -matchedfilter template expr "exp(-s*s/0.5)" 2.0 \\
+        mode window signs positive 2 0 min_separation 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+MatchedFilter_Time_1_0      =   53730.432890000
+MatchedFilter_SNR_1_0       = 1089.23988
+MatchedFilter_Amplitude_1_0 =    0.0898513
+MatchedFilter_Time_2_0      =   53740.336210000
+MatchedFilter_SNR_2_0       = 742.81045
+MatchedFilter_Amplitude_2_0 =    0.0932994
+MatchedFilter_Mean_SNR_0    = 471.12334
+MatchedFilter_RMS_SNR_0     = 296.35869
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -ascii \
+    -matchedfilter template expr "exp(-s*s/0.5)" 2.0 \
+        mode window signs positive 2 0 min_separation 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -vonNeumann example 1: unweighted
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann unweighted" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -vonNeumann
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_0 =   0.02646
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -vonNeumann \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -vonNeumann example 2: weighted
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann weighted" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -vonNeumann weighted
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_0 =   0.02019
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -vonNeumann weighted \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -vonNeumann example 3: weighted + maskpoints (mask out the second half by time)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -vonNeumann weighted + maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline \\
+    -expr 'mask=((t-t[0])<30)' \\
+    -vonNeumann weighted maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+VonNeumann_Ratio_1 =   0.02109
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -expr 'mask=((t-t[0])<30)' \
+    -vonNeumann weighted maskpoints mask \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -autcorrelation example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -autocorrelation example 1" > /dev/stderr
@@ -341,6 +965,64 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -binlc binshift (new multiplicative formula: t0 -= binshift * binsize)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -binlc binshift" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -binlc average binsize 0.5 binshift 0.5 tcenter -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_1     =  10.12069
+RMS_1          =   0.03464
+Expected_RMS_1 =   0.00046
+Npoints_1      =    35
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -binlc average binsize 0.5 binshift 0.5 tcenter -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -binlc firstbinshift backward-compat (legacy divisive formula:
+# t0 -= firstbinshift / binsize).  Pinned to guard against accidental
+# regression of the bug-compat path.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -binlc firstbinshift backward-compat" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -binlc average binsize 0.5 firstbinshift 0.5 tcenter -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/2
+Mean_Mag_1     =  10.11955
+RMS_1          =   0.03562
+Expected_RMS_1 =   0.00046
+Npoints_1      =    36
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -binlc average binsize 0.5 firstbinshift 0.5 tcenter -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -BLS example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLS example 1" > /dev/stderr
@@ -384,6 +1066,105 @@ $VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
     -BLS q 0.01 0.1 0.1 20.0 100000 200 0 1 \
         1 EXAMPLES/OUTDIR1/ 1 EXAMPLES/OUTDIR1/ 0 fittrap \
         nobinnedrms ophcurve EXAMPLES/OUTDIR1/ -0.1 1.1 0.001 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -BLS mergepeakdf 1.0 reproduces the default merge resolution (1/T)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf 1.0 == default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf 1.0
+(output compared against the same -BLS command with no mergepeakdf keyword)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf 1.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -BLS mergepeakdf transit changes the peak selection (finer resolution)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf transit changes peaks" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf transit 0.5
+(expected to differ from the default; finer Df resolves nearby peaks)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf transit 0.5 \
+> $testout
+
+if diff $goodout $testout > /dev/null 2>&1 ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+mergepeakdf transit 0.5 did not change the BLS peak selection
+EOF
+fi
+
+# -BLS mergepeakdf rejects a non-positive factor
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf bad value errors" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf -1
+(expected to exit with an error)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.1 5.0 nf 20000 200 0 3 0 0 0 mergepeakdf -1 \
+> $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+mergepeakdf with a non-positive factor should have failed but exited 0
+EOF
+fi
+
+# -BLSFixDurTc mergepeakdf 1.0 reproduces the default merge resolution
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLSFixDurTc mergepeakdf 1.0 == default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 mergepeakdf 1.0
+(output compared against the same command with no mergepeakdf keyword)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 mergepeakdf 1.0 \
 > $testout
 
 lastcode=$?
@@ -1610,6 +2391,41 @@ EOF
 
 $VARTOOLS -l EXAMPLES/lc_list -header \
     -Jstet 0.5 EXAMPLES/dates_tfa \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -Jstet skipnormalize: Stetson's original J / L (no sum_w/wkmax rescaling)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -Jstet skipnormalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list -header \\
+    -Jstet 0.5 skipnormalize
+EOF
+
+cat > $goodout <<EOF
+#Name Jstet_0 Kurtosis_0 Lstet_0
+EXAMPLES/1 143.84598   0.96779 139.21213
+EXAMPLES/2  41.68871   0.94719  39.48703
+EXAMPLES/3   0.87797   0.92816   0.81490
+EXAMPLES/4   0.48776   0.84500   0.41215
+EXAMPLES/5   0.68760   0.92120   0.63342
+EXAMPLES/6   0.40030   0.93794   0.37546
+EXAMPLES/7   0.52631   0.92501   0.48684
+EXAMPLES/8   0.53557   0.96124   0.51481
+EXAMPLES/9   0.25510   0.80997   0.20663
+EXAMPLES/10   0.29646   0.92806   0.27513
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list -header \
+    -Jstet 0.5 skipnormalize \
 > $testout
 
 lastcode=$?
@@ -3193,6 +4009,110 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -TFA refmag (reset mean of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA refmag" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/3.transit
+Mean_Mag_0     =  10.16727
+RMS_0          =   0.00542
+Expected_RMS_0 =   0.00104
+Npoints_0      =  3417
+TFA_MeanMag_1  =  12.00000
+TFA_RMS_1      =   0.00471
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -TFA refmag usemedian (reset median of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA refmag usemedian" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 usemedian \
+    -stats mag median
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/3.transit
+Mean_Mag_0         =  10.16727
+RMS_0              =   0.00542
+Expected_RMS_0     =   0.00104
+Npoints_0          =  3417
+TFA_MeanMag_1      =  12.00031
+TFA_RMS_1          =   0.00471
+STATS_mag_MEDIAN_2 = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 refmag 12.0 usemedian \
+    -stats mag median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -TFA_SR refmag usemedian (reset median of corrected LC)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -TFA_SR refmag usemedian" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA_SR EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 \
+        0 0.001 100 harm 0 0 period fix 1.2345 refmag 12.0 usemedian \
+    -stats mag median
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/3.transit
+Mean_Mag_0         =  10.16727
+RMS_0              =   0.00542
+Expected_RMS_0     =   0.00104
+Npoints_0          =  3417
+TFA_SR_MeanMag_1   =  12.00030
+TFA_SR_RMS_1       =   0.00471
+STATS_mag_MEDIAN_2 = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_tfa -oneline -rms \
+    -TFA_SR EXAMPLES/trendlist_tfa EXAMPLES/dates_tfa 25.0 1 0 0 \
+        0 0.001 100 harm 0 0 period fix 1.2345 refmag 12.0 usemedian \
+    -stats mag median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -TFA_SR example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -TFA_SR example 1" > /dev/stderr
@@ -3669,6 +4589,78 @@ fi
 CompareOutput $testnumber $testc $testout $goodout
 
 
+# -magtoflux round-trip with -fluxtomag
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux round-trip with -fluxtomag" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux 25 -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux 25 -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -magtoflux normalize
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux normalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -magtoflux normalize -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2   0.99312   0.03340   0.00092  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -magtoflux normalize -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -magtoflux with expr
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -magtoflux expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux expr '25.0' -rms
+EOF
+
+cat > $goodout <<EOF
+EXAMPLES/2  10.11802   0.03663   0.00102  3313
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -fluxtomag 25 0 -magtoflux expr '25.0' -rms \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # Tier 1: -medianfilter with expr
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -medianfilter expr" > /dev/stderr
@@ -3921,7 +4913,7 @@ Starspot_inclination_0 =   1.00000
 Starspot_chi_0         =   0.00100
 Starspot_psi0_0        =   0.00100
 Starspot_mconst_0      =  10.60000
-Starspot_chi2perdof_0  =   0.00000
+Starspot_chi2perdof_0  = 113.13806
 
 EOF
 
@@ -4203,5 +5195,1647 @@ EOF
     rm -f $testc $testout $goodout
     exit 1
 fi
+
+
+# -percentileratios defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -percentileratios
+EOF
+
+cat > $goodout <<EOF
+Name                                     = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_0  = 0.099200000000001509
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0 = 1.6174142480211142
+PERCENTILERATIOS_amp_PCT1.00_PCT99.00_0  = 0.10357600000000033
+PERCENTILERATIOS_asym_PCT1.00_PCT99.00_0 = 1.6031959563790361
+PERCENTILERATIOS_medmeddev_over_stddev_0 = 0.90883791042289785
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -percentileratios > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -percentileratios percentilepairs with floats and auto-swap of p > q
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios percentilepairs (floats + auto-swap)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -percentileratios percentilepairs 10:90,20:80,2.5:97.5,95:5
+EOF
+
+cat > $goodout <<EOF
+Name                                      = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT10.00_PCT90.00_0  = 0.095580015092060933
+PERCENTILERATIOS_asym_PCT10.00_PCT90.00_0 = 1.6417903599226138
+PERCENTILERATIOS_amp_PCT20.00_PCT80.00_0  = 0.082460015092062022
+PERCENTILERATIOS_asym_PCT20.00_PCT80.00_0 = 1.637875088966307
+PERCENTILERATIOS_amp_PCT2.50_PCT97.50_0   = 0.10139999999999993
+PERCENTILERATIOS_asym_PCT2.50_PCT97.50_0  = 1.606683804627252
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_0   = 0.099200000000001509
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0  = 1.6174142480211142
+PERCENTILERATIOS_medmeddev_over_stddev_0  = 0.90883791042289785
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -percentileratios percentilepairs 10:90,20:80,2.5:97.5,95:5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -percentileratios percentilepairs duplicate-after-swap rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios percentilepairs duplicate rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -percentileratios percentilepairs 5:95,95:5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -percentileratios percentilepairs 5:95,95:5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -percentileratios duplicate-pair invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate percentile pair" $testout ; then
+    cat > /dev/stderr <<EOF
+-percentileratios duplicate-pair invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -percentileratios maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -percentileratios maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -percentileratios maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                                     = EXAMPLES/2
+PERCENTILERATIOS_amp_PCT5.00_PCT95.00_1  = 0.098599999999999355
+PERCENTILERATIOS_asym_PCT5.00_PCT95.00_1 = 2.0621118012422577
+PERCENTILERATIOS_amp_PCT1.00_PCT99.00_1  = 0.10313402307337327
+PERCENTILERATIOS_asym_PCT1.00_PCT99.00_1 = 1.9951197643566312
+PERCENTILERATIOS_medmeddev_over_stddev_1 = 0.80368214904111612
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -percentileratios maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -beyondNsigma defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -beyondNsigma
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N1.00_0 = 0.31150015092061578
+BEYONDNSIGMA_frac_below_N1.00_0 = 0.08421370359191066
+BEYONDNSIGMA_frac_above_N3.00_0 = 0
+BEYONDNSIGMA_frac_below_N3.00_0 = 0
+BEYONDNSIGMA_frac_above_N5.00_0 = 0
+BEYONDNSIGMA_frac_below_N5.00_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -beyondNsigma > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -beyondNsigma Nvalues + useMAD
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma Nvalues + useMAD" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -beyondNsigma Nvalues 0.5,1.0,1.5 useMAD
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N0.50_0 = 0.3932991246604286
+BEYONDNSIGMA_frac_below_N0.50_0 = 0.29670993057651673
+BEYONDNSIGMA_frac_above_N1.00_0 = 0.22155146392997283
+BEYONDNSIGMA_frac_below_N1.00_0 = 0
+BEYONDNSIGMA_frac_above_N1.50_0 = 0
+BEYONDNSIGMA_frac_below_N1.50_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -beyondNsigma Nvalues 0.5,1.0,1.5 useMAD > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -beyondNsigma N <= 0 rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma N<=0 rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -beyondNsigma Nvalues -1,2
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -beyondNsigma Nvalues -1,2 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -beyondNsigma N<=0 invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "must be > 0" $testout ; then
+    cat > /dev/stderr <<EOF
+-beyondNsigma N<=0 invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -beyondNsigma duplicate N rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma duplicate-N rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -beyondNsigma Nvalues 1,2,1
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -beyondNsigma Nvalues 1,2,1 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -beyondNsigma duplicate-N invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate N value" $testout ; then
+    cat > /dev/stderr <<EOF
+-beyondNsigma duplicate-N invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -beyondNsigma maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -beyondNsigma maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -beyondNsigma maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                            = EXAMPLES/2
+BEYONDNSIGMA_frac_above_N1.00_1 = 0.307798800184587
+BEYONDNSIGMA_frac_below_N1.00_1 = 0.00092293493308721734
+BEYONDNSIGMA_frac_above_N3.00_1 = 0
+BEYONDNSIGMA_frac_below_N3.00_1 = 0
+BEYONDNSIGMA_frac_above_N5.00_1 = 0
+BEYONDNSIGMA_frac_below_N5.00_1 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -beyondNsigma maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats defaults
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats defaults" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_0  = 1.2121212115632392
+SLOPESTATS_max_abs_dmdt_0     = 15.000000037872484
+SLOPESTATS_mad_dmdt_0         = 1.7975757567482837
+SLOPESTATS_frac_above_T3.00_0 = 0.008152173913043478
+SLOPESTATS_frac_below_T3.00_0 = 0.008152173913043478
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats bintime + threshold + maxgap + useMAD
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats bintime+threshold+maxgap+useMAD" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats bintime 10,30 threshold 1,2,3 maxgap 0.5 useMAD
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_BT10.00_0  = 0.18395683317911915
+SLOPESTATS_max_abs_dmdt_BT10.00_0     = 1.8870292863939131
+SLOPESTATS_mad_dmdt_BT10.00_0         = 0.27324690870655383
+SLOPESTATS_frac_above_T1.00_BT10.00_0 = 0.14373088685015289
+SLOPESTATS_frac_below_T1.00_BT10.00_0 = 0.14525993883792049
+SLOPESTATS_frac_above_T2.00_BT10.00_0 = 0.021406727828746176
+SLOPESTATS_frac_below_T2.00_BT10.00_0 = 0.021406727828746176
+SLOPESTATS_frac_above_T3.00_BT10.00_0 = 0.0076452599388379203
+SLOPESTATS_frac_below_T3.00_BT10.00_0 = 0.0045871559633027525
+SLOPESTATS_median_abs_dmdt_BT30.00_0  = 0.16369175165924241
+SLOPESTATS_max_abs_dmdt_BT30.00_0     = 0.95214562176006601
+SLOPESTATS_mad_dmdt_BT30.00_0         = 0.25335418510495206
+SLOPESTATS_frac_above_T1.00_BT30.00_0 = 0.082304526748971193
+SLOPESTATS_frac_below_T1.00_BT30.00_0 = 0.094650205761316872
+SLOPESTATS_frac_above_T2.00_BT30.00_0 = 0.00411522633744856
+SLOPESTATS_frac_below_T2.00_BT30.00_0 = 0
+SLOPESTATS_frac_above_T3.00_BT30.00_0 = 0.00411522633744856
+SLOPESTATS_frac_below_T3.00_BT30.00_0 = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats bintime 10,30 threshold 1,2,3 maxgap 0.5 useMAD > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats binshift (multiplicative half-bin shift)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats binshift" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -slopestats bintime 10 binshift 0.5 threshold 3
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_BT10.00_0  = 0.17934994034448781
+SLOPESTATS_max_abs_dmdt_BT10.00_0     = 1.5830546260755221
+SLOPESTATS_mad_dmdt_BT10.00_0         = 0.26197217352624952
+SLOPESTATS_frac_above_T3.00_BT10.00_0 = 0.0043988269794721412
+SLOPESTATS_frac_below_T3.00_BT10.00_0 = 0.0058651026392961877
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -slopestats bintime 10 binshift 0.5 threshold 3 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -slopestats maskpoints mask
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+SLOPESTATS_median_abs_dmdt_1  = 1.2390955386939013
+SLOPESTATS_max_abs_dmdt_1     = 12.65306107442264
+SLOPESTATS_mad_dmdt_1         = 1.8229270293118238
+SLOPESTATS_frac_above_T3.00_1 = 0.008771929824561403
+SLOPESTATS_frac_below_T3.00_1 = 0.0083102493074792248
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -expr 'mask=(t<53740)' -oneline -slopestats maskpoints mask > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -slopestats bintime <= 0 rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats bintime<=0 rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats bintime -1,5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats bintime -1,5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats bintime<=0 invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "must be > 0" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats bintime<=0 invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -slopestats duplicate bintime rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats duplicate-bintime rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats bintime 5,10,5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats bintime 5,10,5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats duplicate-bintime invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "duplicate bintime value" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats duplicate-bintime invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -slopestats binshift without bintime rejected at parse time
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -slopestats binshift-without-bintime rejection" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -slopestats binshift 0.5
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -slopestats binshift 0.5 > $testout 2>&1
+lastcode=$?
+
+if (( $lastcode == 0 )) ; then
+    echo "Expected -slopestats binshift-without-bintime invocation to fail, but it succeeded." > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+if ! grep -q "binshift requires bintime" $testout ; then
+    cat > /dev/stderr <<EOF
+-slopestats binshift-without-bintime invocation did not emit the expected error message.
+Actual output:
+--------------
+EOF
+    cat $testout > /dev/stderr
+    rm -f $testc $testout $goodout
+    exit 1
+fi
+
+
+# -CodyM defaults (single-stage)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM defaults (single-stage)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34038915044589391
+CODYM_d10_0     = 0.0040003534728282799
+CODYM_dmed_0    = -0.0083847425301915024
+CODYM_sigma_d_0 = 0.036385108005927584
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM two-stage (outlierwindow + sigclip 3)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM two-stage (outlierwindow + sigclip 3)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10 outlierwindow 0.1 sigclip 3
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34169463392785115
+CODYM_d10_0     = 0.0040036509000816491
+CODYM_dmed_0    = -0.0084421319796881278
+CODYM_sigma_d_0 = 0.036423700122834544
+CODYM_Npoints_0 = 3289
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 outlierwindow 0.1 sigclip 3 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM sigclip 0 (rejection disabled)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM sigclip 0 (rejection disabled)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow 10 sigclip 0
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.34038915044589391
+CODYM_d10_0     = 0.0040003534728282799
+CODYM_dmed_0    = -0.0083847425301915024
+CODYM_sigma_d_0 = 0.036385108005927584
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow 10 sigclip 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyM expr-sourced trendwindow / sigclip
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyM expr-sourced parameters" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyM trendwindow expr "5.0" sigclip expr "5.0"
+EOF
+
+cat > $goodout <<EOF
+Name            = EXAMPLES/2
+CODYM_M_0       = 0.37083243160663965
+CODYM_d10_0     = 0.0066867655765035826
+CODYM_dmed_0    = -0.0062409714889124501
+CODYM_sigma_d_0 = 0.034861398204591568
+CODYM_Npoints_0 = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyM trendwindow expr "5.0" sigclip expr "5.0" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ fix period
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ fix period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.021476790867738699
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.036385108005927584
+CODYQ_RMS_resid_0 = 0.0054261505762668374
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ aov-sourced period (exercises the period-backref dispatch)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ aov-sourced period" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -aov 0.5 4.0 0.1 5 1 0 -CodyQ aov trendwindow 10
+EOF
+
+cat > $goodout <<EOF
+Name               = EXAMPLES/2
+Period_1_0         =     1.23371348
+AOV_1_0            = 8257.95780
+AOV_SNR_1_0        = 164.58451
+AOV_NEG_LN_FAP_1_0 = 4799.57972
+CODYQ_Q_1          = 0.021973712793508824
+CODYQ_Period_1     = 1.2337134841704938
+CODYQ_RMS_raw_1    = 0.036385108005927584
+CODYQ_RMS_resid_1  = 0.0054863886090008732
+CODYQ_Sigma_1      = 0.0010162080994057857
+CODYQ_Npoints_1    = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -aov 0.5 4.0 0.1 5 1 0 -CodyQ aov trendwindow 10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ phasesmooth (non-default 0.5)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ phasesmooth 0.5" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 phasesmooth 0.5
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.11757116907895332
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.036385108005927584
+CODYQ_RMS_resid_0 = 0.01251243080372607
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ fix 1.234 trendwindow 10 phasesmooth 0.5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -CodyQ expr-sourced period / trendwindow / phasesmooth
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -CodyQ expr-sourced parameters" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -CodyQ expr "1.234" trendwindow expr "5.0" phasesmooth expr "0.25"
+EOF
+
+cat > $goodout <<EOF
+Name              = EXAMPLES/2
+CODYQ_Q_0         = 0.073194472640070604
+CODYQ_Period_0    = 1.234
+CODYQ_RMS_raw_0   = 0.034861398204591568
+CODYQ_RMS_resid_0 = 0.0094821719887684536
+CODYQ_Sigma_0     = 0.0010162080994057857
+CODYQ_Npoints_0   = 3313
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -CodyQ expr "1.234" trendwindow expr "5.0" phasesmooth expr "0.25" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction default squared + fitDRW
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction squared + fitDRW" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+STRUCTUREFUNCTION_SIGMA_0     = 0.036289290761141714
+STRUCTUREFUNCTION_TAU_0       = 1.6593021004619268
+STRUCTUREFUNCTION_CHI2_0      = 6306.1228817830288
+STRUCTUREFUNCTION_DOF_0       = 18
+STRUCTUREFUNCTION_CONVERGED_0 = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 fitDRW > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction estimator mad + fitDRW
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction mad + fitDRW" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 estimator mad fitDRW
+EOF
+
+cat > $goodout <<EOF
+Name                          = EXAMPLES/2
+STRUCTUREFUNCTION_SIGMA_0     = 0.037832216909965015
+STRUCTUREFUNCTION_TAU_0       = 4.4931607195581433
+STRUCTUREFUNCTION_CHI2_0      = 9250.2078644940284
+STRUCTUREFUNCTION_DOF_0       = 18
+STRUCTUREFUNCTION_CONVERGED_0 = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 estimator mad fitDRW > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction reportsfvalsintable, log binning
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction reportsfvalsintable log binning" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins log 20 reportsfvalsintable 0.1,1,10
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.091613538155797869
+STRUCTUREFUNCTION_SF_0_0       = 0.015778077239596733
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.00027416304421348168
+STRUCTUREFUNCTION_NPAIRS_0_0   = 66716
+STRUCTUREFUNCTION_DT_1_0       = 0.84355225856387461
+STRUCTUREFUNCTION_SF_1_0       = 0.047899353327422942
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00083230879939836567
+STRUCTUREFUNCTION_NPAIRS_1_0   = 305964
+STRUCTUREFUNCTION_DT_2_0       = 7.7671971550547694
+STRUCTUREFUNCTION_SF_2_0       = 0.052837654135951463
+STRUCTUREFUNCTION_SIGMA_SF_2_0 = 0.0009181177076923576
+STRUCTUREFUNCTION_NPAIRS_2_0   = 1243684
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins log 20 reportsfvalsintable 0.1,1,10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction linear bins + explicit lagrange + reportsfvalsintable
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction linear binning + lagrange" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins linear 15 lagrange 0.05 20 reportsfvalsintable 0.1,1,10
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.71499999999999997
+STRUCTUREFUNCTION_SF_0_0       = 0.038561010626104786
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.00067004387801257274
+STRUCTUREFUNCTION_NPAIRS_0_0   = 601719
+STRUCTUREFUNCTION_DT_1_0       = 0.71499999999999997
+STRUCTUREFUNCTION_SF_1_0       = 0.038561010626104786
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00067004387801257274
+STRUCTUREFUNCTION_NPAIRS_1_0   = 601719
+STRUCTUREFUNCTION_DT_2_0       = 10.024999999999999
+STRUCTUREFUNCTION_SF_2_0       = 0.02448494063825175
+STRUCTUREFUNCTION_SIGMA_SF_2_0 = 0.00042545525420061014
+STRUCTUREFUNCTION_NPAIRS_2_0   = 251080
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins linear 15 lagrange 0.05 20 reportsfvalsintable 0.1,1,10 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -structurefunction edges binning + reportsfvalsintable
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -structurefunction edges binning + reportsfvalsintable" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -structurefunction bins edges 0.01,0.1,1,10 reportsfvalsintable 0.05,5
+EOF
+
+cat > $goodout <<EOF
+Name                           = EXAMPLES/2
+STRUCTUREFUNCTION_DT_0_0       = 0.055
+STRUCTUREFUNCTION_SF_0_0       = 0.0096206851358344031
+STRUCTUREFUNCTION_SIGMA_SF_0_0 = 0.0001671709603271766
+STRUCTUREFUNCTION_NPAIRS_0_0   = 152719
+STRUCTUREFUNCTION_DT_1_0       = 5.5
+STRUCTUREFUNCTION_SF_1_0       = 0.053909790117470532
+STRUCTUREFUNCTION_SIGMA_SF_1_0 = 0.00093674735819035393
+STRUCTUREFUNCTION_NPAIRS_1_0   = 2608466
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -structurefunction bins edges 0.01,0.1,1,10 reportsfvalsintable 0.05,5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit default (mean fit)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit mean fix
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit mean fix" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit mean fix 10.12
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.032414190615549295
+DRWFIT_TAU_0        = 0.73228894025417113
+DRWFIT_MU_0         = 10.119999999999999
+DRWFIT_LNL_0        = 15193.018493301399
+DRWFIT_DLNL_NOISE_0 = 2826062.4162593675
+DRWFIT_DLNL_INF_0   = 2788963.2565213577
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit mean fix 10.12 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit mean subtract
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit mean subtract" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit mean subtract
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.033936538303611118
+DRWFIT_TAU_0        = 0.79964531959857765
+DRWFIT_MU_0         = -nan
+DRWFIT_LNL_0        = 15192.274293364961
+DRWFIT_DLNL_NOISE_0 = 2826061.6720594247
+DRWFIT_DLNL_INF_0   = 2785766.9008519035
+DRWFIT_CONVERGED_0  = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit mean subtract > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit save aux file
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit save" > /dev/stderr
+
+drwsavedir=$(mktemp -d /tmp/vartools_unittest_drw.XXXXXX)
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit save $drwsavedir
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+
+aux_nlines = 3314
+# t x sig_meas x_hat_fwd Omega_fwd chi_fwd x_smoothed Omega_smoothed
+53725.173920000001 10.124599999999999 0.0011999999999999999 10.121998573339877 0.0010616538280247283 0.079785833858979222 10.124375071672379 1.2398035508810874e-06
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit save $drwsavedir > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    rm -rf $drwsavedir
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+echo "aux_nlines = $(wc -l < $drwsavedir/2.drwfit)" >> $testout
+head -2 $drwsavedir/2.drwfit >> $testout
+rm -rf $drwsavedir
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit correctlc smoothed -> chi2
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit correctlc smoothed" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+Chi2_1              =      0.46196
+Weighted_Mean_Mag_1 =   0.00000
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit correctlc smoothed -chi2 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit correctlc forecast -> chi2
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit correctlc forecast" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit correctlc forecast -chi2
+EOF
+
+cat > $goodout <<EOF
+Name                = EXAMPLES/2
+DRWFIT_SIGMA_0      = 0.03258302975514598
+DRWFIT_TAU_0        = 0.73943151146814923
+DRWFIT_MU_0         = 10.121998573339877
+DRWFIT_LNL_0        = 15193.055294575444
+DRWFIT_DLNL_NOISE_0 = 2826062.4530606419
+DRWFIT_DLNL_INF_0   = 2788614.1076523019
+DRWFIT_CONVERGED_0  = 1
+Chi2_1              =     22.22477
+Weighted_Mean_Mag_1 =  -0.00006
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit correctlc forecast -chi2 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -drwfit modelvar smoothed -> stats
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -drwfit modelvar smoothed" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -drwfit modelvar smoothed drwmod -stats drwmod mean,stddev
+EOF
+
+cat > $goodout <<EOF
+Name                  = EXAMPLES/2
+DRWFIT_SIGMA_0        = 0.03258302975514598
+DRWFIT_TAU_0          = 0.73943151146814923
+DRWFIT_MU_0           = 10.121998573339877
+DRWFIT_LNL_0          = 15193.055294575444
+DRWFIT_DLNL_NOISE_0   = 2826062.4530606419
+DRWFIT_DLNL_INF_0     = 2788614.1076523019
+DRWFIT_CONVERGED_0    = 1
+STATS_drwmod_MEAN_1   = 10.118017391296904
+STATS_drwmod_STDDEV_1 = 0.036618287232904424
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -drwfit modelvar smoothed drwmod -stats drwmod mean,stddev > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength default (k=3)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength default" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 0
+RUNLENGTH_OUTHIGH_NRUNS_0   = 0
+RUNLENGTH_OUTHIGH_MEANLEN_0 = -nan
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 3
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 1.0 (tighter band: OUTHIGH runs appear, OUTLOW still empty)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 1.0" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 1.0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 110
+RUNLENGTH_OUTHIGH_NRUNS_0   = 44
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 16.681818181818183
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 1.0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 0.5 (both OUTHIGH and OUTLOW runs present)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 0.5" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 0.5
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 182
+RUNLENGTH_OUTHIGH_NRUNS_0   = 24
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 54.291666666666664
+RUNLENGTH_OUTLOW_MAXLEN_0   = 222
+RUNLENGTH_OUTLOW_NRUNS_0    = 46
+RUNLENGTH_OUTLOW_MEANLEN_0  = 21.369565217391305
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 0.5
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 0.5 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k expr "1.0" (expr-sourced k; matches the k 1.0 result)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k expr" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k expr "1.0"
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 110
+RUNLENGTH_OUTHIGH_NRUNS_0   = 44
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 16.681818181818183
+RUNLENGTH_OUTLOW_MAXLEN_0   = 0
+RUNLENGTH_OUTLOW_NRUNS_0    = 0
+RUNLENGTH_OUTLOW_MEANLEN_0  = -nan
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 1
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k expr "1.0" > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength k 0 (band collapses to the median: OUTHIGH==ABOVE, OUTLOW==BELOW)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength k 0" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -runlength k 0
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_0    = 323
+RUNLENGTH_ABOVE_NRUNS_0     = 27
+RUNLENGTH_ABOVE_MEANLEN_0   = 61.222222222222221
+RUNLENGTH_BELOW_MAXLEN_0    = 311
+RUNLENGTH_BELOW_NRUNS_0     = 23
+RUNLENGTH_BELOW_MEANLEN_0   = 71.956521739130437
+RUNLENGTH_OUTHIGH_MAXLEN_0  = 323
+RUNLENGTH_OUTHIGH_NRUNS_0   = 27
+RUNLENGTH_OUTHIGH_MEANLEN_0 = 61.222222222222221
+RUNLENGTH_OUTLOW_MAXLEN_0   = 311
+RUNLENGTH_OUTLOW_NRUNS_0    = 23
+RUNLENGTH_OUTLOW_MEANLEN_0  = 71.956521739130437
+RUNLENGTH_MEDIAN_0          = 10.1099
+RUNLENGTH_MAD_0             = 0.04938390000000082
+RUNLENGTH_K_0               = 0
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -runlength k 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -runlength maskpoints (mask a time range via -expr; command index 1)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -runlength maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline -expr 'm=(t>53726.0)' -runlength maskpoints m
+EOF
+
+cat > $goodout <<EOF
+Name                        = EXAMPLES/2
+RUNLENGTH_ABOVE_MAXLEN_1    = 323
+RUNLENGTH_ABOVE_NRUNS_1     = 27
+RUNLENGTH_ABOVE_MEANLEN_1   = 57.074074074074076
+RUNLENGTH_BELOW_MAXLEN_1    = 311
+RUNLENGTH_BELOW_NRUNS_1     = 26
+RUNLENGTH_BELOW_MEANLEN_1   = 59.269230769230766
+RUNLENGTH_OUTHIGH_MAXLEN_1  = 0
+RUNLENGTH_OUTHIGH_NRUNS_1   = 0
+RUNLENGTH_OUTHIGH_MEANLEN_1 = -nan
+RUNLENGTH_OUTLOW_MAXLEN_1   = 0
+RUNLENGTH_OUTLOW_NRUNS_1    = 0
+RUNLENGTH_OUTLOW_MEANLEN_1  = -nan
+RUNLENGTH_MEDIAN_1          = 10.1044
+RUNLENGTH_MAD_1             = 0.043896800000000437
+RUNLENGTH_K_1               = 3
+
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline -expr 'm=(t>53726.0)' -runlength maskpoints m > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -BLSFixPerDurTc with fixdepth (regression: the fixed-depth path used to
+# register the BLSFixPerDurTc_Depth column twice and abort with
+# "defined more than once in an -inputlcformat option").
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLSFixPerDurTc fixdepth" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -oneline -BLSFixPerDurTc period fix 2.12345 duration fix 0.1 Tc fix 53727.0 fixdepth fix 0.01 qgress fix 0.1 0 0 0
+EOF
+
+cat > $goodout <<EOF
+Name                                  = EXAMPLES/3.transit
+BLSFixPerDurTc_Period_0               =   2.12345
+BLSFixPerDurTc_Duration_0             =   0.10000
+BLSFixPerDurTc_Tc_0                   = 53727
+BLSFixPerDurTc_Depth_0                =   0.01000
+BLSFixPerDurTc_Qingress_0             =   0.10000
+BLSFixPerDurTc_Qtran_0                =   0.04709
+BLSFixPerDurTc_deltaChi2_0            = -287.64103
+BLSFixPerDurTc_fraconenight_0         =   0.84688
+BLSFixPerDurTc_Npointsintransit_0     =   107
+BLSFixPerDurTc_Ntransits_0            =     2
+BLSFixPerDurTc_Npointsbeforetransit_0 =   150
+BLSFixPerDurTc_Npointsaftertransit_0  =    65
+BLSFixPerDurTc_Rednoise_0             =   0.00180
+BLSFixPerDurTc_Whitenoise_0           =   0.00522
+BLSFixPerDurTc_SignaltoPinknoise_0    =   1.10967
+BLSFixPerDurTc_MeanMag_0              =  10.16740
+
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -oneline -BLSFixPerDurTc period fix 2.12345 duration fix 0.1 Tc fix 53727.0 fixdepth fix 0.01 qgress fix 0.1 0 0 0 > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -unstitch: undo a -stitch, restoring the original magnitudes.  Round-trip
+# test reading the shifts from a file: the combined RMS is inflated by the
+# inter-segment offset, drops after -stitch, and returns to the inflated value
+# after -unstitch.  (Requires the stitch.so/unstitch.so user libraries.)
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch in_shifts_file round-trip" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Mean_Mag_1                 =  10.26802
+RMS_1                      =   0.15441
+Expected_RMS_1             =   0.00102
+Npoints_1                  =  6626
+Stitch_NLCGroups_2         = 2
+Stitch_NTimeGroups_2       = 1
+Stitch_NFitParamsTotal_2   = 2
+Mean_Mag_3                 =  10.11802
+RMS_3                      =   0.03663
+Expected_RMS_3             =   0.00102
+Npoints_3                  =  6626
+Unstitch_Npoints_shifted_4 = 6626
+Mean_Mag_5                 =  10.26802
+RMS_5                      =   0.15441
+Expected_RMS_5             =   0.00102
+Npoints_5                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -unstitch reading the shifts from the FITS header that -stitch wrote with
+# add_shifts_fitsheader.  First -stitch writes a FITS light curve with SHFT*
+# keywords; then -unstitch reads them back and restores the original RMS.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch fitsheader round-trip" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat unstitch_test.fits allcols fits
+./vartools -i EXAMPLES/OUTDIR1/unstitch_test.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/OUTDIR1/unstitch_test.fits
+Mean_Mag_0                 =  10.11802
+RMS_0                      =   0.03663
+Expected_RMS_0             =   0.00102
+Npoints_0                  =  6626
+Unstitch_Npoints_shifted_1 = 3313
+Mean_Mag_2                 =  10.26802
+RMS_2                      =   0.15441
+Expected_RMS_2             =   0.00102
+Npoints_2                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat unstitch_test.fits allcols fits > /dev/null 2>&1 ; $VARTOOLS -i EXAMPLES/OUTDIR1/unstitch_test.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/unstitch_test.fits
+
+
+# -unstitch with noshiftmasked: masked points are left unshifted, so fewer
+# points receive a shift (here the masked segment-1 points are skipped).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch noshiftmasked" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask noshiftmasked -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Unstitch_Npoints_shifted_1 = 6396
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask noshiftmasked -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# Same as above WITHOUT noshiftmasked: a masked point that matches a shift is
+# still shifted, so all matched points are shifted.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch maskpoints (masked matched points still shifted)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Unstitch_Npoints_shifted_1 = 6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=(lcnum<0.5)+(t>53726.0)' -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/shifts.txt maskpoints mask -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -stitch refmag: shift all groups to a reference magnitude.  Without
+# groupbytime the median method puts every group's median on the reference
+# value, so the combined median equals it.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -stitch refmag normalize" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 -stats mag median -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                     = EXAMPLES/2
+Stitch_NLCGroups_1       = 2
+Stitch_NTimeGroups_1     = 1
+Stitch_NFitParamsTotal_1 = 2
+STATS_mag_MEDIAN_2       = 12
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 -stats mag median -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -stitch refmag round-trip with -unstitch: the reference group now carries a
+# real shift, which is recorded and rolled back.  The mean moves to the
+# reference value after stitching and back to the original after un-stitching.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -stitch refmag round-trip with -unstitch" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 shifts_file field star out_shifts_file EXAMPLES/OUTDIR1/refmag_shifts.txt -oneline
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median refmag fix 12.0 -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/refmag_shifts.txt -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/2
+Mean_Mag_1                 =  10.26802
+RMS_1                      =   0.15441
+Expected_RMS_1             =   0.00102
+Npoints_1                  =  6626
+Stitch_NLCGroups_2         = 2
+Stitch_NTimeGroups_2       = 1
+Stitch_NFitParamsTotal_2   = 2
+Mean_Mag_3                 =  12.00812
+RMS_3                      =   0.03663
+Expected_RMS_3             =   0.00102
+Npoints_3                  =  6626
+Unstitch_Npoints_shifted_4 = 6626
+Mean_Mag_5                 =  10.26802
+RMS_5                      =   0.15441
+Expected_RMS_5             =   0.00102
+Npoints_5                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum median refmag fix 12.0 shifts_file field star out_shifts_file EXAMPLES/OUTDIR1/refmag_shifts.txt -oneline > /dev/null 2>&1 ; $VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -rms -stitch mag err mask lcnum median refmag fix 12.0 -rms -unstitch mag in_shifts_file field star EXAMPLES/OUTDIR1/refmag_shifts.txt -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/refmag_shifts.txt
+
+
+# -unstitch fitsheader after a poly stitch -- regression guard for the
+# add_shifts_fitsheader keyword comment (the poly/harmseries methods used to
+# write "variable number", which the -unstitch parser did not match).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -unstitch fitsheader after poly stitch" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum poly 2 add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat poly_ft.fits allcols fits
+./vartools -i EXAMPLES/OUTDIR1/poly_ft.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline
+EOF
+
+cat > $goodout <<EOF
+Name                       = EXAMPLES/OUTDIR1/poly_ft.fits
+Mean_Mag_0                 =  10.11802
+RMS_0                      =   0.03663
+Expected_RMS_0             =   0.00102
+Npoints_0                  =  6626
+Unstitch_Npoints_shifted_1 = 3313
+Mean_Mag_2                 =  10.26802
+RMS_2                      =   0.15441
+Expected_RMS_2             =   0.00102
+Npoints_2                  =  6626
+
+EOF
+
+$VARTOOLS -l EXAMPLES/lc_list_unstitch combinelcs lcnumvar lcnum -inlistvars 'field:2:combinelc:string,star:3:string' -expr 'mask=mag*0+1' -stitch mag err mask lcnum poly 2 add_shifts_fitsheader SHFT -o EXAMPLES/OUTDIR1 nameformat poly_ft.fits allcols fits > /dev/null 2>&1 ; $VARTOOLS -i EXAMPLES/OUTDIR1/poly_ft.fits -inputlcformat 't:t,mag:mag,err:err,lcnum:lcnum:int' -rms -unstitch mag fitsheader SHFT lcnum -rms -oneline > $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/poly_ft.fits
+
 
 rm -f $testc $testout $goodout

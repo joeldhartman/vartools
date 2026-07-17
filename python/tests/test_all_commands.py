@@ -141,6 +141,299 @@ class TestCLIArgsPeriodicity:
         args = cmd.aov_harm(2, "tspan/200", 10.0, 0.1, 0.01)._to_cli_args()
         assert "expr" in args and "tspan/200" in args
 
+    # ----- PDM (Phase Dispersion Minimization, all 5 variants) -----
+
+    def test_pdm_step_minimal(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01)._to_cli_args()
+        assert args[0] == "-PDM" and args[1] == "step"
+
+    def test_pdm_linterp_minimal(self):
+        args = cmd.PDM("linterp", 0.1, 10.0, 0.1, 0.01)._to_cli_args()
+        assert args[1] == "linterp"
+
+    def test_pdm_multicover_nbin_nc(self):
+        args = cmd.PDM("multicover", 0.1, 10.0, 0.1, 0.01,
+                       nbin=8, nc=2)._to_cli_args()
+        assert args[1] == "multicover"
+        assert "Nbin" in args and "Nc" in args
+        # Canonical order: Nbin must precede Nc
+        assert args.index("Nbin") < args.index("Nc")
+
+    def test_pdm_tophat_dphi(self):
+        args = cmd.PDM("tophat", 0.5, 2.0, 0.5, 0.05, dphi=0.05)._to_cli_args()
+        assert args[1] == "tophat"
+        assert "dphi" in args and "0.05" in args
+
+    def test_pdm_gauss_dphi(self):
+        args = cmd.PDM("gauss", 0.5, 2.0, 0.5, 0.05, dphi=0.07)._to_cli_args()
+        assert args[1] == "gauss"
+        assert args[args.index("dphi") + 1] == "0.07"
+
+    def test_pdm_save_periodogram(self):
+        c = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, save_periodogram=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        # operiodogram=1 followed by outdir
+        assert "/tmp" in args
+
+    def test_pdm_clip_clipiter(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       clip=3, clipiter=1)._to_cli_args()
+        idx = args.index("clip")
+        assert args[idx + 1] == "3" and args[idx + 2] == "1"
+
+    def test_pdm_noerr_whiten(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       noerr=True, whiten=True)._to_cli_args()
+        assert "noerr" in args and "whiten" in args
+        # Canonical order: noerr precedes whiten
+        assert args.index("noerr") < args.index("whiten")
+
+    def test_pdm_bootstrap(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       bootstrap=100)._to_cli_args()
+        idx = args.index("bootstrap")
+        assert args[idx + 1] == "100"
+
+    def test_pdm_maskpoints(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       maskpoints="mymask")._to_cli_args()
+        idx = args.index("maskpoints")
+        assert args[idx + 1] == "mymask"
+
+    def test_pdm_fixperiod_snr_fix(self):
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       fixperiod_snr=1.23)._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "fix" and args[i + 2] == "1.23"
+
+    def test_pdm_fixperiod_snr_pdm_passthrough(self):
+        # Pre-resolution: keyword string passes through.
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       fixperiod_snr="pdm")._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "pdm"
+
+    def test_pdm_varexpr_minp(self):
+        args = cmd.PDM("step", "mymin", 10.0, 0.1, 0.01)._to_cli_args()
+        assert "var" in args and args[args.index("var") + 1] == "mymin"
+
+    def test_pdm_canonical_trailing_order(self):
+        # All trailing keywords together; verify they emerge in the canonical
+        # order matching the strict vartools parser.
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 0.01,
+                       clip=5, noerr=True, whiten=True,
+                       fixperiod_snr=1.234, bootstrap=50,
+                       maskpoints="mask")._to_cli_args()
+        order_keywords = ["clip", "noerr", "whiten", "fixperiodSNR",
+                          "bootstrap", "maskpoints"]
+        positions = [args.index(k) for k in order_keywords if k in args]
+        assert positions == sorted(positions)
+
+    # ----- PDM constructor validation -----
+
+    def test_pdm_rejects_bad_variant(self):
+        with pytest.raises(ValueError, match="variant"):
+            cmd.PDM("bogus", 0.1, 10.0, 0.1, 0.01)
+
+    def test_pdm_rejects_nbin_with_binless(self):
+        with pytest.raises(ValueError, match="nbin"):
+            cmd.PDM("tophat", 0.1, 10.0, 0.1, 0.01, nbin=8)
+        with pytest.raises(ValueError, match="nbin"):
+            cmd.PDM("gauss", 0.1, 10.0, 0.1, 0.01, nbin=8)
+
+    def test_pdm_rejects_nc_outside_multicover(self):
+        with pytest.raises(ValueError, match="multicover"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, nc=2)
+        with pytest.raises(ValueError, match="multicover"):
+            cmd.PDM("tophat", 0.1, 10.0, 0.1, 0.01, nc=2)
+
+    def test_pdm_rejects_dphi_with_binned(self):
+        with pytest.raises(ValueError, match="dphi"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, dphi=0.05)
+        with pytest.raises(ValueError, match="dphi"):
+            cmd.PDM("multicover", 0.1, 10.0, 0.1, 0.01, dphi=0.05)
+
+    def test_pdm_rejects_bootstrap_zero(self):
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, bootstrap=0)
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.PDM("step", 0.1, 10.0, 0.1, 0.01, bootstrap=-3)
+
+    # ----- FTP (Fast Template Periodogram) -----
+
+    def test_ftp_file_minimal(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat")._to_cli_args()
+        assert args[0] == "-FTP"
+        assert args[1] == "file" and args[2] == "t.dat"
+
+    def test_ftp_fitlc_ascii(self):
+        args = cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                       lc_path="lc.txt", lc_format="ascii",
+                       t_col=1, mag_col=2, err_col=3,
+                       nharm=5, period=1.235)._to_cli_args()
+        assert args[1] == "fitlc"
+        assert "ascii" in args
+        # ascii column tokens emitted as positional ints.
+        i = args.index("ascii")
+        assert args[i + 1:i + 4] == ["1", "2", "3"]
+        # nharm and period follow the cols.
+        assert args[i + 4] == "5" and args[i + 5] == "1.235"
+
+    def test_ftp_fitlc_fits(self):
+        args = cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                       lc_path="lc.fits", lc_format="fits",
+                       t_col="TIME", mag_col="MAG", err_col="none",
+                       nharm=3, period=0.5)._to_cli_args()
+        assert "fits" in args
+        i = args.index("fits")
+        assert args[i + 1:i + 4] == ["TIME", "MAG", "none"]
+
+    def test_ftp_inline(self):
+        # Length-2 cn/sn means H = 2 (nharm = 1).
+        args = cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                       cn=[0.7, 0.2], sn=[0.0, 0.0])._to_cli_args()
+        assert args[1] == "inline" and args[2] == "1"   # nharm
+        # The 4 c/s spec tokens for the two harmonics, in CLI order.
+        idx = args.index("inline")
+        assert args[idx + 2:idx + 6] == ["0.7", "0.0", "0.2", "0.0"]
+
+    def test_ftp_inline_var_coeff(self):
+        # var/expr forms in the cn/sn lists are passed through.
+        args = cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                       cn=["c1var"], sn=[0.0])._to_cli_args()
+        assert "var" in args and "c1var" in args
+        assert args[args.index("var") + 1] == "c1var"
+
+    def test_ftp_filelist(self):
+        args = cmd.FTP("filelist", 0.1, 2.0, 0.1, 0.01,
+                       filelist_column=2)._to_cli_args()
+        assert args[1] == "filelist"
+        assert "column" in args
+        assert args[args.index("column") + 1] == "2"
+
+    def test_ftp_filelist_no_column(self):
+        # Without filelist_column, the 'column N' tokens are omitted.
+        args = cmd.FTP("filelist", 0.1, 2.0, 0.1, 0.01)._to_cli_args()
+        assert args[1] == "filelist"
+        assert "column" not in args
+
+    def test_ftp_save_periodogram(self):
+        c = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", save_periodogram=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        assert "/tmp" in args
+
+    def test_ftp_clip_clipiter(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       clip=3, clipiter=0)._to_cli_args()
+        i = args.index("clip")
+        assert args[i + 1] == "3" and args[i + 2] == "0"
+
+    def test_ftp_posamponly_noerr_whiten(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       noerr=True, posamponly=True,
+                       whiten=True)._to_cli_args()
+        # Canonical order: noerr < posamponly < whiten.
+        assert (args.index("noerr") < args.index("posamponly")
+                < args.index("whiten"))
+
+    def test_ftp_method_sums(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       method="poly", sums="nfft")._to_cli_args()
+        assert args[args.index("method") + 1] == "poly"
+        assert args[args.index("sums") + 1] == "nfft"
+
+    def test_ftp_fixperiod_snr_ftp(self):
+        # Pre-resolution: 'ftp' keyword string passes through.
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       fixperiod_snr="ftp")._to_cli_args()
+        i = args.index("fixperiodSNR")
+        assert args[i + 1] == "ftp"
+
+    def test_ftp_bootstrap(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       bootstrap=50)._to_cli_args()
+        i = args.index("bootstrap")
+        assert args[i + 1] == "50"
+
+    def test_ftp_canonical_trailing_order(self):
+        args = cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                       template_file="t.dat",
+                       clip=5, noerr=True, posamponly=True, whiten=True,
+                       fixperiod_snr=1.23, bootstrap=20,
+                       maskpoints="m", method="brute",
+                       sums="direct")._to_cli_args()
+        order_keywords = ["clip", "noerr", "posamponly", "whiten",
+                          "fixperiodSNR", "bootstrap", "maskpoints",
+                          "method", "sums"]
+        positions = [args.index(k) for k in order_keywords if k in args]
+        assert positions == sorted(positions)
+
+    # ----- FTP constructor validation -----
+
+    def test_ftp_rejects_bad_template_source(self):
+        with pytest.raises(ValueError, match="template_source"):
+            cmd.FTP("bogus", 0.1, 2.0, 0.1, 0.01)
+
+    def test_ftp_rejects_file_without_template_file(self):
+        with pytest.raises(ValueError, match="template_file"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01)
+
+    def test_ftp_rejects_mixed_mode_kwargs(self):
+        with pytest.raises(ValueError, match="file mode rejects"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", lc_path="x.lc")
+
+    def test_ftp_rejects_fitlc_missing_args(self):
+        with pytest.raises(ValueError, match="fitlc mode requires"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="ascii")  # cols/nharm/period missing
+
+    def test_ftp_rejects_fitlc_bad_format(self):
+        with pytest.raises(ValueError, match="lc_format"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="binary",
+                    t_col=1, mag_col=2, err_col=3, nharm=3, period=1.0)
+
+    def test_ftp_rejects_fitlc_period_string(self):
+        with pytest.raises(ValueError, match="numeric"):
+            cmd.FTP("fitlc", 0.1, 2.0, 0.1, 0.01,
+                    lc_path="x.lc", lc_format="ascii",
+                    t_col=1, mag_col=2, err_col=3, nharm=3, period="myP")
+
+    def test_ftp_rejects_inline_uneven_cn_sn(self):
+        with pytest.raises(ValueError, match="equal"):
+            cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                    cn=[0.7, 0.2], sn=[0.0])
+
+    def test_ftp_rejects_inline_nharm_mismatch(self):
+        with pytest.raises(ValueError, match="nharm"):
+            cmd.FTP("inline", 0.1, 2.0, 0.1, 0.01,
+                    cn=[0.7, 0.2], sn=[0.0, 0.0], nharm=7)
+
+    def test_ftp_rejects_bad_method(self):
+        with pytest.raises(ValueError, match="method"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", method="bogus")
+
+    def test_ftp_rejects_bad_sums(self):
+        with pytest.raises(ValueError, match="sums"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", sums="bogus")
+
+    def test_ftp_rejects_bootstrap_zero(self):
+        with pytest.raises(ValueError, match="bootstrap"):
+            cmd.FTP("file", 0.1, 2.0, 0.1, 0.01,
+                    template_file="t.dat", bootstrap=0)
+
     def test_bls_minimal(self):
         # nfreq= required when density_mode=False ("optimal" is
         # density-mode-only per vartools).
@@ -195,6 +488,50 @@ class TestCLIArgsPeriodicity:
         assert "0.01" in args
         assert "qgress" in args
         assert "0.2" in args
+
+    # ------- BLS / BLSFixDurTc mergepeakdf (peak-merge resolution) -------
+
+    def test_bls_mergepeakdf_absent_by_default(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000)._to_cli_args()
+        assert "mergepeakdf" not in args
+
+    def test_bls_mergepeakdf_fixed(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=1.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1] == "1.0"
+        assert "transit" not in args
+
+    def test_bls_mergepeakdf_transit(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000,
+                       mergepeakdf_transit=3.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1:i + 3] == ["transit", "3.0"]
+
+    def test_bls_mergepeakdf_before_maskpoints(self):
+        # C parser order: reportharmonics, mergepeakdf, then maskpoints.
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=2.0,
+                       maskpoints="m")._to_cli_args()
+        assert args.index("mergepeakdf") < args.index("maskpoints")
+
+    def test_bls_mergepeakdf_mutually_exclusive(self):
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=1.0,
+                    mergepeakdf_transit=3.0)
+
+    def test_bls_mergepeakdf_positive(self):
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf=0.0)
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, mergepeakdf_transit=-1.0)
+
+    def test_blsfixdurtc_mergepeakdf(self):
+        args = cmd.BLSFixDurTc(duration=0.05, Tc=1.0,
+                               mergepeakdf_transit=3.0)._to_cli_args()
+        i = args.index("mergepeakdf")
+        assert args[i + 1:i + 3] == ["transit", "3.0"]
+        fixed = cmd.BLSFixDurTc(duration=0.05, Tc=1.0,
+                                mergepeakdf=1.0)._to_cli_args()
+        assert fixed[fixed.index("mergepeakdf") + 1] == "1.0"
 
     def test_blsfixperdurtc_minimal(self):
         args = cmd.BLSFixPerDurTc(period=1.5, duration=0.05,
@@ -578,6 +915,830 @@ class TestCLIArgsManipulation:
     def test_alarm_basic(self):
         assert cmd.alarm()._to_cli_args()[0] == "-alarm"
 
+    def test_vonneumann_basic(self):
+        args = cmd.vonNeumann()._to_cli_args()
+        assert args == ["-vonNeumann"]
+
+    def test_vonneumann_weighted(self):
+        args = cmd.vonNeumann(weighted=True)._to_cli_args()
+        assert args == ["-vonNeumann", "weighted"]
+
+    def test_vonneumann_maskpoints(self):
+        args = cmd.vonNeumann(maskpoints="m")._to_cli_args()
+        assert args == ["-vonNeumann", "maskpoints", "m"]
+
+    def test_vonneumann_canonical_order(self):
+        # weighted must precede maskpoints to match the strict-parser order.
+        args = cmd.vonNeumann(weighted=True, maskpoints="m")._to_cli_args()
+        assert args == ["-vonNeumann", "weighted", "maskpoints", "m"]
+
+    def test_percentileratios_defaults(self):
+        args = cmd.percentileratios()._to_cli_args()
+        assert args == ["-percentileratios"]
+
+    def test_percentileratios_custom_pairs(self):
+        args = cmd.percentileratios(percentilepairs=[(10, 90), (20, 80)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "10.0:90.0,20.0:80.0"]
+
+    def test_percentileratios_floats(self):
+        args = cmd.percentileratios(percentilepairs=[(2.5, 97.5)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "2.5:97.5"]
+
+    def test_percentileratios_auto_swap(self):
+        args = cmd.percentileratios(percentilepairs=[(95, 5)])._to_cli_args()
+        assert args == ["-percentileratios", "percentilepairs", "5.0:95.0"]
+
+    def test_percentileratios_explicit_defaults_omitted_from_cli(self):
+        # Passing the defaults explicitly should produce the same CLI as
+        # leaving them unset -- no percentilepairs token emitted.
+        args = cmd.percentileratios(
+            percentilepairs=[(5, 95), (1, 99)]
+        )._to_cli_args()
+        assert args == ["-percentileratios"]
+
+    def test_percentileratios_rejects_equal(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(50, 50)])
+
+    def test_percentileratios_rejects_out_of_range_low(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(0, 50)])
+
+    def test_percentileratios_rejects_out_of_range_high(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 100)])
+
+    def test_percentileratios_rejects_duplicate(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 95), (5, 95)])
+
+    def test_percentileratios_rejects_duplicate_after_swap(self):
+        # 95:5 canonicalizes to 5:95, which then duplicates the first pair.
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5, 95), (95, 5)])
+
+    def test_percentileratios_rejects_malformed_pair(self):
+        with pytest.raises(ValueError):
+            cmd.percentileratios(percentilepairs=[(5,)])
+
+    def test_percentileratios_maskpoints(self):
+        args = cmd.percentileratios(maskpoints="m")._to_cli_args()
+        assert args == ["-percentileratios", "maskpoints", "m"]
+
+    def test_percentileratios_canonical_order(self):
+        # percentilepairs must precede maskpoints (strict parser order).
+        args = cmd.percentileratios(
+            percentilepairs=[(10, 90)],
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-percentileratios", "percentilepairs", "10.0:90.0",
+            "maskpoints", "m",
+        ]
+
+    def test_beyondNsigma_defaults(self):
+        args = cmd.beyondNsigma()._to_cli_args()
+        assert args == ["-beyondNsigma"]
+
+    def test_beyondNsigma_custom_Nvalues(self):
+        args = cmd.beyondNsigma(Nvalues=[1, 2, 3])._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "1.0,2.0,3.0"]
+
+    def test_beyondNsigma_floats(self):
+        args = cmd.beyondNsigma(Nvalues=[1.5, 2.5, 4.0])._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "1.5,2.5,4.0"]
+
+    def test_beyondNsigma_useMAD(self):
+        args = cmd.beyondNsigma(useMAD=True)._to_cli_args()
+        assert args == ["-beyondNsigma", "useMAD"]
+
+    def test_beyondNsigma_canonical_order(self):
+        # Nvalues must precede useMAD to match the strict-parser order.
+        args = cmd.beyondNsigma(Nvalues=[2, 4], useMAD=True)._to_cli_args()
+        assert args == ["-beyondNsigma", "Nvalues", "2.0,4.0", "useMAD"]
+
+    def test_beyondNsigma_explicit_defaults_omitted_from_cli(self):
+        # Passing the defaults explicitly should produce the same CLI as
+        # leaving them unset -- no Nvalues token emitted.
+        args = cmd.beyondNsigma(Nvalues=[1, 3, 5])._to_cli_args()
+        assert args == ["-beyondNsigma"]
+
+    def test_beyondNsigma_rejects_zero(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[0, 1, 2])
+
+    def test_beyondNsigma_rejects_negative(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[-1, 2])
+
+    def test_beyondNsigma_rejects_duplicate(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=[1, 2, 1])
+
+    def test_beyondNsigma_rejects_non_numeric(self):
+        with pytest.raises(ValueError):
+            cmd.beyondNsigma(Nvalues=["abc", 1])
+
+    def test_beyondNsigma_maskpoints(self):
+        args = cmd.beyondNsigma(maskpoints="m")._to_cli_args()
+        assert args == ["-beyondNsigma", "maskpoints", "m"]
+
+    def test_beyondNsigma_canonical_order_all(self):
+        # Strict parser order: Nvalues, useMAD, maskpoints.
+        args = cmd.beyondNsigma(
+            Nvalues=[2, 4],
+            useMAD=True,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-beyondNsigma", "Nvalues", "2.0,4.0", "useMAD",
+            "maskpoints", "m",
+        ]
+
+    def test_slopestats_defaults(self):
+        args = cmd.slopestats()._to_cli_args()
+        assert args == ["-slopestats"]
+
+    def test_slopestats_custom_bintime(self):
+        args = cmd.slopestats(bintime=[5, 10])._to_cli_args()
+        assert args == ["-slopestats", "bintime", "5.0,10.0"]
+
+    def test_slopestats_binshift(self):
+        args = cmd.slopestats(bintime=[10], binshift=0.5)._to_cli_args()
+        assert args == ["-slopestats", "bintime", "10.0",
+                        "binshift", "0.5"]
+
+    def test_slopestats_binshift_requires_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(binshift=0.5)
+
+    def test_slopestats_custom_threshold(self):
+        args = cmd.slopestats(threshold=[1, 3, 5])._to_cli_args()
+        assert args == ["-slopestats", "threshold", "1.0,3.0,5.0"]
+
+    def test_slopestats_default_threshold_omitted(self):
+        # Passing the default threshold explicitly should produce the
+        # same CLI as leaving it unset -- no threshold token emitted.
+        args = cmd.slopestats(threshold=[3.0])._to_cli_args()
+        assert args == ["-slopestats"]
+
+    def test_slopestats_maxgap(self):
+        args = cmd.slopestats(maxgap=0.5)._to_cli_args()
+        assert args == ["-slopestats", "maxgap", "0.5"]
+
+    def test_slopestats_useMAD(self):
+        args = cmd.slopestats(useMAD=True)._to_cli_args()
+        assert args == ["-slopestats", "useMAD"]
+
+    def test_slopestats_maskpoints(self):
+        args = cmd.slopestats(maskpoints="m")._to_cli_args()
+        assert args == ["-slopestats", "maskpoints", "m"]
+
+    def test_slopestats_canonical_order_all(self):
+        # Strict parser order: bintime, binshift, threshold, maxgap,
+        # useMAD, maskpoints.
+        args = cmd.slopestats(
+            bintime=[5, 10],
+            binshift=0.5,
+            threshold=[1, 3],
+            maxgap=0.5,
+            useMAD=True,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-slopestats",
+            "bintime", "5.0,10.0",
+            "binshift", "0.5",
+            "threshold", "1.0,3.0",
+            "maxgap", "0.5",
+            "useMAD",
+            "maskpoints", "m",
+        ]
+
+    def test_slopestats_rejects_zero_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[0, 5])
+
+    def test_slopestats_rejects_negative_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[-1, 5])
+
+    def test_slopestats_rejects_duplicate_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=[5, 10, 5])
+
+    def test_slopestats_rejects_non_numeric_bintime(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(bintime=["abc", 5])
+
+    def test_slopestats_rejects_zero_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[0, 1, 3])
+
+    def test_slopestats_rejects_negative_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[-1, 3])
+
+    def test_slopestats_rejects_duplicate_threshold(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(threshold=[1, 3, 1])
+
+    def test_slopestats_rejects_zero_maxgap(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(maxgap=0)
+
+    def test_slopestats_rejects_negative_maxgap(self):
+        with pytest.raises(ValueError):
+            cmd.slopestats(maxgap=-0.5)
+
+    # ----- CodyM ----------------------------------------------------------
+
+    def test_codym_basic(self):
+        args = cmd.CodyM(trendwindow=10)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10"]
+
+    def test_codym_two_stage(self):
+        args = cmd.CodyM(trendwindow=10, outlierwindow=0.1,
+                          sigclip=3)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10",
+                        "outlierwindow", "0.1",
+                        "sigclip", "3"]
+
+    def test_codym_sigclip_default_omitted(self):
+        # Default sigclip=5.0 stays off the CLI surface.
+        args = cmd.CodyM(trendwindow=10, sigclip=5.0)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10"]
+
+    def test_codym_sigclip_zero_emitted(self):
+        # sigclip=0 disables rejection and IS distinct from default 5.0.
+        args = cmd.CodyM(trendwindow=10, sigclip=0)._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10", "sigclip", "0"]
+
+    def test_codym_expr_sources(self):
+        args = cmd.CodyM(trendwindow="5*2",
+                          sigclip="2.5*2")._to_cli_args()
+        assert args == ["-CodyM",
+                        "trendwindow", "expr", "5*2",
+                        "sigclip", "expr", "2.5*2"]
+
+    def test_codym_maskpoints(self):
+        args = cmd.CodyM(trendwindow=10, maskpoints="m")._to_cli_args()
+        assert args == ["-CodyM", "trendwindow", "10", "maskpoints", "m"]
+
+    def test_codym_canonical_order_all(self):
+        # Strict parser order: trendwindow, outlierwindow, sigclip,
+        # maskpoints.
+        args = cmd.CodyM(
+            trendwindow=10,
+            outlierwindow=0.1,
+            sigclip=3,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-CodyM",
+            "trendwindow", "10",
+            "outlierwindow", "0.1",
+            "sigclip", "3",
+            "maskpoints", "m",
+        ]
+
+    def test_codym_rejects_zero_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=0)
+
+    def test_codym_rejects_negative_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=-5)
+
+    def test_codym_rejects_zero_outlierwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=10, outlierwindow=0)
+
+    def test_codym_rejects_negative_sigclip(self):
+        with pytest.raises(ValueError):
+            cmd.CodyM(trendwindow=10, sigclip=-1)
+
+    # ----- CodyQ ----------------------------------------------------------
+
+    def test_codyq_fix_period(self):
+        args = cmd.CodyQ(period=1.234, trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "1.234", "trendwindow", "10"]
+
+    def test_codyq_aov_period(self):
+        args = cmd.CodyQ(period="aov", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "aov", "trendwindow", "10"]
+
+    def test_codyq_pdm_period(self):
+        # The pdm/ftp keywords were added to _period_spec specifically
+        # for -CodyQ; confirm the keyword is passed through rather than
+        # interpreted as a bare variable name.
+        args = cmd.CodyQ(period="pdm", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "pdm", "trendwindow", "10"]
+
+    def test_codyq_ftp_period(self):
+        args = cmd.CodyQ(period="ftp", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "ftp", "trendwindow", "10"]
+
+    def test_codyq_bls_period(self):
+        args = cmd.CodyQ(period="bls", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "bls", "trendwindow", "10"]
+
+    def test_codyq_injectharm_period(self):
+        args = cmd.CodyQ(period="injectharm", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "injectharm", "trendwindow", "10"]
+
+    def test_codyq_fixcolumn_period(self):
+        args = cmd.CodyQ(period="fixcolumn Period_1_0",
+                          trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "fixcolumn", "Period_1_0",
+                        "trendwindow", "10"]
+
+    def test_codyq_list_period_with_column(self):
+        args = cmd.CodyQ(period="list column 2",
+                          trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "list", "column", "2",
+                        "trendwindow", "10"]
+
+    def test_codyq_expr_period(self):
+        args = cmd.CodyQ(period="2*P", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "expr", "2*P",
+                        "trendwindow", "10"]
+
+    def test_codyq_var_period(self):
+        args = cmd.CodyQ(period="myperiod", trendwindow=10)._to_cli_args()
+        assert args == ["-CodyQ", "var", "myperiod",
+                        "trendwindow", "10"]
+
+    def test_codyq_phasesmooth_non_default(self):
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          phasesmooth=0.5)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0",
+                        "trendwindow", "10",
+                        "phasesmooth", "0.5"]
+
+    def test_codyq_phasesmooth_default_omitted(self):
+        # Default phasesmooth=0.25 stays off the CLI surface.
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          phasesmooth=0.25)._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0", "trendwindow", "10"]
+
+    def test_codyq_maskpoints(self):
+        args = cmd.CodyQ(period=2.0, trendwindow=10,
+                          maskpoints="m")._to_cli_args()
+        assert args == ["-CodyQ", "fix", "2.0", "trendwindow", "10",
+                        "maskpoints", "m"]
+
+    def test_codyq_canonical_order_all(self):
+        # Strict parser order: <period-source>, trendwindow, phasesmooth,
+        # maskpoints.
+        args = cmd.CodyQ(
+            period="aov",
+            trendwindow=10,
+            phasesmooth=0.5,
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-CodyQ", "aov",
+            "trendwindow", "10",
+            "phasesmooth", "0.5",
+            "maskpoints", "m",
+        ]
+
+    def test_codyq_expr_sourced_trendwindow_and_phasesmooth(self):
+        args = cmd.CodyQ(period="aov",
+                          trendwindow="5*2",
+                          phasesmooth="1/4")._to_cli_args()
+        assert args == ["-CodyQ", "aov",
+                        "trendwindow", "expr", "5*2",
+                        "phasesmooth", "expr", "1/4"]
+
+    def test_codyq_rejects_zero_trendwindow(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=0)
+
+    def test_codyq_rejects_phasesmooth_zero(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=10, phasesmooth=0)
+
+    def test_codyq_rejects_phasesmooth_over_one(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=2.0, trendwindow=10, phasesmooth=1.5)
+
+    def test_codyq_rejects_zero_period(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=0, trendwindow=10)
+
+    def test_codyq_rejects_negative_period(self):
+        with pytest.raises(ValueError):
+            cmd.CodyQ(period=-1.0, trendwindow=10)
+
+    # ----- structurefunction --------------------------------------------
+
+    def test_sf_bins_log_basic(self):
+        args = cmd.structurefunction(bins="log", Nbins=20)._to_cli_args()
+        assert args == ["-structurefunction", "bins", "log", "20"]
+
+    def test_sf_bins_linear_basic(self):
+        args = cmd.structurefunction(bins="linear", Nbins=30)._to_cli_args()
+        assert args == ["-structurefunction", "bins", "linear", "30"]
+
+    def test_sf_bins_edges_basic(self):
+        args = cmd.structurefunction(
+            bins="edges", edges=[0.01, 0.1, 1.0, 10.0]
+        )._to_cli_args()
+        assert args[:2] == ["-structurefunction", "bins"]
+        assert args[2] == "edges"
+        # Comma list, no spaces.
+        assert args[3] == "0.01,0.1,1.0,10.0"
+
+    def test_sf_lagrange_literals(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, lagrange=(0.05, 50.0)
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "lagrange", "0.05", "50.0",
+        ]
+
+    def test_sf_lagrange_var_expr(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, lagrange=("myvar", "2*lo")
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "lagrange", "var", "myvar", "expr", "2*lo",
+        ]
+
+    def test_sf_estimator_default_suppressed(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, estimator="squared"
+        )._to_cli_args()
+        assert "estimator" not in args
+
+    def test_sf_estimator_mad_emitted(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, estimator="mad"
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "estimator", "mad"
+        ]
+
+    def test_sf_fitDRW_flag_only(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "fitDRW"
+        ]
+
+    def test_sf_fitDRW_with_sigma0_tau0(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True, sigma0=0.05, tau0=100.0
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "fitDRW", "sigma0", "0.05", "tau0", "100.0",
+        ]
+
+    def test_sf_fitDRW_sigma0_var_expr(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, fitDRW=True,
+            sigma0="myvar", tau0="2*tau_init",
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "fitDRW",
+            "sigma0", "var", "myvar",
+            "tau0", "expr", "2*tau_init",
+        ]
+
+    def test_sf_reportsfvalsintable_basic(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, reportsfvalsintable=[0.1, 1.0, 10.0]
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20",
+            "reportsfvalsintable", "0.1,1.0,10.0",
+        ]
+
+    def test_sf_maskpoints(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, maskpoints="m"
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction", "bins", "log", "20", "maskpoints", "m"
+        ]
+
+    def test_sf_canonical_order_all_keywords(self):
+        # Strict parser canonical order: bins, lagrange, estimator,
+        # fitDRW [sigma0, tau0], reportsfvalsintable, save, maskpoints.
+        args = cmd.structurefunction(
+            bins="log",
+            Nbins=20,
+            lagrange=(0.05, 50.0),
+            estimator="mad",
+            fitDRW=True,
+            sigma0=0.05,
+            tau0=100.0,
+            reportsfvalsintable=[0.1, 1.0, 10.0],
+            save_result="/tmp/sf_out",
+            maskpoints="m",
+        )._to_cli_args()
+        assert args == [
+            "-structurefunction",
+            "bins", "log", "20",
+            "lagrange", "0.05", "50.0",
+            "estimator", "mad",
+            "fitDRW", "sigma0", "0.05", "tau0", "100.0",
+            "reportsfvalsintable", "0.1,1.0,10.0",
+            "save", "/tmp/sf_out",
+            "maskpoints", "m",
+        ]
+
+    def test_sf_save_result_path(self):
+        args = cmd.structurefunction(
+            bins="log", Nbins=20, save_result="/tmp/out"
+        )._to_cli_args()
+        assert "save" in args
+        assert "/tmp/out" in args
+
+    def test_sf_output_file_specs_save_off(self):
+        c = cmd.structurefunction(bins="log", Nbins=20)
+        assert c._output_file_specs() == {}
+
+    def test_sf_output_file_specs_save_on(self):
+        c = cmd.structurefunction(bins="log", Nbins=20, save_result=True)
+        specs = c._output_file_specs()
+        # Logical name "result" matches the save_result attribute so the
+        # pipeline collector actually captures the file (was "sf", a no-op).
+        assert specs == {"result": (".sf", None)}
+
+    def test_sf_rejects_bogus_bins_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="frobnicate", Nbins=20)
+
+    def test_sf_rejects_nbins_too_small(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=1)
+
+    def test_sf_rejects_log_without_nbins(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log")
+
+    def test_sf_rejects_edges_without_edges_list(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges")
+
+    def test_sf_rejects_edges_too_short(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges", edges=[0.01, 0.1])
+
+    def test_sf_rejects_edges_non_monotonic(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="edges", edges=[0.1, 0.05, 1.0]
+            )
+
+    def test_sf_rejects_edges_with_zero(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="edges", edges=[0.0, 1.0, 10.0])
+
+    def test_sf_rejects_nbins_in_edges_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="edges", edges=[0.1, 1, 10], Nbins=5
+            )
+
+    def test_sf_rejects_edges_in_log_mode(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, edges=[0.1, 1.0]
+            )
+
+    def test_sf_rejects_bogus_estimator(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, estimator="rms")
+
+    def test_sf_rejects_sigma0_without_fitDRW(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, sigma0=0.05)
+
+    def test_sf_rejects_tau0_without_fitDRW(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(bins="log", Nbins=20, tau0=100.0)
+
+    def test_sf_rejects_negative_sigma0(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, fitDRW=True, sigma0=-1
+            )
+
+    def test_sf_rejects_zero_tau0(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, fitDRW=True, tau0=0
+            )
+
+    def test_sf_rejects_lagrange_lagmax_le_lagmin(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, lagrange=(50.0, 5.0)
+            )
+
+    def test_sf_rejects_lagrange_zero_lagmin(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20, lagrange=(0.0, 5.0)
+            )
+
+    def test_sf_rejects_report_non_monotonic(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20,
+                reportsfvalsintable=[1.0, 0.5, 5.0],
+            )
+
+    def test_sf_rejects_report_with_zero(self):
+        with pytest.raises(ValueError):
+            cmd.structurefunction(
+                bins="log", Nbins=20,
+                reportsfvalsintable=[0.0, 1.0, 5.0],
+            )
+
+    # ----- drwfit ---------------------------------------------------------
+
+    def test_drwfit_default(self):
+        assert cmd.drwfit()._to_cli_args() == ["-drwfit"]
+
+    def test_drwfit_mean_fit(self):
+        args = cmd.drwfit(mean="fit")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fit"]
+
+    def test_drwfit_mean_subtract(self):
+        args = cmd.drwfit(mean="subtract")._to_cli_args()
+        assert args == ["-drwfit", "mean", "subtract"]
+
+    def test_drwfit_mean_fix_literal(self):
+        args = cmd.drwfit(mean="fix", mean_value=10.12)._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "10.12"]
+
+    def test_drwfit_mean_fix_var(self):
+        args = cmd.drwfit(mean="fix", mean_value="mu")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "var", "mu"]
+
+    def test_drwfit_mean_fix_expr(self):
+        args = cmd.drwfit(mean="fix", mean_value="2*m")._to_cli_args()
+        assert args == ["-drwfit", "mean", "fix", "expr", "2*m"]
+
+    def test_drwfit_init_guesses(self):
+        args = cmd.drwfit(sigma0=0.05, tau0=100.0, mean0=10.0)._to_cli_args()
+        assert args == [
+            "-drwfit",
+            "sigma0", "0.05", "tau0", "100.0", "mean0", "10.0",
+        ]
+
+    def test_drwfit_init_guesses_var_expr(self):
+        args = cmd.drwfit(sigma0="s", tau0="2*t")._to_cli_args()
+        assert args == [
+            "-drwfit", "sigma0", "var", "s", "tau0", "expr", "2*t",
+        ]
+
+    def test_drwfit_correctlc_smoothed(self):
+        args = cmd.drwfit(correctlc="smoothed")._to_cli_args()
+        assert args == ["-drwfit", "correctlc", "smoothed"]
+
+    def test_drwfit_correctlc_forecast(self):
+        args = cmd.drwfit(correctlc="forecast")._to_cli_args()
+        assert args == ["-drwfit", "correctlc", "forecast"]
+
+    def test_drwfit_modelvar_smoothed(self):
+        args = cmd.drwfit(modelvar=("smoothed", "drwmod"))._to_cli_args()
+        assert args == ["-drwfit", "modelvar", "smoothed", "drwmod"]
+
+    def test_drwfit_modelvar_forecast(self):
+        args = cmd.drwfit(modelvar=("forecast", "drwmod"))._to_cli_args()
+        assert args == ["-drwfit", "modelvar", "forecast", "drwmod"]
+
+    def test_drwfit_save_result_path(self):
+        args = cmd.drwfit(save_result="/tmp/out")._to_cli_args()
+        assert "save" in args and "/tmp/out" in args
+
+    def test_drwfit_maskpoints(self):
+        args = cmd.drwfit(maskpoints="m")._to_cli_args()
+        assert args == ["-drwfit", "maskpoints", "m"]
+
+    def test_drwfit_canonical_order_all_keywords(self):
+        # Strict parser canonical order: mean, sigma0, tau0, mean0,
+        # save, correctlc, modelvar, maskpoints.
+        args = cmd.drwfit(
+            mean="fix",
+            mean_value=10.0,
+            sigma0=0.05,
+            tau0=100.0,
+            mean0=10.0,
+            save_result="/tmp/drw_out",
+            correctlc="smoothed",
+            modelvar=("smoothed", "m"),
+            maskpoints="msk",
+        )._to_cli_args()
+        assert args == [
+            "-drwfit",
+            "mean", "fix", "10.0",
+            "sigma0", "0.05",
+            "tau0", "100.0",
+            "mean0", "10.0",
+            "save", "/tmp/drw_out",
+            "correctlc", "smoothed",
+            "modelvar", "smoothed", "m",
+            "maskpoints", "msk",
+        ]
+
+    def test_drwfit_output_file_specs_save_off(self):
+        assert cmd.drwfit()._output_file_specs() == {}
+
+    def test_drwfit_output_file_specs_save_on(self):
+        specs = cmd.drwfit(save_result=True)._output_file_specs()
+        # Logical name matches the save_result attribute so capture works.
+        assert specs == {"result": (".drwfit", None)}
+
+    def test_drwfit_rejects_bogus_mean(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="frobnicate")
+
+    def test_drwfit_rejects_fix_without_value(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="fix")
+
+    def test_drwfit_rejects_mean_value_without_fix(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean_value=10.0)
+
+    def test_drwfit_rejects_mean_value_with_subtract(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(mean="subtract", mean_value=10.0)
+
+    def test_drwfit_rejects_negative_sigma0(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(sigma0=-1)
+
+    def test_drwfit_rejects_zero_tau0(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(tau0=0)
+
+    def test_drwfit_rejects_bogus_correctlc(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(correctlc="x")
+
+    def test_drwfit_rejects_bogus_modelvar_mode(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar=("x", "n"))
+
+    def test_drwfit_rejects_modelvar_not_pair(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar="smoothed")
+
+    def test_drwfit_rejects_modelvar_empty_name(self):
+        with pytest.raises(ValueError):
+            cmd.drwfit(modelvar=("smoothed", ""))
+
+    # ----- runlength ------------------------------------------------------
+
+    def test_runlength_default(self):
+        # Default k=3.0 stays off the CLI surface.
+        assert cmd.runlength()._to_cli_args() == ["-runlength"]
+
+    def test_runlength_k_literal(self):
+        args = cmd.runlength(k=1.0)._to_cli_args()
+        assert args == ["-runlength", "k", "1.0"]
+
+    def test_runlength_k_default_omitted(self):
+        assert cmd.runlength(k=3.0)._to_cli_args() == ["-runlength"]
+
+    def test_runlength_k_zero_emitted(self):
+        # k=0 collapses the band to the median and IS distinct from 3.0.
+        assert cmd.runlength(k=0)._to_cli_args() == ["-runlength", "k", "0"]
+
+    def test_runlength_k_var(self):
+        args = cmd.runlength(k="myk")._to_cli_args()
+        assert args == ["-runlength", "k", "var", "myk"]
+
+    def test_runlength_k_expr(self):
+        args = cmd.runlength(k="2*1.5")._to_cli_args()
+        assert args == ["-runlength", "k", "expr", "2*1.5"]
+
+    def test_runlength_maskpoints(self):
+        args = cmd.runlength(maskpoints="m")._to_cli_args()
+        assert args == ["-runlength", "maskpoints", "m"]
+
+    def test_runlength_canonical_order_all(self):
+        # Strict parser order: k, maskpoints.
+        args = cmd.runlength(k=0.5, maskpoints="m")._to_cli_args()
+        assert args == ["-runlength", "k", "0.5", "maskpoints", "m"]
+
+    def test_runlength_rejects_negative_k(self):
+        with pytest.raises(ValueError):
+            cmd.runlength(k=-1)
+
     def test_rescalesig_basic(self):
         assert cmd.rescalesig()._to_cli_args()[0] == "-rescalesig"
 
@@ -762,6 +1923,30 @@ class TestCLIArgsManipulation:
         args = cmd.fluxtomag(mag_constant=10.0)._to_cli_args()
         assert args[0] == "-fluxtomag"
 
+    def test_magtoflux_basic(self):
+        args = cmd.magtoflux(mag_constant=25.0)._to_cli_args()
+        assert args == ["-magtoflux", "25.0"]
+
+    def test_magtoflux_normalize(self):
+        args = cmd.magtoflux(normalize=True)._to_cli_args()
+        assert args == ["-magtoflux", "normalize"]
+
+    def test_magtoflux_expr(self):
+        args = cmd.magtoflux(mag_constant="25.0+0.0")._to_cli_args()
+        assert args == ["-magtoflux", "expr", "25.0+0.0"]
+
+    def test_magtoflux_var(self):
+        args = cmd.magtoflux(mag_constant="zpt")._to_cli_args()
+        assert args == ["-magtoflux", "var", "zpt"]
+
+    def test_magtoflux_normalize_rejects_mag_constant(self):
+        with pytest.raises(ValueError):
+            cmd.magtoflux(mag_constant=25.0, normalize=True)
+
+    def test_magtoflux_requires_one_of(self):
+        with pytest.raises(ValueError):
+            cmd.magtoflux()
+
     def test_changeerror_basic(self):
         assert cmd.changeerror()._to_cli_args()[0] == "-changeerror"
 
@@ -858,6 +2043,17 @@ class TestCLIArgsManipulation:
     def test_jstet_basic(self):
         args = cmd.Jstet(timescale=0.5, dates="dates.txt")._to_cli_args()
         assert args[0] == "-Jstet"
+        assert args == ["-Jstet", "0.5", "dates.txt"]
+
+    def test_jstet_skipnormalize(self):
+        args = cmd.Jstet(timescale=0.5, skipnormalize=True)._to_cli_args()
+        assert args == ["-Jstet", "0.5", "skipnormalize"]
+
+    def test_jstet_requires_one_of_dates_or_skipnormalize(self):
+        with pytest.raises(ValueError, match="dates"):
+            cmd.Jstet(timescale=0.5)
+        with pytest.raises(ValueError, match="dates"):
+            cmd.Jstet(timescale=0.5, dates="dates.txt", skipnormalize=True)
 
     # ------- Killharm output_format and clip (Batch 2i) -------
 
@@ -1114,6 +2310,49 @@ class TestCLIArgsFitting:
         assert "period" in args
         idx = args.index("period")
         assert args[idx+1] == "ls"
+
+    # ------- TFA / TFA_SR refmag (reset corrected-LC level) -------
+
+    def test_tfa_refmag_absent_by_default(self):
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0)._to_cli_args()
+        assert "refmag" not in args
+
+    def test_tfa_refmag_fixed(self):
+        """A numeric refmag emits the bare value (built-in fix/var/expr
+        spec — no explicit "fix" keyword) as the final tokens."""
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                       refmag=12.0)._to_cli_args()
+        assert args[-2:] == ["refmag", "12.0"]
+
+    def test_tfa_refmag_usemedian(self):
+        args = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                       refmag=12.0, refmag_usemedian=True)._to_cli_args()
+        assert args[-3:] == ["refmag", "12.0", "usemedian"]
+
+    def test_tfa_refmag_var_and_expr(self):
+        # bare identifier -> "var"
+        a = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    refmag="targetmag")._to_cli_args()
+        assert a[-3:] == ["refmag", "var", "targetmag"]
+        # explicit expr passes through
+        b = cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    refmag="expr 12.0+1.0")._to_cli_args()
+        assert b[-3:] == ["refmag", "expr", "12.0+1.0"]
+
+    def test_tfa_refmag_requires_correct_lc(self):
+        with pytest.raises(ValueError):
+            cmd.TFA("trends.txt", "dates.txt", 10.0,
+                    correct_lc=False, refmag=12.0)._to_cli_args()
+
+    def test_tfa_sr_refmag(self):
+        args = cmd.TFA_SR("trends.txt", "dates.txt", 10.0,
+                          refmag=12.0, refmag_usemedian=True)._to_cli_args()
+        assert args[-3:] == ["refmag", "12.0", "usemedian"]
+
+    def test_tfa_sr_refmag_requires_correct_lc(self):
+        with pytest.raises(ValueError):
+            cmd.TFA_SR("trends.txt", "dates.txt", 10.0,
+                       correct_lc=False, refmag=12.0)._to_cli_args()
 
     def test_sysrem_basic(self):
         args = cmd.SYSREM(1, 1, "/tmp/airmass.txt")._to_cli_args()
@@ -1430,6 +2669,140 @@ class TestCLIArgsFitting:
         assert "/tmp/rv.txt" in args
         assert "/tmp/rv_model.txt" in args
         assert "10.0" in args
+
+    # ----- MatchedFilter -----
+
+    def test_mf_gauss_basic(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                                  sigma=0.5)._to_cli_args()
+        assert args[0] == "-matchedfilter"
+        assert args[1:4] == ["template", "gauss", "0.5"]
+        assert "mode" in args and args[args.index("mode") + 1] == "window"
+        assert "signs" in args and args[args.index("signs") + 1] == "both"
+
+    def test_mf_doubleexp(self):
+        args = cmd.MatchedFilter("doubleexp", 0.01, "window", "positive",
+                                  tau_rise=0.001, tau_decay=0.005)._to_cli_args()
+        i = args.index("doubleexp")
+        assert args[i + 1:i + 3] == ["0.001", "0.005"]
+
+    def test_mf_flare(self):
+        args = cmd.MatchedFilter("flare", 0.02, "window", "positive",
+                                  tfwhm=0.005)._to_cli_args()
+        assert "flare" in args
+        assert args[args.index("flare") + 1] == "0.005"
+
+    def test_mf_box(self):
+        args = cmd.MatchedFilter("box", 0.5, "window", "negative",
+                                  width=0.083)._to_cli_args()
+        assert "box" in args
+        assert args[args.index("box") + 1] == "0.083"
+
+    def test_mf_triangle(self):
+        args = cmd.MatchedFilter("triangle", 0.5, "window", "both",
+                                  width=0.1)._to_cli_args()
+        assert "triangle" in args
+
+    def test_mf_trap(self):
+        args = cmd.MatchedFilter("trap", 0.5, "window", "both",
+                                  rise=0.01, flat=0.05, fall=0.01)._to_cli_args()
+        i = args.index("trap")
+        assert args[i + 1:i + 4] == ["0.01", "0.05", "0.01"]
+
+    def test_mf_exp(self):
+        args = cmd.MatchedFilter("exp", 0.02, "window", "negative",
+                                  tau=0.005)._to_cli_args()
+        i = args.index("exp")
+        assert args[i + 1] == "0.005"
+
+    def test_mf_file(self):
+        args = cmd.MatchedFilter("file", 2.0, "window", "positive",
+                                  template_file="/tmp/t.mf")._to_cli_args()
+        assert "file" in args
+        assert args[args.index("file") + 1] == "/tmp/t.mf"
+
+    def test_mf_expr_default_varname(self):
+        args = cmd.MatchedFilter("expr", 2.0, "window", "positive",
+                                  expression="exp(-s*s/0.5)")._to_cli_args()
+        i = args.index("expr")
+        # No 'varname' keyword when expr_varname is None (default 's').
+        assert args[i + 1] == "exp(-s*s/0.5)"
+
+    def test_mf_expr_custom_varname(self):
+        args = cmd.MatchedFilter("expr", 2.0, "window", "positive",
+                                  expression="exp(-x*x/0.5)",
+                                  expr_varname="x")._to_cli_args()
+        i = args.index("expr")
+        assert args[i + 1:i + 4] == ["varname", "x", "exp(-x*x/0.5)"]
+
+    def test_mf_nfft_mode(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "nfft", "both",
+                                  sigma=0.5)._to_cli_args()
+        assert args[args.index("mode") + 1] == "nfft"
+
+    def test_mf_min_separation_whiten_maskpoints(self):
+        args = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                                  sigma=0.5,
+                                  min_separation=0.5, whiten=True,
+                                  maskpoints="mask")._to_cli_args()
+        # Canonical strict-order trailing keywords.
+        assert (args.index("min_separation") < args.index("whiten")
+                < args.index("maskpoints"))
+
+    def test_mf_save_matchfile(self):
+        c = cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                               sigma=0.5, save_matchfile=True)
+        c._outdir = "/tmp"
+        args = c._to_cli_args()
+        assert "/tmp" in args
+        # omatchfile token immediately precedes outdir.
+        i = args.index("/tmp")
+        assert args[i - 1] == "1"
+
+    def test_mf_varexpr_scalars(self):
+        # sigma and support_halfwidth accept var/expr forms.
+        args = cmd.MatchedFilter("gauss", "myvar", "window", "both",
+                                  sigma="2*sigma0")._to_cli_args()
+        assert "expr" in args
+        assert "var" in args
+
+    def test_mf_rejects_bad_template(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("bogus", 2.0, "window", "both", sigma=0.5)
+
+    def test_mf_rejects_bad_mode(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "fft", "both", sigma=0.5)
+
+    def test_mf_rejects_bad_signs(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "yes", sigma=0.5)
+
+    def test_mf_rejects_missing_template_param(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both")
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("trap", 2.0, "window", "both",
+                              rise=0.01, flat=0.05)   # missing fall
+
+    def test_mf_rejects_template_kwarg_mismatch(self):
+        # 'tau' belongs to exp; passing it with gauss should reject.
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                              sigma=0.5, tau=0.01)
+
+    def test_mf_rejects_file_without_path(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("file", 2.0, "window", "positive")
+
+    def test_mf_rejects_expr_without_expression(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("expr", 2.0, "window", "positive")
+
+    def test_mf_rejects_npeaks_zero(self):
+        with pytest.raises(ValueError):
+            cmd.MatchedFilter("gauss", 2.0, "window", "both",
+                              sigma=0.5, npeaks=0)
 
 
 # ===========================================================================
@@ -1773,6 +3146,29 @@ class TestCLIArgsMisc:
         with pytest.raises(ValueError):
             cmd.binlc()
 
+    def test_binlc_binshift(self):
+        args = cmd.binlc(binsize=0.5, binshift=0.5)._to_cli_args()
+        assert "binshift" in args
+        assert args[args.index("binshift") + 1] == "0.5"
+        # The legacy keyword must NOT also be emitted.
+        assert "firstbinshift" not in args
+
+    def test_binlc_firstbinshift_legacy_emits_old_keyword(self):
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            args = cmd.binlc(binsize=0.5, firstbinshift=0.5)._to_cli_args()
+            assert any(issubclass(rec.category, DeprecationWarning)
+                       for rec in w), \
+                f"expected DeprecationWarning, got {[str(r.message) for r in w]}"
+        assert "firstbinshift" in args
+        assert args[args.index("firstbinshift") + 1] == "0.5"
+        assert "binshift" not in args
+
+    def test_binlc_binshift_and_firstbinshift_mutually_exclusive(self):
+        with pytest.raises(ValueError):
+            cmd.binlc(binsize=0.5, binshift=0.5, firstbinshift=0.5)
+
     def test_columnsuffix_basic(self):
         args = cmd.columnsuffix("myls")._to_cli_args()
         assert args == ["-columnsuffix", "myls"]
@@ -1805,6 +3201,21 @@ class TestEndToEndPipelines:
         assert "RMS_0" in result.vars.index
         assert any("Chi2" in k or "chi2" in k for k in result.vars.index)
         assert any("Alarm" in k or "alarm" in k for k in result.vars.index)
+
+    def test_vonneumann_pipeline(self):
+        # Use a clear sinusoid -- eta should be well below 2 (correlated).
+        lc = make_lc(period=2.0, amp=0.5)
+        result = vt.Pipeline([
+            cmd.vonNeumann(),
+            cmd.vonNeumann(weighted=True),
+        ]).run(lc)
+        vn = result.varobjs.vonNeumann
+        assert len(vn) == 2
+        eta_unw  = float(vn[0].Ratio)
+        eta_wgt  = float(vn[1].Ratio)
+        # Sinusoidal signal -> strongly correlated -> eta << 2.
+        assert eta_unw < 1.0
+        assert eta_wgt < 1.0
 
     def test_stats_multiple_variables(self):
         lc = make_lc()
@@ -1879,6 +3290,145 @@ class TestEndToEndPipelines:
         assert len(result.files["linfit_model_0"]) > 0
 
     # -----------------------------------------------------------------------
+    # structurefunction file capture
+    # -----------------------------------------------------------------------
+
+    def test_structurefunction_save_result_capture(self):
+        # Regression: capture used to be a silent no-op because the logical
+        # name ("sf") did not match the save_result attribute, so the
+        # collector's getattr(cmd, "save_sf") returned False.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.structurefunction(bins="log", Nbins=20, save_result=True),
+        ]).run(lc)
+        assert "structurefunction_result_0" in result.files
+        df = result.files["structurefunction_result_0"]
+        assert len(df) > 0
+
+    # -----------------------------------------------------------------------
+    # drwfit
+    # -----------------------------------------------------------------------
+
+    def test_drwfit_default_scalars(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.drwfit()]).run(lc)
+        for col in ("DRWFIT_SIGMA_0", "DRWFIT_TAU_0", "DRWFIT_MU_0",
+                    "DRWFIT_LNL_0", "DRWFIT_CONVERGED_0"):
+            assert col in result.vars.index
+        assert int(float(result.vars["DRWFIT_CONVERGED_0"])) == 1
+        assert float(result.vars["DRWFIT_SIGMA_0"]) > 0
+        assert float(result.vars["DRWFIT_TAU_0"]) > 0
+
+    def test_drwfit_correctlc_smoothed_then_chi2(self):
+        # Smoothing whitens the curve toward (below) the noise floor.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.drwfit(correctlc="smoothed"),
+            cmd.chi2(),
+        ]).run(lc)
+        chi2_keys = [k for k in result.vars.index if "Chi2" in k]
+        assert chi2_keys
+        assert float(result.vars[chi2_keys[0]]) < 1.0
+
+    def test_drwfit_modelvar_smoothed_then_stats(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.drwfit(modelvar=("smoothed", "drwmod")),
+            cmd.stats("drwmod", "mean,stddev"),
+        ]).run(lc)
+        assert any("drwmod" in k and "MEAN" in k for k in result.vars.index)
+
+    def test_drwfit_save_result_capture(self):
+        # Logical name "result" matches the save_result attribute, so the
+        # .drwfit aux file is actually captured (unlike the SF "sf" name).
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.drwfit(save_result=True)]).run(lc)
+        assert "drwfit_result_0" in result.files
+        df = result.files["drwfit_result_0"]
+        # Eight columns auto-named from the "# t x sig_meas ..." header.
+        assert list(df.columns) == [
+            "t", "x", "sig_meas", "x_hat_fwd", "Omega_fwd", "chi_fwd",
+            "x_smoothed", "Omega_smoothed",
+        ]
+        assert len(df) > 0
+
+    # -----------------------------------------------------------------------
+    # runlength
+    # -----------------------------------------------------------------------
+
+    def test_runlength_scalars_present(self):
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        for cat in ("ABOVE", "BELOW", "OUTHIGH", "OUTLOW"):
+            for stat in ("MAXLEN", "NRUNS", "MEANLEN"):
+                assert f"RUNLENGTH_{cat}_{stat}_0" in result.vars.index
+        for col in ("RUNLENGTH_MEDIAN_0", "RUNLENGTH_MAD_0",
+                    "RUNLENGTH_K_0"):
+            assert col in result.vars.index
+        assert float(result.vars["RUNLENGTH_MAD_0"]) > 0
+        assert float(result.vars["RUNLENGTH_K_0"]) == 3.0
+
+    def test_runlength_sinusoid_long_runs_no_outliers(self):
+        # A pure sinusoid yields long above/below runs (~ half a period in
+        # points) and, since MAD ~ 1.05*A, no points outside the +/-3*MAD
+        # band -> zero outlier runs.
+        n = 1000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 2.0)   # 200 pts/period
+        err = np.full(n, 0.001)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sine")
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_ABOVE_MAXLEN_0"])) > 50
+        assert int(float(result.vars["RUNLENGTH_BELOW_MAXLEN_0"])) > 50
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"])) == 0
+        assert int(float(result.vars["RUNLENGTH_OUTLOW_NRUNS_0"])) == 0
+
+    def test_runlength_sustained_excursion_one_outhigh_run(self):
+        # A contiguous faint-excursion block on otherwise tight noise gives
+        # exactly one OUTHIGH run spanning the block, and no OUTLOW run.
+        rng = np.random.default_rng(7)
+        n = 400
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(10.0, 0.01, n)
+        mag[150:175] += 0.5          # 25-point sustained excursion
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="block")
+        result = vt.Pipeline([cmd.runlength()]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_MAXLEN_0"])) == 25
+        assert int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"])) == 1
+        # No comparably long low excursion (isolated noise-tail points may
+        # occur, but nothing sustained).
+        assert int(float(result.vars["RUNLENGTH_OUTLOW_MAXLEN_0"])) < 25
+
+    def test_runlength_k_zero_band_collapses_to_median(self):
+        # With k=0 the band has zero width, so outhigh == above and
+        # outlow == below exactly.
+        n = 500
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 1.5)
+        err = np.full(n, 0.001)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="collapse")
+        result = vt.Pipeline([cmd.runlength(k=0)]).run(lc)
+        assert float(result.vars["RUNLENGTH_K_0"]) == 0.0
+        assert (int(float(result.vars["RUNLENGTH_OUTHIGH_NRUNS_0"]))
+                == int(float(result.vars["RUNLENGTH_ABOVE_NRUNS_0"])))
+        assert (int(float(result.vars["RUNLENGTH_OUTHIGH_MAXLEN_0"]))
+                == int(float(result.vars["RUNLENGTH_ABOVE_MAXLEN_0"])))
+        assert (int(float(result.vars["RUNLENGTH_OUTLOW_NRUNS_0"]))
+                == int(float(result.vars["RUNLENGTH_BELOW_NRUNS_0"])))
+
+    def test_runlength_maskpoints_changes_counts(self):
+        # Masking out half the points (via an -expr indicator) must still
+        # produce valid stats and a finite median over the kept subset.
+        lc = vt.LightCurve.from_file(EXAMPLE_LC)
+        result = vt.Pipeline([
+            cmd.expr("mask=(t>53726.0)"),
+            cmd.runlength(maskpoints="mask"),
+        ]).run(lc)
+        assert int(float(result.vars["RUNLENGTH_ABOVE_NRUNS_1"])) > 0
+        assert np.isfinite(float(result.vars["RUNLENGTH_MEDIAN_1"]))
+
+    # -----------------------------------------------------------------------
     # Period search
     # -----------------------------------------------------------------------
 
@@ -1923,6 +3473,111 @@ class TestEndToEndPipelines:
             cmd.LS(0.5, 5.0, 1e-3, noGLS=True),
         ]).run(lc)
         assert result.vars is not None
+
+    # -----------------------------------------------------------------------
+    # PDM (Phase Dispersion Minimization)
+    # -----------------------------------------------------------------------
+
+    def test_pdm_linterp_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1, nbin=8),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+        # Theta should be small at a real signal period; loose check.
+        assert result.varobjs.PDM.Theta_1 < 0.5
+
+    def test_pdm_multicover_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("multicover", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    nbin=8, nc=2),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+
+    def test_pdm_tophat_pipeline(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("tophat", 1.0, 3.0, 0.5, 0.05, npeaks=1, dphi=0.05,
+                    noerr=True),
+        ]).run(lc)
+        assert hasattr(result.varobjs.PDM, "Period_1")
+        # Binless theta dips deep at the signal period.
+        assert result.varobjs.PDM.Theta_1 < 0.2
+
+    def test_pdm_fixperiod_backref_from_aov(self):
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.aov(0.5, 5.0, 0.1, 0.01, nbin=8),
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    fixperiod_snr="aov"),
+        ]).run(lc)
+        # PDM PeriodFix should appear and equal the aov peak.
+        pdm = result.varobjs.PDM
+        assert hasattr(pdm, "PeriodFix")
+        assert abs(pdm.PeriodFix - result.varobjs.aov.Period_1) < 1e-6
+
+    def test_pdm_to_pdm_backref(self):
+        # Second -PDM uses the first -PDM's peak via fixperiod_snr='pdm'.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.PDM("step", 0.5, 5.0, 0.1, 0.01, npeaks=1, nbin=8),
+            cmd.PDM("linterp", 0.5, 5.0, 0.1, 0.01, npeaks=1,
+                    fixperiod_snr="pdm"),
+        ]).run(lc)
+        # Two PDM commands → varobjs.PDM is a CommandStatsList wrapping
+        # the two CommandStats entries; indexable by position.
+        pdms = result.varobjs.PDM
+        assert len(pdms) == 2
+        first, second = pdms[0], pdms[1]
+        # Second one's PeriodFix should equal first one's Period_1.
+        assert abs(second.PeriodFix - first.Period_1) < 1e-6
+
+    # -----------------------------------------------------------------------
+    # FTP (Fast Template Periodogram)
+    # -----------------------------------------------------------------------
+
+    def test_ftp_inline_pipeline(self):
+        # Pure-cosine H=1 template; FTP should peak at the injected period.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1),
+        ]).run(lc)
+        ftp = result.varobjs.FTP
+        assert hasattr(ftp, "Period_1")
+        assert abs(ftp.Period_1 - 1.8) / 1.8 < 0.01
+        assert ftp.Power_1 > 0.9   # near-perfect fit for a pure sinusoid
+
+    def test_ftp_fitlc_pipeline(self, tmp_path):
+        # Build an LC, dump it to disk, then FTP-fitlc against itself at
+        # the known period: search should find the same period.
+        lc = make_lc(period=1.8)
+        lc_path = tmp_path / "t.lc"
+        df = lc.to_dataframe()
+        df.to_csv(lc_path, sep=" ", header=False, index=False)
+        result = vt.Pipeline([
+            cmd.FTP("fitlc", 0.5, 5.0, 0.1, 0.01,
+                    lc_path=str(lc_path), lc_format="ascii",
+                    t_col=1, mag_col=2, err_col=3,
+                    nharm=3, period=1.8, npeaks=1),
+        ]).run(lc)
+        assert abs(result.varobjs.FTP.Period_1 - 1.8) / 1.8 < 0.01
+
+    def test_ftp_to_ftp_backref(self):
+        # Second -FTP uses the first -FTP's peak via fixperiod_snr='ftp'.
+        lc = make_lc(period=1.8)
+        result = vt.Pipeline([
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1),
+            cmd.FTP("inline", 0.5, 5.0, 0.1, 0.01,
+                    cn=[1.0], sn=[0.0], npeaks=1,
+                    fixperiod_snr="ftp"),
+        ]).run(lc)
+        ftps = result.varobjs.FTP
+        assert len(ftps) == 2
+        first, second = ftps[0], ftps[1]
+        assert abs(second.PeriodFix - first.Period_1) < 1e-6
 
     # -----------------------------------------------------------------------
     # Phase-folding
@@ -2207,6 +3862,567 @@ class TestEndToEndPipelines:
             *make_lc()._df.values.T, name="mystar")
         result = vt.Pipeline([cmd.clip(sigclip=5.0)]).run(lc, capture_lc=True)
         assert result.lc.name == "mystar"
+
+    # -----------------------------------------------------------------------
+    # magtoflux
+    # -----------------------------------------------------------------------
+
+    def test_magtoflux_roundtrip(self):
+        """fluxtomag then magtoflux should recover the original magnitudes."""
+        lc = make_lc(n=200)
+        mag_orig = lc._df.iloc[:, 1].values.copy()
+        result = vt.Pipeline([
+            cmd.fluxtomag(mag_constant=25.0),
+            cmd.magtoflux(mag_constant=25.0),
+        ]).run(lc, capture_lc=True)
+        assert result.lc is not None
+        mag_back = result.lc._df.iloc[:, 1].values
+        np.testing.assert_allclose(mag_back, mag_orig, rtol=0, atol=1e-12)
+
+    def test_magtoflux_normalize_median_is_one(self):
+        """magtoflux normalize should produce median flux = 1."""
+        lc = make_lc(n=200)
+        result = vt.Pipeline([
+            cmd.magtoflux(normalize=True),
+        ]).run(lc, capture_lc=True)
+        flux = result.lc._df.iloc[:, 1].values
+        assert np.isclose(np.median(flux), 1.0, rtol=0, atol=1e-15)
+
+    # -----------------------------------------------------------------------
+    # percentileratios
+    # -----------------------------------------------------------------------
+
+    def test_percentileratios_gaussian_limit(self):
+        """For large-N white-Gaussian noise, asym -> 1 and medmeddev/stddev -> 0.6745."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.percentileratios(percentilepairs=[(5, 95), (1, 99), (25, 75)]),
+        ]).run(lc)
+        # asym ~ 1 for any symmetric distribution; finite-sample noise at
+        # N=20000 leaves +/- ~0.05 headroom.
+        for p, q in [(5, 95), (1, 99), (25, 75)]:
+            asym = result.vars[
+                f"PERCENTILERATIOS_asym_PCT{p}.00_PCT{q}.00_0"
+            ]
+            assert abs(asym - 1.0) < 0.1, f"asym_{p}_{q} = {asym} far from 1.0"
+        # medmeddev / stddev -> 0.6745 in the Gaussian limit.
+        ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
+        assert abs(ratio - 0.6745) < 0.02, f"medmeddev/stddev = {ratio} far from 0.6745"
+
+    def test_percentileratios_positive_skew(self):
+        """A positively-skewed distribution must produce asym > 1."""
+        rng = np.random.default_rng(1)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        # Exponential is right-skewed; median much lower than mean, so the
+        # upper tail dominates and (pct(q)-median)/(median-pct(p)) > 1.
+        mag = rng.exponential(scale=1.0, size=n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="expo")
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+        ]).run(lc)
+        asym = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0"]
+        assert asym > 2.0, f"asym for exponential = {asym}, expected > 2"
+
+    def test_percentileratios_nan_input_handled(self):
+        """NaN magnitudes are dropped and the surviving N is used."""
+        rng = np.random.default_rng(2)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Sprinkle 10% NaNs.
+        mag[rng.choice(n, n // 10, replace=False)] = np.nan
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="withnan")
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+        ]).run(lc)
+        # Surviving values are still Gaussian, so the limits still hold.
+        ratio = result.vars["PERCENTILERATIOS_medmeddev_over_stddev_0"]
+        assert abs(ratio - 0.6745) < 0.02
+
+    def test_percentileratios_maskpoints_changes_result(self):
+        """Masking out the tail of a skewed LC changes the asym statistic."""
+        rng = np.random.default_rng(3)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        # Heavy positive skew (exponential): asym >> 1.
+        mag = rng.exponential(scale=1.0, size=n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="expo")
+        # Build a mask that keeps only the lower half of the magnitude
+        # distribution -- the symmetric bulk -- via -expr.  Then asym
+        # should be much closer to 1.
+        result = vt.Pipeline([
+            cmd.percentileratios(),
+            cmd.expr("keep=(mag<1.0)"),
+            cmd.percentileratios(maskpoints="keep"),
+        ]).run(lc)
+        asym_unmasked = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_0"]
+        asym_masked   = result.vars["PERCENTILERATIOS_asym_PCT5.00_PCT95.00_2"]
+        # Unmasked exponential is strongly skewed; masked bulk is much less so.
+        assert asym_unmasked > 2.0, f"unmasked asym = {asym_unmasked}"
+        assert asym_masked < asym_unmasked, (
+            f"masked asym {asym_masked} should be smaller than unmasked {asym_unmasked}"
+        )
+
+    # -----------------------------------------------------------------------
+    # beyondNsigma
+    # -----------------------------------------------------------------------
+
+    def test_beyondNsigma_gaussian_limit(self):
+        """For large-N Gaussian noise, frac_above_N1 -> 0.1587 and
+        frac_above_N3 -> 0.00135 (one-tailed 1 - Phi(N))."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+        ]).run(lc)
+        f_above_1 = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        f_below_1 = result.vars["BEYONDNSIGMA_frac_below_N1.00_0"]
+        f_above_3 = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f_below_3 = result.vars["BEYONDNSIGMA_frac_below_N3.00_0"]
+        # 1 - Phi(1) = 0.1587; finite-sample std at N=20000 is ~0.0026.
+        assert abs(f_above_1 - 0.1587) < 0.01, f"frac_above_1 = {f_above_1}"
+        assert abs(f_below_1 - 0.1587) < 0.01, f"frac_below_1 = {f_below_1}"
+        # 1 - Phi(3) = 0.00135; finite-sample std at N=20000 is ~0.00026.
+        assert abs(f_above_3 - 0.00135) < 0.002, f"frac_above_3 = {f_above_3}"
+        assert abs(f_below_3 - 0.00135) < 0.002, f"frac_below_3 = {f_below_3}"
+
+    def test_beyondNsigma_useMAD_matches_stddev_for_gaussian(self):
+        """For clean Gaussian noise, useMAD and stddev modes agree to <2%
+        because 1.483 * medmeddev -> stddev in the large-N limit."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.beyondNsigma(useMAD=True),
+        ]).run(lc)
+        f1_std = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        f1_mad = result.vars["BEYONDNSIGMA_frac_above_N1.00_1"]
+        assert abs(f1_std - f1_mad) < 0.01, f"std={f1_std}, mad={f1_mad}"
+
+    def test_beyondNsigma_useMAD_robust_to_outliers(self):
+        """With heavy-tailed outliers injected, useMAD identifies more 3-sigma
+        outliers than stddev mode -- because stddev is inflated by the outliers
+        and widens the threshold, while MAD reflects the bulk's scale."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Inject 200 outliers at +-[8, 20] sigma.
+        idx = rng.choice(n, size=200, replace=False)
+        mag[idx] += rng.choice([-1.0, 1.0], size=200) * rng.uniform(8, 20, 200)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="heavy")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.beyondNsigma(useMAD=True),
+        ]).run(lc)
+        f3_std_above = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f3_mad_above = result.vars["BEYONDNSIGMA_frac_above_N3.00_1"]
+        # MAD-based threshold is tighter -> more points cross it -> larger frac.
+        assert f3_mad_above > f3_std_above, (
+            f"useMAD frac_above_3={f3_mad_above} should exceed stddev "
+            f"frac_above_3={f3_std_above} when heavy outliers are present"
+        )
+
+    def test_beyondNsigma_custom_Nvalues_column_names(self):
+        """Custom float Nvalues produce columns with %.2f-formatted names."""
+        rng = np.random.default_rng(0)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(Nvalues=[1.5, 2.5]),
+        ]).run(lc)
+        assert "BEYONDNSIGMA_frac_above_N1.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_below_N1.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_above_N2.50_0" in result.vars.index
+        assert "BEYONDNSIGMA_frac_below_N2.50_0" in result.vars.index
+
+    def test_beyondNsigma_degenerate_distribution(self):
+        """When every magnitude equals the median, sigma=0 -> all fractions 0."""
+        n = 100
+        t = np.linspace(0, 30, n)
+        mag = np.full(n, 10.0)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="flat")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+        ]).run(lc)
+        for n_val in [1.0, 3.0, 5.0]:
+            tag = f"BEYONDNSIGMA_frac_above_N{n_val:.2f}_0"
+            assert result.vars[tag] == 0.0, f"{tag} = {result.vars[tag]}"
+            tag = f"BEYONDNSIGMA_frac_below_N{n_val:.2f}_0"
+            assert result.vars[tag] == 0.0, f"{tag} = {result.vars[tag]}"
+
+    def test_beyondNsigma_two_tail_consistency(self):
+        """frac_above + frac_below should equal the two-tailed fraction exactly
+        (integer counts divided by the same denominator -- no FP slack)."""
+        rng = np.random.default_rng(7)
+        n = 5000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(Nvalues=[1.0]),
+        ]).run(lc)
+        above = result.vars["BEYONDNSIGMA_frac_above_N1.00_0"]
+        below = result.vars["BEYONDNSIGMA_frac_below_N1.00_0"]
+        # Both fractions have the same denominator N_rej, so their sum is
+        # exactly representable as a count fraction.
+        total = above + below
+        # Count back the total via N_rej and verify it's an integer / N_rej.
+        # At n=5000, the sum's denominator must be 5000.
+        assert abs(total * n - round(total * n)) < 1e-9, (
+            f"above+below={total} not an integer/{n} fraction"
+        )
+
+    def test_beyondNsigma_maskpoints_changes_result(self):
+        """Masking out the heavy upper tail reduces frac_above relative to
+        the full distribution -- the bulk's fraction beyond N*sigma is smaller
+        than the full distribution's because the outliers don't inflate sigma
+        (under stddev mode) once they're masked."""
+        rng = np.random.default_rng(8)
+        n = 10000
+        t = np.linspace(0, 30, n)
+        mag = rng.normal(0.0, 1.0, n)
+        # Inject 100 large positive outliers.
+        idx = rng.choice(n, size=100, replace=False)
+        mag[idx] += rng.uniform(8.0, 15.0, size=100)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="heavy")
+        result = vt.Pipeline([
+            cmd.beyondNsigma(),
+            cmd.expr("keep=(mag<5.0)"),  # mask out the injected outliers
+            cmd.beyondNsigma(maskpoints="keep"),
+        ]).run(lc)
+        f3_full   = result.vars["BEYONDNSIGMA_frac_above_N3.00_0"]
+        f3_masked = result.vars["BEYONDNSIGMA_frac_above_N3.00_2"]
+        # Full distribution: ~100 outliers count as far-above (1%); masked
+        # bulk is clean Gaussian where 3-sigma is ~0.135%.
+        assert f3_full > 0.005, f"f3_full = {f3_full}; outliers should show"
+        assert f3_masked < 0.01, f"f3_masked = {f3_masked}; should drop after mask"
+        assert f3_masked < f3_full
+
+    # -----------------------------------------------------------------------
+    # slopestats
+    # -----------------------------------------------------------------------
+
+    def test_slopestats_gaussian_limit(self):
+        """For large-N white-noise slopes, frac_above_T1 -> 0.1587 and
+        frac_above_T3 -> 0.00135 (one-tailed 1 - Phi(T))."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.arange(n, dtype=float)  # dt = 1 day, integer-aligned
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.slopestats(threshold=[1.0, 3.0]),
+        ]).run(lc)
+        f_above_1 = result.vars["SLOPESTATS_frac_above_T1.00_0"]
+        f_below_1 = result.vars["SLOPESTATS_frac_below_T1.00_0"]
+        f_above_3 = result.vars["SLOPESTATS_frac_above_T3.00_0"]
+        f_below_3 = result.vars["SLOPESTATS_frac_below_T3.00_0"]
+        # Slope distribution is Gaussian with mean 0; 1-Phi(1) = 0.1587.
+        assert abs(f_above_1 - 0.1587) < 0.01, f"frac_above_1 = {f_above_1}"
+        assert abs(f_below_1 - 0.1587) < 0.01, f"frac_below_1 = {f_below_1}"
+        # 1-Phi(3) = 0.00135; small-sample noise is ~0.0003.
+        assert abs(f_above_3 - 0.00135) < 0.002, f"frac_above_3 = {f_above_3}"
+        assert abs(f_below_3 - 0.00135) < 0.002, f"frac_below_3 = {f_below_3}"
+
+    def test_slopestats_constant_slope_has_zero_mad(self):
+        """For a perfectly linear LC, all consecutive slopes are equal,
+        so mad_dmdt -> 0 and median_abs_dmdt = max_abs_dmdt = |k|."""
+        n = 100
+        t = np.arange(n, dtype=float)
+        k = 0.05
+        mag = k * t
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="lin")
+        result = vt.Pipeline([cmd.slopestats()]).run(lc)
+        # MAD should be at floating-point noise level (well below 1e-10).
+        assert result.vars["SLOPESTATS_mad_dmdt_0"] < 1e-10
+        assert abs(result.vars["SLOPESTATS_median_abs_dmdt_0"] - k) < 1e-9
+        assert abs(result.vars["SLOPESTATS_max_abs_dmdt_0"] - k) < 1e-9
+
+    def test_slopestats_maxgap_drops_gap_spanning_pair(self):
+        """A pathological gap-spanning pair should produce max_abs_dmdt
+        far above the bulk, and maxgap should drop it back to the bulk."""
+        # Times: 0..49 clean, then jump to t=150 with a spike, then 51..99.
+        ts = list(range(0, 50)) + [150] + list(range(51, 100))
+        ms = [0.0] * 50 + [1000.0] + [0.0] * 49
+        t = np.array(ts, dtype=float)
+        mag = np.array(ms, dtype=float)
+        err = np.full(len(t), 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gap")
+        result = vt.Pipeline([
+            cmd.slopestats(),                # no maxgap: spike dominates
+            cmd.slopestats(maxgap=50.0),     # drops the t=99->150 pair
+        ]).run(lc)
+        max_no_filter = result.vars["SLOPESTATS_max_abs_dmdt_0"]
+        max_filtered  = result.vars["SLOPESTATS_max_abs_dmdt_1"]
+        assert max_no_filter > 10.0, f"max without maxgap = {max_no_filter}"
+        assert max_filtered == 0.0, f"max with maxgap = {max_filtered}"
+
+    def test_slopestats_useMAD_matches_stddev_for_gaussian(self):
+        """For clean Gaussian slopes, useMAD and stddev modes agree to <2%
+        because 1.483 * medmeddev -> stddev in the large-N limit."""
+        rng = np.random.default_rng(0)
+        n = 20000
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        result = vt.Pipeline([
+            cmd.slopestats(),
+            cmd.slopestats(useMAD=True),
+        ]).run(lc)
+        f1_std = result.vars["SLOPESTATS_frac_above_T3.00_0"]
+        f1_mad = result.vars["SLOPESTATS_frac_above_T3.00_1"]
+        assert abs(f1_std - f1_mad) < 0.005, f"std={f1_std}, mad={f1_mad}"
+
+    def test_slopestats_binshift_changes_partition(self):
+        """A half-bin binshift on integer-day points with a 10-day binsize
+        re-partitions the LC and produces a measurably different median."""
+        rng = np.random.default_rng(0)
+        n = 5000
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            # bintime in minutes: 14400 min = 10 days.  binshift 0.5 ->
+            # bin partition shifts by 5 days, moving the first 5 points
+            # into a half-size bin.
+            cmd.slopestats(bintime=[14400]),
+            cmd.slopestats(bintime=[14400], binshift=0.5),
+        ]).run(lc)
+        m_noshift = result.vars["SLOPESTATS_median_abs_dmdt_BT14400.00_0"]
+        m_shifted = result.vars["SLOPESTATS_median_abs_dmdt_BT14400.00_1"]
+        assert m_noshift != m_shifted, "binshift should change the partition"
+
+    def test_slopestats_bintime_column_names_use_minutes(self):
+        """bintime values appear in column names verbatim (as given in
+        minutes), not as the kernel's days-converted internal value."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.arange(n, dtype=float)
+        mag = rng.normal(0.0, 1.0, n)
+        err = np.full(n, 1.0)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="g")
+        result = vt.Pipeline([
+            cmd.slopestats(bintime=[5.0, 60.0]),
+        ]).run(lc)
+        # The user-supplied minute values appear formatted as %.2f.
+        assert "SLOPESTATS_median_abs_dmdt_BT5.00_0" in result.vars.index
+        assert "SLOPESTATS_median_abs_dmdt_BT60.00_0" in result.vars.index
+
+    # -----------------------------------------------------------------------
+    # CodyM
+    # -----------------------------------------------------------------------
+
+    def test_codym_symmetric_gaussian_yields_M_near_zero(self):
+        """A symmetric Gaussian-noise LC should give |M| close to 0 once
+        the deciles are balanced about the median."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="gauss")
+        # trendwindow >= LC duration -> detrend is a constant subtract
+        # (no effect on M); sigclip=0 disables rejection so the noise
+        # decile tails are intact.
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        # n=3000 decile statistics give per-LC M sample stddev ~ 0.05;
+        # 0.1 is a 2-sigma margin and still inside the |M| <= 0.25
+        # "symmetric" bin of Cody et al.
+        assert abs(M) < 0.1, f"M = {M} for symmetric Gaussian noise"
+
+    def test_codym_injected_dips_yield_positive_M(self):
+        """Adding a small fraction of faint excursions makes the
+        faint-decile mean fall further from the median than the
+        bright-decile mean -> M > 0 (a dipping signature)."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        dip_mask = rng.random(n) < 0.10
+        mag[dip_mask] += 0.15
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="dips")
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        assert M > 0.5, f"M = {M} for an injected-dip LC"
+
+    def test_codym_injected_bursts_yield_negative_M(self):
+        """Mirror of the dips test with bright excursions instead;
+        antisymmetry of the M definition produces M < 0."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = rng.normal(0.0, 0.02, n)
+        burst_mask = rng.random(n) < 0.10
+        mag[burst_mask] -= 0.15
+        err = np.full(n, 0.02)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="bursts")
+        result = vt.Pipeline([
+            cmd.CodyM(trendwindow=100, sigclip=0),
+        ]).run(lc)
+        M = result.vars["CODYM_M_0"]
+        assert M < -0.5, f"M = {M} for an injected-burst LC"
+
+    # -----------------------------------------------------------------------
+    # CodyQ
+    # -----------------------------------------------------------------------
+
+    def test_codyq_sinusoid_at_true_period_yields_Q_near_zero(self):
+        """A clean sinusoid evaluated at its true period should give Q
+        close to 0 -- the phase model captures essentially all the
+        variance, leaving residuals at the noise floor."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        P = 2.0
+        mag = 0.1 * np.sin(2.0 * np.pi * t / P) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.CodyQ(period=P, trendwindow=100),
+        ]).run(lc)
+        Q = result.vars["CODYQ_Q_0"]
+        assert Q < 0.1, f"Q = {Q} at the true period of a clean sinusoid"
+
+    def test_codyq_sinusoid_at_wrong_period_yields_Q_near_one(self):
+        """At an incorrect period the phase model removes essentially
+        no variance, so rms_resid -> rms_raw and Q -> 1."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        mag = 0.1 * np.sin(2.0 * np.pi * t / 2.0) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.CodyQ(period=1.37, trendwindow=100),
+        ]).run(lc)
+        Q = result.vars["CODYQ_Q_0"]
+        assert Q > 0.95, f"Q = {Q} at a wrong period of a clean sinusoid"
+
+    def test_codyq_aov_back_reference(self):
+        """The 'aov' period source picks up the primary peak of the
+        most-recent -aov; verify the pipeline-mode back-reference
+        resolves and Q matches the value obtained from a direct fix
+        at the same period."""
+        rng = np.random.default_rng(11)
+        n = 3000
+        t = np.arange(n, dtype=float) * 0.01
+        P_true = 2.0
+        mag = 0.1 * np.sin(2.0 * np.pi * t / P_true) + rng.normal(0.0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="sin")
+        result = vt.Pipeline([
+            cmd.aov(0.5, 4.0, 0.1, 5, npeaks=1, save_periodogram=False),
+            cmd.CodyQ(period="aov", trendwindow=100),
+        ]).run(lc)
+        P_used = result.vars["CODYQ_Period_1"]
+        Q = result.vars["CODYQ_Q_1"]
+        assert abs(P_used - P_true) < 0.01, f"AOV picked P={P_used}"
+        assert Q < 0.1, f"Q = {Q} via aov backref at true period"
+
+    # -----------------------------------------------------------------------
+    # MatchedFilter
+    # -----------------------------------------------------------------------
+
+    def test_matchedfilter_recovers_injected_gauss(self):
+        """Inject a known Gaussian into white-noise data and recover it.
+
+        Verifies that the named-gauss MatchedFilter recovers (within
+        ~10 percent) the injected amplitude at the right time."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.linspace(0, 30, n)
+        # White noise + Gaussian dip at t0 with sigma=0.3 and depth -0.05.
+        t0 = t[100]
+        sigma_g = 0.3
+        depth = -0.05
+        mag = depth * np.exp(-0.5 * ((t - t0) / sigma_g) ** 2) \
+              + rng.normal(0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="inj")
+        result = vt.Pipeline([
+            cmd.MatchedFilter("gauss", 3.0, "window", "negative",
+                              sigma=sigma_g, npeaks=1),
+        ]).run(lc)
+        # Output column naming: MatchedFilter_*_<peak>_<step>
+        keys = result.vars.index
+        snr_key = [k for k in keys if k.startswith("MatchedFilter_SNR_1_")][0]
+        amp_key = [k for k in keys if k.startswith("MatchedFilter_Amplitude_1_")][0]
+        time_key = [k for k in keys if k.startswith("MatchedFilter_Time_1_")][0]
+        snr = float(result.vars[snr_key])
+        amp = float(result.vars[amp_key])
+        t_rec = float(result.vars[time_key])
+        # Strong negative detection at the injection time.
+        assert snr < -10.0
+        assert abs(amp - depth) / abs(depth) < 0.10
+        assert abs(t_rec - t0) < 0.1
+
+    def test_matchedfilter_template_modes_consistent(self):
+        """The named-gauss, file, and expr template modes should all
+        give the same recovered amplitude/time on a clean injection."""
+        rng = np.random.default_rng(0)
+        n = 500
+        t = np.linspace(0, 30, n)
+        t0 = t[100]
+        sigma_g = 0.3
+        depth = -0.05
+        mag = depth * np.exp(-0.5 * ((t - t0) / sigma_g) ** 2) \
+              + rng.normal(0, 0.01, n)
+        err = np.full(n, 0.01)
+        lc = vt.LightCurve.from_arrays(t, mag, err, name="inj")
+        # Reference: named gauss.
+        result_named = vt.Pipeline([
+            cmd.MatchedFilter("gauss", 3.0, "window", "negative",
+                              sigma=sigma_g, npeaks=1),
+        ]).run(lc)
+        # Expression: sampled Gaussian formula.
+        result_expr = vt.Pipeline([
+            cmd.MatchedFilter("expr", 3.0, "window", "negative",
+                              expression=f"exp(-s*s/{2.0 * sigma_g ** 2})",
+                              npeaks=1),
+        ]).run(lc)
+        # Pull the amp from each.
+        def amp_of(result):
+            k = [kk for kk in result.vars.index
+                 if kk.startswith("MatchedFilter_Amplitude_1_")][0]
+            return float(result.vars[k])
+        # Expression mode must match named gauss to ~1 part in 1e-5.
+        assert abs(amp_of(result_named) - amp_of(result_expr)) \
+               < 1e-5 * abs(amp_of(result_named))
 
 
 # ---------------------------------------------------------------------------

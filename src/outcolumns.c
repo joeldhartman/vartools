@@ -1270,6 +1270,127 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	case CNUM_ALARM:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Alarm->alarmvals), "%9.5f", 1, 0, 0, 0, "Alarm_%d", l);
 	  break;
+	case CNUM_VONNEUMANN:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].VonNeumann->etavals), "%9.5f", 1, 0, 0, 0, "VonNeumann_Ratio_%d", l);
+	  break;
+	case CNUM_PERCENTILERATIOS:
+	  for(i=0; i < c[l].Percentileratios->Npairs; i++) {
+	    sprintf(tmpstring,"PERCENTILERATIOS_amp_PCT%.2f_PCT%.2f_%%d",
+		    c[l].Percentileratios->plow[i],
+		    c[l].Percentileratios->phigh[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->amp), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	    sprintf(tmpstring,"PERCENTILERATIOS_asym_PCT%.2f_PCT%.2f_%%d",
+		    c[l].Percentileratios->plow[i],
+		    c[l].Percentileratios->phigh[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->asym), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	  }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Percentileratios->medmeddev_over_stddev), "%.17g", 1, 0, 0, 0, "PERCENTILERATIOS_medmeddev_over_stddev_%d", l);
+	  break;
+	case CNUM_BEYONDNSIGMA:
+	  for(i=0; i < c[l].BeyondNsigma->NN; i++) {
+	    sprintf(tmpstring,"BEYONDNSIGMA_frac_above_N%.2f_%%d",
+		    c[l].BeyondNsigma->Nvalues[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BeyondNsigma->frac_above), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	    sprintf(tmpstring,"BEYONDNSIGMA_frac_below_N%.2f_%%d",
+		    c[l].BeyondNsigma->Nvalues[i]);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BeyondNsigma->frac_below), "%.17g", 2, 0, 0, 0, i, tmpstring, l);
+	  }
+	  break;
+	case CNUM_SLOPESTATS:
+	  {
+	    int b, t, idx;
+	    int has_binning = c[l].Slopestats->has_binning;
+	    int N_b = c[l].Slopestats->N_bin;
+	    int N_t = c[l].Slopestats->N_thresh;
+	    char bin_suffix[64];
+	    for(b = 0; b < N_b; b++) {
+	      if(has_binning)
+		sprintf(bin_suffix, "_BT%.2f", c[l].Slopestats->bintimes[b]);
+	      else
+		bin_suffix[0] = '\0';
+
+	      sprintf(tmpstring, "SLOPESTATS_median_abs_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->median_abs_dmdt), "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+	      sprintf(tmpstring, "SLOPESTATS_max_abs_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->max_abs_dmdt),    "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+	      sprintf(tmpstring, "SLOPESTATS_mad_dmdt%s_%%d", bin_suffix);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->mad_dmdt),        "%.17g", 2, 0, 0, 0, b, tmpstring, l);
+
+	      for(t = 0; t < N_t; t++) {
+		idx = b * N_t + t;
+		sprintf(tmpstring, "SLOPESTATS_frac_above_T%.2f%s_%%d",
+			c[l].Slopestats->thresholds[t], bin_suffix);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->frac_above), "%.17g", 2, 0, 0, 0, idx, tmpstring, l);
+		sprintf(tmpstring, "SLOPESTATS_frac_below_T%.2f%s_%%d",
+			c[l].Slopestats->thresholds[t], bin_suffix);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Slopestats->frac_below), "%.17g", 2, 0, 0, 0, idx, tmpstring, l);
+	      }
+	    }
+	  }
+	  break;
+	case CNUM_CODYM:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->M),       "%.17g", 1, 0, 0, 0, "CODYM_M_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->d10),     "%.17g", 1, 0, 0, 0, "CODYM_d10_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->dmed),    "%.17g", 1, 0, 0, 0, "CODYM_dmed_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyM->sigma_d), "%.17g", 1, 0, 0, 0, "CODYM_sigma_d_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyM->Npoints), "%d",    1, 0, 0, 0, "CODYM_Npoints_%d", l);
+	  break;
+	case CNUM_RUNLENGTH:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->above_maxlen),    "%d",    1, 0, 0, 0, "RUNLENGTH_ABOVE_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->above_nruns),     "%d",    1, 0, 0, 0, "RUNLENGTH_ABOVE_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->above_meanlen),   "%.17g", 1, 0, 0, 0, "RUNLENGTH_ABOVE_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->below_maxlen),    "%d",    1, 0, 0, 0, "RUNLENGTH_BELOW_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->below_nruns),     "%d",    1, 0, 0, 0, "RUNLENGTH_BELOW_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->below_meanlen),   "%.17g", 1, 0, 0, 0, "RUNLENGTH_BELOW_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outhigh_maxlen),  "%d",    1, 0, 0, 0, "RUNLENGTH_OUTHIGH_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outhigh_nruns),   "%d",    1, 0, 0, 0, "RUNLENGTH_OUTHIGH_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->outhigh_meanlen), "%.17g", 1, 0, 0, 0, "RUNLENGTH_OUTHIGH_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outlow_maxlen),   "%d",    1, 0, 0, 0, "RUNLENGTH_OUTLOW_MAXLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Runlength->outlow_nruns),    "%d",    1, 0, 0, 0, "RUNLENGTH_OUTLOW_NRUNS_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->outlow_meanlen),  "%.17g", 1, 0, 0, 0, "RUNLENGTH_OUTLOW_MEANLEN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->medval),          "%.17g", 1, 0, 0, 0, "RUNLENGTH_MEDIAN_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->madval),          "%.17g", 1, 0, 0, 0, "RUNLENGTH_MAD_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Runlength->kval),            "%.17g", 1, 0, 0, 0, "RUNLENGTH_K_%d", l);
+	  break;
+	case CNUM_CODYQ:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Q),         "%.17g", 1, 0, 0, 0, "CODYQ_Q_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->period),    "%.17g", 2, 0, 0, 0, 0, "CODYQ_Period_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->RMS_raw),   "%.17g", 1, 0, 0, 0, "CODYQ_RMS_raw_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->RMS_resid), "%.17g", 1, 0, 0, 0, "CODYQ_RMS_resid_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].CodyQ->Sigma),     "%.17g", 1, 0, 0, 0, "CODYQ_Sigma_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].CodyQ->Npoints),   "%d",    1, 0, 0, 0, "CODYQ_Npoints_%d", l);
+	  break;
+	case CNUM_STRUCTUREFUNCTION:
+	  if(c[l].StructureFunction->do_fit_drw) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->sigma_long), "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_SIGMA_%d",     l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->tau),        "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_TAU_%d",       l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->chi2),       "%.17g", 1, 0, 0, 0, "STRUCTUREFUNCTION_CHI2_%d",      l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->dof),        "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_DOF_%d",       l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->converged),  "%d",    1, 0, 0, 0, "STRUCTUREFUNCTION_CONVERGED_%d", l);
+	  }
+	  if(c[l].StructureFunction->do_report_in_table) {
+	    int ke;
+	    for(ke = 0; ke < c[l].StructureFunction->n_report_edges; ke++) {
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_DT_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_dt),       "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_SF_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_sf),       "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_SIGMA_SF_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].StructureFunction->report_sigma_sf), "%.17g", 2, 0, 0, 0, ke, tmpstring, l);
+	      sprintf(tmpstring, "STRUCTUREFUNCTION_NPAIRS_%d_%%d", ke);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].StructureFunction->report_npairs),   "%d",    2, 0, 0, 0, ke, tmpstring, l);
+	    }
+	  }
+	  break;
+	case CNUM_DRWFIT:
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->sigma_long), "%.17g", 1, 0, 0, 0, "DRWFIT_SIGMA_%d",      l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->tau),        "%.17g", 1, 0, 0, 0, "DRWFIT_TAU_%d",        l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->mu),         "%.17g", 1, 0, 0, 0, "DRWFIT_MU_%d",         l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->lnL),        "%.17g", 1, 0, 0, 0, "DRWFIT_LNL_%d",        l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->dlnL_noise), "%.17g", 1, 0, 0, 0, "DRWFIT_DLNL_NOISE_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].DRWFit->dlnL_inf),   "%.17g", 1, 0, 0, 0, "DRWFIT_DLNL_INF_%d",   l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].DRWFit->converged),  "%d",    1, 0, 0, 0, "DRWFIT_CONVERGED_%d",  l);
+	  break;
 	case CNUM_FINDBLENDS:
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].FindBlends->periods), "%14.8f", 2, 0, 0, 0, 0, "FindBlends_Period_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_STRING, MAXLEN, &(c[l].FindBlends->varblendnames), "%s", 1, 0, 0, 0, "FindBlends_LCname_%d",l);
@@ -1314,6 +1435,67 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Aov->rmsaov), "%9.5f", 1, 0, 0, 0, "RMS_lnAOV_%d", l);
 	    }
 	  break;
+	case CNUM_PDM:
+	  for(i=1;i<=c[l].Pdm->Npeaks;i++)
+	    {
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "PDM_Period_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakvalues),  "%9.5f", 2, 0, 0, 0, i-1, "PDM_Theta_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakSNR),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_SNR_%d_%d",i,l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->peakFAP),     "%9.5f", 2, 0, 0, 0, i-1, "PDM_NEG_LN_FAP_%d_%d",i,l);
+	      if(c[l].Pdm->whiten) {
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta_whiten), "%9.5f", 2, 0, 0, 0, i-1, "Mean_PDM_Theta_%d_%d", i, l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta_whiten), "%9.5f", 2, 0, 0, 0, i-1, "RMS_PDM_Theta_%d_%d", i, l);
+	      }
+	    }
+	  if(!c[l].Pdm->whiten) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->avetheta), "%9.5f", 1, 0, 0, 0, "Mean_PDM_Theta_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->rmstheta), "%9.5f", 1, 0, 0, 0, "RMS_PDM_Theta_%d", l);
+	  }
+	  if(c[l].Pdm->fixperiodSNR) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_periods),   "%14.8f", 2, 0, 0, 0, 0, "PDM_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakvalues), "%9.5f", 1, 0, 0, 0, "PDM_Theta_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakSNR),    "%9.5f", 1, 0, 0, 0, "PDM_SNR_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Pdm->fixperiodSNR_peakFAP),    "%9.5f", 1, 0, 0, 0, "PDM_NEG_LN_FAP_PeriodFix_%d", l);
+	  }
+	  break;
+
+	case CNUM_FTP:
+	  for(i=1;i<=c[l].Ftp->Npeaks;i++) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakperiods), "%14.8f", 2, 0, 0, 0, i-1, "FTP_Period_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakvalues),  "%9.6f", 2, 0, 0, 0, i-1, "FTP_Power_%d_%d",  i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakSNR),     "%9.5f", 2, 0, 0, 0, i-1, "FTP_SNR_%d_%d",    i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Ftp->peakNegAmp),  "%2d",   2, 0, 0, 0, i-1, "FTP_NegAmp_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakTheta),   "%10.6f",2, 0, 0, 0, i-1, "FTP_Theta_%d_%d",  i, l);
+	    if(c[l].Ftp->whiten) {
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->avepower_whiten), "%9.6f", 2, 0, 0, 0, i-1, "Mean_FTP_Power_%d_%d", i, l);
+	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->rmspower_whiten), "%9.6f", 2, 0, 0, 0, i-1, "RMS_FTP_Power_%d_%d",  i, l);
+	    }
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->peakFAP), "%9.5f", 2, 0, 0, 0, i-1, "FTP_NEG_LN_FAP_%d_%d", i, l);
+	  }
+	  if(!c[l].Ftp->whiten) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->avepower), "%9.6f", 1, 0, 0, 0, "Mean_FTP_Power_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->rmspower), "%9.6f", 1, 0, 0, 0, "RMS_FTP_Power_%d", l);
+	  }
+	  if(c[l].Ftp->fixperiodSNR) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_periods),    "%14.8f", 2, 0, 0, 0, 0, "FTP_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakvalues), "%9.6f",  1, 0, 0, 0, "FTP_Power_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakSNR),    "%9.5f",  1, 0, 0, 0, "FTP_SNR_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_INT,    0, &(c[l].Ftp->fixperiodSNR_peakNegAmp), "%2d",    1, 0, 0, 0, "FTP_NegAmp_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakTheta),  "%10.6f", 1, 0, 0, 0, "FTP_Theta_PeriodFix_%d", l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Ftp->fixperiodSNR_peakFAP), "%9.5f", 1, 0, 0, 0, "FTP_NEG_LN_FAP_PeriodFix_%d", l);
+	  }
+	  break;
+
+	case CNUM_MATCHEDFILTER:
+	  for(i=1;i<=c[l].MatchedFilter->Npeaks;i++) {
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peaktimes), "%17.9f", 2, 0, 0, 0, i-1, "MatchedFilter_Time_%d_%d", i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peakSNR),   "%9.5f",  2, 0, 0, 0, i-1, "MatchedFilter_SNR_%d_%d",  i, l);
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->peakamps),  "%12.6g", 2, 0, 0, 0, i-1, "MatchedFilter_Amplitude_%d_%d", i, l);
+	  }
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->mean_snr), "%9.5f", 1, 0, 0, 0, "MatchedFilter_Mean_SNR_%d", l);
+	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].MatchedFilter->rms_snr),  "%9.5f", 1, 0, 0, 0, "MatchedFilter_RMS_SNR_%d",  l);
+	  break;
+
 	case CNUM_HARMAOV:
 	  for(i=1;i<=c[l].AovHarm->Npeaks;i++)
 	    {
@@ -1790,7 +1972,13 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	    else
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->inputqgress), "%9.5f", 1, 1, 0, 0, "BLSFixPerDurTc_Qingress_%d",l);
 	  }
-	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
+	  /* When "fixdepth" is given the Depth column already reports the
+	     fixed input depth (registered above), so only register the
+	     fitted depth here when the depth is being optimized -- otherwise
+	     BLSFixPerDurTc_Depth_%d would be defined twice.  Mirrors the
+	     !fixdepth guard on the fitted Qingress column below. */
+	  if(!c[l].BlsFixPerDurTc->fixdepth)
+	    addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->depth), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Depth_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixPerDurTc->qtran), "%9.5f", 1, 0, 0, 0, "BLSFixPerDurTc_Qtran_%d",l);
 	  if(c[l].BlsFixPerDurTc->fittrap && !c[l].BlsFixPerDurTc->fixdepth)
 	    {

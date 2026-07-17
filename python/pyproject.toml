@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyvartools"
-version = "0.1.0"
+version = "1.0"
 description = "Python API for the VARTOOLS light curve analysis program"
 readme = "README.md"
 requires-python = ">=3.8"

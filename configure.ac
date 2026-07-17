@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ([2.69])
-AC_INIT([vartools], [1.6], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
+AC_INIT([vartools], [1.6.1], [jhartman@astro.princeton.edu], [vartools], [http://www.astro.princeton.edu/~jhartman/vartools.html])
 AC_CONFIG_SRCDIR([src/doublelinklist.h])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -45,6 +45,25 @@ AC_SUBST([LIBLTDL])
 
 # Checks for programs.
 AC_PROG_CC
+
+# VARTOOLS contains legacy K&R-style function definitions and an historical
+# exit() prototype.  GCC 14/15 and recent Apple Clang default to -std=gnu23,
+# under which both become hard errors ("old-style function definition",
+# "conflicting types for 'exit'").  Pin the compiler to gnu17 -- the last
+# standard that still permits this code -- when it accepts the flag, unless
+# the user has already chosen a standard via CFLAGS.
+case " $CFLAGS " in
+  *" -std="*) ;;                        # respect a user-supplied -std=...
+  *)
+    AC_MSG_CHECKING([whether $CC accepts -std=gnu17])
+    vt_save_CFLAGS="$CFLAGS"
+    CFLAGS="$CFLAGS -std=gnu17"
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[]])],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no]); CFLAGS="$vt_save_CFLAGS"])
+    ;;
+esac
+
 AC_PROG_AWK
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -136,6 +155,32 @@ AS_IF([test "x$with_gsl" != xno],
      fi])])
 
 AM_CONDITIONAL([HAVE_GSL], [ test "x$LIBGSL" != x ])
+
+dnl Optional NFFT3 (with FFTW3) for batched non-equispaced FFT in -FTP.
+dnl Default check (libnfft3-dev installs libnfft3 and pulls in libfftw3).
+AC_ARG_WITH([nfft],
+  [AS_HELP_STRING([--with-nfft],
+    [enable NFFT-accelerated -FTP sums via libnfft3 + libfftw3 @<:@default=check@:>@])],
+  [],
+  [with_nfft=check])
+
+LIBNFFT=
+AS_IF([test "x$with_nfft" != xno],
+  [AC_CHECK_HEADER([nfft3.h],
+    [AC_CHECK_LIB([nfft3], [nfft_init_1d],
+      [AC_SUBST([LIBNFFT], ["-lnfft3 -lfftw3"])
+       AC_DEFINE([HAVE_NFFT3], [1],
+                 [Define if you have libnfft3 and libfftw3])
+      ],
+      [if test "x$with_nfft" != xcheck ; then
+         AC_MSG_FAILURE(
+           [--with-nfft was given, but libnfft3 link test failed])
+       fi],[-lfftw3])],
+    [if test "x$with_nfft" != xcheck ; then
+       AC_MSG_FAILURE(
+         [--with-nfft was given, but nfft3.h header not found])
+     fi])])
+AM_CONDITIONAL([HAVE_NFFT3], [ test "x$LIBNFFT" != x ])
 
 AC_CHECK_LIB([pthread], [pthread_create],
   [AC_SUBST([LIBPTHREAD], ["-lpthread"])

@@ -183,8 +183,39 @@
 #define CNUM_ADDFITSKEYWORD 59
 #define CNUM_SORTLC 60
 #define CNUM_PRINT 61
+#define CNUM_PDM 62
+#define CNUM_FTP 63
+#define CNUM_VONNEUMANN 64
+#define CNUM_MATCHEDFILTER 65
+#define CNUM_MAGTOFLUX 66
+#define CNUM_PERCENTILERATIOS 67
+#define CNUM_BEYONDNSIGMA 68
+#define CNUM_SLOPESTATS 69
+#define CNUM_CODYM 70
+#define CNUM_CODYQ 71
+#define CNUM_STRUCTUREFUNCTION 72
+#define CNUM_DRWFIT 73
+#define CNUM_RUNLENGTH 74
 
-#define TOT_CNUMS 61
+#define TOT_CNUMS 75
+
+#define SF_BINS_LOG    0
+#define SF_BINS_LINEAR 1
+#define SF_BINS_EDGES  2
+
+#define DRWFIT_MEAN_FIT      0
+#define DRWFIT_MEAN_FIX      1
+#define DRWFIT_MEAN_SUBTRACT 2
+
+/* Model kind for -drwfit correctlc / modelvar.  SMOOTHED = posterior
+ * mean of the latent DRW process given the full LC (Rauch-Tung-Striebel
+ * backward pass); FORECAST = one-step-ahead forward-filter mean given
+ * only earlier observations. */
+#define DRWFIT_MODEL_SMOOTHED 0
+#define DRWFIT_MODEL_FORECAST 1
+
+#define SF_ESTIMATOR_SQUARED 0
+#define SF_ESTIMATOR_MAD     1
 
 #define PERTYPE_AOV 0
 #define PERTYPE_LS 1
@@ -201,6 +232,8 @@
 #define PERTYPE_AUTOFIND 12
 #define PERTYPE_EXPR 13
 #define PERTYPE_VAR 14
+#define PERTYPE_PDM 15
+#define PERTYPE_FTP 16
 
 #define KILLHARM_OUTTYPE_DEFAULT 0
 #define KILLHARM_OUTTYPE_AMPPHASE 1
@@ -362,6 +395,8 @@ typedef struct {
   double *lst;
   double wkmax;
   char datesname[MAXLEN];
+  int skipnormalize;          /* 1 = output Stetson's original J / L without
+                                 the vartools (sum_w / wkmax) rescaling */
   int usemask;
   _Variable *maskvar;
 } _Jstet;
@@ -371,6 +406,13 @@ typedef struct {
   int usemask;
   _Variable *maskvar;
 } _Alarm;
+
+typedef struct {
+  double *etavals;
+  int weighted;
+  int usemask;
+  _Variable *maskvar;
+} _VonNeumann;
 
 typedef struct {
   double start;
@@ -880,6 +922,8 @@ typedef struct {
   double **harmdeltachi2;
   int usemask;
   _Variable *maskvar;
+  int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
+  double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
 } _Bls;
 
 typedef struct {
@@ -967,6 +1011,8 @@ typedef struct {
   int fittrap;
   int usemask;
   _Variable *maskvar;
+  int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
+  double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
 } _BlsFixDurTc;
 
 typedef struct {
@@ -1051,6 +1097,12 @@ typedef struct {
 
 typedef struct {
   int medflag, binsize_Nbins_flag, Nbins, firstbinflag, tflag;
+  /* binshift_mult selects which formula the firstbin field feeds into:
+   *   0 => legacy "firstbinshift" keyword: t0 -= firstbin / binsize
+   *        (dimensionally inconsistent, retained for backward compatibility)
+   *   1 => "binshift" keyword: t0 -= firstbin * binsize
+   *        (firstbin is dimensionless fraction-of-binwidth, canonical 0..1) */
+  int binshift_mult;
   VT_PARAM_COMPANIONS(Nbins);
   double binsize;
   VT_PARAM_COMPANIONS(binsize);
@@ -1179,6 +1231,260 @@ typedef struct {
 } _Fluxtomag;
 
 typedef struct {
+  double mag_constant1;
+  VT_PARAM_COMPANIONS(mag_constant1);
+  int normalize;
+} _Magtoflux;
+
+typedef struct {
+  int Npairs;
+  double *plow;
+  double *phigh;
+  double **amp;
+  double **asym;
+  double *medmeddev_over_stddev;
+  int usemask;
+  _Variable *maskvar;
+} _Percentileratios;
+
+typedef struct {
+  int NN;
+  int useMAD;
+  double *Nvalues;
+  double **frac_above;
+  double **frac_below;
+  int usemask;
+  _Variable *maskvar;
+} _BeyondNsigma;
+
+typedef struct {
+  /* binning */
+  int has_binning;       /* 1 if "bintime" was given */
+  int N_bin;             /* number of bintimes; 1 if no binning (a single "raw" entry) */
+  double *bintimes;      /* length N_bin; meaningful only when has_binning */
+  int has_binshift;
+  double binshift;
+  /* thresholds */
+  int N_thresh;
+  double *thresholds;    /* length N_thresh */
+  /* gap filter */
+  int has_maxgap;
+  double maxgap;
+  /* sigma flavor */
+  int useMAD;
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC arrays of length N_bin (single stats) or N_bin*N_thresh
+   * (threshold-fraction columns, bin-major / threshold-minor). */
+  double **median_abs_dmdt;
+  double **max_abs_dmdt;
+  double **mad_dmdt;
+  double **frac_above;
+  double **frac_below;
+} _Slopestats;
+
+typedef struct {
+  /* Long-term detrending boxcar full-width, in time-axis units. */
+  double trendwindow;
+  VT_PARAM_COMPANIONS(trendwindow);
+  /* Optional short-timescale boxcar full-width used to build the residual
+   * on which sigma-clip outliers are identified.  When absent, outliers
+   * are identified directly on the trend-detrended curve (single-stage). */
+  int has_outlierwindow;
+  double outlierwindow;
+  VT_PARAM_COMPANIONS(outlierwindow);
+  /* Outlier-rejection threshold in sigma; <= 0 disables rejection. */
+  double sigclip;
+  VT_PARAM_COMPANIONS(sigclip);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars */
+  double *M;
+  double *d10;
+  double *dmed;
+  double *sigma_d;
+  int *Npoints;
+} _CodyM;
+
+typedef struct {
+  /* Outlier band half-width in MAD units; default 3.0.  The band is
+   * +/-k*MAD about the median, with MAD = 1.483*median(|x-median|). */
+  double k;
+  VT_PARAM_COMPANIONS(k);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars.  Four run categories (above / below the
+   * median, high / low outside the +/-k*MAD band), each with the longest
+   * run, number of runs, and mean run length; plus the median, MAD and k
+   * actually used. */
+  int    *above_maxlen;
+  int    *above_nruns;
+  double *above_meanlen;
+  int    *below_maxlen;
+  int    *below_nruns;
+  double *below_meanlen;
+  int    *outhigh_maxlen;
+  int    *outhigh_nruns;
+  double *outhigh_meanlen;
+  int    *outlow_maxlen;
+  int    *outlow_nruns;
+  double *outlow_meanlen;
+  double *medval;
+  double *madval;
+  double *kval;
+} _Runlength;
+
+typedef struct {
+  /* Period source.  pertype takes one of the PERTYPE_* constants. */
+  int pertype;
+  int lastaovindex;
+  int lastlsindex;
+  int lastblsindex;
+  int lastpdmindex;
+  int lastftpindex;
+  int lastinjectharmindex;
+  double fixedperiod;
+  _Variable *fixedperiod_var;
+  _Expression *fixedperiod_expr;
+  OutColumn *linkedcolumn;
+  /* Period storage and CODYQ_Period output column ([Nlcs][1]).  Receives
+     the list-sourced period via RegisterDataFromInputList when
+     pertype == PERTYPE_SPECIFIED, and is filled by processcommand
+     period-resolution otherwise. */
+  double **period;
+  /* Long-term detrending boxcar full-width, in time-axis units. */
+  double trendwindow;
+  VT_PARAM_COMPANIONS(trendwindow);
+  /* Width of the phase-domain boxcar smoother, as a fraction of the
+     period (in (0, 1]).  Cody used 0.25; that is the parser default. */
+  double phasesmooth;
+  VT_PARAM_COMPANIONS(phasesmooth);
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars */
+  double *Q;
+  double *RMS_raw;
+  double *RMS_resid;
+  double *Sigma;
+  int *Npoints;
+} _CodyQ;
+
+typedef struct {
+  /* Binning: SF_BINS_LOG, SF_BINS_LINEAR (Nbins bins between lagmin and
+   * lagmax), or SF_BINS_EDGES (Nbins+1 explicit edges supplied by the
+   * user; Nbins is the number of bins, i.e. one less than the edge list
+   * length).  user_edges is non-NULL only for SF_BINS_EDGES. */
+  int bin_mode;
+  int Nbins;
+  double *user_edges;
+  /* Estimator: SF_ESTIMATOR_SQUARED (default; second-order squared
+   * differences with bin-averaged noise subtraction) or
+   * SF_ESTIMATOR_MAD (first-order mean-absolute-deviation with per-pair
+   * noise subtraction, Schmidt 2010 Eq. 2). */
+  int estimator;
+  /* Optional explicit lag range (otherwise auto: min/max dt over the
+   * surviving points).  Each accepts a fixed value or a per-LC var/expr
+   * source. */
+  int have_lagrange;
+  double lagmin;
+  VT_PARAM_COMPANIONS(lagmin);
+  double lagmax;
+  VT_PARAM_COMPANIONS(lagmax);
+  /* DRW fit. */
+  int do_fit_drw;
+  int have_sigma0;
+  double sigma0;
+  VT_PARAM_COMPANIONS(sigma0);
+  int have_tau0;
+  double tau0;
+  VT_PARAM_COMPANIONS(tau0);
+  /* Aux-file output (4 columns: dt_center SF sigma_SF n_pairs). */
+  int do_save;
+  char outdir[MAXLEN];
+  char suffix[8];
+  /* In-table per-edge SF reporting: for each user-supplied lag value
+   * report_edges[k] (k = 0..n_report_edges-1), emit four scalar columns
+   * with the values of the SF bin that contains the requested lag.
+   * Edges must be strictly increasing and > 0. */
+  int do_report_in_table;
+  int n_report_edges;
+  double *report_edges;
+  /* mask */
+  int usemask;
+  _Variable *maskvar;
+  /* outputs: per-LC scalars (DRW fit only; allocated when do_fit_drw). */
+  double *sigma_long;
+  double *tau;
+  double *chi2;
+  int *dof;
+  int *converged;
+  /* outputs: per-LC per-edge arrays (allocated when do_report_in_table).
+   * Shape: [Nlcs][n_report_edges]. */
+  double **report_dt;
+  double **report_sf;
+  double **report_sigma_sf;
+  int    **report_npairs;
+} _StructureFunction;
+
+/* -drwfit: direct CAR(1) / damped-random-walk maximum-likelihood fit via
+ * the Kelly, Bechtold & Siemiginowska 2009 (ApJ, 698, 895) state-space
+ * recursion.  The recursion is parameterised in sigma_long (the long-
+ * term magnitude standard deviation, MacLeod 2010 mag) and tau (the
+ * damping time-scale in the time-axis units of the input LC).  The
+ * fitted scalar output column SIGMA_N is sigma_long. */
+typedef struct {
+  /* Mean-handling mode (DRWFIT_MEAN_FIT | _FIX | _SUBTRACT defined in
+   * drwfit.c).  Defaults to fit; the "mean" keyword selects. */
+  int mean_mode;
+  /* Fixed-mu source when mean_mode == DRWFIT_MEAN_FIX.  Accepts a
+   * literal, a "var" varname, or an "expr" expression. */
+  double mu_fix;
+  VT_PARAM_COMPANIONS(mu_fix);
+  /* Optional user-supplied initial guesses; each accepts a literal or a
+   * "var" / "expr" source. */
+  int have_sigma0;
+  double sigma0;
+  VT_PARAM_COMPANIONS(sigma0);
+  int have_tau0;
+  double tau0;
+  VT_PARAM_COMPANIONS(tau0);
+  int have_mean0;
+  double mean0;
+  VT_PARAM_COMPANIONS(mean0);
+  /* Aux-file output (8 columns: t, x, sig_meas, x_hat_fwd, Omega_fwd,
+   * chi_fwd, x_smoothed, Omega_smoothed) per LC.  Suffix is ".drwfit". */
+  int do_save;
+  char outdir[MAXLEN];
+  char suffix[8];
+  /* "correctlc" -- in-place subtract the chosen model from the LC's
+   * magnitudes before passing to the next command. */
+  int do_correctlc;
+  int correctlc_kind;   /* DRWFIT_MODEL_SMOOTHED | _FORECAST */
+  /* "modelvar" -- store the chosen model at every original LC index
+   * in a named per-LC vector variable. */
+  int do_modelvar;
+  int modelvar_kind;    /* DRWFIT_MODEL_SMOOTHED | _FORECAST */
+  char *modelvarname;   /* allocated at parse time */
+  _Variable *modelvar;  /* resolved by CheckCreateCommandOutputLCVariable */
+  /* maskpoints */
+  int usemask;
+  _Variable *maskvar;
+  /* Per-LC output scalars.  Allocated in initcommands.c at run start;
+   * populated by RunDRWFitCommand. */
+  double *sigma_long;   /* sigma_long (MacLeod mag) */
+  double *tau;          /* damping time-scale, time-axis units */
+  double *mu;           /* fitted long-term mean (NaN if subtract) */
+  double *lnL;          /* best-fit ln L */
+  double *dlnL_noise;   /* MacLeod ΔL_noise = lnL_best - lnL_{sigma->0} */
+  double *dlnL_inf;     /* MacLeod ΔL_∞     = lnL_best - lnL_{tau->∞} */
+  int    *converged;    /* 1 if amoeba converged with finite (sigma, tau) */
+} _DRWFit;
+
+typedef struct {
   double **trends, *trendx, *trendy, **u, **v, *w1, *JD, clipping, pixelsep, *ave_out, *rms_out, **lcx, **lcy;
   double *trend_prior_means, *trend_prior_stds;
   int *is_trend_prior;
@@ -1207,6 +1513,10 @@ typedef struct {
   int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
+  int do_refmag;          /* reset the corrected LC's level to a reference mag */
+  int refmag_usemedian;   /* reset the median rather than the mean */
+  double refmag;
+  VT_PARAM_COMPANIONS(refmag);
 } _TFA;
 
 typedef struct {
@@ -1237,6 +1547,10 @@ typedef struct {
   int outputfitmask;
   char *outputfitmaskvarname;
   _Variable *outputfitmaskvar;
+  int do_refmag;          /* reset the corrected LC's level to a reference mag */
+  int refmag_usemedian;   /* reset the median rather than the mean */
+  double refmag;
+  VT_PARAM_COMPANIONS(refmag);
 } _TFA_SR;
 
 typedef struct {
@@ -2298,6 +2612,328 @@ typedef struct {
 } _PrintCommand;
 
 
+/* -PDM variant identifiers (shared between parser and pdm.c) */
+#define PDM_KIND_STEP        0
+#define PDM_KIND_LINTERP     1
+#define PDM_KIND_MULTICOVER  2
+#define PDM_KIND_TOPHAT      3
+#define PDM_KIND_GAUSS       4
+
+typedef struct {
+  int kind;                /* PDM_KIND_STEP, PDM_KIND_LINTERP, ... */
+  /* Nbin: phase-bin count (binned variants).  May come from a fixed integer,
+   * an existing variable, or an analytic expression -- resolved per-LC. */
+  int Nbin;
+  int *Nbin_vals;
+  int Nbin_source;
+  _Variable *Nbin_var;
+  _Expression *Nbin_expr;
+  /* minp / maxp / subsample / finetune: same var/expr/fixed source machinery. */
+  double minp;
+  double *minp_vals;
+  int minp_source;
+  _Variable *minp_var;
+  _Expression *minp_expr;
+  double maxp;
+  double *maxp_vals;
+  int maxp_source;
+  _Variable *maxp_var;
+  _Expression *maxp_expr;
+  double subsample;
+  double *subsample_vals;
+  int subsample_source;
+  _Variable *subsample_var;
+  _Expression *subsample_expr;
+  double finetune;
+  double *finetune_vals;
+  int finetune_source;
+  _Variable *finetune_var;
+  _Expression *finetune_expr;
+  /* Nc: number of phase-shifted bin sets ("covers") for the multicover variant.
+   * Nc = 1 for step/linterp; defaults to 2 for multicover. */
+  int Nc;
+  int *Nc_vals;
+  int Nc_source;
+  _Variable *Nc_var;
+  _Expression *Nc_expr;
+  /* dphi: phase-window half-width (tophat) or Gaussian kernel sigma (gauss).
+   * Only used by the binless variants; defaults to 0.05 (cuvarbase). */
+  double dphi;
+  double *dphi_vals;
+  int dphi_source;
+  _Variable *dphi_var;
+  _Expression *dphi_expr;
+  /* simple scalars */
+  int Npeaks;
+  int operiodogram;        /* 0/1: dump periodogram file per LC */
+  char outdir[MAXLEN];
+  char suffix[8];          /* file suffix, default ".pdm" */
+  int useerr;              /* 1: weight by 1/sig^2 (default); 0: noerr keyword */
+  double clip;             /* sigma-clip factor for the SNR noise estimate (default 5) */
+  int clipiter;            /* 1: iterate clipping until count stable; 0: single pass */
+  /* Per-LC outputs */
+  double **peakperiods;    /* [Nlcs][Npeaks] */
+  double **peakvalues;     /* [Nlcs][Npeaks]  -- theta at each peak */
+  double **peakSNR;        /* [Nlcs][Npeaks] */
+  double **peakFAP;        /* [Nlcs][Npeaks] */
+  double *avetheta;        /* [Nlcs] */
+  double *rmstheta;        /* [Nlcs] */
+  /* fixperiodSNR: optionally compute theta/SNR/FAP at a specified period
+   * (taken from a prior -aov / -ls / -pdm / -Injectharm, or a literal,
+   * or a list column, or a fixcolumn back-reference).  Mirrors -aov. */
+  int fixperiodSNR;
+  int fixperiodSNR_pertype;
+  int fixperiodSNR_lastaovindex;
+  double fixperiodSNR_fixedperiod;
+  double **fixperiodSNR_periods;     /* [Nlcs][1] */
+  double *fixperiodSNR_peakvalues;   /* [Nlcs] -- theta at fixed period */
+  double *fixperiodSNR_peakSNR;      /* [Nlcs] */
+  double *fixperiodSNR_peakFAP;      /* [Nlcs] */
+  OutColumn *fixperiodSNR_linkedcolumn;
+  /* maskpoints: optional LC vector; points with maskvar > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -aov's keyword. */
+  int usemask;
+  _Variable *maskvar;
+  /* whiten: iterative pre-whitening between peaks (model = step bin means at
+   * the peak period; subtracted from the LC before recomputing the
+   * periodogram for the next peak).  Mirrors -aov's keyword. */
+  int whiten;
+  double **avetheta_whiten;   /* [Nlcs][Npeaks] -- per-cycle periodogram mean */
+  double **rmstheta_whiten;   /* [Nlcs][Npeaks] -- per-cycle periodogram rms */
+  /* bootstrap: empirical FAP calibration via Nboot shuffled-LC trials.
+   * 0 = off; >0 = enabled with that many trials.  When on, the analytic
+   * SCz Beta FAP is replaced by an empirical CDF + log-log polynomial
+   * tail extrapolation (mirrors -LS's bounded-statistic branch). */
+  int bootstrap_Nboot;
+} _PDM;
+
+
+/* ---------------- Fast Template Periodogram (FTP, Hoffman+ 2021) ----------- */
+
+typedef struct {
+  /* Template Fourier-series coefficients of length H.
+   *   M(phi) = sum_{n=1..H} [c_n cos(n phi) + s_n sin(n phi)]
+   *
+   * For the "file" and "fitlc" template-source modes, cn/sn are loaded
+   * once at parser time and shared across all LCs (inline_mode = 0).
+   *
+   * For the "inline" mode (inline_mode = 1), cn/sn are per-LC scratch
+   * buffers populated at run time in RunFTPCommand from the per-slot
+   * (cn_source[k], cn_var[k], cn_expr[k], cn_lit[k]) tuples (same for sn).
+   * H = Nharm + 1, following the -harmonicfilter convention. */
+  int     H;
+  double *cn;             /* size H -- shared (file/fitlc) or per-LC scratch (inline) */
+  double *sn;             /* size H */
+  char   *template_path;  /* original CLI tag, kept for diagnostics */
+
+  int     inline_mode;    /* 1 when cn/sn are resolved per-LC from var/expr/lit */
+  int    *cn_source;      /* size H, VARTOOLS_SOURCE_FIXED/EXISTINGVARIABLE/EVALEXPRESSION */
+  int    *sn_source;      /* size H */
+  _Variable   **cn_var;   /* size H, non-NULL where source==EXISTINGVARIABLE */
+  _Variable   **sn_var;
+  _Expression **cn_expr;  /* size H, non-NULL where source==EVALEXPRESSION */
+  _Expression **sn_expr;
+  double *cn_lit;         /* size H, used where source==FIXED */
+  double *sn_lit;
+
+  int     filelist_mode;       /* 1 when each LC has its own template file path */
+  char  **template_filenames;  /* [Nlcs], populated by RegisterDataFromInputList */
+
+  int     method;              /* 0=brute (default), 1=poly, 2=verify(both + cmp) */
+  int     sums_mode;           /* 0=direct, 1=nfft, 2=auto (NFFT if compiled, default) */
+
+  /* clip: sigma-clip factor + iterative flag for the SNR noise estimate.
+   * Mirrors -PDM / -aov.  Defaults clip=5.0, clipiter=1. */
+  double  clip;
+  int     clipiter;
+
+  /* maskpoints: optional LC vector; points with mask > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -PDM. */
+  int        usemask;
+  _Variable *maskvar;
+
+  /* whiten: iterative pre-whitening between peaks (model = theta_1 *
+   * M(omega t - theta_2) + theta_3 at the peak (P, theta_2); subtracted
+   * from the LC before recomputing the periodogram for the next peak).
+   * Each cycle's clipped mean/RMS is stored per-peak. */
+  int      whiten;
+  double **avepower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped mean */
+  double **rmspower_whiten;    /* [Nlcs][Npeaks] -- per-cycle clipped rms */
+
+  /* fixperiodSNR: evaluate FTP power / SNR / theta_2 / negamp at a
+   * caller-specified period (taken from a prior periodogram command, a
+   * literal, an input-list column, or a fixcolumn back-reference).
+   * Mirrors -aov / -PDM's fixperiodSNR.  Runs against the ORIGINAL LC
+   * (the whiten branch restores mag_orig before this is evaluated). */
+  int        fixperiodSNR;
+  int        fixperiodSNR_pertype;
+  int        fixperiodSNR_lastaovindex;
+  double     fixperiodSNR_fixedperiod;
+  double   **fixperiodSNR_periods;       /* [Nlcs][1] -- the resolved period */
+  double    *fixperiodSNR_peakvalues;    /* [Nlcs] -- FTP power at fixed period */
+  double    *fixperiodSNR_peakSNR;       /* [Nlcs] */
+  int       *fixperiodSNR_peakNegAmp;    /* [Nlcs] */
+  double    *fixperiodSNR_peakTheta;     /* [Nlcs] */
+  double    *fixperiodSNR_peakFAP;       /* [Nlcs] -- empirical FAP if bootstrap is on */
+  OutColumn *fixperiodSNR_linkedcolumn;
+
+  /* bootstrap: empirical FAP calibration via Nboot shuffled-LC trials.
+   * 0 = off; >0 = enabled with that many trials.  When on, the per-peak
+   * FTP_NEG_LN_FAP_N_M output column is emitted from the empirical CDF
+   * + log-log tail extrapolation of the bootstrap distribution. */
+  int      bootstrap_Nboot;
+  double **peakFAP;                      /* [Nlcs][Npeaks] -- -ln(FAP) per peak */
+
+  /* Negative-amplitude policy: 1 to allow theta_1 < 0 in the best fit
+   * (default; flagged via FTP_NegAmp_N_M output column); 0 to reject. */
+  int allow_neg_amp;
+  int useerr;             /* 1 default; 0 if 'noerr' keyword */
+
+  /* Frequency grid parameters (each has the standard
+   *   <"var" name | "expr" expr | fixed_value>
+   * source-resolution machinery).  Period units match the LC. */
+  double minp, maxp, subsample, finetune;
+  int    minp_source, maxp_source, subsample_source, finetune_source;
+  _Variable    *minp_var, *maxp_var, *subsample_var, *finetune_var;
+  _Expression  *minp_expr, *maxp_expr, *subsample_expr, *finetune_expr;
+  double *minp_vals, *maxp_vals, *subsample_vals, *finetune_vals;  /* per-LC */
+
+  int Npeaks;
+
+  /* operiodogram + outdir (mirrors -aov / -PDM). */
+  int   operiodogram;
+  char  outdir[MAXLEN];
+  char  suffix[MAXLEN];
+
+  /* Per-LC outputs */
+  double **peakperiods;   /* [Nlcs][Npeaks] */
+  double **peakvalues;    /* [Nlcs][Npeaks]  -- P(omega) at each peak in [0,1] */
+  double **peakSNR;       /* [Nlcs][Npeaks] */
+  int    **peakNegAmp;    /* [Nlcs][Npeaks]  -- 0 / 1 */
+  double **peakTheta;     /* [Nlcs][Npeaks]  -- best-fit theta_2 (radians) */
+  double *avepower;       /* [Nlcs] -- clipped mean of the periodogram */
+  double *rmspower;       /* [Nlcs] -- clipped RMS  of the periodogram */
+} _FTP;
+
+
+/* ----------------------- Matched-filter command --------------------------- */
+
+/* Named-template kinds (shared between parser and matchedfilter.c). */
+#define MF_TPL_EXP        0
+#define MF_TPL_DOUBLEEXP  1
+#define MF_TPL_FLARE      2
+#define MF_TPL_GAUSS      3
+#define MF_TPL_BOX        4
+#define MF_TPL_TRIANGLE   5
+#define MF_TPL_TRAP       6
+#define MF_TPL_FILE       7
+#define MF_TPL_EXPR       8
+
+/* Execution mode. */
+#define MF_MODE_WINDOW    0
+#define MF_MODE_NFFT      1
+
+/* Sign filter applied when ranking peaks / computing the SNR-noise mean/RMS. */
+#define MF_SIGNS_BOTH      0
+#define MF_SIGNS_POSITIVE  1
+#define MF_SIGNS_NEGATIVE  2
+
+/* Evaluator context passed to mf_template_eval / its NFFT-side twin
+ * when the template kind needs out-of-band state.  Used for:
+ *   - MF_TPL_FILE   -- (N, t[], g[]) are the loaded file-template rows.
+ *   - MF_TPL_EXPR   -- (expr_var, expr, lcid, threadid) drive a
+ *                      SetVariable_Value_Double + EvaluateExpression
+ *                      call per data point.
+ * Pointer fields are NULL when the kind doesn't use them.  For named
+ * templates the caller passes NULL for the whole ctx pointer and the
+ * evaluator falls through to the closed-form switch. */
+typedef struct {
+  /* File-template fields (kind == MF_TPL_FILE). */
+  int           N;
+  const double *t;
+  const double *g;
+  /* Expr-template fields (kind == MF_TPL_EXPR). */
+  _Variable    *expr_var;
+  _Expression  *expr;
+  int           lcid;
+  int           threadid;
+} _MFEvalCtx;
+
+/* One scalar parameter with the standard <var|expr|fixed> source machinery.
+ * Used for every template-shape scalar (tau, tfwhm, sigma, width, etc.),
+ * support_halfwidth, and min_separation.  Per-LC resolution writes the
+ * resolved value into vals[lcnum] inside RunMatchedFilterCommand. */
+typedef struct {
+  int     source;            /* VARTOOLS_SOURCE_FIXED / _EXISTINGVARIABLE / _EVALEXPRESSION */
+  double  fixed;             /* literal value when source==FIXED */
+  _Variable   *var;          /* set when source==EXISTINGVARIABLE */
+  _Expression *expr;         /* set when source==EVALEXPRESSION */
+  double *vals;              /* [Nlcs] -- per-LC resolved scalar */
+} _MFScalar;
+
+typedef struct {
+  int kind;                  /* MF_TPL_* */
+
+  /* Up to three named-template scalar parameters, with meaning depending on kind:
+   *   exp       -> p[0] = tau
+   *   doubleexp -> p[0] = tau_rise, p[1] = tau_decay
+   *   flare     -> p[0] = tfwhm
+   *   gauss     -> p[0] = sigma
+   *   box       -> p[0] = width
+   *   triangle  -> p[0] = width
+   *   trap      -> p[0] = rise, p[1] = flat, p[2] = fall
+   */
+  _MFScalar p[3];
+  int       nparams;         /* count of scalars actually used by this kind */
+
+  /* File-template state (kind == MF_TPL_FILE).  Loaded once at parser
+   * time, shared across all LCs.  file_t is sorted ascending and
+   * deduped; the template is evaluated by linear interpolation between
+   * adjacent rows and zero outside the file's t range. */
+  char     *file_path;       /* path the template was loaded from, kept for diagnostics */
+  int       file_N;          /* number of (t, g) rows after sort + dedupe */
+  double   *file_t;          /* size file_N */
+  double   *file_g;          /* size file_N */
+
+  /* Expression-template state (kind == MF_TPL_EXPR).  The user-visible
+   * expression string and time-relative variable name (default "s") are
+   * captured at parser time; the stump _Variable and parsed _Expression
+   * are built in analytic.c::CompileAllExpressions once the rest of the
+   * variable scope is registered, by SetupMatchedFilterExpression(). */
+  char         *expr_string;
+  char         *expr_varname;
+  _Variable    *expr_var;
+  _Expression  *expr;
+
+  _MFScalar support;         /* support_halfwidth */
+  _MFScalar min_sep;         /* min_separation (sentinel: use support if min_sep_given == 0) */
+  int       min_sep_given;
+
+  int mode;                  /* MF_MODE_WINDOW (only one in Phase A) */
+  int signs;                 /* MF_SIGNS_BOTH / POSITIVE / NEGATIVE */
+
+  int   Npeaks;
+  int   omatchfile;          /* 0/1: write aux file per LC */
+  char  outdir[MAXLEN];
+  char  suffix[8];           /* file suffix, default ".mf" */
+
+  int   whiten;
+
+  /* maskpoints: optional LC vector; points with mask > VARTOOLS_MASK_TINY
+   * are included, others excluded.  Mirrors -PDM. */
+  int        usemask;
+  _Variable *maskvar;
+
+  /* Per-LC outputs.  All arrays are sized [Nlcs] (outer) and [Npeaks]
+   * (inner) where applicable. */
+  double **peaktimes;        /* [Nlcs][Npeaks] -- tau of each peak */
+  double **peakSNR;          /* [Nlcs][Npeaks] -- signed SNR at the peak */
+  double **peakamps;         /* [Nlcs][Npeaks] -- a-hat at the peak */
+  double  *mean_snr;         /* [Nlcs] -- mean of SNR(tau) over the sign-filtered trial grid */
+  double  *rms_snr;          /* [Nlcs] -- rms  of SNR(tau) over the sign-filtered trial grid */
+} _MatchedFilter;
+
+
 typedef struct {
   int cnum;
   int require_sort;
@@ -2312,6 +2948,7 @@ typedef struct {
   _RMS_Bin *RMS_Bin;
   _Jstet *Jstet;
   _Alarm *Alarm;
+  _VonNeumann *VonNeumann;
   _Aov *Aov;
   _AovHarm *AovHarm;
   _Ls *Ls;
@@ -2367,6 +3004,18 @@ typedef struct {
   _AddFitsKeyword *AddFitsKeyword;
   _SortLC *SortLC;
   _PrintCommand *PrintCommand;
+  _PDM *Pdm;
+  _FTP *Ftp;
+  _MatchedFilter *MatchedFilter;
+  _Magtoflux *Magtoflux;
+  _Percentileratios *Percentileratios;
+  _BeyondNsigma *BeyondNsigma;
+  _Slopestats *Slopestats;
+  _CodyM *CodyM;
+  _CodyQ *CodyQ;
+  _StructureFunction *StructureFunction;
+  _DRWFit *DRWFit;
+  _Runlength *Runlength;
 
   int N_setparam_expr;
   char **setparam_EvalExprStrings;

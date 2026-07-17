@@ -40,6 +40,9 @@ will not be released until it is fully featured.  As a result:
 | `LS` | ✓ Complete | — | — | — | — | — |
 | `aov` | ✓ Complete | — | — | — | — | — |
 | `aov_harm` | ✓ Complete | — | ~~1~~ | — | — | — |
+| `PDM` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `FTP` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `MatchedFilter` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `BLS` | ✓ Complete | — | ~~1~~ | ~~6~~ | ~~3~~ | — |
 | `BLSFixPer` | ✓ Complete | — | — | ~~1~~ | — | — |
 | `BLSFixPerDurTc` | ✗ Not implemented | — | — | ~~3~~ | — | — |
@@ -71,6 +74,15 @@ will not be released until it is fully featured.  As a result:
 | `chi2` | ✓ Complete | — | — | — | — | — |
 | `chi2bin` | ✓ Complete | — | — | — | — | — |
 | `alarm` | ✓ Complete | — | — | — | — | — |
+| `vonNeumann` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `percentileratios` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `beyondNsigma` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `slopestats` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `CodyM` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `CodyQ` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `structurefunction` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `drwfit` | ✓ Complete (new in 1.7) | — | — | — | — | — |
+| `runlength` | ✓ Complete (new in 1.7) | — | — | — | — | — |
 | `rescalesig` | ✓ Complete | — | — | — | — | — |
 | `ensemblerescalesig` | ✓ Complete | — | — | — | — | — |
 | `stats` | ✓ Complete | — | — | — | — | — |
@@ -81,6 +93,7 @@ will not be released until it is fully featured.  As a result:
 | `restorelc` | ✓ Complete | — | — | — | — | — |
 | `difffluxtomag` | ✓ Complete | — | — | — | — | — |
 | `fluxtomag` | ✓ Complete | — | — | — | — | — |
+| `magtoflux` | ✓ Complete | — | — | — | — | — |
 | `changeerror` | ✓ Complete | — | — | — | — | — |
 | `changevariable` | ✓ Complete | — | — | — | — | — |
 | `copylc` | ✓ Complete | — | — | — | — | — |

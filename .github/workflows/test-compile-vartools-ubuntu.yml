@@ -18,6 +18,12 @@ jobs:
         run: sudo apt-get install libcfitsio-dev
       - name: Install GSL
         run: sudo apt-get install libgsl-dev
+      - name: Install NFFT3
+        # Optional: enables NFFT-batched summations in -FTP (~4x speedup
+        # at N >= 10000).  Without it -FTP still works (direct-sum path),
+        # but the test goldens for -FTP exercise the auto-method picker
+        # which uses NFFT when available.
+        run: sudo apt-get install libnfft3-dev
       - name: Install R dev libraries
         run: sudo apt-get install r-base-dev
       # Set up Python BEFORE ./configure: vartools's configure looks

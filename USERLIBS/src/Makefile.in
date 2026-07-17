@@ -211,6 +211,12 @@ transitbisec_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(AM_CFLAGS) $(CFLAGS) $(transitbisec_la_LDFLAGS) $(LDFLAGS) \
 	-o $@
+unstitch_la_DEPENDENCIES = $(abs_top_srcdir)/src/libvartools.la
+am_unstitch_la_OBJECTS = unstitch_la-unstitch.lo
+unstitch_la_OBJECTS = $(am_unstitch_la_OBJECTS)
+unstitch_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(unstitch_la_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -232,7 +238,8 @@ am__depfiles_remade = ./$(DEPDIR)/fastchi2_la-fastchi2.Plo \
 	./$(DEPDIR)/jktebop.Plo ./$(DEPDIR)/macula_c.Plo \
 	./$(DEPDIR)/magadd.Plo ./$(DEPDIR)/medlc.Plo \
 	./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo \
-	./$(DEPDIR)/stitch.Plo ./$(DEPDIR)/transitbisec.Plo
+	./$(DEPDIR)/stitch.Plo ./$(DEPDIR)/transitbisec.Plo \
+	./$(DEPDIR)/unstitch_la-unstitch.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -288,13 +295,14 @@ SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
 	$(libmacula_la_SOURCES) $(macula_la_SOURCES) \
 	$(nodist_EXTRA_macula_la_SOURCES) $(magadd_la_SOURCES) \
 	$(medlc_la_SOURCES) $(splinedetrend_la_SOURCES) \
-	$(stitch_la_SOURCES) $(transitbisec_la_SOURCES)
+	$(stitch_la_SOURCES) $(transitbisec_la_SOURCES) \
+	$(unstitch_la_SOURCES)
 DIST_SOURCES = $(fastchi2_la_SOURCES) $(ftuneven_la_SOURCES) \
 	$(hatpiflag_la_SOURCES) $(jktebop_la_SOURCES) \
 	$(libjktebop_la_SOURCES) $(libmacula_la_SOURCES) \
 	$(macula_la_SOURCES) $(magadd_la_SOURCES) $(medlc_la_SOURCES) \
 	$(splinedetrend_la_SOURCES) $(stitch_la_SOURCES) \
-	$(transitbisec_la_SOURCES)
+	$(transitbisec_la_SOURCES) $(unstitch_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -375,6 +383,7 @@ LIBCFITSIO = @LIBCFITSIO@
 LIBCSPICE = @LIBCSPICE@
 LIBGSL = @LIBGSL@
 LIBLTDL = @LIBLTDL@
+LIBNFFT = @LIBNFFT@
 LIBOBJS = @LIBOBJS@
 LIBPTHREAD = @LIBPTHREAD@
 LIBS = @LIBS@
@@ -491,7 +500,8 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 userlibsdir = $(USERLIBSDIR)
 userlibs_LTLIBRARIES = magadd.la jktebop.la transitbisec.la macula.la \
-	medlc.la ftuneven.la hatpiflag.la stitch.la $(am__append_1)
+	medlc.la ftuneven.la hatpiflag.la stitch.la unstitch.la \
+	$(am__append_1)
 EXTRA_LTLIBRARIES = libjktebop.la libmacula.la
 ftuneven_la_SOURCES = ftuneven.c ftuneven.h 
 ftuneven_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
@@ -522,6 +532,10 @@ hatpiflag_la_LDFLAGS = -module
 stitch_la_SOURCES = stitch.c stitch.h
 stitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
 stitch_la_LDFLAGS = -module
+unstitch_la_SOURCES = unstitch.c unstitch.h
+unstitch_la_LIBADD = $(abs_top_srcdir)/src/libvartools.la
+unstitch_la_CPPFLAGS = $(INCLUDECFITSIO)
+unstitch_la_LDFLAGS = -module
 libmacula_la_SOURCES = macula.f90
 libmacula_la_LIBADD = $(FLIBS)
 nodist_EXTRA_macula_la_SOURCES = dummy2.f90
@@ -636,6 +650,9 @@ stitch.la: $(stitch_la_OBJECTS) $(stitch_la_DEPENDENCIES) $(EXTRA_stitch_la_DEPE
 transitbisec.la: $(transitbisec_la_OBJECTS) $(transitbisec_la_DEPENDENCIES) $(EXTRA_transitbisec_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(transitbisec_la_LINK) -rpath $(userlibsdir) $(transitbisec_la_OBJECTS) $(transitbisec_la_LIBADD) $(LIBS)
 
+unstitch.la: $(unstitch_la_OBJECTS) $(unstitch_la_DEPENDENCIES) $(EXTRA_unstitch_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(unstitch_la_LINK) -rpath $(userlibsdir) $(unstitch_la_OBJECTS) $(unstitch_la_LIBADD) $(LIBS)
+
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
 
@@ -653,6 +670,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stitch.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/transitbisec.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/unstitch_la-unstitch.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -704,6 +722,13 @@ splinedetrend_la-splinedetrend.lo: splinedetrend.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='splinedetrend.c' object='splinedetrend_la-splinedetrend.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(splinedetrend_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o splinedetrend_la-splinedetrend.lo `test -f 'splinedetrend.c' || echo '$(srcdir)/'`splinedetrend.c
+
+unstitch_la-unstitch.lo: unstitch.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(unstitch_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT unstitch_la-unstitch.lo -MD -MP -MF $(DEPDIR)/unstitch_la-unstitch.Tpo -c -o unstitch_la-unstitch.lo `test -f 'unstitch.c' || echo '$(srcdir)/'`unstitch.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/unstitch_la-unstitch.Tpo $(DEPDIR)/unstitch_la-unstitch.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='unstitch.c' object='unstitch_la-unstitch.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(unstitch_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o unstitch_la-unstitch.lo `test -f 'unstitch.c' || echo '$(srcdir)/'`unstitch.c
 
 .f.o:
 	$(AM_V_F77)$(F77COMPILE) -c -o $@ $<
@@ -868,6 +893,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
 	-rm -f ./$(DEPDIR)/stitch.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
+	-rm -f ./$(DEPDIR)/unstitch_la-unstitch.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -924,6 +950,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/splinedetrend_la-splinedetrend.Plo
 	-rm -f ./$(DEPDIR)/stitch.Plo
 	-rm -f ./$(DEPDIR)/transitbisec.Plo
+	-rm -f ./$(DEPDIR)/unstitch_la-unstitch.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

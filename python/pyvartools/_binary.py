@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from typing import List
 
 # Runtime override set by pyvartools.config.set_binary()
@@ -19,6 +20,9 @@ _configured_path: str = ""
 
 # Runtime override set by pyvartools.config.set_library()
 _configured_lib_path: str = ""
+
+# Library filename: libtool produces .dylib on macOS, .so everywhere else.
+_LIB_NAME = "libvartoolspipeline" + (".dylib" if sys.platform == "darwin" else ".so")
 
 
 def set_binary(path: str) -> None:
@@ -87,20 +91,52 @@ def get_binary() -> str:
 
 
 def set_library(path: str) -> None:
-    """Override the libvartoolspipeline.so path at runtime."""
+    """Override the libvartoolspipeline path at runtime.
+
+    Pass the absolute path to ``libvartoolspipeline.so`` (Linux) or
+    ``libvartoolspipeline.dylib`` (macOS).
+    """
     global _configured_lib_path
     _configured_lib_path = path
 
 
 def _get_rpath_dirs(binary: str) -> List[str]:
-    """Return RPATH / RUNPATH directories embedded in an ELF binary."""
+    """Return RPATH / RUNPATH directories embedded in the vartools binary.
+
+    On macOS the dynamic-loader equivalent is ``LC_RPATH`` load commands
+    in the Mach-O header, surfaced by ``otool -l``.  Elsewhere we read
+    ELF ``DT_RPATH`` / ``DT_RUNPATH`` tags via ``readelf -d``.  Both
+    tools are best-effort: a missing binary helper just returns an
+    empty list, leaving the rest of the discovery chain to handle the
+    LC.
+    """
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.check_output(
+                ["otool", "-l", binary], stderr=subprocess.DEVNULL, text=True
+            )
+        except Exception:
+            return []
+        dirs: List[str] = []
+        in_rpath = False
+        for line in out.splitlines():
+            if "LC_RPATH" in line:
+                in_rpath = True
+                continue
+            if in_rpath:
+                m = re.search(r'^\s*path\s+(.+?)(?:\s+\(offset|$)', line)
+                if m:
+                    dirs.append(m.group(1).strip())
+                    in_rpath = False
+        return dirs
+
     try:
         out = subprocess.check_output(
             ["readelf", "-d", binary], stderr=subprocess.DEVNULL, text=True
         )
     except Exception:
         return []
-    dirs: List[str] = []
+    dirs = []
     for line in out.splitlines():
         if "RPATH" in line or "RUNPATH" in line:
             m = re.search(r'\[(.+?)\]', line)
@@ -110,7 +146,10 @@ def _get_rpath_dirs(binary: str) -> List[str]:
 
 
 def find_library() -> str:
-    """Return the path to libvartoolspipeline.so.
+    """Return the path to the libvartoolspipeline shared library.
+
+    On macOS this resolves to ``libvartoolspipeline.dylib``; elsewhere
+    to ``libvartoolspipeline.so``.
 
     Search order:
       1. Runtime config (set_library())
@@ -149,28 +188,32 @@ def find_library() -> str:
     try:
         binary = get_binary()
         for d in _get_rpath_dirs(binary):
-            candidate = os.path.join(d, "libvartoolspipeline.so")
+            candidate = os.path.join(d, _LIB_NAME)
             if os.path.isfile(candidate):
                 return candidate
         # Also check common relative layouts: bin/../lib and bin/../data/*/
         bin_dir = os.path.dirname(os.path.realpath(binary))
         for rel in (".", "../lib", "../data/vartools/USERLIBS"):
             candidate = os.path.realpath(
-                os.path.join(bin_dir, rel, "libvartoolspipeline.so")
+                os.path.join(bin_dir, rel, _LIB_NAME)
             )
             if os.path.isfile(candidate):
                 return candidate
     except Exception:
         pass
 
-    # 4. ctypes.util.find_library (searches LD_LIBRARY_PATH + ldconfig cache)
+    # 4. ctypes.util.find_library (cross-platform; on macOS searches
+    #    DYLD_LIBRARY_PATH and the standard dyld paths, on Linux searches
+    #    LD_LIBRARY_PATH and the ldconfig cache).
     name = ctypes.util.find_library("vartoolspipeline")
     if name:
         return name
 
+    ld_var = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
     raise FileNotFoundError(
-        "Cannot find libvartoolspipeline.so.  Try one of:\n"
-        "  - pyvartools.config.set_library('/path/to/libvartoolspipeline.so')\n"
-        "  - export VARTOOLS_LIBRARY=/path/to/libvartoolspipeline.so\n"
+        f"Cannot find {_LIB_NAME}.  Try one of:\n"
+        f"  - pyvartools.config.set_library('/path/to/{_LIB_NAME}')\n"
+        f"  - export VARTOOLS_LIBRARY=/path/to/{_LIB_NAME}\n"
+        f"  - add the install dir to {ld_var}\n"
         "  - run 'make install' to install the library"
     )

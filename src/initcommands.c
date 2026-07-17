@@ -481,6 +481,10 @@ void InitCommands(ProgramData *p, Command *c)
       p->fits_header_adds[i].N_added_keywords = 0;
       p->fits_header_adds[i].size_added_keywords_vec = 0;
       p->fits_header_adds[i].hdrterms = NULL;
+      p->fits_header_adds[i].N_deleted_keywords = 0;
+      p->fits_header_adds[i].size_deleted_keywords_vec = 0;
+      p->fits_header_adds[i].delterms = NULL;
+      p->fits_header_adds[i].N_header_ops = 0;
     }
   } else if(p->Ncopycommands > 0 && Nlcs > 1 && p->fileflag) {
     if((p->fits_header_adds = (_vartools_outlcfits_header_additions *) realloc(p->fits_header_adds,Nlcs * sizeof(_vartools_outlcfits_header_additions))) == NULL)
@@ -489,6 +493,10 @@ void InitCommands(ProgramData *p, Command *c)
       p->fits_header_adds[j].N_added_keywords = 0;
       p->fits_header_adds[j].size_added_keywords_vec = 0;
       p->fits_header_adds[j].hdrterms = NULL;
+      p->fits_header_adds[j].N_deleted_keywords = 0;
+      p->fits_header_adds[j].size_deleted_keywords_vec = 0;
+      p->fits_header_adds[j].delterms = NULL;
+      p->fits_header_adds[j].N_header_ops = 0;
     }
   }
 
@@ -695,6 +703,126 @@ void InitCommands(ProgramData *p, Command *c)
 	  if((c[i].Alarm->alarmvals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  break;
+	case CNUM_VONNEUMANN:
+	  if((c[i].VonNeumann->etavals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
+	case CNUM_PERCENTILERATIOS:
+	  if((c[i].Percentileratios->medmeddev_over_stddev = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Percentileratios->amp = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Percentileratios->asym = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].Percentileratios->amp[j] = (double *) malloc(c[i].Percentileratios->Npairs * sizeof(double))) == NULL ||
+	       (c[i].Percentileratios->asym[j] = (double *) malloc(c[i].Percentileratios->Npairs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
+	case CNUM_BEYONDNSIGMA:
+	  if((c[i].BeyondNsigma->frac_above = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].BeyondNsigma->frac_below = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].BeyondNsigma->frac_above[j] = (double *) malloc(c[i].BeyondNsigma->NN * sizeof(double))) == NULL ||
+	       (c[i].BeyondNsigma->frac_below[j] = (double *) malloc(c[i].BeyondNsigma->NN * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
+	case CNUM_SLOPESTATS:
+	  if((c[i].Slopestats->median_abs_dmdt = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->max_abs_dmdt    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->mad_dmdt        = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->frac_above      = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Slopestats->frac_below      = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++) {
+	    if((c[i].Slopestats->median_abs_dmdt[j] = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->max_abs_dmdt[j]    = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->mad_dmdt[j]        = (double *) malloc(c[i].Slopestats->N_bin * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->frac_above[j]      = (double *) malloc(c[i].Slopestats->N_bin * c[i].Slopestats->N_thresh * sizeof(double))) == NULL ||
+	       (c[i].Slopestats->frac_below[j]      = (double *) malloc(c[i].Slopestats->N_bin * c[i].Slopestats->N_thresh * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  break;
+	case CNUM_CODYM:
+	  if((c[i].CodyM->M       = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->d10     = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->dmed    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->sigma_d = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyM->Npoints = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
+	case CNUM_RUNLENGTH:
+	  if((c[i].Runlength->above_maxlen    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->above_nruns     = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->above_meanlen   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->below_maxlen    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->below_nruns     = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->below_meanlen   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->outhigh_maxlen  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outhigh_nruns   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outhigh_meanlen = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->outlow_maxlen   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outlow_nruns    = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	     (c[i].Runlength->outlow_meanlen  = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->medval          = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->madval          = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Runlength->kval            = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
+	case CNUM_CODYQ:
+	  /* period[Nlcs][1]: list-sourced periods are populated by
+	     RegisterDataFromInputList; for any other pertype we allocate
+	     here and fill the value in processcommand. */
+	  if(c[i].CodyQ->pertype != PERTYPE_SPECIFIED) {
+	    if((c[i].CodyQ->period = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j = 0; j < Nlcs; j++)
+	      if((c[i].CodyQ->period[j] = (double *) malloc(sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
+	  if((c[i].CodyQ->Q         = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->RMS_raw   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->RMS_resid = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->Sigma     = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].CodyQ->Npoints   = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
+	case CNUM_STRUCTUREFUNCTION:
+	  if(c[i].StructureFunction->do_fit_drw) {
+	    if((c[i].StructureFunction->sigma_long = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->tau        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->chi2       = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].StructureFunction->dof        = (int *)    malloc(Nlcs * sizeof(int)))    == NULL ||
+	       (c[i].StructureFunction->converged  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  if(c[i].StructureFunction->do_report_in_table) {
+	    int ne = c[i].StructureFunction->n_report_edges;
+	    if((c[i].StructureFunction->report_dt       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_sf       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_sigma_sf = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].StructureFunction->report_npairs   = (int **)    malloc(Nlcs * sizeof(int *)))    == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j = 0; j < Nlcs; j++) {
+	      if((c[i].StructureFunction->report_dt[j]       = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_sf[j]       = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_sigma_sf[j] = (double *) malloc(ne * sizeof(double))) == NULL ||
+	         (c[i].StructureFunction->report_npairs[j]   = (int *)    malloc(ne * sizeof(int)))    == NULL)
+	        vt_error(ERR_MEMALLOC);
+	    }
+	  }
+	  break;
+	case CNUM_DRWFIT:
+	  if((c[i].DRWFit->sigma_long = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->tau        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->mu         = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->lnL        = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->dlnL_noise = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->dlnL_inf   = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].DRWFit->converged  = (int *)    malloc(Nlcs * sizeof(int)))    == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  break;
 	case CNUM_AOV:
 	  if((c[i].Aov->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].Aov->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
@@ -736,6 +864,131 @@ void InitCommands(ProgramData *p, Command *c)
 		}
 	    }
 	  break;
+	case CNUM_PDM:
+	  if((c[i].Pdm->peakperiods   = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakvalues    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakSNR       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->peakFAP       = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Pdm->avetheta      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->rmstheta      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->minp_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->maxp_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->subsample_vals= (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->finetune_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Pdm->Nbin_vals     = (int *)     malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].Pdm->Nc_vals       = (int *)     malloc(Nlcs * sizeof(int))) == NULL ||
+	     (c[i].Pdm->dphi_vals     = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++)
+	    if((c[i].Pdm->peakperiods[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakvalues[j]  = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakSNR[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Pdm->peakFAP[j]     = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  if(c[i].Pdm->whiten) {
+	    if((c[i].Pdm->avetheta_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Pdm->rmstheta_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((c[i].Pdm->avetheta_whiten[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL ||
+		 (c[i].Pdm->rmstheta_whiten[j] = (double *) malloc(c[i].Pdm->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
+	  if(c[i].Pdm->fixperiodSNR) {
+	    if((c[i].Pdm->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Pdm->fixperiodSNR_peakSNR    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Pdm->fixperiodSNR_peakFAP    = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(c[i].Pdm->fixperiodSNR_pertype != PERTYPE_SPECIFIED) {
+	      if((c[i].Pdm->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	      for(j=0;j<Nlcs;j++)
+		if((c[i].Pdm->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	    }
+	  }
+	  break;
+
+	case CNUM_FTP:
+	  if((c[i].Ftp->peakperiods    = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakvalues     = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakSNR        = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->peakNegAmp     = (int **)    malloc(Nlcs * sizeof(int *))) == NULL ||
+	     (c[i].Ftp->peakTheta      = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	     (c[i].Ftp->avepower       = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->rmspower       = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->minp_vals      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->maxp_vals      = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->subsample_vals = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	     (c[i].Ftp->finetune_vals  = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++)
+	    if((c[i].Ftp->peakperiods[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakvalues[j]  = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakSNR[j]     = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+	       (c[i].Ftp->peakNegAmp[j]  = (int *)    malloc(c[i].Ftp->Npeaks * sizeof(int))) == NULL ||
+	       (c[i].Ftp->peakTheta[j]   = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  if(c[i].Ftp->whiten) {
+	    if((c[i].Ftp->avepower_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Ftp->rmspower_whiten = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((c[i].Ftp->avepower_whiten[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL ||
+		 (c[i].Ftp->rmspower_whiten[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	  }
+	  if(c[i].Ftp->fixperiodSNR) {
+	    if((c[i].Ftp->fixperiodSNR_peakvalues = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakSNR    = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakNegAmp = (int *)    malloc(Nlcs * sizeof(int))) == NULL ||
+	       (c[i].Ftp->fixperiodSNR_peakTheta  = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(c[i].Ftp->fixperiodSNR_pertype != PERTYPE_SPECIFIED) {
+	      if((c[i].Ftp->fixperiodSNR_periods = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	      for(j=0;j<Nlcs;j++)
+		if((c[i].Ftp->fixperiodSNR_periods[j] = (double *) malloc(sizeof(double))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	    }
+	    if((c[i].Ftp->fixperiodSNR_peakFAP = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  }
+	  if((c[i].Ftp->peakFAP = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  for(j=0;j<Nlcs;j++)
+	    if((c[i].Ftp->peakFAP[j] = (double *) malloc(c[i].Ftp->Npeaks * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	  break;
+
+	case CNUM_MATCHEDFILTER:
+	  {
+	    _MatchedFilter *mf = c[i].MatchedFilter;
+	    int pk;
+	    if((mf->peaktimes = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->peakSNR   = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->peakamps  = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (mf->mean_snr  = (double *)  malloc(Nlcs * sizeof(double))) == NULL ||
+	       (mf->rms_snr   = (double *)  malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++)
+	      if((mf->peaktimes[j] = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL ||
+		 (mf->peakSNR[j]   = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL ||
+		 (mf->peakamps[j]  = (double *) malloc(mf->Npeaks * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    /* Per-LC scalar arrays for var/expr-sourced parameters. */
+	    for(pk=0; pk<mf->nparams; pk++)
+	      if((mf->p[pk].vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    if((mf->support.vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if(mf->min_sep_given) {
+	      if((mf->min_sep.vals = (double *) malloc(Nlcs * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    }
+	  }
+	  break;
+
 	case CNUM_HARMAOV:
 	  if((c[i].AovHarm->aveaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||
 	     (c[i].AovHarm->rmsaov = (double *) malloc(Nlcs * sizeof(double))) == NULL ||

@@ -90,7 +90,17 @@ Install MSYS2 from https://www.msys2.org/ and open the **MINGW64** shell
         mingw-w64-x86_64-make \
         mingw-w64-x86_64-libtool \
         mingw-w64-x86_64-cfitsio \
-        mingw-w64-x86_64-gsl
+        mingw-w64-x86_64-gsl \
+        mingw-w64-x86_64-fftw
+
+NFFT3 itself (used by ``-FTP`` for batched summations) is not in the
+MSYS2 package repositories as of this writing.  To enable the NFFT
+fast path, build NFFT3 from source against the
+``mingw-w64-x86_64-fftw`` library
+(https://www-user.tu-chemnitz.de/~potts/nfft/) and pass
+``--with-nfft CPPFLAGS=-I/path/to/nfft/include
+LDFLAGS=-L/path/to/nfft/lib`` to ``./configure``.  ``-FTP`` works
+without NFFT3, using the per-frequency direct-sum fallback.
 
 For ``./autogen.sh`` support::
 

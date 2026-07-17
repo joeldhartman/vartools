@@ -1531,77 +1531,97 @@ void write_fits_lightcurve(ProgramData *p, int threadid, int lcid,
   }
 
   if(p->fits_header_adds != NULL) {
-    /* Cast through (void *) at assignment to allow either fits_update_key or
-       fits_write_key whose signatures differ slightly in const-qualification
-       across cfitsio versions; we know the actual call shape below is fixed. */
+    /* Apply the queued keyword additions and deletions in the order they were
+       requested (their seq, set by N_header_ops at queue time), so that an
+       add / delete / add sequence behaves as written -- e.g. a -unstitch
+       strip_fitsheader followed by a -stitch add_shifts_fitsheader with the
+       same keywordbase replaces the old keywords with the new ones, rather
+       than the strip removing the freshly-written keywords.  Cast through
+       (void *) so that either fits_update_key or fits_write_key (whose
+       const-qualification differs across cfitsio versions) can be called.
+       hdutouse 0 = primary (HDU 1); 1 = first extension (the data bin-table,
+       which is the HDU the file is positioned at here). */
     int (*fitskeyfunctocall)(fitsfile *, int, char *, ...);
     void *fitskeyvalptr;
-    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
-      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 0)
-	continue;
-      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
+    int ai = 0, di = 0;
+    int Nadd = p->fits_header_adds[threadid].N_added_keywords;
+    int Ndel = p->fits_header_adds[threadid].N_deleted_keywords;
+    int bintablehdu = 1, curhdu, targethdu, do_add;
+    int nhk, hk, dkstat, dprefixlen;
+    char dkname[FLEN_KEYWORD], dkval[FLEN_VALUE], dkcomment[FLEN_COMMENT];
+    _vartools_header_entry *ae;
+    _vartools_header_delete_entry *de;
+
+    fits_get_hdu_num(outfile, &bintablehdu);
+    curhdu = bintablehdu;
+
+    while(ai < Nadd || di < Ndel) {
+      if(ai < Nadd && di < Ndel)
+	do_add = (p->fits_header_adds[threadid].hdrterms[ai].seq <=
+		  p->fits_header_adds[threadid].delterms[di].seq);
+      else
+	do_add = (ai < Nadd);
+
+      if(do_add) {
+	ae = &(p->fits_header_adds[threadid].hdrterms[ai]);
+	ai++;
+	targethdu = (ae->hdutouse == 1) ? bintablehdu : 1;
+	if(curhdu != targethdu) {
+	  status2 = 0;
+	  fits_movabs_hdu(outfile, targethdu, NULL, &status2);
+	  curhdu = targethdu;
+	}
+	if(ae->updateexisting) {
+	  fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
+	} else {
+	  fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
+	}
+	switch(ae->datatype) {
+	case TDOUBLE: fitskeyvalptr = &(ae->dbl_val); break;
+	case TINT:    fitskeyvalptr = &(ae->int_val); break;
+	case TLONG:   fitskeyvalptr = &(ae->long_val); break;
+	case TSTRING: fitskeyvalptr = ae->string_val; break;
+	default: vt_error(ERR_CODEERROR); break;
+	}
+	fitskeyfunctocall(outfile, ae->datatype, ae->keyname,
+			  fitskeyvalptr, ae->comment, &status);
       } else {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
+	de = &(p->fits_header_adds[threadid].delterms[di]);
+	di++;
+	if(de->keyname == NULL) continue;
+	dprefixlen = strlen(de->keyname);
+	if(dprefixlen <= 0) continue;
+	targethdu = (de->hdutouse == 1) ? bintablehdu : 1;
+	if(curhdu != targethdu) {
+	  status2 = 0;
+	  fits_movabs_hdu(outfile, targethdu, NULL, &status2);
+	  if(status2) { status2 = 0; curhdu = -1; continue; }
+	  curhdu = targethdu;
+	}
+	/* Iterate the header from the end so deleting a record does not shift
+	   the indices of records still to be checked. */
+	dkstat = 0;
+	fits_get_hdrspace(outfile, &nhk, NULL, &dkstat);
+	for(hk = nhk; hk >= 1; hk--) {
+	  dkname[0] = '\0';
+	  dkstat = 0;
+	  if(fits_read_keyn(outfile, hk, dkname, dkval, dkcomment, &dkstat)) {
+	    dkstat = 0; continue;
+	  }
+	  if(de->prefixmatch) {
+	    if(strncmp(dkname, de->keyname, dprefixlen) != 0) continue;
+	  } else {
+	    if(strcmp(dkname, de->keyname) != 0) continue;
+	  }
+	  dkstat = 0;
+	  fits_delete_record(outfile, hk, &dkstat);
+	}
       }
-      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
-      case TDOUBLE:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
-	break;
-      case TINT:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
-	break;
-      case TLONG:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
-	break;
-      case TSTRING:
-	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
-	break;
-      default:
-	vt_error(ERR_CODEERROR);
-	break;
-      }
-      fitskeyfunctocall(outfile,
-			p->fits_header_adds[threadid].hdrterms[i].datatype, 
-			p->fits_header_adds[threadid].hdrterms[i].keyname, 
-			fitskeyvalptr,
-			p->fits_header_adds[threadid].hdrterms[i].comment,
-			&status);
     }
 
+    /* Leave the output positioned at the primary header. */
+    status2 = 0;
     fits_movabs_hdu(outfile, 1, NULL, &status2);
-    for(i=0; i < p->fits_header_adds[threadid].N_added_keywords; i++) {
-      if(p->fits_header_adds[threadid].hdrterms[i].hdutouse == 1)
-	continue;
-      if(p->fits_header_adds[threadid].hdrterms[i].updateexisting) {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_update_key);
-      } else {
-	fitskeyfunctocall = (int (*)(fitsfile *, int, char *, ...)) &(fits_write_key);
-      }
-      switch(p->fits_header_adds[threadid].hdrterms[i].datatype) {
-      case TDOUBLE:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].dbl_val);
-	break;
-      case TINT:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].int_val);
-	break;
-      case TLONG:
-	fitskeyvalptr = &(p->fits_header_adds[threadid].hdrterms[i].long_val);
-	break;
-      case TSTRING:
-	fitskeyvalptr = p->fits_header_adds[threadid].hdrterms[i].string_val;
-	break;
-      default:
-	vt_error(ERR_CODEERROR);
-	break;
-      }
-      fitskeyfunctocall(outfile,
-			p->fits_header_adds[threadid].hdrterms[i].datatype, 
-			p->fits_header_adds[threadid].hdrterms[i].keyname, 
-			fitskeyvalptr,
-			p->fits_header_adds[threadid].hdrterms[i].comment,
-			&status);
-    }
   }
 
 
@@ -2204,8 +2224,12 @@ void ReadDatesFiles(ProgramData *p, Command *c)
 {
   int i;
   for(i=0;i<p->Ncommands;i++)
-    if(c[i].cnum == CNUM_JSTET)
-      c[i].Jstet->wkmax = readdates(c[i].Jstet->datesname,c[i].Jstet->Jstet_time);
+    if(c[i].cnum == CNUM_JSTET) {
+      if(c[i].Jstet->skipnormalize)
+        c[i].Jstet->wkmax = 1.0;        /* sentinel; unused in skipnormalize mode */
+      else
+        c[i].Jstet->wkmax = readdates(c[i].Jstet->datesname,c[i].Jstet->Jstet_time);
+    }
 }
 
 double readdates(char *datesname,double Jstet_time)
@@ -2372,6 +2396,7 @@ void vAdd_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keynam
   i = p->fits_header_adds[lcnum].N_added_keywords;
   p->fits_header_adds[lcnum].hdrterms[i].hdutouse = hdutouse;
   p->fits_header_adds[lcnum].hdrterms[i].updateexisting = updateexisting;
+  p->fits_header_adds[lcnum].hdrterms[i].seq = p->fits_header_adds[lcnum].N_header_ops++;
   switch(dtype) {
   case VARTOOLS_TYPE_DOUBLE:
     p->fits_header_adds[lcnum].hdrterms[i].datatype = TDOUBLE;
@@ -2454,6 +2479,67 @@ void Add_Keyword_To_OutputLC_FitsHeader(ProgramData *p, int lcnum, char *keyname
 				      updateexisting, dtype, varlist);
   va_end(varlist);
   return;
+}
+
+/* Queue a keyword deletion to be applied to the output FITS header when the
+   light curve is written.  If prefixmatch is non-zero, every keyword whose
+   name begins with keyname is deleted; otherwise only the exact keyname is
+   deleted.  hdutouse 0 = primary header, 1 = first extension header (matching
+   the convention used for the keyword additions). */
+void Delete_Keyword_From_OutputLC_FitsHeader(ProgramData *p, int lcnum,
+					     char *keyname, int hdutouse,
+					     int prefixmatch)
+{
+#ifdef USECFITSIO
+  int i;
+  if(p->fits_header_adds == NULL) {
+    vt_error(ERR_CODEERROR);
+  }
+  if((p->fits_header_adds[lcnum].N_deleted_keywords + 1) > p->fits_header_adds[lcnum].size_deleted_keywords_vec) {
+    if(!p->fits_header_adds[lcnum].size_deleted_keywords_vec) {
+      p->fits_header_adds[lcnum].size_deleted_keywords_vec = p->fits_header_adds[lcnum].N_deleted_keywords + 1;
+      if((p->fits_header_adds[lcnum].delterms = (_vartools_header_delete_entry *) malloc(p->fits_header_adds[lcnum].size_deleted_keywords_vec*sizeof(_vartools_header_delete_entry))) == NULL)
+	vt_error(ERR_MEMALLOC);
+      for(i=0; i < p->fits_header_adds[lcnum].size_deleted_keywords_vec; i++) {
+	p->fits_header_adds[lcnum].delterms[i].keyname = NULL;
+	p->fits_header_adds[lcnum].delterms[i].keyname_veclen = 0;
+	p->fits_header_adds[lcnum].delterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].delterms[i].prefixmatch = 0;
+      }
+    } else {
+      if((p->fits_header_adds[lcnum].delterms = (_vartools_header_delete_entry *) realloc(p->fits_header_adds[lcnum].delterms, (p->fits_header_adds[lcnum].N_deleted_keywords + 1)*sizeof(_vartools_header_delete_entry))) == NULL)
+	vt_error(ERR_MEMALLOC);
+      for(i=p->fits_header_adds[lcnum].size_deleted_keywords_vec; i < p->fits_header_adds[lcnum].N_deleted_keywords + 1; i++) {
+	p->fits_header_adds[lcnum].delterms[i].keyname = NULL;
+	p->fits_header_adds[lcnum].delterms[i].keyname_veclen = 0;
+	p->fits_header_adds[lcnum].delterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].delterms[i].prefixmatch = 0;
+      }
+      p->fits_header_adds[lcnum].size_deleted_keywords_vec = p->fits_header_adds[lcnum].N_deleted_keywords + 1;
+    }
+  }
+  i = p->fits_header_adds[lcnum].N_deleted_keywords;
+  p->fits_header_adds[lcnum].delterms[i].hdutouse = hdutouse;
+  p->fits_header_adds[lcnum].delterms[i].prefixmatch = prefixmatch;
+  p->fits_header_adds[lcnum].delterms[i].seq = p->fits_header_adds[lcnum].N_header_ops++;
+  if(keyname != NULL) {
+    if(strlen(keyname)+1 > p->fits_header_adds[lcnum].delterms[i].keyname_veclen) {
+      if(!p->fits_header_adds[lcnum].delterms[i].keyname_veclen) {
+	p->fits_header_adds[lcnum].delterms[i].keyname_veclen = strlen(keyname)+1;
+	if((p->fits_header_adds[lcnum].delterms[i].keyname = (char *) malloc(p->fits_header_adds[lcnum].delterms[i].keyname_veclen*sizeof(char))) == NULL)
+	  vt_error(ERR_MEMALLOC);
+      } else {
+	p->fits_header_adds[lcnum].delterms[i].keyname_veclen = strlen(keyname)+1;
+	if((p->fits_header_adds[lcnum].delterms[i].keyname = (char *) realloc(p->fits_header_adds[lcnum].delterms[i].keyname, p->fits_header_adds[lcnum].delterms[i].keyname_veclen*sizeof(char))) == NULL)
+	  vt_error(ERR_MEMALLOC);
+      }
+    }
+    sprintf(p->fits_header_adds[lcnum].delterms[i].keyname,"%s",keyname);
+  }
+  p->fits_header_adds[lcnum].N_deleted_keywords++;
+#else
+  return;
+#endif
 }
 
 void Run_AddFitsKeyword_Command(ProgramData *p, _AddFitsKeyword *addfitskeyword,
@@ -2706,6 +2792,17 @@ void Reset_outlc_fitsheader_additions(ProgramData *p, int lcnum)
       }
       p->fits_header_adds[lcnum].N_added_keywords = 0;
     }
+    if(p->fits_header_adds[lcnum].N_deleted_keywords > 0) {
+      int i;
+      for(i = 0; i < p->fits_header_adds[lcnum].N_deleted_keywords; i++) {
+	if(p->fits_header_adds[lcnum].delterms[i].keyname_veclen > 0)
+	  p->fits_header_adds[lcnum].delterms[i].keyname[0] = '\0';
+	p->fits_header_adds[lcnum].delterms[i].hdutouse = 0;
+	p->fits_header_adds[lcnum].delterms[i].prefixmatch = 0;
+      }
+      p->fits_header_adds[lcnum].N_deleted_keywords = 0;
+    }
+    p->fits_header_adds[lcnum].N_header_ops = 0;
   }
 }
 

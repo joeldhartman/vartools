@@ -153,11 +153,16 @@ def _make_immediate_result(cmd_cls: Type["VartoolsCommand"]):
         prior_vars = self.vars.drop("Name", errors="ignore")
         merged_vars = pd.concat([prior_vars, new_result.vars])
         merged_known = prior_known + list(new_result._known_commands or [])
+        # Merge files across segments.  Each segment's collectors apply
+        # the chain offset to the key suffix (see _collect_output_files),
+        # so prior- and new-segment files never collide on key.
+        merged_files = dict(self.files or {})
+        merged_files.update(new_result.files or {})
         from .results import Result
         return Result(
             var=merged_vars,
             lc=new_result.lc,
-            files=new_result.files,
+            files=merged_files,
             known_commands=merged_known,
             error=new_result.error,
         )

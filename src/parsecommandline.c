@@ -180,6 +180,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      p->fits_header_adds[j].N_added_keywords = 0;
 	      p->fits_header_adds[j].size_added_keywords_vec = 0;
 	      p->fits_header_adds[j].hdrterms = NULL;
+	      p->fits_header_adds[j].N_deleted_keywords = 0;
+	      p->fits_header_adds[j].size_deleted_keywords_vec = 0;
+	      p->fits_header_adds[j].delterms = NULL;
+	      p->fits_header_adds[j].N_header_ops = 0;
 	      p->skipfaillc[j] = 0;
 	      if((p->lcnames[j] = (char *) malloc(MAXLEN * sizeof(char))) == NULL)
 		vt_error(ERR_MEMALLOC);
@@ -694,6 +698,199 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  cn++;
 	}
 
+      /* -drwfit
+       *   ["mean" <"fit" | "fix" <"var" v | "expr" e | mu> | "subtract">]
+       *   ["sigma0" <"var" v | "expr" e | S>]
+       *   ["tau0"   <"var" v | "expr" e | T>]
+       *   ["mean0"  <"var" v | "expr" e | M>]
+       *   ["save" outdir]
+       *   ["correctlc" <"smoothed" | "forecast">]
+       *   ["modelvar"  <"smoothed" | "forecast"> modelvarname]
+       *   ["maskpoints" maskvar]
+       *
+       * Strict-order trailing keywords per
+       * reference_strict_trailing_keyword_parser: each slot uses the
+       * positional i++/i-- pattern.  Wrong order or duplicates fall
+       * through and are rejected by the main parser as unknown tokens. */
+      else if(!strncmp(argv[i],"-drwfit",7) && strlen(argv[i]) == 7)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_DRWFIT;
+	  if((c[cn].DRWFit = (_DRWFit *) malloc(sizeof(_DRWFit))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].DRWFit->mean_mode      = DRWFIT_MEAN_FIT;
+	  c[cn].DRWFit->have_sigma0    = 0;
+	  c[cn].DRWFit->have_tau0      = 0;
+	  c[cn].DRWFit->have_mean0     = 0;
+	  c[cn].DRWFit->do_save        = 0;
+	  c[cn].DRWFit->outdir[0]      = '\0';
+	  sprintf(c[cn].DRWFit->suffix, ".drwfit");
+	  c[cn].DRWFit->do_correctlc   = 0;
+	  c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_SMOOTHED;
+	  c[cn].DRWFit->do_modelvar    = 0;
+	  c[cn].DRWFit->modelvar_kind  = DRWFIT_MODEL_SMOOTHED;
+	  c[cn].DRWFit->modelvarname   = NULL;
+	  c[cn].DRWFit->modelvar       = NULL;
+	  c[cn].DRWFit->usemask        = 0;
+	  c[cn].DRWFit->maskvar        = NULL;
+	  VT_INIT_PARAM(c[cn].DRWFit, mu_fix);
+	  VT_INIT_PARAM(c[cn].DRWFit, sigma0);
+	  VT_INIT_PARAM(c[cn].DRWFit, tau0);
+	  VT_INIT_PARAM(c[cn].DRWFit, mean0);
+
+	  /* "mean" <"fit" | "fix" <var|expr|mu> | "subtract"> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"mean")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"fit")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_FIT;
+	    } else if(!strcmp(argv[i],"fix")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_FIX;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].DRWFit, mu_fix, argv, i);
+	    } else if(!strcmp(argv[i],"subtract")) {
+	      c[cn].DRWFit->mean_mode = DRWFIT_MEAN_SUBTRACT;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit mean mode must be "
+		"'fit', 'fix', or 'subtract' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "sigma0" <var|expr|S> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"sigma0")) {
+	    c[cn].DRWFit->have_sigma0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, sigma0, argv, i);
+	    if(c[cn].DRWFit->sigma0_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].DRWFit->sigma0 > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit sigma0 value "
+		"'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "tau0" <var|expr|T> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"tau0")) {
+	    c[cn].DRWFit->have_tau0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, tau0, argv, i);
+	    if(c[cn].DRWFit->tau0_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].DRWFit->tau0 > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit tau0 value '%s' "
+		"must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "mean0" <var|expr|M> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"mean0")) {
+	    c[cn].DRWFit->have_mean0 = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].DRWFit, mean0, argv, i);
+	  } else {
+	    i--;
+	  }
+
+	  /* "save" outdir -- write a per-LC 8-column aux file
+	   * <outdir>/<lcname>.drwfit  with columns
+	   *   t  x  sig_meas  x_hat_fwd  Omega_fwd  chi_fwd  x_smoothed  Omega_smoothed
+	   * NaN rows preserved for filtered-out points. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"save")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    sprintf(c[cn].DRWFit->outdir, "%s", argv[i]);
+	    c[cn].DRWFit->do_save = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "correctlc" <"smoothed" | "forecast">
+	   * Subtract the chosen model from p->mag[lcnum] in-place so the
+	   * next command receives the DRW-detrended LC. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"correctlc")) {
+	    c[cn].DRWFit->do_correctlc = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"smoothed")) {
+	      c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_SMOOTHED;
+	    } else if(!strcmp(argv[i],"forecast")) {
+	      c[cn].DRWFit->correctlc_kind = DRWFIT_MODEL_FORECAST;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit correctlc kind "
+		"must be 'smoothed' or 'forecast' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "modelvar" <"smoothed" | "forecast"> modelvarname
+	   * Store the chosen model in a named per-LC vector variable. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"modelvar")) {
+	    c[cn].DRWFit->do_modelvar = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"smoothed")) {
+	      c[cn].DRWFit->modelvar_kind = DRWFIT_MODEL_SMOOTHED;
+	    } else if(!strcmp(argv[i],"forecast")) {
+	      c[cn].DRWFit->modelvar_kind = DRWFIT_MODEL_FORECAST;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -drwfit modelvar kind "
+		"must be 'smoothed' or 'forecast' (got '%s')\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if((c[cn].DRWFit->modelvarname =
+	        (char *) malloc(strlen(argv[i]) + 1)) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    sprintf(c[cn].DRWFit->modelvarname, "%s", argv[i]);
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].DRWFit->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].DRWFit->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       else if(!strncmp(argv[i],"-fluxtomag",10) && strlen(argv[i]) == 10)
 	{
 	  iterm = i;
@@ -701,7 +898,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].cnum = CNUM_FLUXTOMAG;
 	  if((c[cn].Fluxtomag = (_Fluxtomag *) malloc(sizeof(_Fluxtomag))) == NULL)
 	    vt_error(ERR_MEMALLOC);
-	  
+
 	  i++;
 	  if(i < argc)
 	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, mag_constant1, argv, i);
@@ -713,6 +910,33 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    VT_PARSE_DOUBLE(c[cn].Fluxtomag, offset, argv, i);
 	  else
 	    listcommands(argv[iterm],p);
+	  cn++;
+	}
+
+      else if(!strncmp(argv[i],"-magtoflux",10) && strlen(argv[i]) == 10)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_MAGTOFLUX;
+	  if((c[cn].Magtoflux = (_Magtoflux *) malloc(sizeof(_Magtoflux))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].Magtoflux->normalize = 0;
+	  c[cn].Magtoflux->mag_constant1 = 0.0;
+	  VT_INIT_PARAM(c[cn].Magtoflux, mag_constant1);
+
+	  i++;
+	  if(i >= argc)
+	    listcommands(argv[iterm],p);
+
+	  if(!strcmp(argv[i], "normalize"))
+	    {
+	      c[cn].Magtoflux->normalize = 1;
+	    }
+	  else
+	    {
+	      VT_PARSE_DOUBLE(c[cn].Magtoflux, mag_constant1, argv, i);
+	    }
 	  cn++;
 	}
 
@@ -2008,12 +2232,62 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].RMS_Bin->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
 	  cn++;
 	}
 
-      /* -Jstet Jstet_time dates [\"maskpoints\" maskvar]*/
+      /* -runlength ["k" <"var" varname | "expr" exprstring | k>]
+       *            ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-runlength",10) && strlen(argv[i]) == 10)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_RUNLENGTH;
+	  if((c[cn].Runlength = (_Runlength *) malloc(sizeof(_Runlength))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: k = 3.0 (fixed source), no maskpoints. */
+	  c[cn].Runlength->k = 3.0;
+	  c[cn].Runlength->usemask = 0;
+	  c[cn].Runlength->maskvar = NULL;
+	  VT_INIT_PARAM(c[cn].Runlength, k);
+
+	  /* "k" <"var" v | "expr" e | k> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"k")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].Runlength, k, argv, i);
+	    if(c[cn].Runlength->k_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].Runlength->k >= 0.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -runlength k value "
+	        "'%s' must be >= 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Runlength->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Runlength->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
+      /* -Jstet Jstet_time <"skipnormalize" | dates> [\"maskpoints\" maskvar]*/
       else if(!strncmp(argv[i],"-Jstet",6) && strlen(argv[i]) == 6)
 	{
 	  iterm = i;
@@ -2023,15 +2297,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].require_distinct = 1;
 	  if((c[cn].Jstet = (_Jstet *) malloc(sizeof(_Jstet))) == NULL)
 	    vt_error(ERR_MEMALLOC);
+	  c[cn].Jstet->skipnormalize = 0;
+	  c[cn].Jstet->datesname[0] = '\0';
 	  i++;
 	  if(i < argc)
 	    c[cn].Jstet->Jstet_time = atof(argv[i]);
 	  else
 	    listcommands(argv[iterm],p);
 	  i++;
-	  if(i < argc)
-	    sprintf(c[cn].Jstet->datesname,"%s",argv[i]);
-	  else
+	  if(i < argc) {
+	    /* "skipnormalize" suppresses the vartools (sum_w / wkmax) rescaling
+	     * and emits Stetson's original J / L instead.  Backwards compatible:
+	     * anything else in this slot is treated as a dates-file path
+	     * (vanishingly unlikely that anyone named a dates file
+	     * "skipnormalize"). */
+	    if(!strcmp(argv[i], "skipnormalize"))
+	      c[cn].Jstet->skipnormalize = 1;
+	    else
+	      sprintf(c[cn].Jstet->datesname,"%s",argv[i]);
+	  } else
 	    listcommands(argv[iterm],p);
 	  c[cn].Jstet->usemask = 0;
 	  c[cn].Jstet->maskvar = NULL;
@@ -3143,11 +3427,1106 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Alarm->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
 	  cn++;
 	}
+
+      /* -vonNeumann [\"weighted\"] [\"maskpoints\" maskvar] */
+      else if(!strncmp(argv[i],"-vonNeumann",11) && strlen(argv[i]) == 11)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_VONNEUMANN;
+	  if((c[cn].VonNeumann = (_VonNeumann *) malloc(sizeof(_VonNeumann))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].VonNeumann->weighted = 0;
+	  c[cn].VonNeumann->usemask = 0;
+	  c[cn].VonNeumann->maskvar = NULL;
+	  /* Trailing strict-order keywords: weighted, maskpoints. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"weighted")) {
+	    c[cn].VonNeumann->weighted = 1;
+	  } else {
+	    i--;
+	  }
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].VonNeumann->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].VonNeumann->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
       
+      /* -percentileratios [\"percentilepairs\" p1:q1,p2:q2,...,pN:qN] [\"maskpoints\" maskvar] */
+      else if(!strncmp(argv[i],"-percentileratios",17) && strlen(argv[i]) == 17)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_PERCENTILERATIOS;
+	  if((c[cn].Percentileratios = (_Percentileratios *) malloc(sizeof(_Percentileratios))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Default pairs: (5:95, 1:99).  Replaced wholesale if the
+	   * "percentilepairs" keyword is given. */
+	  c[cn].Percentileratios->Npairs = 2;
+	  if((c[cn].Percentileratios->plow = (double *) malloc(2 * sizeof(double))) == NULL ||
+	     (c[cn].Percentileratios->phigh = (double *) malloc(2 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].Percentileratios->plow[0] = 5.0;
+	  c[cn].Percentileratios->phigh[0] = 95.0;
+	  c[cn].Percentileratios->plow[1] = 1.0;
+	  c[cn].Percentileratios->phigh[1] = 99.0;
+	  c[cn].Percentileratios->usemask = 0;
+	  c[cn].Percentileratios->maskvar = NULL;
+
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"percentilepairs")) {
+	    int kk, i1, i2, j, lentmp, Npairs;
+	    char *tmpstring;
+	    double pval, qval, tmp;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    /* Count commas to get Npairs. */
+	    Npairs = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') Npairs++;
+	      j++;
+	    }
+
+	    free(c[cn].Percentileratios->plow);
+	    free(c[cn].Percentileratios->phigh);
+	    if((c[cn].Percentileratios->plow = (double *) malloc(Npairs * sizeof(double))) == NULL ||
+	       (c[cn].Percentileratios->phigh = (double *) malloc(Npairs * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < Npairs; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf:%lf", &pval, &qval) != 2) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid percentile pair '%s' "
+		  "for -percentileratios; expected p:q\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval <= 0.0 || pval >= 100.0 ||
+		 qval <= 0.0 || qval >= 100.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: percentile pair '%s' "
+		  "for -percentileratios has values outside (0, 100)\n",
+		  tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval == qval) {
+		fprintf(stderr,
+		  "Error parsing the command-line: percentile pair '%s' "
+		  "for -percentileratios has p == q\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(pval > qval) {
+		tmp = pval; pval = qval; qval = tmp;
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Percentileratios->plow[pp] == pval) &&
+		      (c[cn].Percentileratios->phigh[pp] == qval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate percentile pair "
+		    "%g:%g for -percentileratios\n", pval, qval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Percentileratios->plow[kk] = pval;
+	      c[cn].Percentileratios->phigh[kk] = qval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Percentileratios->Npairs = Npairs;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Percentileratios->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Percentileratios->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
+      /* -beyondNsigma ["Nvalues" N1,N2,...,Nk] ["useMAD"] ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-beyondNsigma",13) && strlen(argv[i]) == 13)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].cnum = CNUM_BEYONDNSIGMA;
+	  if((c[cn].BeyondNsigma = (_BeyondNsigma *) malloc(sizeof(_BeyondNsigma))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: N = [1, 3, 5], sigma = stddev. */
+	  c[cn].BeyondNsigma->NN = 3;
+	  if((c[cn].BeyondNsigma->Nvalues = (double *) malloc(3 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].BeyondNsigma->Nvalues[0] = 1.0;
+	  c[cn].BeyondNsigma->Nvalues[1] = 3.0;
+	  c[cn].BeyondNsigma->Nvalues[2] = 5.0;
+	  c[cn].BeyondNsigma->useMAD = 0;
+	  c[cn].BeyondNsigma->usemask = 0;
+	  c[cn].BeyondNsigma->maskvar = NULL;
+
+	  /* "Nvalues" N1,N2,...,Nk */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"Nvalues")) {
+	    int kk, i1, i2, j, lentmp, NN;
+	    char *tmpstring;
+	    double nval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    /* Count commas to get NN. */
+	    NN = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NN++;
+	      j++;
+	    }
+
+	    free(c[cn].BeyondNsigma->Nvalues);
+	    if((c[cn].BeyondNsigma->Nvalues = (double *) malloc(NN * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NN; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &nval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid N value '%s' "
+		  "for -beyondNsigma; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(nval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: N value '%s' "
+		  "for -beyondNsigma must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].BeyondNsigma->Nvalues[pp] == nval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate N value "
+		    "%g for -beyondNsigma\n", nval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].BeyondNsigma->Nvalues[kk] = nval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].BeyondNsigma->NN = NN;
+	  } else {
+	    i--;
+	  }
+
+	  /* "useMAD" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"useMAD")) {
+	    c[cn].BeyondNsigma->useMAD = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].BeyondNsigma->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].BeyondNsigma->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
+      /* -slopestats ["bintime" B1,B2,...,Bk] ["binshift" S]
+       *             ["threshold" T1,T2,...,Tj] ["maxgap" maxgap]
+       *             ["useMAD"] ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-slopestats",11) && strlen(argv[i]) == 11)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_SLOPESTATS;
+	  if((c[cn].Slopestats = (_Slopestats *) malloc(sizeof(_Slopestats))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: no binning, no binshift, threshold = [3.0], no
+	     maxgap, sigma = stddev, no maskpoints. */
+	  c[cn].Slopestats->has_binning = 0;
+	  c[cn].Slopestats->N_bin = 1;
+	  c[cn].Slopestats->bintimes = NULL;
+	  c[cn].Slopestats->has_binshift = 0;
+	  c[cn].Slopestats->binshift = 0.0;
+	  c[cn].Slopestats->N_thresh = 1;
+	  if((c[cn].Slopestats->thresholds = (double *) malloc(1 * sizeof(double))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  c[cn].Slopestats->thresholds[0] = 3.0;
+	  c[cn].Slopestats->has_maxgap = 0;
+	  c[cn].Slopestats->maxgap = 0.0;
+	  c[cn].Slopestats->useMAD = 0;
+	  c[cn].Slopestats->usemask = 0;
+	  c[cn].Slopestats->maskvar = NULL;
+
+	  /* "bintime" B1,B2,...,Bk */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"bintime")) {
+	    int kk, i1, i2, j, lentmp, NB;
+	    char *tmpstring;
+	    double bval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    NB = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NB++;
+	      j++;
+	    }
+
+	    if((c[cn].Slopestats->bintimes = (double *) malloc(NB * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NB; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &bval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid bintime value '%s' "
+		  "for -slopestats; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(bval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: bintime value '%s' "
+		  "for -slopestats must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Slopestats->bintimes[pp] == bval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate bintime value "
+		    "%g for -slopestats\n", bval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Slopestats->bintimes[kk] = bval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Slopestats->has_binning = 1;
+	    c[cn].Slopestats->N_bin = NB;
+	  } else {
+	    i--;
+	  }
+
+	  /* "binshift" S */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"binshift")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%lf", &(c[cn].Slopestats->binshift)) != 1) {
+	      fprintf(stderr,
+		"Error parsing the command-line: invalid binshift value "
+		"'%s' for -slopestats; expected a number\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    c[cn].Slopestats->has_binshift = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "threshold" T1,T2,...,Tj */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"threshold")) {
+	    int kk, i1, i2, j, lentmp, NT;
+	    char *tmpstring;
+	    double tval;
+	    int pp, dup;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+
+	    NT = 1;
+	    j = 0;
+	    while(argv[i][j] != '\0') {
+	      if(argv[i][j] == ',') NT++;
+	      j++;
+	    }
+
+	    free(c[cn].Slopestats->thresholds);
+	    if((c[cn].Slopestats->thresholds = (double *) malloc(NT * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    lentmp = 256;
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+
+	    i1 = 0;
+	    i2 = 0;
+	    for(kk = 0; kk < NT; kk++) {
+	      while(argv[i][i2] != '\0' && argv[i][i2] != ',')
+		i2++;
+	      if((i2 - i1 + 1) > lentmp) {
+		lentmp = 2*(i2 - i1 + 1);
+		if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		  vt_error(ERR_MEMALLOC);
+	      }
+	      for(j = i1; j < i2; j++) tmpstring[j - i1] = argv[i][j];
+	      tmpstring[i2 - i1] = '\0';
+
+	      if(sscanf(tmpstring, "%lf", &tval) != 1) {
+		fprintf(stderr,
+		  "Error parsing the command-line: invalid threshold value '%s' "
+		  "for -slopestats; expected a positive number\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      if(tval <= 0.0) {
+		fprintf(stderr,
+		  "Error parsing the command-line: threshold value '%s' "
+		  "for -slopestats must be > 0\n", tmpstring);
+		listcommands(argv[iterm], p);
+	      }
+	      for(pp = 0; pp < kk; pp++) {
+		dup = (c[cn].Slopestats->thresholds[pp] == tval);
+		if(dup) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: duplicate threshold value "
+		    "%g for -slopestats\n", tval);
+		  listcommands(argv[iterm], p);
+		}
+	      }
+	      c[cn].Slopestats->thresholds[kk] = tval;
+
+	      i1 = i2 + 1;
+	      i2 = i2 + 1;
+	    }
+	    free(tmpstring);
+	    c[cn].Slopestats->N_thresh = NT;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maxgap" maxgap */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maxgap")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%lf", &(c[cn].Slopestats->maxgap)) != 1) {
+	      fprintf(stderr,
+		"Error parsing the command-line: invalid maxgap value '%s' "
+		"for -slopestats; expected a positive number\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    if(c[cn].Slopestats->maxgap <= 0.0) {
+	      fprintf(stderr,
+		"Error parsing the command-line: maxgap value '%s' "
+		"for -slopestats must be > 0\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	    c[cn].Slopestats->has_maxgap = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "useMAD" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"useMAD")) {
+	    c[cn].Slopestats->useMAD = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].Slopestats->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].Slopestats->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+
+	  /* Validation: binshift requires bintime. */
+	  if(c[cn].Slopestats->has_binshift && !c[cn].Slopestats->has_binning) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -slopestats binshift "
+	      "requires bintime to be specified\n");
+	    listcommands(argv[iterm], p);
+	  }
+	  cn++;
+	}
+
+      /* -CodyM "trendwindow" <"var" v | "expr" e | Wt>
+       *        ["outlierwindow" <"var" v | "expr" e | Wo>]
+       *        ["sigclip" <"var" v | "expr" e | S>]
+       *        ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-CodyM",6) && strlen(argv[i]) == 6)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_CODYM;
+	  if((c[cn].CodyM = (_CodyM *) malloc(sizeof(_CodyM))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: no outlier window (single-stage), sigclip = 5.0,
+	     no maskpoints; all numeric params start fixed-source. */
+	  c[cn].CodyM->has_outlierwindow = 0;
+	  c[cn].CodyM->sigclip = 5.0;
+	  c[cn].CodyM->usemask = 0;
+	  c[cn].CodyM->maskvar = NULL;
+	  VT_INIT_PARAM(c[cn].CodyM, trendwindow);
+	  VT_INIT_PARAM(c[cn].CodyM, outlierwindow);
+	  VT_INIT_PARAM(c[cn].CodyM, sigclip);
+
+	  /* Required "trendwindow" <"var" v | "expr" e | Wt>. */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"trendwindow"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  VT_PARSE_DOUBLE(c[cn].CodyM, trendwindow, argv, i);
+	  if(c[cn].CodyM->trendwindow_source == VARTOOLS_SOURCE_FIXED &&
+	     !(c[cn].CodyM->trendwindow > 0.0)) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -CodyM trendwindow value "
+	      "'%s' must be > 0\n", argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "outlierwindow" <"var" v | "expr" e | Wo> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"outlierwindow")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyM, outlierwindow, argv, i);
+	    if(c[cn].CodyM->outlierwindow_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].CodyM->outlierwindow > 0.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyM outlierwindow value "
+	        "'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyM->has_outlierwindow = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "sigclip" <"var" v | "expr" e | S> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"sigclip")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyM, sigclip, argv, i);
+	    if(c[cn].CodyM->sigclip_source == VARTOOLS_SOURCE_FIXED &&
+	       c[cn].CodyM->sigclip < 0.0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyM sigclip value "
+	        "'%s' must be >= 0 (0 disables outlier rejection)\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].CodyM->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyM->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
+      /* -CodyQ <"aov" | "ls" | "bls" | "pdm" | "ftp" | "injectharm" |
+       *        "fix" period | "fixcolumn" <colname|colnum> |
+       *        "list" ["column" col] | "var" varname | "expr" exprstring>
+       *        "trendwindow" <"var" v | "expr" e | Wt>
+       *        ["phasesmooth" <"var" v | "expr" e | f>]
+       *        ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-CodyQ",6) && strlen(argv[i]) == 6)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_CODYQ;
+	  if((c[cn].CodyQ = (_CodyQ *) malloc(sizeof(_CodyQ))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  /* Defaults: phasesmooth = 0.25 (Cody), no maskpoints; numeric
+	     params start fixed-source; period storage is allocated later
+	     by initcommands or by RegisterDataFromInputList. */
+	  c[cn].CodyQ->phasesmooth = 0.25;
+	  c[cn].CodyQ->usemask = 0;
+	  c[cn].CodyQ->maskvar = NULL;
+	  c[cn].CodyQ->linkedcolumn = NULL;
+	  c[cn].CodyQ->fixedperiod = 0.0;
+	  c[cn].CodyQ->fixedperiod_var = NULL;
+	  c[cn].CodyQ->fixedperiod_expr = NULL;
+	  c[cn].CodyQ->period = NULL;
+	  c[cn].CodyQ->lastaovindex = -1;
+	  c[cn].CodyQ->lastlsindex = -1;
+	  c[cn].CodyQ->lastblsindex = -1;
+	  c[cn].CodyQ->lastpdmindex = -1;
+	  c[cn].CodyQ->lastftpindex = -1;
+	  c[cn].CodyQ->lastinjectharmindex = -1;
+	  VT_INIT_PARAM(c[cn].CodyQ, trendwindow);
+	  VT_INIT_PARAM(c[cn].CodyQ, phasesmooth);
+
+	  /* Required period source. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"aov")) {
+	    c[cn].CodyQ->pertype = PERTYPE_AOV;
+	    m = -1;
+	    for(l = 0; l < cn; l++)
+	      if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOAOV);
+	    c[cn].CodyQ->lastaovindex = m;
+	  } else if(!strcmp(argv[i],"ls")) {
+	    c[cn].CodyQ->pertype = PERTYPE_LS;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOLS);
+	    c[cn].CodyQ->lastlsindex = m;
+	  } else if(!strcmp(argv[i],"bls")) {
+	    c[cn].CodyQ->pertype = PERTYPE_BLS;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_BLS) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ bls requires a "
+	        "prior -BLS command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastblsindex = m;
+	  } else if(!strcmp(argv[i],"pdm")) {
+	    c[cn].CodyQ->pertype = PERTYPE_PDM;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ pdm requires a "
+	        "prior -PDM command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastpdmindex = m;
+	  } else if(!strcmp(argv[i],"ftp")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FTP;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_FTP) m = l;
+	    if(m < 0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ ftp requires a "
+	        "prior -FTP command in the pipeline\n");
+	      listcommands(argv[iterm],p);
+	    }
+	    c[cn].CodyQ->lastftpindex = m;
+	  } else if(!strcmp(argv[i],"injectharm")) {
+	    c[cn].CodyQ->pertype = PERTYPE_INJECTHARM;
+	    m = -1;
+	    for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+	    if(m < 0) vt_error(ERR_KILLHARM_NOINJECTHARM);
+	    c[cn].CodyQ->lastinjectharmindex = m;
+	  } else if(!strcmp(argv[i],"fix")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FIX;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    c[cn].CodyQ->fixedperiod = atof(argv[i]);
+	    if(c[cn].CodyQ->fixedperiod <= 0.0) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ fix period "
+	        "'%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else if(!strcmp(argv[i],"fixcolumn")) {
+	    c[cn].CodyQ->pertype = PERTYPE_FIXCOLUMN;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    increaselinkedcols(p, &(c[cn].CodyQ->linkedcolumn), argv[i], cn);
+	  } else if(!strcmp(argv[i],"list")) {
+	    int kcol = 0;
+	    c[cn].CodyQ->pertype = PERTYPE_SPECIFIED;
+	    i++;
+	    if(i < argc) {
+	      if(!strcmp(argv[i],"column")) {
+	        i++;
+	        if(i >= argc) listcommands(argv[iterm],p);
+	        kcol = atoi(argv[i]);
+	      } else { i--; }
+	    } else { i--; }
+	    RegisterDataFromInputList(p,
+	                              (void *) (&(c[cn].CodyQ->period)),
+	                              VARTOOLS_TYPE_DOUBLE,
+	                              1, cn, 0, 0, NULL, kcol,
+	                              "CODYQ_PERIOD");
+	  } else if(!strcmp(argv[i],"var")) {
+	    c[cn].CodyQ->pertype = PERTYPE_VAR;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyQ->fixedperiod_var),
+	                                    VARTOOLS_VECTORTYPE_PERSTARDATA,
+	                                    VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i],"expr")) {
+	    c[cn].CodyQ->pertype = PERTYPE_EXPR;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_expr(&(c[cn]), argv[i],
+	                        &(c[cn].CodyQ->fixedperiod_expr));
+	  } else {
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* Required "trendwindow" <"var" v | "expr" e | Wt>. */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"trendwindow"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  VT_PARSE_DOUBLE(c[cn].CodyQ, trendwindow, argv, i);
+	  if(c[cn].CodyQ->trendwindow_source == VARTOOLS_SOURCE_FIXED &&
+	     !(c[cn].CodyQ->trendwindow > 0.0)) {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -CodyQ trendwindow value "
+	      "'%s' must be > 0\n", argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "phasesmooth" <"var" v | "expr" e | f>.  Default 0.25.  When
+	     given as a literal it must be in (0, 1]; var/expr values are
+	     validated at runtime instead. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"phasesmooth")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].CodyQ, phasesmooth, argv, i);
+	    if(c[cn].CodyQ->phasesmooth_source == VARTOOLS_SOURCE_FIXED &&
+	       (!(c[cn].CodyQ->phasesmooth > 0.0) || c[cn].CodyQ->phasesmooth > 1.0)) {
+	      fprintf(stderr,
+	        "Error parsing the command-line: -CodyQ phasesmooth value "
+	        "'%s' must be in (0, 1]\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].CodyQ->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].CodyQ->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
+      /* -structurefunction
+       *   "bins" <"log" Nbins | "linear" Nbins | "edges" e1,e2,...,en>
+       *   ["lagrange" <"var" v | "expr" e | lagmin>
+       *               <"var" v | "expr" e | lagmax>]
+       *   ["fitDRW" ["sigma0" <"var" v | "expr" e | S>]
+       *             ["tau0"   <"var" v | "expr" e | T>]]
+       *   ["save" outdir]
+       *   ["maskpoints" maskvar] */
+      else if(!strncmp(argv[i],"-structurefunction",18) && strlen(argv[i]) == 18)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].cnum = CNUM_STRUCTUREFUNCTION;
+	  if((c[cn].StructureFunction = (_StructureFunction *) malloc(sizeof(_StructureFunction))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+
+	  c[cn].StructureFunction->bin_mode = -1;
+	  c[cn].StructureFunction->Nbins = 0;
+	  c[cn].StructureFunction->user_edges = NULL;
+	  c[cn].StructureFunction->estimator = SF_ESTIMATOR_SQUARED;
+	  c[cn].StructureFunction->have_lagrange = 0;
+	  c[cn].StructureFunction->do_fit_drw = 0;
+	  c[cn].StructureFunction->have_sigma0 = 0;
+	  c[cn].StructureFunction->have_tau0 = 0;
+	  c[cn].StructureFunction->do_save = 0;
+	  c[cn].StructureFunction->do_report_in_table = 0;
+	  c[cn].StructureFunction->n_report_edges = 0;
+	  c[cn].StructureFunction->report_edges = NULL;
+	  c[cn].StructureFunction->usemask = 0;
+	  c[cn].StructureFunction->maskvar = NULL;
+	  c[cn].StructureFunction->outdir[0] = '\0';
+	  sprintf(c[cn].StructureFunction->suffix, ".sf");
+	  VT_INIT_PARAM(c[cn].StructureFunction, lagmin);
+	  VT_INIT_PARAM(c[cn].StructureFunction, lagmax);
+	  VT_INIT_PARAM(c[cn].StructureFunction, sigma0);
+	  VT_INIT_PARAM(c[cn].StructureFunction, tau0);
+
+	  /* Required: "bins" <"log" Nbins | "linear" Nbins | "edges" e1,...,en> */
+	  i++;
+	  if(i >= argc || strcmp(argv[i],"bins"))
+	    listcommands(argv[iterm],p);
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm],p);
+	  if(!strcmp(argv[i],"log") || !strcmp(argv[i],"linear")) {
+	    c[cn].StructureFunction->bin_mode =
+	      (!strcmp(argv[i],"log") ? SF_BINS_LOG : SF_BINS_LINEAR);
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(sscanf(argv[i], "%d", &(c[cn].StructureFunction->Nbins)) != 1 ||
+	       c[cn].StructureFunction->Nbins < 2) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction bins "
+		"Nbins value '%s' must be an integer >= 2\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else if(!strcmp(argv[i],"edges")) {
+	    int NE = 1, ie, ke, lentmp = 256, ne_pos = 0;
+	    char *tmpstring;
+	    double eval, prev;
+	    c[cn].StructureFunction->bin_mode = SF_BINS_EDGES;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    /* Count edge values (comma-separated). */
+	    for(ie = 0; argv[i][ie] != '\0'; ie++)
+	      if(argv[i][ie] == ',') NE++;
+	    if(NE < 3) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction bins "
+		"edges requires at least 3 comma-separated values (giving "
+		">= 2 bins); got '%s'\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    if((c[cn].StructureFunction->user_edges = (double *) malloc(NE * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    ne_pos = 0;
+	    {
+	      int i1e = 0, i2e = 0;
+	      for(ke = 0; ke < NE; ke++) {
+		while(argv[i][i2e] != '\0' && argv[i][i2e] != ',') i2e++;
+		if((i2e - i1e + 1) > lentmp) {
+		  lentmp = 2*(i2e - i1e + 1);
+		  if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		    vt_error(ERR_MEMALLOC);
+		}
+		for(ie = i1e; ie < i2e; ie++) tmpstring[ie - i1e] = argv[i][ie];
+		tmpstring[i2e - i1e] = '\0';
+		if(sscanf(tmpstring, "%lf", &eval) != 1) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "bins edges: invalid value '%s'\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(!(eval > 0.0)) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "bins edges: value '%s' must be > 0\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(ne_pos > 0) {
+		  prev = c[cn].StructureFunction->user_edges[ne_pos - 1];
+		  if(!(eval > prev)) {
+		    fprintf(stderr,
+		      "Error parsing the command-line: -structurefunction "
+		      "bins edges values must be strictly increasing (got "
+		      "'%g' after '%g')\n", eval, prev);
+		    listcommands(argv[iterm],p);
+		  }
+		}
+		c[cn].StructureFunction->user_edges[ne_pos++] = eval;
+		i1e = i2e + 1;
+		i2e = i2e + 1;
+	      }
+	    }
+	    free(tmpstring);
+	    c[cn].StructureFunction->Nbins = NE - 1;
+	  } else {
+	    fprintf(stderr,
+	      "Error parsing the command-line: -structurefunction bins "
+	      "mode must be 'log', 'linear', or 'edges' (got '%s')\n",
+	      argv[i]);
+	    listcommands(argv[iterm],p);
+	  }
+
+	  /* "lagrange" <var|expr|lagmin> <var|expr|lagmax>.  Comes
+	   * immediately after "bins" since it is part of specifying which
+	   * bins to compute. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"lagrange")) {
+	    c[cn].StructureFunction->have_lagrange = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].StructureFunction, lagmin, argv, i);
+	    if(c[cn].StructureFunction->lagmin_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].StructureFunction->lagmin > 0.0)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction lagrange "
+		"lagmin value '%s' must be > 0\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    VT_PARSE_DOUBLE(c[cn].StructureFunction, lagmax, argv, i);
+	    if(c[cn].StructureFunction->lagmin_source == VARTOOLS_SOURCE_FIXED &&
+	       c[cn].StructureFunction->lagmax_source == VARTOOLS_SOURCE_FIXED &&
+	       !(c[cn].StructureFunction->lagmax > c[cn].StructureFunction->lagmin)) {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction lagrange "
+		"lagmax value '%s' must be > lagmin\n", argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "estimator" <"squared" | "mad"> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"estimator")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    if(!strcmp(argv[i],"squared")) {
+	      c[cn].StructureFunction->estimator = SF_ESTIMATOR_SQUARED;
+	    } else if(!strcmp(argv[i],"mad")) {
+	      c[cn].StructureFunction->estimator = SF_ESTIMATOR_MAD;
+	    } else {
+	      fprintf(stderr,
+		"Error parsing the command-line: -structurefunction "
+		"estimator must be 'squared' or 'mad' (got '%s')\n",
+		argv[i]);
+	      listcommands(argv[iterm],p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "fitDRW" ["sigma0" <var|expr|S>] ["tau0" <var|expr|T>] */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"fitDRW")) {
+	    c[cn].StructureFunction->do_fit_drw = 1;
+	    i++;
+	    if(i < argc && !strcmp(argv[i],"sigma0")) {
+	      c[cn].StructureFunction->have_sigma0 = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].StructureFunction, sigma0, argv, i);
+	      if(c[cn].StructureFunction->sigma0_source == VARTOOLS_SOURCE_FIXED &&
+		 !(c[cn].StructureFunction->sigma0 > 0.0)) {
+		fprintf(stderr,
+		  "Error parsing the command-line: -structurefunction fitDRW "
+		  "sigma0 value '%s' must be > 0\n", argv[i]);
+		listcommands(argv[iterm],p);
+	      }
+	      i++;
+	    }
+	    if(i < argc && !strcmp(argv[i],"tau0")) {
+	      c[cn].StructureFunction->have_tau0 = 1;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      VT_PARSE_DOUBLE(c[cn].StructureFunction, tau0, argv, i);
+	      if(c[cn].StructureFunction->tau0_source == VARTOOLS_SOURCE_FIXED &&
+		 !(c[cn].StructureFunction->tau0 > 0.0)) {
+		fprintf(stderr,
+		  "Error parsing the command-line: -structurefunction fitDRW "
+		  "tau0 value '%s' must be > 0\n", argv[i]);
+		listcommands(argv[iterm],p);
+	      }
+	    } else {
+	      i--;
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "reportsfvalsintable" e1,e2,...,en
+	   * Emit four scalar columns (DT, SF, SIGMA_SF, NPAIRS) per
+	   * requested lag value, taken from the SF bin that contains it. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"reportsfvalsintable")) {
+	    int NE = 1, ie, ke, lentmp = 256, ne_pos = 0;
+	    char *tmpstring;
+	    double eval, prev;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    /* Count comma-separated edges. */
+	    for(ie = 0; argv[i][ie] != '\0'; ie++)
+	      if(argv[i][ie] == ',') NE++;
+	    if((c[cn].StructureFunction->report_edges = (double *) malloc(NE * sizeof(double))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    if((tmpstring = (char *) malloc(lentmp * sizeof(char))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    {
+	      int i1e = 0, i2e = 0;
+	      for(ke = 0; ke < NE; ke++) {
+		while(argv[i][i2e] != '\0' && argv[i][i2e] != ',') i2e++;
+		if((i2e - i1e + 1) > lentmp) {
+		  lentmp = 2*(i2e - i1e + 1);
+		  if((tmpstring = (char *) realloc(tmpstring, lentmp*sizeof(char))) == NULL)
+		    vt_error(ERR_MEMALLOC);
+		}
+		for(ie = i1e; ie < i2e; ie++) tmpstring[ie - i1e] = argv[i][ie];
+		tmpstring[i2e - i1e] = '\0';
+		if(sscanf(tmpstring, "%lf", &eval) != 1) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "reportsfvalsintable: invalid lag value '%s'\n", tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(!(eval > 0.0)) {
+		  fprintf(stderr,
+		    "Error parsing the command-line: -structurefunction "
+		    "reportsfvalsintable: lag value '%s' must be > 0\n",
+		    tmpstring);
+		  listcommands(argv[iterm],p);
+		}
+		if(ne_pos > 0) {
+		  prev = c[cn].StructureFunction->report_edges[ne_pos - 1];
+		  if(!(eval > prev)) {
+		    fprintf(stderr,
+		      "Error parsing the command-line: -structurefunction "
+		      "reportsfvalsintable lag values must be strictly "
+		      "increasing (got '%g' after '%g')\n", eval, prev);
+		    listcommands(argv[iterm],p);
+		  }
+		}
+		c[cn].StructureFunction->report_edges[ne_pos++] = eval;
+		i1e = i2e + 1;
+		i2e = i2e + 1;
+	      }
+	    }
+	    free(tmpstring);
+	    c[cn].StructureFunction->n_report_edges = NE;
+	    c[cn].StructureFunction->do_report_in_table = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "save" outdir */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"save")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    sprintf(c[cn].StructureFunction->outdir, "%s", argv[i]);
+	    c[cn].StructureFunction->do_save = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i],"maskpoints")) {
+	    c[cn].StructureFunction->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm],p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+	                                    &(c[cn].StructureFunction->maskvar),
+	                                    VARTOOLS_VECTORTYPE_LC,
+	                                    VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+	  cn++;
+	}
+
       /* -aov ["Nbin" Nbin] minp maxp subsample finetune Npeaks operiodogram [outdir] [\"whiten\"] [\"clip\" clip clipiter] [\"uselog\"] [\"fixperiodSNR\" <\"aov\" | \"ls\" | \"injectharm\" | \"fix\" period | \"list\" [\"column\" col] | \"fixcolumn\" <colname | colnum>>] [\"maskpoints\" maskvar] */
       else if(!strncmp(argv[i],"-aov",4) && strlen(argv[i]) == 4)
 	{
@@ -3477,8 +4856,1098 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Aov->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
+	  cn++;
+	}
+
+      /* -PDM <"step" | "linterp">
+              ["Nbin" <"var" Nbinvar | "expr" Nbinexpr | Nbin>]
+              <"var" minpvar | "expr" minpexpr | minp>
+              <"var" maxpvar | "expr" maxpexpr | maxp>
+              <"var" subsamplevar | "expr" subsampleexpr | subsample>
+              <"var" finetunevar | "expr" finetuneexpr | finetune>
+              Npeaks operiodogram [outdir]
+              ["clip" clip clipiter] ["noerr"]                                 */
+      else if(!strncmp(argv[i],"-PDM",4) && strlen(argv[i]) == 4)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_PDM;
+	  if((c[cn].Pdm = (_PDM *) malloc(sizeof(_PDM))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].Pdm, 0, sizeof(_PDM));
+	  c[cn].Pdm->useerr = 1;
+	  c[cn].Pdm->Nbin = 0;     /* sentinel: use PDM_DEFAULT_NBIN */
+	  c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->Nc = 1;       /* updated to 2 when variant=multicover */
+	  c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->dphi = 0.05;  /* cuvarbase default for tophat/gauss */
+	  c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->usemask = 0;
+	  c[cn].Pdm->maskvar = NULL;
+	  c[cn].Pdm->whiten = 0;
+	  c[cn].Pdm->bootstrap_Nboot = 0;
+	  c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Pdm->clip = 5.0;   /* default 5-sigma iterative clip (matches -aov) */
+	  c[cn].Pdm->clipiter = 1;
+	  c[cn].Pdm->fixperiodSNR = 0;
+	  c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_AOV;
+	  c[cn].Pdm->fixperiodSNR_lastaovindex = -1;
+	  c[cn].Pdm->fixperiodSNR_fixedperiod = 1.0;
+	  c[cn].Pdm->fixperiodSNR_linkedcolumn = NULL;
+	  sprintf(c[cn].Pdm->suffix, ".pdm");
+	  /* variant token (required) */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "step"))
+	    c[cn].Pdm->kind = PDM_KIND_STEP;
+	  else if(!strcmp(argv[i], "linterp"))
+	    c[cn].Pdm->kind = PDM_KIND_LINTERP;
+	  else if(!strcmp(argv[i], "multicover")) {
+	    c[cn].Pdm->kind = PDM_KIND_MULTICOVER;
+	    c[cn].Pdm->Nc = 2;   /* multicover default per SCz/S78 canonical */
+	  }
+	  else if(!strcmp(argv[i], "tophat"))
+	    c[cn].Pdm->kind = PDM_KIND_TOPHAT;
+	  else if(!strcmp(argv[i], "gauss"))
+	    c[cn].Pdm->kind = PDM_KIND_GAUSS;
+	  else {
+	    fprintf(stderr, "-PDM: unrecognised variant '%s' (expected 'step', 'linterp', 'multicover', 'tophat', or 'gauss')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Optional Nbin (with var/expr/fixed) and -- for multicover -- Nc.
+	   * The two keywords are order-independent. */
+	  i++;
+	  while(i < argc) {
+	    if(!strcmp(argv[i], "Nbin")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->Nbin_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->Nbin_expr));
+	      }
+	      else {
+		c[cn].Pdm->Nbin_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->Nbin = atoi(argv[i]);
+	      }
+	      i++;
+	    }
+	    else if(!strcmp(argv[i], "Nc")) {
+	      if(c[cn].Pdm->kind != PDM_KIND_MULTICOVER) {
+		fprintf(stderr, "-PDM: 'Nc' keyword is only valid with the multicover variant\n");
+		listcommands(argv[iterm], p);
+	      }
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->Nc_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_NUMERIC);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->Nc_expr));
+	      }
+	      else {
+		c[cn].Pdm->Nc_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->Nc = atoi(argv[i]);
+	      }
+	      i++;
+	    }
+	    else if(!strcmp(argv[i], "dphi")) {
+	      if(c[cn].Pdm->kind != PDM_KIND_TOPHAT && c[cn].Pdm->kind != PDM_KIND_GAUSS) {
+		fprintf(stderr, "-PDM: 'dphi' keyword is only valid with the tophat or gauss variants\n");
+		listcommands(argv[iterm], p);
+	      }
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->dphi_var),
+						VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      }
+	      else if(!strcmp(argv[i], "expr")) {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+		i++;
+		if(i >= argc) listcommands(argv[iterm], p);
+		parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->dphi_expr));
+	      }
+	      else {
+		c[cn].Pdm->dphi_source = VARTOOLS_SOURCE_FIXED;
+		c[cn].Pdm->dphi = atof(argv[i]);
+	      }
+	      i++;
+	    }
+	    else
+	      break;
+	  }
+	  /* required positionals with var/expr/fixed dispatch */
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->minp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->minp_expr));
+	  } else {
+	    c[cn].Pdm->minp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->minp = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->maxp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->maxp_expr));
+	  } else {
+	    c[cn].Pdm->maxp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->maxp = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->subsample_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->subsample_expr));
+	  } else {
+	    c[cn].Pdm->subsample_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->subsample = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->finetune_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Pdm->finetune_expr));
+	  } else {
+	    c[cn].Pdm->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Pdm->finetune = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Pdm->Npeaks = atoi(argv[i]); i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Pdm->operiodogram = atoi(argv[i]);
+	  if(c[cn].Pdm->operiodogram) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].Pdm->outdir, "%s", argv[i]);
+	  }
+	  /* Trailing keyword options.  Strict canonical order, each keyword
+	   * optional but accepted at most once -- mirrors the pattern used
+	   * by -aov.  The token is consumed only if it matches; otherwise
+	   * the parser falls through to the next keyword check with i
+	   * decremented so the token is re-evaluated. */
+
+	  /* "clip" cf ci */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "clip")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Pdm->clip = atof(argv[i]);
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Pdm->clipiter = atoi(argv[i]);
+	  } else {
+	    i--;
+	  }
+
+	  /* "noerr" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "noerr")) {
+	    c[cn].Pdm->useerr = 0;
+	  } else {
+	    i--;
+	  }
+
+	  /* "whiten" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "whiten")) {
+	    c[cn].Pdm->whiten = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "fixperiodSNR" <"aov" | "ls" | "pdm" | "injectharm" | "fix" P
+	   *                 | "list" ["column" col] | "fixcolumn" <name|num>> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "fixperiodSNR")) {
+	    c[cn].Pdm->fixperiodSNR = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "aov")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_AOV;
+	      m = -1;
+	      for(l = 0; l < cn; l++)
+		if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-PDM fixperiodSNR aov: no prior -aov / -aov_harm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "ls")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_LS;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-PDM fixperiodSNR ls: no prior -LS command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "pdm")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_PDM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-PDM fixperiodSNR pdm: no prior -PDM command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "injectharm")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_INJECTHARM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-PDM fixperiodSNR injectharm: no prior -Injectharm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Pdm->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "fix")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_FIX;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Pdm->fixperiodSNR_fixedperiod = atof(argv[i]);
+	    }
+	    else if(!strcmp(argv[i], "list")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_SPECIFIED;
+	      k = 0;
+	      i++;
+	      if(i < argc) {
+		if(!strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+		  i++;
+		  if(i < argc) k = atoi(argv[i]);
+		  else listcommands(argv[iterm], p);
+		} else i--;
+	      } else i--;
+	      RegisterDataFromInputList(p,
+					(void *) (&(c[cn].Pdm->fixperiodSNR_periods)),
+					VARTOOLS_TYPE_DOUBLE,
+					1, cn, 0, 0, NULL, k,
+					"PDM_FIXPERIODSNR_PERIOD");
+	    }
+	    else if(!strcmp(argv[i], "fixcolumn")) {
+	      c[cn].Pdm->fixperiodSNR_pertype = PERTYPE_FIXCOLUMN;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      increaselinkedcols(p, &(c[cn].Pdm->fixperiodSNR_linkedcolumn), argv[i], cn);
+	    }
+	    else {
+	      fprintf(stderr, "-PDM fixperiodSNR: unrecognised source '%s' (expected aov/ls/pdm/injectharm/fix/list/fixcolumn)\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "bootstrap" Nboot */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "bootstrap")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Pdm->bootstrap_Nboot = atoi(argv[i]);
+	    if(c[cn].Pdm->bootstrap_Nboot < 1) {
+	      fprintf(stderr, "-PDM: bootstrap Nboot must be >= 1\n");
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "maskpoints")) {
+	    c[cn].Pdm->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Pdm->maskvar),
+					    VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+
+	  cn++;
+	}
+
+      /* -FTP "file" template_file
+              <"var" minpvar | "expr" minpexpr | minp>
+              <"var" maxpvar | "expr" maxpexpr | maxp>
+              <"var" subsamplevar | "expr" subsampleexpr | subsample>
+              <"var" finetunevar | "expr" finetuneexpr | finetune>
+              Npeaks operiodogram [outdir]
+              ["noerr"] ["posamponly"]
+       Phase A scope: single-file template only; no clip/whiten/fixperiodSNR/
+       bootstrap/maskpoints (Phases C-D).  noerr and posamponly are the only
+       trailing keywords; canonical strict order. */
+      else if(!strncmp(argv[i],"-FTP",4) && strlen(argv[i]) == 4)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_FTP;
+	  if((c[cn].Ftp = (_FTP *) malloc(sizeof(_FTP))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].Ftp, 0, sizeof(_FTP));
+	  c[cn].Ftp->useerr = 1;
+	  c[cn].Ftp->sums_mode = 2;       /* FTP_SUMS_AUTO: NFFT if compiled, else direct */
+	  c[cn].Ftp->method = 3;          /* FTP_METHOD_AUTO: poly if H<=4 else brute */
+	  c[cn].Ftp->clip = 5.0;          /* 5-sigma iterative clip; matches -PDM / -aov */
+	  c[cn].Ftp->clipiter = 1;
+	  c[cn].Ftp->usemask = 0;
+	  c[cn].Ftp->maskvar = NULL;
+	  c[cn].Ftp->allow_neg_amp = 1;       /* default: report flag, do not reject */
+	  c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_FIXED;
+	  c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_FIXED;
+	  sprintf(c[cn].Ftp->suffix, ".ftp");
+
+	  /* Required template source.
+	   *   "file" PATH                                      -> Phase A
+	   *   "fitlc" lc_path <"ascii" t_col mag_col err_col
+	   *                    | "fits" t_name mag_name err_name>
+	   *           Nharm period                             -> Phase B.1
+	   * Additional sources (filelist, inline) arrive in subsequent phases.
+	   */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "file")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->template_path = strdup(argv[i]);
+	    c[cn].Ftp->H = ftp_load_template_file(argv[i],
+	                                           &(c[cn].Ftp->cn),
+	                                           &(c[cn].Ftp->sn));
+	    if(c[cn].Ftp->H <= 0) {
+	      /* ftp_load_template_file already wrote a diagnostic. */
+	      listcommands(argv[iterm], p);
+	    }
+	  } else if(!strcmp(argv[i], "fitlc")) {
+	    char *lc_path, *format, *t_col_str, *mag_col_str, *err_col_str;
+	    int   Nharm;
+	    double period_lit;
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    lc_path = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    format = argv[i];
+	    if(strcmp(format, "ascii") != 0 && strcmp(format, "fits") != 0) {
+	      fprintf(stderr, "-FTP fitlc: format must be 'ascii' or 'fits'; got '%s'\n", format);
+	      listcommands(argv[iterm], p);
+	    }
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    t_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    mag_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    err_col_str = argv[i];
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    Nharm = atoi(argv[i]);
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    period_lit = atof(argv[i]);
+	    /* Build a synthetic template_path tag for diagnostics. */
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "fitlc:%s@P=%.10g[H=%d]", lc_path, period_lit, Nharm);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    c[cn].Ftp->H = ftp_load_template_fitlc(lc_path, format,
+	                                            t_col_str, mag_col_str, err_col_str,
+	                                            Nharm, period_lit,
+	                                            &(c[cn].Ftp->cn),
+	                                            &(c[cn].Ftp->sn));
+	    if(c[cn].Ftp->H <= 0) {
+	      /* ftp_load_template_fitlc already wrote a diagnostic. */
+	      listcommands(argv[iterm], p);
+	    }
+	  } else if(!strcmp(argv[i], "inline")) {
+	    int Nharm_in, H_in, kk;
+	    i++; if(i >= argc) listcommands(argv[iterm], p);
+	    Nharm_in = atoi(argv[i]);
+	    if(Nharm_in < 0) {
+	      fprintf(stderr, "-FTP inline: Nharm must be >= 0 (Nharm counts harmonics above "
+	                      "the fundamental; Nharm=0 fits only the fundamental); got %d\n", Nharm_in);
+	      listcommands(argv[iterm], p);
+	    }
+	    H_in = Nharm_in + 1;
+	    c[cn].Ftp->H = H_in;
+	    c[cn].Ftp->inline_mode = 1;
+	    c[cn].Ftp->cn        = (double *) malloc(H_in * sizeof(double));
+	    c[cn].Ftp->sn        = (double *) malloc(H_in * sizeof(double));
+	    c[cn].Ftp->cn_source = (int *) malloc(H_in * sizeof(int));
+	    c[cn].Ftp->sn_source = (int *) malloc(H_in * sizeof(int));
+	    c[cn].Ftp->cn_var    = (_Variable **)   calloc(H_in, sizeof(_Variable *));
+	    c[cn].Ftp->sn_var    = (_Variable **)   calloc(H_in, sizeof(_Variable *));
+	    c[cn].Ftp->cn_expr   = (_Expression **) calloc(H_in, sizeof(_Expression *));
+	    c[cn].Ftp->sn_expr   = (_Expression **) calloc(H_in, sizeof(_Expression *));
+	    c[cn].Ftp->cn_lit    = (double *) calloc(H_in, sizeof(double));
+	    c[cn].Ftp->sn_lit    = (double *) calloc(H_in, sizeof(double));
+	    if(c[cn].Ftp->cn == NULL || c[cn].Ftp->sn == NULL ||
+	       c[cn].Ftp->cn_source == NULL || c[cn].Ftp->sn_source == NULL ||
+	       c[cn].Ftp->cn_var == NULL || c[cn].Ftp->sn_var == NULL ||
+	       c[cn].Ftp->cn_expr == NULL || c[cn].Ftp->sn_expr == NULL ||
+	       c[cn].Ftp->cn_lit == NULL || c[cn].Ftp->sn_lit == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "inline[Nharm=%d,H=%d]", Nharm_in, H_in);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    /* Read 2*H_in coefficient specs in order: c_1, s_1, c_2, s_2, ..., c_H, s_H.
+	     * Each spec is one of: literal float, "var" varname, "expr" expr_string. */
+	    for(kk = 0; kk < H_in; kk++) {
+	      /* c_{kk+1} */
+	      i++; if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->cn_var[kk]),
+	                                         VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      } else if(!strcmp(argv[i], "expr")) {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_EVALEXPRESSION;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->cn_expr[kk]));
+	      } else {
+	        c[cn].Ftp->cn_source[kk] = VARTOOLS_SOURCE_FIXED;
+	        c[cn].Ftp->cn_lit[kk] = atof(argv[i]);
+	      }
+	      /* s_{kk+1} */
+	      i++; if(i >= argc) listcommands(argv[iterm], p);
+	      if(!strcmp(argv[i], "var")) {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->sn_var[kk]),
+	                                         VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	      } else if(!strcmp(argv[i], "expr")) {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_EVALEXPRESSION;
+	        i++; if(i >= argc) listcommands(argv[iterm], p);
+	        parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->sn_expr[kk]));
+	      } else {
+	        c[cn].Ftp->sn_source[kk] = VARTOOLS_SOURCE_FIXED;
+	        c[cn].Ftp->sn_lit[kk] = atof(argv[i]);
+	      }
+	    }
+	  } else if(!strcmp(argv[i], "filelist")) {
+	    int kcol = 0;
+	    c[cn].Ftp->filelist_mode = 1;
+	    c[cn].Ftp->H = 0;       /* unknown until first LC's template is loaded */
+	    c[cn].Ftp->cn = NULL;
+	    c[cn].Ftp->sn = NULL;
+	    /* Optional "column" colnum (mirrors -fixperiodSNR list column pattern). */
+	    i++;
+	    if(i < argc && !strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      kcol = atoi(argv[i]);
+	      /* i now at the column number; outer i++ moves to the next positional. */
+	    } else {
+	      /* No "column" keyword; rewind so the outer i++ moves to the next positional. */
+	      i--;
+	    }
+	    {
+	      char buf[MAXLEN];
+	      snprintf(buf, sizeof(buf), "filelist[column=%d]", kcol);
+	      c[cn].Ftp->template_path = strdup(buf);
+	    }
+	    RegisterDataFromInputList(p,
+	                              (void *) (&(c[cn].Ftp->template_filenames)),
+	                              VARTOOLS_TYPE_STRING,
+	                              0, cn, 0, 0, NULL, kcol,
+	                              "FTP_TEMPLATE_FILE");
+	  } else {
+	    fprintf(stderr, "-FTP: expected template source 'file', 'fitlc', 'inline', "
+	                    "or 'filelist' (got '%s')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+
+	  /* required positional: minp */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->minp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->minp_expr));
+	  } else {
+	    c[cn].Ftp->minp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->minp = atof(argv[i]);
+	  }
+	  /* required positional: maxp */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->maxp_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->maxp_expr));
+	  } else {
+	    c[cn].Ftp->maxp_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->maxp = atof(argv[i]);
+	  }
+	  /* required positional: subsample */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->subsample_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->subsample_expr));
+	  } else {
+	    c[cn].Ftp->subsample_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->subsample = atof(argv[i]);
+	  }
+	  /* required positional: finetune */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->finetune_var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA, VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].Ftp->finetune_expr));
+	  } else {
+	    c[cn].Ftp->finetune_source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].Ftp->finetune = atof(argv[i]);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Ftp->Npeaks = atoi(argv[i]); i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].Ftp->operiodogram = atoi(argv[i]);
+	  if(c[cn].Ftp->operiodogram) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].Ftp->outdir, "%s", argv[i]);
+	  }
+
+	  /* Canonical strict-order trailing keywords (mirrors -aov / -PDM):
+	   *   clip / noerr / posamponly / maskpoints / method / sums
+	   * Each block uses the i++/i-- rewind pattern so unrecognised tokens
+	   * fall through to the next keyword's slot, eventually hitting the
+	   * main parser which rejects them.  Strict ordering means a wrong
+	   * order is rejected, and each keyword can only appear once. */
+
+	  /* "clip" cf ci */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "clip")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->clip = atof(argv[i]);
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->clipiter = atoi(argv[i]);
+	  } else {
+	    i--;
+	  }
+
+	  /* "noerr" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "noerr")) {
+	    c[cn].Ftp->useerr = 0;
+	  } else {
+	    i--;
+	  }
+
+	  /* "posamponly" -- reject negative-amplitude solutions instead of just flagging */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "posamponly")) {
+	    c[cn].Ftp->allow_neg_amp = 0;
+	  } else {
+	    i--;
+	  }
+
+	  /* "whiten" -- iterative pre-whitening between peaks via FTP-template subtraction */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "whiten")) {
+	    c[cn].Ftp->whiten = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "fixperiodSNR" <"aov" | "ls" | "pdm" | "ftp" | "injectharm" | "fix" P
+	   *                 | "list" ["column" col] | "fixcolumn" <name|num>> */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "fixperiodSNR")) {
+	    c[cn].Ftp->fixperiodSNR = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "aov")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_AOV;
+	      m = -1;
+	      for(l = 0; l < cn; l++)
+		if(c[l].cnum == CNUM_AOV || c[l].cnum == CNUM_HARMAOV) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR aov: no prior -aov / -aov_harm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "ls")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_LS;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_LS) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR ls: no prior -LS command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "pdm")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_PDM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_PDM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR pdm: no prior -PDM command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "ftp")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FTP;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_FTP) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR ftp: no prior -FTP command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "injectharm")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_INJECTHARM;
+	      m = -1;
+	      for(l = 0; l < cn; l++) if(c[l].cnum == CNUM_INJECTHARM) m = l;
+	      if(m < 0) {
+		fprintf(stderr, "-FTP fixperiodSNR injectharm: no prior -Injectharm command found\n");
+		listcommands(argv[iterm], p);
+	      }
+	      c[cn].Ftp->fixperiodSNR_lastaovindex = m;
+	    }
+	    else if(!strcmp(argv[i], "fix")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FIX;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].Ftp->fixperiodSNR_fixedperiod = atof(argv[i]);
+	    }
+	    else if(!strcmp(argv[i], "list")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_SPECIFIED;
+	      k = 0;
+	      i++;
+	      if(i < argc) {
+		if(!strncmp(argv[i], "column", 6) && strlen(argv[i]) == 6) {
+		  i++;
+		  if(i < argc) k = atoi(argv[i]);
+		  else listcommands(argv[iterm], p);
+		} else i--;
+	      } else i--;
+	      RegisterDataFromInputList(p,
+					(void *) (&(c[cn].Ftp->fixperiodSNR_periods)),
+					VARTOOLS_TYPE_DOUBLE,
+					1, cn, 0, 0, NULL, k,
+					"FTP_FIXPERIODSNR_PERIOD");
+	    }
+	    else if(!strcmp(argv[i], "fixcolumn")) {
+	      c[cn].Ftp->fixperiodSNR_pertype = PERTYPE_FIXCOLUMN;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      increaselinkedcols(p, &(c[cn].Ftp->fixperiodSNR_linkedcolumn), argv[i], cn);
+	    }
+	    else {
+	      fprintf(stderr, "-FTP fixperiodSNR: unrecognised source '%s' "
+	                      "(expected aov/ls/pdm/ftp/injectharm/fix/list/fixcolumn)\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "bootstrap" Nboot -- empirical FAP via Nboot shuffled-LC trials */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "bootstrap")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].Ftp->bootstrap_Nboot = atoi(argv[i]);
+	    if(c[cn].Ftp->bootstrap_Nboot < 1) {
+	      fprintf(stderr, "-FTP bootstrap: Nboot must be >= 1; got %d\n",
+	              c[cn].Ftp->bootstrap_Nboot);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar -- exclude points with maskvar <= VARTOOLS_MASK_TINY */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "maskpoints")) {
+	    c[cn].Ftp->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].Ftp->maskvar),
+	                                     VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
+
+	  /* "method" <brute | poly | verify> -- per-frequency solver choice.
+	   * Default brute (Phase A correctness).  poly = pyftp-style polynomial
+	   * root-finding (with the corrected p^2 - (1-b^2)*q^2 polynomial).
+	   * verify = compute both and report max |P_poly - P_brute| per LC. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "method")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "brute"))       c[cn].Ftp->method = 0;
+	    else if(!strcmp(argv[i], "poly"))   c[cn].Ftp->method = 1;
+	    else if(!strcmp(argv[i], "verify")) c[cn].Ftp->method = 2;
+	    else if(!strcmp(argv[i], "auto"))   c[cn].Ftp->method = 3;
+	    else {
+	      fprintf(stderr, "-FTP: 'method' must be 'brute', 'poly', 'verify', or 'auto'; got '%s'\n",
+	              argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "sums" <auto | direct | nfft> -- per-LC summation strategy.  Default
+	   * (no 'sums' keyword, or explicit 'auto') is NFFT when vartools was
+	   * built with --with-nfft, else direct.  NFFT batches the summations
+	   * across all frequencies in one pass, ~4x faster than per-frequency
+	   * direct loops at N=10000. */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "sums")) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "auto"))      c[cn].Ftp->sums_mode = 2;
+	    else if(!strcmp(argv[i], "direct"))    c[cn].Ftp->sums_mode = 0;
+	    else if(!strcmp(argv[i], "nfft")) c[cn].Ftp->sums_mode = 1;
+	    else {
+	      fprintf(stderr, "-FTP: 'sums' must be 'auto', 'direct', or 'nfft'; got '%s'\n", argv[i]);
+	      listcommands(argv[iterm], p);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  cn++;
+	}
+
+      /* -matchedfilter
+       *   template <name> <named-template-params...> support_halfwidth
+       *   mode <window>
+       *   signs <both | positive | negative>
+       *   Npeaks omatchfile [outdir]
+       *   ["min_separation" sep]
+       *   ["whiten"]
+       *   ["maskpoints" maskvar]
+       *
+       * Phase A scope: named templates only; mode = window only; trailing
+       * keywords in strict canonical order min_separation -> whiten ->
+       * maskpoints.  "expr" / "file" template-source modes and "mode nfft"
+       * are deferred to a follow-on phase. */
+      else if(!strncmp(argv[i],"-matchedfilter",14) && strlen(argv[i]) == 14)
+	{
+	  iterm = i;
+	  increaseNcommands(p,&c);
+	  c[cn].require_sort = 1;
+	  c[cn].require_distinct = 1;
+	  c[cn].cnum = CNUM_MATCHEDFILTER;
+	  if((c[cn].MatchedFilter = (_MatchedFilter *) malloc(sizeof(_MatchedFilter))) == NULL)
+	    vt_error(ERR_MEMALLOC);
+	  memset(c[cn].MatchedFilter, 0, sizeof(_MatchedFilter));
+	  c[cn].MatchedFilter->whiten = 0;
+	  c[cn].MatchedFilter->usemask = 0;
+	  c[cn].MatchedFilter->maskvar = NULL;
+	  c[cn].MatchedFilter->min_sep_given = 0;
+	  c[cn].MatchedFilter->mode = MF_MODE_WINDOW;
+	  c[cn].MatchedFilter->signs = MF_SIGNS_BOTH;
+	  sprintf(c[cn].MatchedFilter->suffix, ".mf");
+
+	  /* Required: "template" keyword + variant name. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "template")) {
+	    fprintf(stderr, "-matchedfilter: expected 'template' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if      (!strcmp(argv[i], "exp"))       { c[cn].MatchedFilter->kind = MF_TPL_EXP;       c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "doubleexp")) { c[cn].MatchedFilter->kind = MF_TPL_DOUBLEEXP; c[cn].MatchedFilter->nparams = 2; }
+	  else if (!strcmp(argv[i], "flare"))     { c[cn].MatchedFilter->kind = MF_TPL_FLARE;     c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "gauss"))     { c[cn].MatchedFilter->kind = MF_TPL_GAUSS;     c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "box"))       { c[cn].MatchedFilter->kind = MF_TPL_BOX;       c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "triangle"))  { c[cn].MatchedFilter->kind = MF_TPL_TRIANGLE;  c[cn].MatchedFilter->nparams = 1; }
+	  else if (!strcmp(argv[i], "trap"))      { c[cn].MatchedFilter->kind = MF_TPL_TRAP;      c[cn].MatchedFilter->nparams = 3; }
+	  else if (!strcmp(argv[i], "file")) {
+	    c[cn].MatchedFilter->kind = MF_TPL_FILE;
+	    c[cn].MatchedFilter->nparams = 0;
+	    /* Next token is the template file path; load it once here. */
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    c[cn].MatchedFilter->file_path = strdup(argv[i]);
+	    if(c[cn].MatchedFilter->file_path == NULL) vt_error(ERR_MEMALLOC);
+	    if(mf_load_template_file(c[cn].MatchedFilter->file_path,
+	                             &(c[cn].MatchedFilter->file_N),
+	                             &(c[cn].MatchedFilter->file_t),
+	                             &(c[cn].MatchedFilter->file_g)) != 0) {
+	      /* mf_load_template_file already wrote a clear error message. */
+	      listcommands(argv[iterm], p);
+	    }
+	  }
+	  else if (!strcmp(argv[i], "expr")) {
+	    c[cn].MatchedFilter->kind = MF_TPL_EXPR;
+	    c[cn].MatchedFilter->nparams = 0;
+	    /* Optional 'varname NAME' before the required expression string.
+	     * Default is 's'.  Mirrors fourierfilter's filterexpr-varname idiom. */
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "varname")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      c[cn].MatchedFilter->expr_varname = strdup(argv[i]);
+	      if(c[cn].MatchedFilter->expr_varname == NULL) vt_error(ERR_MEMALLOC);
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	    } else {
+	      c[cn].MatchedFilter->expr_varname = strdup("s");
+	      if(c[cn].MatchedFilter->expr_varname == NULL) vt_error(ERR_MEMALLOC);
+	    }
+	    c[cn].MatchedFilter->expr_string = strdup(argv[i]);
+	    if(c[cn].MatchedFilter->expr_string == NULL) vt_error(ERR_MEMALLOC);
+	  }
+	  else {
+	    fprintf(stderr, "-matchedfilter: unrecognised template variant '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Per-template required scalars, each with <"var" v | "expr" e | val>. */
+	  int pk;
+	  for(pk = 0; pk < c[cn].MatchedFilter->nparams; pk++) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "var")) {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i],
+					      &(c[cn].MatchedFilter->p[pk].var),
+					      VARTOOLS_VECTORTYPE_PERSTARDATA,
+					      VARTOOLS_TYPE_DOUBLE);
+	    } else if(!strcmp(argv[i], "expr")) {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->p[pk].expr));
+	    } else {
+	      c[cn].MatchedFilter->p[pk].source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].MatchedFilter->p[pk].fixed = atof(argv[i]);
+	    }
+	  }
+	  /* Required: support_halfwidth (var/expr/fixed). */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "var")) {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+					    &(c[cn].MatchedFilter->support.var),
+					    VARTOOLS_VECTORTYPE_PERSTARDATA,
+					    VARTOOLS_TYPE_DOUBLE);
+	  } else if(!strcmp(argv[i], "expr")) {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->support.expr));
+	  } else {
+	    c[cn].MatchedFilter->support.source = VARTOOLS_SOURCE_FIXED;
+	    c[cn].MatchedFilter->support.fixed = atof(argv[i]);
+	  }
+	  /* Required: "mode" <window>.  Reserved for nfft in a follow-on phase. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "mode")) {
+	    fprintf(stderr, "-matchedfilter: expected 'mode' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(!strcmp(argv[i], "window"))
+	    c[cn].MatchedFilter->mode = MF_MODE_WINDOW;
+	  else if(!strcmp(argv[i], "nfft")) {
+#ifdef HAVE_NFFT3
+	    c[cn].MatchedFilter->mode = MF_MODE_NFFT;
+#else
+	    fprintf(stderr, "-matchedfilter: 'mode nfft' requires vartools built with libnfft3 + libfftw3 (configure with --with-nfft)\n");
+	    listcommands(argv[iterm], p);
+#endif
+	  } else {
+	    fprintf(stderr, "-matchedfilter: 'mode' must be 'window' or 'nfft' (got '%s')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Required: "signs" <both | positive | negative>. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if(strcmp(argv[i], "signs")) {
+	    fprintf(stderr, "-matchedfilter: expected 'signs' keyword, got '%s'\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  if      (!strcmp(argv[i], "both"))     c[cn].MatchedFilter->signs = MF_SIGNS_BOTH;
+	  else if (!strcmp(argv[i], "positive")) c[cn].MatchedFilter->signs = MF_SIGNS_POSITIVE;
+	  else if (!strcmp(argv[i], "negative")) c[cn].MatchedFilter->signs = MF_SIGNS_NEGATIVE;
+	  else {
+	    fprintf(stderr, "-matchedfilter: 'signs' must be 'both', 'positive', or 'negative' (got '%s')\n", argv[i]);
+	    listcommands(argv[iterm], p);
+	  }
+	  /* Required: Npeaks and omatchfile.  outdir if omatchfile==1. */
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].MatchedFilter->Npeaks = atoi(argv[i]);
+	  if(c[cn].MatchedFilter->Npeaks < 1) {
+	    fprintf(stderr, "-matchedfilter: Npeaks must be >= 1 (got %d)\n", c[cn].MatchedFilter->Npeaks);
+	    listcommands(argv[iterm], p);
+	  }
+	  i++;
+	  if(i >= argc) listcommands(argv[iterm], p);
+	  c[cn].MatchedFilter->omatchfile = atoi(argv[i]);
+	  if(c[cn].MatchedFilter->omatchfile) {
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    sprintf(c[cn].MatchedFilter->outdir, "%s", argv[i]);
+	  }
+	  /* Trailing strict-order keywords: min_separation, whiten, maskpoints. */
+
+	  /* "min_separation" sep */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "min_separation")) {
+	    c[cn].MatchedFilter->min_sep_given = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    if(!strcmp(argv[i], "var")) {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_EXISTINGVARIABLE;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_existingvariable(&(c[cn]), argv[i],
+					      &(c[cn].MatchedFilter->min_sep.var),
+					      VARTOOLS_VECTORTYPE_PERSTARDATA,
+					      VARTOOLS_TYPE_DOUBLE);
+	    } else if(!strcmp(argv[i], "expr")) {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_EVALEXPRESSION;
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm], p);
+	      parse_setparam_expr(&(c[cn]), argv[i], &(c[cn].MatchedFilter->min_sep.expr));
+	    } else {
+	      c[cn].MatchedFilter->min_sep.source = VARTOOLS_SOURCE_FIXED;
+	      c[cn].MatchedFilter->min_sep.fixed = atof(argv[i]);
+	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "whiten" */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "whiten")) {
+	    c[cn].MatchedFilter->whiten = 1;
+	  } else {
+	    i--;
+	  }
+
+	  /* "maskpoints" maskvar */
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "maskpoints")) {
+	    c[cn].MatchedFilter->usemask = 1;
+	    i++;
+	    if(i >= argc) listcommands(argv[iterm], p);
+	    parse_setparam_existingvariable(&(c[cn]), argv[i],
+					    &(c[cn].MatchedFilter->maskvar),
+					    VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
+	  } else {
+	    i--;
+	  }
 	  cn++;
 	}
 
@@ -7841,6 +10310,39 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  /* mergepeakdf: frequency-resolution factor used to decide whether two
+	     spectrum peaks are the same detection.  Absent => fixed factor 1.0
+	     (Df = 1/T, the Rayleigh resolution).  "transit" mult => Df = mult*q/T
+	     using the per-candidate fitted transit width q; a bare number => Df =
+	     factor/T. */
+	  c[cn].Bls->mergepeakdf_mode = 0;
+	  c[cn].Bls->mergepeakdf_val = 1.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"mergepeakdf")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"transit")) {
+		c[cn].Bls->mergepeakdf_mode = 1;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].Bls->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].Bls->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLS: 'mergepeakdf transit' multiplier must be a positive number; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      } else {
+		c[cn].Bls->mergepeakdf_mode = 0;
+		c[cn].Bls->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].Bls->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLS: 'mergepeakdf' factor must be a positive number, or use 'transit <mult>'; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      }
+	    } else
+	      i--;
+	  } else
+	    i--;
 	  c[cn].Bls->usemask = 0;
 	  c[cn].Bls->maskvar = NULL;
 	  i++;
@@ -8434,6 +10936,36 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  }
 	  else
 	    i--;
+	  /* mergepeakdf: see -BLS.  Absent => Df = 1/T; "transit" mult =>
+	     Df = mult*q/T; bare number => Df = factor/T. */
+	  c[cn].BlsFixDurTc->mergepeakdf_mode = 0;
+	  c[cn].BlsFixDurTc->mergepeakdf_val = 1.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"mergepeakdf")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      if(!strcmp(argv[i],"transit")) {
+		c[cn].BlsFixDurTc->mergepeakdf_mode = 1;
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].BlsFixDurTc->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'mergepeakdf transit' multiplier must be a positive number; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      } else {
+		c[cn].BlsFixDurTc->mergepeakdf_mode = 0;
+		c[cn].BlsFixDurTc->mergepeakdf_val = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->mergepeakdf_val <= 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'mergepeakdf' factor must be a positive number, or use 'transit <mult>'; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+	      }
+	    } else
+	      i--;
+	  } else
+	    i--;
 	  c[cn].BlsFixDurTc->usemask = 0;
 	  c[cn].BlsFixDurTc->maskvar = NULL;
 	  i++;
@@ -8446,7 +10978,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].BlsFixDurTc->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 	    } else
 	      i--;
-	  } else 
+	  } else
 	    i--;
 	  cn++;
 	}
@@ -10386,6 +12918,9 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA->outputfitmask = 0;
 	  c[cn].TFA->outputfitmaskvarname = NULL;
 	  c[cn].TFA->outputfitmaskvar = NULL;
+	  c[cn].TFA->do_refmag = 0;
+	  c[cn].TFA->refmag_usemedian = 0;
+	  VT_INIT_PARAM(c[cn].TFA, refmag);
 	  if(i < argc)
 	    {
 	      if(!strncmp(argv[i],"readformat",10) && strlen(argv[i]) == 10)
@@ -10577,6 +13112,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    i--;
 
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"refmag")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA->do_refmag = 1;
+	      if(!c[cn].TFA->correctlc) {
+		fprintf(stderr, "-TFA: 'refmag' requires correctlc to be enabled; the corrected light curve must be written for its level to be reset\n");
+		listcommands(argv[iterm],p);
+	      }
+	      VT_PARSE_DOUBLE(c[cn].TFA, refmag, argv, i);
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA->refmag_usemedian = 1;
+		} else
+		  i--;
+	      } else
+		i--;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
@@ -10605,6 +13165,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].TFA_SR->usefitmask = 0;
 	  c[cn].TFA_SR->fitmaskvarname = NULL;
 	  c[cn].TFA_SR->fitmaskvar = NULL;
+	  c[cn].TFA_SR->outputfitmask = 0;
+	  c[cn].TFA_SR->outputfitmaskvarname = NULL;
+	  c[cn].TFA_SR->outputfitmaskvar = NULL;
+	  c[cn].TFA_SR->do_refmag = 0;
+	  c[cn].TFA_SR->refmag_usemedian = 0;
+	  VT_INIT_PARAM(c[cn].TFA_SR, refmag);
 
 	  if(i < argc)
 	    {
@@ -11054,6 +13620,31 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  else
 	    i--;
 
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"refmag")) {
+	      i++;
+	      if(i >= argc) listcommands(argv[iterm],p);
+	      c[cn].TFA_SR->do_refmag = 1;
+	      if(!c[cn].TFA_SR->correctlc) {
+		fprintf(stderr, "-TFA_SR: 'refmag' requires correctlc to be enabled; the corrected light curve must be written for its level to be reset\n");
+		listcommands(argv[iterm],p);
+	      }
+	      VT_PARSE_DOUBLE(c[cn].TFA_SR, refmag, argv, i);
+	      i++;
+	      if(i < argc) {
+		if(!strcmp(argv[i],"usemedian")) {
+		  c[cn].TFA_SR->refmag_usemedian = 1;
+		} else
+		  i--;
+	      } else
+		i--;
+	    } else
+	      i--;
+	  }
+	  else
+	    i--;
+
 	  cn++;
 	}
 
@@ -11207,9 +13798,11 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  i++;
 	  if(i >= argc)
 	    listcommands(argv[iterm],p);
-	  if(!strncmp(argv[i],"firstbinshift",13) && strlen(argv[i]) == 13)
+	  if(!strncmp(argv[i],"binshift",8) && strlen(argv[i]) == 8)
 	    {
+	      /* New (multiplicative) shift: t0 -= firstbin * binsize. */
 	      c[cn].Binlc->firstbinflag = 1;
+	      c[cn].Binlc->binshift_mult = 1;
 	      i++;
 	      if(i < argc)
 		VT_PARSE_DOUBLE(c[cn].Binlc, firstbin, argv, i);
@@ -11219,8 +13812,25 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(i >= argc)
 		listcommands(argv[iterm],p);
 	    }
-	  else
+	  else if(!strncmp(argv[i],"firstbinshift",13) && strlen(argv[i]) == 13)
+	    {
+	      /* Legacy (divisive) shift: t0 -= firstbin / binsize.  Retained
+		 for backward compatibility; users should prefer "binshift". */
+	      c[cn].Binlc->firstbinflag = 1;
+	      c[cn].Binlc->binshift_mult = 0;
+	      i++;
+	      if(i < argc)
+		VT_PARSE_DOUBLE(c[cn].Binlc, firstbin, argv, i);
+	      else
+		listcommands(argv[iterm],p);
+	      i++;
+	      if(i >= argc)
+		listcommands(argv[iterm],p);
+	    }
+	  else {
 	    c[cn].Binlc->firstbinflag = 0;
+	    c[cn].Binlc->binshift_mult = 0;
+	  }
 	  if(!strcmp(argv[i],"tcenter"))
 	    c[cn].Binlc->tflag = VARTOOLS_BINLC_TIMETYPE_CENTER;
 	  else if(!strcmp(argv[i],"taverage"))

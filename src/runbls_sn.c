@@ -1314,6 +1314,7 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
   double *freqarray = NULL;
   double global_best_sr_ave_inv, global_best_sr_stddev_inv;
   double kmisave, kkmisave, kmasave, mindt, qmi_test;
+  double dffac;
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
   long double val1, val2, val3;
@@ -1891,10 +1892,11 @@ the periodogram, and then search it for peaks    *
     {
       if(p[i] > 0)
 	{
+	  dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -1925,10 +1927,11 @@ the periodogram, and then search it for peaks    *
 	{
 	  if(p[i] > minbest)
 	    {
+	      dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+		  if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		    {
 		      if(p[i] > snval[j])
 			{
@@ -2371,55 +2374,13 @@ the periodogram, and then search it for peaks    *
     }
   else
     {
-      /* We have no peaks, just put -1. for the values and return to the calling function */
-      /*for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  }*/
+      /* No frequencies survive clipping in the inverse-transit pass.  Set
+         the inverse-transit sentinels and fall through so that operiodogram,
+         omodel, ophcurve, ojdcurve, and correctlc still execute on the
+         already-computed forward-transit results. */
       *bperpos = -1.;
       *chisqrminus = 999999.;
       *meanmagval = -1.;
-      free(weight);
-      free(y);
-      free(ibi);
-      free(best_id);
-      free(sr_ave);
-      free(binned_sr_ave);
-      free(binned_sr_sig);
-      free(in1_array);
-      free(in2_array);
-      free(qtran_array);
-      free(depth_array);
-      free(bper_array);
-      free(sr_ave_minus);
-      free(binned_sr_ave_minus);
-      free(binned_sr_sig_minus);
-      free(p_minus);
-      if(freqarray != NULL)
-	free(freqarray);
-      if(probvals != NULL)
-	free(probvals);
-      if(srshiftvals != NULL)
-	free(srshiftvals);
-      if(srnoshiftvals != NULL)
-	free(srnoshiftvals);
-#ifdef PARALLEL
-      if(srvals != NULL) free(srvals);
-      if(srvals_minus != NULL) free(srvals_minus);
-#endif
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
     }
 
   //sde = (*bpow - ((double)sr_ave / (double)nsr))/sqrt((double)((srsqr_ave / (long double) nsr) - (sr_ave*sr_ave/(long double)(nsr*nsr))));
@@ -2680,6 +2641,7 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
   double global_best_sr_ave, global_best_sr_stddev, global_best_sr_ave_inv, global_best_sr_stddev_inv, qmi_test, mindt;
+  double dffac;
   double *freqarray = NULL;
   double *probvals = NULL;
   double *srshiftvals = NULL;
@@ -3265,10 +3227,11 @@ the periodogram, and then search it for peaks    *
     {
       if(p[i] > 0)
 	{
+	  dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -3299,10 +3262,11 @@ the periodogram, and then search it for peaks    *
 	{
 	  if(p[i] > minbest)
 	    {
+	      dffac = (Bls->mergepeakdf_mode ? Bls->mergepeakdf_val * qtran_array[i] : Bls->mergepeakdf_val);
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if((!reportharmonics && !isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot)))
+		  if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		    {
 		      if(p[i] > snval[j])
 			{
@@ -3751,55 +3715,13 @@ the periodogram, and then search it for peaks    *
     }
   else
     {
-      /* We have no peaks, just put -1. for the values and return to the calling function */
-      /*for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  }*/
+      /* No frequencies survive clipping in the inverse-transit pass.  Set
+         the inverse-transit sentinels and fall through so that operiodogram,
+         omodel, ophcurve, ojdcurve, and correctlc still execute on the
+         already-computed forward-transit results. */
       *bperpos = -1.;
       *chisqrminus = 999999.;
       *meanmagval = -1.;
-      free(weight);
-      free(y);
-      free(ibi);
-      free(best_id);
-      free(sr_ave);
-      free(binned_sr_ave);
-      free(binned_sr_sig);
-      free(in1_array);
-      free(in2_array);
-      free(qtran_array);
-      free(depth_array);
-      free(bper_array);
-      free(sr_ave_minus);
-      free(binned_sr_ave_minus);
-      free(binned_sr_sig_minus);
-      free(p_minus);
-      if(freqarray != NULL)
-	free(freqarray);
-      if(probvals != NULL)
-	free(probvals);
-      if(srshiftvals != NULL)
-	free(srshiftvals);
-      if(srnoshiftvals != NULL)
-	free(srnoshiftvals);
-#ifdef PARALLEL
-      if(srvals != NULL) free(srvals);
-      if(srvals_minus != NULL) free(srvals_minus);
-#endif
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
     }
 
 
@@ -4193,7 +4115,7 @@ void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int th
 	Bls->maxexpdurfrac_val[lcnum] = EvaluateVariable_Double(lc_name_num, lcnum, 0, Bls->maxexpdurfrac_var);
       }
       else {
-	Bls->maxexpdurfrac_val[lcnum] = Bls->minexpdurfrac;
+	Bls->maxexpdurfrac_val[lcnum] = Bls->maxexpdurfrac;
       }
       
       Bls->rmin_val[lcnum] = pow(((0.0848203*Bls->minexpdurfrac_val[lcnum]*pow(Bls->rho_val[lcnum],(-1.0/3.0)))/0.076),1.5);

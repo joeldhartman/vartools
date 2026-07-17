@@ -64,7 +64,7 @@ void w_ave(int ngood, double *data, double *sig, double *ws, double *ave)
     }
 }
 
-void getJstet(int ngood_in, double tmin, double wkmax, double *time_in, double *mag_in, double *sig_in, double *wtave, double *jst, double *kur, double *lst, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
+void getJstet(int ngood_in, double tmin, double wkmax, int skipnormalize, double *time_in, double *mag_in, double *sig_in, double *wtave, double *jst, double *kur, double *lst, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, flag = 0, npair = 0;
   double dt, wave = 0.0, sigma = 0.0, *ws, wtave1, delta, *delt, *pk, *wk, dumval, s=0.0, weight;
@@ -191,10 +191,17 @@ void getJstet(int ngood_in, double tmin, double wkmax, double *time_in, double *
       *jst += wk[j]*s;
       weight += wk[j];
     }
-  *jst /= weight;
-  /* Compute lst */
-  *lst = (*jst) * (*kur) * weight / wkmax;
-  *jst = (*jst) * weight / wkmax;
+  *jst /= weight;                            /* Stetson's original J */
+  /* Compute lst.  In skipnormalize mode we emit Stetson's original
+   * J / L; otherwise apply the vartools (sum_w / wkmax) rescaling
+   * that downweights LCs missing observations relative to the
+   * survey-wide schedule. */
+  if(skipnormalize) {
+    *lst = (*jst) * (*kur);
+  } else {
+    *lst = (*jst) * (*kur) * weight / wkmax;
+    *jst = (*jst) * weight / wkmax;
+  }
   free(delt);
   free(pk);
   free(wk);

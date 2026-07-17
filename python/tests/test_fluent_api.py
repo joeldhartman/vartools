@@ -127,6 +127,24 @@ class TestResultImmediate:
         assert "LS" in cmds
         assert "rms" in cmds
 
+    def test_chained_save_files_both_segments(self, lc):
+        """Chained .BLS().BLS() with save_periodogram/save_model should
+        return BOTH segments' captured files, keyed by chain position
+        (suffix _0 for the first BLS, _1 for the second).  Regression
+        for the bug where the first segment's files were dropped and
+        the second segment's keyed _0, leaving only one set visible."""
+        r = (lc
+             .BLS(0.5, 5.0, qmin=0.01, qmax=0.1, nfreq=500, nbins=200,
+                  save_periodogram=True, save_model=True, npeaks=1,
+                  nobinnedrms=True)
+             .BLS(0.5, 5.0, qmin=0.01, qmax=0.1, nfreq=500, nbins=200,
+                  save_periodogram=True, save_model=True, npeaks=1,
+                  nobinnedrms=True))
+        assert "BLS_periodogram_0" in r.files
+        assert "BLS_periodogram_1" in r.files
+        assert "BLS_model_0" in r.files
+        assert "BLS_model_1" in r.files
+
 
 # ---------------------------------------------------------------------------
 # Pipeline-stateful commands raise NotImplementedError

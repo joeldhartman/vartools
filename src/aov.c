@@ -463,40 +463,50 @@ void AOVPeriodogram(int size, double *t, double *mag, int Nperiod, double *perio
 
 
 
-/* Determine whether two different periods are the same */
-int isDifferentPeriods (double period1, double period2, double T)
+/* Determine whether two different periods are the same, using an adjustable
+   frequency-resolution factor dffac.  Two periods are deemed the same if their
+   frequencies (or the frequency of period2 and a low-order rational multiple of
+   period1) agree within dffac/T.  dffac=1 reproduces the Rayleigh resolution
+   1/T; a transit-aware caller can pass dffac~q (the fractional transit width) so
+   the test resolves periods on the scale that a box transit actually smears. */
+int isDifferentPeriods_df (double period1, double period2, double T, double dffac)
 {
   int a, b ;
   double period1mul ;
 
-  /*if (T * (period2 - period1) < ((period2 * period2) + (period1 * period1)))
-    return (0) ;*/
-  if(T * fabs(period2 - period1) < period2*period1)
+  if(T * fabs(period2 - period1) < dffac * period2*period1)
     return(0);
 
   for (a = 1 ; a < MAX_PERIOD_DIFF_MULTIPLE ; a++)
     for (b = a + 1 ; b <= MAX_PERIOD_DIFF_MULTIPLE ; b++)   // a < b
       {
 	period1mul = period1 * b / a ;
-	/*if (T * fabs(period2 - period1mul) < ((period2 * period2) + (period1mul * period1mul)))
-	  return (0) ;*/
-	if(T * fabs(period2 - period1mul) < period2 * period1mul)
+	if(T * fabs(period2 - period1mul) < dffac * period2 * period1mul)
 	  return(0);
       }
 
   return (1) ;
 }
 
-/* Determine whether two different periods are the same, dont check multiples */
-int isDifferentPeriodsDontCheckHarmonics (double period1, double period2, double T)
+/* Same as isDifferentPeriods_df but does not check rational multiples. */
+int isDifferentPeriodsDontCheckHarmonics_df (double period1, double period2, double T, double dffac)
 {
-
-  /*if (T * (period2 - period1) < ((period2 * period2) + (period1 * period1)))
-    return (0) ;*/
-  if(T * fabs(period2 - period1) < period2*period1)
+  if(T * fabs(period2 - period1) < dffac * period2*period1)
     return(0);
   else
     return (1);
+}
+
+/* Determine whether two different periods are the same */
+int isDifferentPeriods (double period1, double period2, double T)
+{
+  return isDifferentPeriods_df(period1, period2, T, 1.0);
+}
+
+/* Determine whether two different periods are the same, dont check multiples */
+int isDifferentPeriodsDontCheckHarmonics (double period1, double period2, double T)
+{
+  return isDifferentPeriodsDontCheckHarmonics_df(period1, period2, T, 1.0);
 }
 
 /* Given a light curve, this function will compute an AOV periodogram and find the top Npeaks peaks */

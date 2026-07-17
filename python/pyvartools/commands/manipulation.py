@@ -28,6 +28,12 @@ class clip(VartoolsCommand):
     noinitmark : bool
         Do not initialise the markclip variable before clipping.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the clipping statistics.
+
+    See Also
+    --------
+    CLI command: ``-clip``.
     """
 
     _vt_name = "clip"
@@ -63,11 +69,21 @@ class clip(VartoolsCommand):
 
 
 class rms(VartoolsCommand):
-    """Compute RMS and weighted RMS of the light curve.
+    """Compute the RMS and expected RMS of the light curve.
+
+    Emits the unweighted magnitude RMS, the error-weighted mean
+    magnitude, and the expected RMS implied by the per-point
+    uncertainties.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rms``.
     """
 
     _vt_name = "rms"
@@ -80,15 +96,25 @@ class rms(VartoolsCommand):
 
 
 class rmsbin(VartoolsCommand):
-    """Compute binned RMS at a series of timescales.
+    """Compute the RMS of the light curve after moving-average binning.
+
+    For each timescale the magnitudes are smoothed with a moving
+    average of that width and the RMS of the smoothed series is
+    reported — a measure of how much scatter survives binning.
 
     Parameters
     ----------
     nbin : int
-        Number of timescale bins.
+        Number of timescales (must equal ``len(bintimes)``).
     bintimes : list of float
-        Timescales (e.g. in days) at which to compute the binned RMS.
+        Bin timescales (days) at which to compute the binned RMS.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rmsbin``.
     """
 
     _vt_name = "rmsbin"
@@ -110,11 +136,20 @@ class rmsbin(VartoolsCommand):
 
 
 class chi2(VartoolsCommand):
-    """Compute chi-squared statistic.
+    """Compute the reduced chi-squared of the light curve about its
+    weighted mean.
+
+    Reports ``χ²/dof`` and the error-weighted mean magnitude.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-chi2``.
     """
 
     _vt_name = "chi2"
@@ -127,13 +162,25 @@ class chi2(VartoolsCommand):
 
 
 class chi2bin(VartoolsCommand):
-    """Compute binned chi-squared at multiple timescales.
+    """Compute reduced chi-squared after moving-average binning.
+
+    For each timescale the magnitudes are smoothed with a moving
+    average of that width and ``χ²/dof`` of the smoothed series is
+    reported.
 
     Parameters
     ----------
     nbin : int
+        Number of timescales (must equal ``len(bintimes)``).
     bintimes : list of float
+        Bin timescales (days) at which to compute the binned χ².
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-chi2bin``.
     """
 
     _vt_name = "chi2bin"
@@ -155,11 +202,22 @@ class chi2bin(VartoolsCommand):
 
 
 class alarm(VartoolsCommand):
-    """Alarm statistic for transit detection.
+    """Tamuz, Mazeh & North (2006) alarm statistic.
+
+    A time-correlated-variability indicator sensitive to runs of
+    same-sign residuals about the weighted mean — useful for flagging
+    systematics and coherent variability.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-alarm``.
+    Citation: Tamuz, Mazeh & North 2006 (MNRAS 367, 1521).
     """
 
     _vt_name = "alarm"
@@ -171,12 +229,1180 @@ class alarm(VartoolsCommand):
         return ["-alarm"] + _flag("maskpoints", self.maskpoints)
 
 
+class vonNeumann(VartoolsCommand):
+    """von Neumann (1941) ratio eta = delta^2 / s^2 as a variability indicator.
+
+    For uncorrelated Gaussian noise E[eta] = 2 (variance ~ 4/N).  Smoothly
+    varying (correlated) signals drive eta well below 2; anti-correlated
+    signals push eta above 2.  Useful as a sparse-/uneven-sampling variability
+    metric (Sokolovsky et al. 2017, MNRAS 464, 274).  The light curve is
+    time-sorted automatically before the calculation.
+
+    Parameters
+    ----------
+    weighted : bool
+        If True, use inverse-variance weighting.  The weighted ratio is
+        ``eta_w = (2N/(N-1)) * sum w_pair_i (y[i+1]-y[i])^2 / sum w_i (y_i - <y>_w)^2``
+        with ``w_i = 1/sigma_i^2`` and ``w_pair_i = 1/(sigma_i^2 + sigma_{i+1}^2)``.
+        The (2N/(N-1)) prefactor restores E[eta_w] ~ 2 for white noise under
+        any sigma distribution (the raw ratio-of-weighted-averages instead
+        converges to <w>/<w_pair>, which equals 2 only for homoscedastic
+        errors).  Reduces exactly to the unweighted form when sigma is
+        constant.  Points with NaN / non-positive uncertainty are dropped.
+    maskpoints : str, optional
+        Name of a vector; only points where ``maskvar > 0`` are included.
+
+    See Also
+    --------
+    CLI command: ``-vonNeumann``.
+    Cite von Neumann, J. 1941, Annals of Mathematical Statistics, 12, 367
+    if you use this command; for astronomical applications see Sokolovsky,
+    K. V., et al. 2017, MNRAS, 464, 274.
+    """
+
+    _vt_name = "vonNeumann"
+
+    def __init__(self, weighted: bool = False,
+                 maskpoints: Optional[str] = None) -> None:
+        self.weighted = weighted
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        # Strict-parser order: weighted, then maskpoints.
+        args = ["-vonNeumann"]
+        args += _bool("weighted", self.weighted)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class percentileratios(VartoolsCommand):
+    """Robust scatter statistics from the magnitude distribution.
+
+    For each pair of percentiles ``(p, q)`` with ``0 < p < q < 100`` the
+    command emits two statistics per light curve:
+
+        amp_p_q  = pct(q) - pct(p)
+        asym_p_q = (pct(q) - median) / (median - pct(p))
+
+    plus one additional statistic that does not depend on the pair list:
+
+        medmeddev_over_stddev = median(|x - median(x)|) / stddev(x)
+
+    For any symmetric distribution ``asym -> 1.0``; positively-skewed
+    distributions produce ``asym > 1`` and negatively-skewed distributions
+    produce ``asym < 1``.  For independent Gaussian noise
+    ``medmeddev / stddev -> 0.6745`` in the large-N limit.
+
+    Percentile interpolation matches the ``-stats`` command, so values are
+    directly comparable to the corresponding ``pct(p)`` columns from
+    ``stats``.  NaN magnitudes are dropped before any statistic is
+    computed; light curves with fewer than two finite magnitudes, and
+    ratios with a zero denominator (e.g. ``median == pct(p)``, or
+    ``stddev == 0``), produce NaN outputs.
+
+    Parameters
+    ----------
+    percentilepairs : sequence of (float, float), optional
+        Percentile pairs to use.  Defaults to ``[(5, 95), (1, 99)]``.
+        Each pair must satisfy ``0 < p, q < 100`` and ``p != q``; pairs
+        with ``p > q`` are silently canonicalized to ``p < q``; duplicate
+        pairs (after canonicalization) are rejected.  Floating-point
+        percentiles are accepted (e.g. ``(2.5, 97.5)``).
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied alongside
+        NaN rejection).
+
+    See Also
+    --------
+    CLI command: ``-percentileratios``.
+    """
+
+    _vt_name = "percentileratios"
+
+    _DEFAULT_PAIRS = ((5.0, 95.0), (1.0, 99.0))
+
+    def __init__(
+        self,
+        percentilepairs: Optional[Sequence[Sequence[float]]] = None,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.maskpoints = maskpoints
+        if percentilepairs is None:
+            self.percentilepairs = list(self._DEFAULT_PAIRS)
+            return
+
+        canonical = []
+        seen = set()
+        for idx, pair in enumerate(percentilepairs):
+            try:
+                p, q = pair
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"percentilepairs[{idx}] must be a (p, q) pair, got {pair!r}"
+                )
+            p = float(p)
+            q = float(q)
+            if not (0.0 < p < 100.0) or not (0.0 < q < 100.0):
+                raise ValueError(
+                    f"percentilepairs[{idx}] = ({p}, {q}) is outside the open interval (0, 100)"
+                )
+            if p == q:
+                raise ValueError(
+                    f"percentilepairs[{idx}] has p == q ({p})"
+                )
+            if p > q:
+                p, q = q, p
+            key = (p, q)
+            if key in seen:
+                raise ValueError(
+                    f"percentilepairs has duplicate pair {p}:{q} (after canonicalizing p < q)"
+                )
+            seen.add(key)
+            canonical.append((p, q))
+        self.percentilepairs = canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-percentileratios"]
+        if list(map(tuple, self.percentilepairs)) != list(self._DEFAULT_PAIRS):
+            pair_str = ",".join(f"{p}:{q}" for p, q in self.percentilepairs)
+            args += ["percentilepairs", pair_str]
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class beyondNsigma(VartoolsCommand):
+    """Fraction of magnitudes beyond N*sigma above/below the median.
+
+    For each light curve and each N value in ``Nvalues``, two fractions are
+    emitted::
+
+        frac_above_N = #{ x : x > median + N*sigma } / N_rej
+        frac_below_N = #{ x : x < median - N*sigma } / N_rej
+
+    where ``N_rej`` is the number of finite magnitudes after NaN rejection.
+    Comparisons are strict (``>`` and ``<``).
+
+    By default ``sigma`` is the sample standard deviation.  When
+    ``useMAD=True`` is given, ``sigma`` is taken to be
+    ``1.483 * median(|x - median(x)|)`` instead -- the Gaussian-consistent
+    calibration of the MAD.  The MAD-based scale is robust to heavy tails
+    or outliers, which inflate the stddev and widen the threshold; using
+    MAD recovers a tighter threshold and correctly flags outliers as such.
+
+    NaN magnitudes are dropped before any statistic is computed; light
+    curves with fewer than two finite magnitudes produce NaN outputs.  When
+    sigma is exactly zero (e.g. every magnitude equals the median) the
+    fractions are reported as zero, since no point strictly exceeds a zero
+    threshold.
+
+    The ``N=1`` instance of this statistic corresponds to the
+    ``Beyond1Std`` feature of Nun et al. 2015, "FATS: Feature Analysis for
+    Time Series" (arXiv:1506.00010), generalized here to an arbitrary list
+    of N values and to a choice of stddev or MAD scale.
+
+    Parameters
+    ----------
+    Nvalues : sequence of float, optional
+        N values to evaluate.  Defaults to ``[1.0, 3.0, 5.0]``.  Each value
+        must be strictly positive, and duplicates are rejected.
+        Floating-point values are accepted (e.g. ``[1.5, 2.5, 4.0]``).
+    useMAD : bool, optional
+        If True, use ``1.483 * MAD`` as the scale instead of the sample
+        standard deviation.  Defaults to False.
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied alongside
+        NaN rejection).
+
+    See Also
+    --------
+    CLI command: ``-beyondNsigma``.
+    Citation: Nun et al. 2015 (arXiv:1506.00010) for the ``Beyond1Std``
+    feature this generalizes.
+    """
+
+    _vt_name = "beyondNsigma"
+
+    _DEFAULT_NVALUES = (1.0, 3.0, 5.0)
+
+    def __init__(
+        self,
+        Nvalues: Optional[Sequence[float]] = None,
+        useMAD: bool = False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        if Nvalues is None:
+            self.Nvalues = list(self._DEFAULT_NVALUES)
+        else:
+            canonical = []
+            seen = set()
+            for idx, val in enumerate(Nvalues):
+                try:
+                    v = float(val)
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"Nvalues[{idx}] must be a number, got {val!r}"
+                    )
+                if v <= 0.0:
+                    raise ValueError(
+                        f"Nvalues[{idx}] = {v} must be > 0"
+                    )
+                if v in seen:
+                    raise ValueError(
+                        f"Nvalues has duplicate value {v}"
+                    )
+                seen.add(v)
+                canonical.append(v)
+            self.Nvalues = canonical
+        self.useMAD = bool(useMAD)
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-beyondNsigma"]
+        if [float(v) for v in self.Nvalues] != list(self._DEFAULT_NVALUES):
+            args += ["Nvalues", ",".join(str(v) for v in self.Nvalues)]
+        if self.useMAD:
+            args += ["useMAD"]
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class slopestats(VartoolsCommand):
+    """Per-pair slope statistics over consecutive light-curve points.
+
+    After time-sorting (and optionally binning) the filtered light curve,
+    consecutive points are paired and slopes are formed::
+
+        s_i = (m[i+1] - m[i]) / (t[i+1] - t[i])
+
+    Five statistics are reported per (LC, binsize) combination::
+
+        median_abs_dmdt = median(|s_i|)
+        max_abs_dmdt    = max(|s_i|)
+        mad_dmdt        = 1.483 * median(|s_i - median(s_i)|)
+        frac_above_T    = #{ s_i : s_i - <s> > T*sigma } / N_pairs
+        frac_below_T    = #{ s_i : s_i - <s> < -T*sigma } / N_pairs
+
+    ``<s>`` is the mean of the slopes; deviations are mean-centered
+    regardless of the choice of sigma flavor.  Comparisons against
+    ``T*sigma`` are strict (``>`` and ``<``).
+
+    By default ``sigma`` is the sample standard deviation of the slopes
+    (normalized by ``N_pairs - 1``).  When ``useMAD=True``, ``sigma`` is
+    ``1.483 * median(|s_i - median(s_i)|)`` instead (= ``mad_dmdt``),
+    which is more robust to heavy tails or outliers.
+
+    The optional ``bintime`` parameter takes a list of bin sizes in
+    MINUTES (assuming the light curve time axis is in days; the kernel
+    divides each bintime by 1440 before binning).  Each binsize produces
+    its own column set.  The optional ``binshift`` parameter (only valid
+    in combination with ``bintime``) shifts the first bin by a fraction
+    of the binwidth: ``t0_bin = t[0] - binshift * binsize``.  Canonical
+    use is ``0 <= binshift < 1``.
+
+    The optional ``maxgap`` parameter (in days) drops consecutive pairs
+    whose time separation exceeds ``maxgap``, suppressing spurious large
+    slopes that span long observational gaps.
+
+    The ``max_abs_dmdt`` statistic corresponds to the ``MaxSlope``
+    feature of Richards et al. 2011, ApJ 733, 10.  The
+    ``frac_above_T*sigma`` and ``frac_below_T*sigma`` statistics are
+    slope-domain generalizations of the magnitude-domain ``Beyond1Std``
+    feature of the same paper, extended to a user-supplied list of T
+    values and split into signed above/below counts.  The ``mad_dmdt``
+    statistic is the slope-domain analog of the magnitude-domain median
+    absolute deviation (here with the Gaussian-calibrated 1.483 factor).
+
+    Parameters
+    ----------
+    bintime : sequence of float, optional
+        List of bin sizes in minutes.  Each value must be strictly
+        positive; duplicates are rejected.  If ``None`` (the default),
+        no binning is performed.
+    binshift : float, optional
+        Fraction of the binwidth by which to shift the first bin.
+        Canonical use is ``0 <= binshift < 1``.  Only valid in
+        combination with ``bintime``.
+    threshold : sequence of float, optional
+        List of T values for the threshold-fraction statistics.
+        Defaults to ``[3.0]``.  Each value must be strictly positive;
+        duplicates are rejected.
+    maxgap : float, optional
+        Drop consecutive pairs whose time separation exceeds
+        ``maxgap``, in the same time units as the light curve (days).
+        Must be strictly positive.
+    useMAD : bool, optional
+        If True, use ``1.483 * MAD`` of the slopes as ``sigma`` instead
+        of the sample standard deviation.  Defaults to False.
+    maskpoints : str, optional
+        Name of a light-curve vector; points with ``maskvar > 0`` are
+        included in the calculation, others are excluded (applied
+        alongside NaN rejection on the magnitudes).
+
+    See Also
+    --------
+    CLI command: ``-slopestats``.
+    Citation: Richards et al. 2011 (ApJ 733, 10) for the ``MaxSlope``
+    feature this generalizes.
+    """
+
+    _vt_name = "slopestats"
+
+    _DEFAULT_THRESHOLD = (3.0,)
+
+    def __init__(
+        self,
+        bintime: Optional[Sequence[float]] = None,
+        binshift: Optional[float] = None,
+        threshold: Optional[Sequence[float]] = None,
+        maxgap: Optional[float] = None,
+        useMAD: bool = False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.bintime = self._validate_positive_unique(bintime, "bintime")
+
+        if binshift is None:
+            self.binshift = None
+        else:
+            try:
+                self.binshift = float(binshift)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"binshift must be a number, got {binshift!r}"
+                )
+
+        if self.binshift is not None and self.bintime is None:
+            raise ValueError(
+                "binshift requires bintime to be specified"
+            )
+
+        if threshold is None:
+            self.threshold = list(self._DEFAULT_THRESHOLD)
+        else:
+            self.threshold = self._validate_positive_unique(
+                threshold, "threshold"
+            )
+
+        if maxgap is None:
+            self.maxgap = None
+        else:
+            try:
+                m = float(maxgap)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"maxgap must be a number, got {maxgap!r}"
+                )
+            if m <= 0.0:
+                raise ValueError(f"maxgap = {m} must be > 0")
+            self.maxgap = m
+
+        self.useMAD = bool(useMAD)
+        self.maskpoints = maskpoints
+
+    @staticmethod
+    def _validate_positive_unique(values, name):
+        if values is None:
+            return None
+        canonical = []
+        seen = set()
+        for idx, val in enumerate(values):
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{name}[{idx}] must be a number, got {val!r}"
+                )
+            if v <= 0.0:
+                raise ValueError(f"{name}[{idx}] = {v} must be > 0")
+            if v in seen:
+                raise ValueError(f"{name} has duplicate value {v}")
+            seen.add(v)
+            canonical.append(v)
+        return canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-slopestats"]
+        if self.bintime is not None:
+            args += ["bintime", ",".join(str(v) for v in self.bintime)]
+        if self.binshift is not None:
+            args += ["binshift", str(self.binshift)]
+        if [float(v) for v in self.threshold] != list(self._DEFAULT_THRESHOLD):
+            args += ["threshold",
+                     ",".join(str(v) for v in self.threshold)]
+        if self.maxgap is not None:
+            args += ["maxgap", str(self.maxgap)]
+        if self.useMAD:
+            args += ["useMAD"]
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class CodyM(VartoolsCommand):
+    """Flux-asymmetry statistic M of Cody et al. 2014, AJ, 147, 82 (Eq. 7).
+
+    ``M`` quantifies whether a light curve is asymmetric with respect to
+    reflection about the median magnitude::
+
+        M = (<d_10%> - d_med) / sigma_d
+
+    where ``d_med`` is the median of the long-term-detrended,
+    outlier-filtered light curve, ``sigma_d`` is its standard deviation,
+    and ``<d_10%>`` is the mean of the combined faintest-decile and
+    brightest-decile values.  For magnitude-valued light curves ``M``
+    moves in the positive direction for dipping signatures (asymmetric
+    toward faint excursions) and in the negative direction for bursting
+    signatures (asymmetric toward bright excursions); a value close to
+    zero indicates a symmetric magnitude distribution.  The sign
+    convention is reversed for flux input.
+
+    The kernel filters NaN magnitudes and (when ``maskpoints`` is given)
+    points with ``maskvar <= 0``, subtracts a boxcar-mean smooth of full
+    width ``trendwindow``, identifies sigma-clip outliers, then evaluates
+    ``M`` on the surviving values using deciles of ``round(0.1 * N')``
+    points each.  Two outlier-identification schemes are supported:
+
+    * **Two-stage (paper-faithful):** supply ``outlierwindow`` to build a
+      short-timescale residual on which the sigma clip operates.  Real
+      variability is removed in that residual, so the genuine dips and
+      bursts that ``M`` quantifies are not themselves clipped.
+    * **Single-stage:** omit ``outlierwindow``; the sigma clip operates
+      directly on the trend-detrended curve.  Simpler, but a deep
+      dip/burst can clip itself and bias ``M`` toward zero.
+
+    Parameters
+    ----------
+    trendwindow : float or str
+        Boxcar full width for the long-term detrend, in the same units
+        as the light-curve time axis.  Required.  Accepts a number, a
+        bare variable name (vartools ``var``), or an explicit
+        ``"var NAME"`` / ``"expr EXPR"`` string for per-LC sourcing.
+    outlierwindow : float or str, optional
+        Short-timescale boxcar full width that enables the two-stage
+        outlier-rejection scheme.  Same var/expr accepting form as
+        ``trendwindow``.  Default: omitted (single-stage).
+    sigclip : float or str, optional
+        Outlier-rejection threshold in sigma.  Default ``5.0``; ``0``
+        disables outlier rejection.  Accepts var/expr.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-CodyM``.
+    Citation: Cody et al. 2014 (AJ 147, 82).
+    """
+
+    _vt_name = "CodyM"
+
+    _DEFAULT_SIGCLIP = 5.0
+
+    def __init__(
+        self,
+        trendwindow,
+        outlierwindow=None,
+        sigclip=5.0,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.trendwindow = trendwindow
+        self.outlierwindow = outlierwindow
+        self.sigclip = sigclip
+        self.maskpoints = maskpoints
+
+        # Parse-time validation only when a literal numeric value was
+        # given.  var/expr-sourced values are validated per-LC at runtime
+        # by the kernel.
+        if isinstance(trendwindow, (int, float)) and trendwindow <= 0.0:
+            raise ValueError(f"trendwindow = {trendwindow} must be > 0")
+        if (outlierwindow is not None
+                and isinstance(outlierwindow, (int, float))
+                and outlierwindow <= 0.0):
+            raise ValueError(f"outlierwindow = {outlierwindow} must be > 0")
+        if isinstance(sigclip, (int, float)) and sigclip < 0.0:
+            raise ValueError(
+                f"sigclip = {sigclip} must be >= 0 (0 disables rejection)"
+            )
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-CodyM", "trendwindow"] + _varexpr(self.trendwindow)
+        if self.outlierwindow is not None:
+            args += ["outlierwindow"] + _varexpr(self.outlierwindow)
+        # Emit sigclip only when non-default, so the CLI surface stays
+        # tidy for the common case.
+        if not (isinstance(self.sigclip, (int, float))
+                and float(self.sigclip) == self._DEFAULT_SIGCLIP):
+            args += ["sigclip"] + _varexpr(self.sigclip)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
+class CodyQ(VartoolsCommand):
+    """Quasi-periodicity statistic Q of Cody et al. 2014, AJ, 147, 82 (Eq. 6).
+
+    ``Q`` measures how close the light curve is to the photometric noise
+    floor before and after a phase-folded periodic model is subtracted::
+
+        Q = (rms_resid^2 - sigma^2) / (rms_raw^2 - sigma^2)
+
+    where ``rms_raw`` is the standard deviation of the long-term-detrended
+    light curve, ``rms_resid`` is the standard deviation of the same
+    curve after subtraction of a boxcar-smoothed phase model at the
+    supplied period, and ``sigma^2`` is the mean of the per-point
+    squared errors.  ``Q`` approaches 0 for a strictly periodic light
+    curve (the phase model captures essentially all the variance) and
+    approaches 1 for one with no detectable periodicity (the phase
+    model removes nothing; the denominator can collapse to a
+    non-positive value in this regime, yielding NaN); intermediate
+    values indicate quasi-periodic variability.
+
+    The kernel filters NaN magnitudes, ``sig <= 0`` points, and (when
+    ``maskpoints`` is given) ``maskvar <= 0`` points; subtracts a
+    boxcar-mean smooth of full width ``trendwindow``; phase-folds to
+    ``period``; and builds a circular boxcar smooth in the phase domain
+    with full width ``phasesmooth`` (a fraction of the period).  The
+    phase smoother is invariant under a global phase shift, so the
+    folding epoch is fixed at ``t[0]`` and is not exposed.
+
+    Parameters
+    ----------
+    period : float or str
+        Period source.  Accepts a number, a back-reference keyword
+        (``"ls"``, ``"aov"``, ``"pdm"``, ``"ftp"``, ``"bls"``,
+        ``"injectharm"``) to the most-recent corresponding command,
+        ``"fix P"``, ``"fixcolumn NAME"``, ``"list ['column' N]"``, a
+        bare variable name (vartools ``var``), or an explicit
+        ``"var NAME"`` / ``"expr EXPR"`` string.
+    trendwindow : float or str
+        Boxcar full width for the long-term detrend, in the same units
+        as the light-curve time axis.  Required.  Accepts var/expr.
+    phasesmooth : float or str, optional
+        Phase-domain boxcar full width as a fraction of the period.
+        Default ``0.25`` (the paper value).  Must lie in ``(0, 1]``.
+        Accepts var/expr.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-CodyQ``.
+    Citation: Cody et al. 2014 (AJ 147, 82).
+    """
+
+    _vt_name = "CodyQ"
+
+    _DEFAULT_PHASESMOOTH = 0.25
+
+    def __init__(
+        self,
+        period,
+        trendwindow,
+        phasesmooth=0.25,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.period = period
+        self.trendwindow = trendwindow
+        self.phasesmooth = phasesmooth
+        self.maskpoints = maskpoints
+
+        # Parse-time validation only for literal numeric values; var/expr
+        # values are validated per-LC at runtime.
+        if isinstance(trendwindow, (int, float)) and trendwindow <= 0.0:
+            raise ValueError(f"trendwindow = {trendwindow} must be > 0")
+        if isinstance(phasesmooth, (int, float)) and (
+                phasesmooth <= 0.0 or phasesmooth > 1.0):
+            raise ValueError(
+                f"phasesmooth = {phasesmooth} must be in (0, 1]"
+            )
+        if isinstance(period, (int, float)) and period <= 0.0:
+            raise ValueError(f"period = {period} must be > 0")
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-CodyQ"] + _period_spec(self.period)
+        args += ["trendwindow"] + _varexpr(self.trendwindow)
+        if not (isinstance(self.phasesmooth, (int, float))
+                and float(self.phasesmooth) == self._DEFAULT_PHASESMOOTH):
+            args += ["phasesmooth"] + _varexpr(self.phasesmooth)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _resolve_back_references(self, prev) -> None:
+        from ._helpers import _resolve_period_backref
+        self.period = _resolve_period_backref(prev, self.period)
+
+
+class structurefunction(VartoolsCommand):
+    """Ensemble structure function with optional damped-random-walk fit.
+
+    Compute the per-light-curve ensemble structure function (SF) on lag
+    bins constructed from all pairs of observations.  Two estimators are
+    supported (selected by ``estimator``):
+
+    - ``"squared"`` (default) -- the squared-difference form with
+      bin-averaged noise subtraction::
+
+          SF^2(dt) = <(m_j - m_i)^2>_pairs in bin
+                   - <sigma_i^2 + sigma_j^2>_pairs in bin
+
+      This is the ``D^(1)(tau)`` of Simonetti, Cordes & Heeschen 1985,
+      ApJ, 296, 46.  Bins where the noise-subtracted variance is
+      non-positive are NaN.
+
+    - ``"mad"`` -- the absolute-deviation form with per-pair noise
+      subtraction (Hughes, Aller & Aller 1992; Schmidt et al. 2010
+      Equation 2)::
+
+          V(dt) = <(sqrt(pi)/2) * |m_j - m_i|
+                  - sqrt(sigma_i^2 + sigma_j^2)>_pairs in bin
+
+      More robust to outliers, biased low when the intrinsic variance
+      approaches the photometric noise floor; bins whose averaged
+      value goes non-positive are NaN.
+
+    Per-bin error bars are reported as ``sigma_SF = SF / sqrt(2 N_eff)``
+    (squared) or ``sigma_SF = SF / sqrt(N_eff / (pi/2 - 1))`` (mad),
+    where ``N_eff = min(N_pairs, N_obs/2)`` bounds the number of
+    effectively independent pairs.  This recovers the right
+    ``~SF / sqrt(N_obs)`` precision floor at long lags rather than
+    continuing to shrink as ``1 / sqrt(N_pairs)``.
+
+    When ``fitDRW=True``, a damped-random-walk (Ornstein-Uhlenbeck /
+    CAR(1)) model (Kelly, Bechtold & Siemiginowska 2009) is fit to the
+    well-determined SF bins via a Nelder-Mead simplex on
+    ``(log SF_inf, log tau)``, minimising
+    ``chi^2 = sum [(SF_obs - SF_model) / sigma_SF]^2``.  The DRW SF is
+    ``SF_DRW(dt) = SF_inf * sqrt(1 - exp(-dt / tau))`` with
+    ``SF_inf = sqrt(2) * sigma_long``; the reported scalar amplitude is
+    ``sigma_long`` (MacLeod et al. 2010 convention, mag).
+
+    Parameters
+    ----------
+    bins : {"log", "linear", "edges"}
+        Bin geometry selector.  ``"log"`` and ``"linear"`` require
+        ``Nbins``; ``"edges"`` requires ``edges``.
+    Nbins : int, optional
+        Number of bins for ``"log"`` / ``"linear"``.  Must be >= 2.
+    edges : sequence of float, optional
+        Strictly increasing list of positive bin edges for ``"edges"``
+        mode.  ``len(edges) - 1`` bins are produced.
+    lagrange : tuple (lagmin, lagmax), optional
+        Explicit lag-range edges for ``"log"`` / ``"linear"`` binning.
+        Each element may be a number, a bare variable name (vartools
+        ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"``
+        string.  If omitted (default), ``lagmin`` is the smallest
+        consecutive time spacing in the (filtered) light curve and
+        ``lagmax`` is the full baseline.  Ignored for ``"edges"``.
+    estimator : {"squared", "mad"}
+        SF estimator family.  Default ``"squared"``.
+    fitDRW : bool
+        Fit a DRW model to the SF bins.  When ``True``, emits five
+        scalar columns: ``STRUCTUREFUNCTION_SIGMA_N`` (= sigma_long,
+        mag), ``_TAU_N``, ``_CHI2_N``, ``_DOF_N``, ``_CONVERGED_N``.
+    sigma0 : float or str, optional
+        Initial guess for the DRW ``sigma_long`` (only valid with
+        ``fitDRW=True``).  Accepts var/expr.
+    tau0 : float or str, optional
+        Initial guess for the DRW damping time-scale.  Accepts var/expr.
+    reportsfvalsintable : sequence of float, optional
+        Strictly increasing list of positive lag values.  For each
+        requested lag ``e_k`` the wrapper emits four scalar columns
+        per light curve: ``STRUCTUREFUNCTION_DT_k_N`` (the actual bin
+        centre containing ``e_k``), ``_SF_k_N``, ``_SIGMA_SF_k_N``,
+        ``_NPAIRS_k_N``.  Out-of-range or noise-dominated bins yield
+        NaN / 0.
+    save_result : bool, str, or Output
+        Control the ``.sf`` aux file (one row per bin: ``dt_center``,
+        ``SF``, ``sigma_SF``, ``n_pairs``).
+
+        - ``False`` (default) -- no aux file.
+        - ``True`` -- write to a pipeline-managed temp dir and capture
+          into ``result.files["structurefunction_result_N"]``.
+        - path string -- write to that directory, no capture.
+        - ``Output(path, capture=True)`` -- both.
+    maskpoints : str, optional
+        Mask variable; points with ``maskvar > 0`` contribute.
+
+    See Also
+    --------
+    CLI command: ``-structurefunction``.
+    Citations
+        ``estimator="squared"``: Simonetti, Cordes & Heeschen 1985,
+        ApJ, 296, 46.
+        ``estimator="mad"``: Hughes, Aller & Aller 1992, ApJ, 396, 469;
+        Schmidt et al. 2010, ApJ, 714, 1194 (Equation 2).
+        ``fitDRW``: Kelly, Bechtold & Siemiginowska 2009, ApJ, 698, 895;
+        MacLeod et al. 2010, ApJ, 721, 1014.
+    """
+
+    _vt_name = "structurefunction"
+    _DEFAULT_ESTIMATOR = "squared"
+
+    def __init__(
+        self,
+        bins: str,
+        Nbins: Optional[int] = None,
+        edges: Optional[Sequence[float]] = None,
+        lagrange=None,
+        estimator: str = "squared",
+        fitDRW: bool = False,
+        sigma0=None,
+        tau0=None,
+        reportsfvalsintable: Optional[Sequence[float]] = None,
+        save_result=False,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        # Bin mode + parameter consistency
+        if bins not in ("log", "linear", "edges"):
+            raise ValueError(
+                f"bins must be 'log', 'linear', or 'edges'; got {bins!r}"
+            )
+
+        edges_list = None
+        if bins in ("log", "linear"):
+            if Nbins is None:
+                raise ValueError(f"bins={bins!r} requires Nbins")
+            if not isinstance(Nbins, int) or isinstance(Nbins, bool) \
+                    or Nbins < 2:
+                raise ValueError(
+                    f"Nbins = {Nbins!r} must be an integer >= 2"
+                )
+            if edges is not None:
+                raise ValueError(
+                    "edges is only valid for bins='edges'"
+                )
+        else:  # edges
+            if edges is None:
+                raise ValueError("bins='edges' requires edges")
+            edges_list = self._validate_edges(edges, "edges")
+            if len(edges_list) < 3:
+                raise ValueError(
+                    "bins='edges' requires at least 3 edges (giving "
+                    ">= 2 bins)"
+                )
+            if Nbins is not None:
+                raise ValueError(
+                    "Nbins is only valid for bins='log' or 'linear'"
+                )
+
+        if estimator not in ("squared", "mad"):
+            raise ValueError(
+                f"estimator must be 'squared' or 'mad'; got {estimator!r}"
+            )
+
+        if (sigma0 is not None or tau0 is not None) and not fitDRW:
+            raise ValueError(
+                "sigma0 / tau0 are only valid when fitDRW=True"
+            )
+        if isinstance(sigma0, (int, float)) and not isinstance(sigma0, bool) \
+                and sigma0 <= 0.0:
+            raise ValueError(f"sigma0 = {sigma0} must be > 0")
+        if isinstance(tau0, (int, float)) and not isinstance(tau0, bool) \
+                and tau0 <= 0.0:
+            raise ValueError(f"tau0 = {tau0} must be > 0")
+
+        if lagrange is not None:
+            if len(lagrange) != 2:
+                raise ValueError(
+                    "lagrange must be a 2-tuple (lagmin, lagmax)"
+                )
+            lmin, lmax = lagrange
+            if isinstance(lmin, (int, float)) and not isinstance(lmin, bool) \
+                    and lmin <= 0:
+                raise ValueError(f"lagrange lagmin = {lmin} must be > 0")
+            if (isinstance(lmin, (int, float)) and not isinstance(lmin, bool)
+                    and isinstance(lmax, (int, float))
+                    and not isinstance(lmax, bool)
+                    and lmax <= lmin):
+                raise ValueError(
+                    f"lagrange lagmax ({lmax}) must be > lagmin ({lmin})"
+                )
+
+        report_list = None
+        if reportsfvalsintable is not None:
+            report_list = self._validate_edges(
+                reportsfvalsintable, "reportsfvalsintable"
+            )
+
+        self.bins = bins
+        self.Nbins = Nbins
+        self.edges = list(edges_list) if edges_list is not None else None
+        self.lagrange = tuple(lagrange) if lagrange is not None else None
+        self.estimator = estimator
+        self.fitDRW = bool(fitDRW)
+        self.sigma0 = sigma0
+        self.tau0 = tau0
+        self.reportsfvalsintable = report_list
+        self.save_result = save_result
+        self.maskpoints = maskpoints
+
+    @staticmethod
+    def _validate_edges(values, name):
+        canonical = []
+        prev = None
+        for idx, val in enumerate(values):
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{name}[{idx}] must be a number, got {val!r}"
+                )
+            if v <= 0.0:
+                raise ValueError(f"{name}[{idx}] = {v} must be > 0")
+            if prev is not None and v <= prev:
+                raise ValueError(
+                    f"{name} must be strictly increasing "
+                    f"(got {v} after {prev})"
+                )
+            canonical.append(v)
+            prev = v
+        return canonical
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-structurefunction", "bins"]
+        if self.bins == "edges":
+            args += ["edges", ",".join(repr(v) for v in self.edges)]
+        else:
+            args += [self.bins, str(self.Nbins)]
+
+        if self.lagrange is not None:
+            args += ["lagrange"]
+            args += _varexpr(self.lagrange[0])
+            args += _varexpr(self.lagrange[1])
+
+        if self.estimator != self._DEFAULT_ESTIMATOR:
+            args += ["estimator", self.estimator]
+
+        if self.fitDRW:
+            args += ["fitDRW"]
+            if self.sigma0 is not None:
+                args += ["sigma0"] + _varexpr(self.sigma0)
+            if self.tau0 is not None:
+                args += ["tau0"] + _varexpr(self.tau0)
+
+        if self.reportsfvalsintable is not None:
+            args += [
+                "reportsfvalsintable",
+                ",".join(repr(v) for v in self.reportsfvalsintable),
+            ]
+
+        if _should_emit(self.save_result):
+            outdir = getattr(self, "_outdir", ".")
+            spec = _norm_save(self.save_result)
+            actual_outdir = spec.path if spec.path is not None else outdir
+            args += ["save", actual_outdir]
+
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _output_file_specs(self):
+        if not _should_emit(self.save_result):
+            return {}
+        # Logical name must match the ``save_result`` attribute so the
+        # pipeline collector (which reads ``save_<logical_name>``) actually
+        # captures the file into ``result.files["structurefunction_result_N"]``.
+        return {"result": (".sf", None)}
+
+
+class drwfit(VartoolsCommand):
+    """Direct maximum-likelihood damped-random-walk fit to a light curve.
+
+    Fit a damped-random-walk (DRW) model -- the continuous-time
+    first-order autoregressive CAR(1) / Ornstein-Uhlenbeck process,
+    equivalently a Gaussian process with a Matern-1/2 (exponential)
+    covariance kernel -- directly to a light curve by maximum likelihood.
+    The likelihood is evaluated with the Kelly, Bechtold & Siemiginowska
+    2009 (ApJ, 698, 895) state-space recursion (their Equations 6-13), so
+    each evaluation is ``O(N)`` with no matrix inversion.  A downhill
+    simplex (Nelder-Mead) minimises ``-2 ln L`` over
+    ``(log sigma_long, log tau)`` (or jointly with ``mu`` when fitting the
+    mean).
+
+    This direct-likelihood method recovers ``tau`` substantially more
+    accurately than fitting a DRW to the structure function
+    (:class:`structurefunction` with ``fitDRW=True``), especially on short
+    baselines (MacLeod et al. 2010 Section 4.2; Kelly 2009 Section 3.1).
+    The reported amplitude ``DRWFIT_SIGMA_N`` is ``sigma_long`` (the
+    long-term magnitude standard deviation, MacLeod 2010 convention, mag),
+    matching what :class:`structurefunction` emits so the two commands are
+    directly comparable on the same light curve.
+
+    Scalar output columns (``N`` = command position): ``DRWFIT_SIGMA_N``
+    (sigma_long, mag), ``_TAU_N`` (damping time-scale), ``_MU_N`` (fitted
+    long-term mean; NaN when ``mean="subtract"``), ``_LNL_N`` (best-fit
+    ln L), ``_DLNL_NOISE_N`` (ln L_best - ln L at sigma_long -> 0),
+    ``_DLNL_INF_N`` (ln L_best - ln L at tau -> infinity), and
+    ``_CONVERGED_N`` (1 if the amoeba converged).  The two Delta-ln-L
+    likelihood-ratio indicators measure detection against the
+    pure-noise and the tau -> infinity limits (see MacLeod 2010
+    Section 3.1).
+
+    Parameters
+    ----------
+    mean : {"fit", "subtract", "fix"}, optional
+        Long-term-mean handling.  ``None`` (default) leaves it to the
+        vartools default (``"fit"``).
+
+        - ``"fit"`` -- fit ``mu`` jointly with ``sigma_long`` and ``tau``
+          (3-parameter amoeba).
+        - ``"subtract"`` -- subtract the weighted mean before fitting;
+          the reported ``DRWFIT_MU_N`` is meaningless (NaN).
+        - ``"fix"`` -- hold ``mu`` at ``mean_value`` (2-parameter amoeba).
+    mean_value : float or str, optional
+        The fixed ``mu`` for ``mean="fix"``.  Required for, and only valid
+        with, ``mean="fix"``.  Accepts a number, a bare variable name
+        (vartools ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"``
+        string for per-light-curve sourcing.
+    sigma0 : float or str, optional
+        Initial guess for the amoeba's ``sigma_long``.  Accepts var/expr.
+        Default: derived from the light-curve variance.
+    tau0 : float or str, optional
+        Initial guess for the amoeba's ``tau``.  Accepts var/expr.
+        Default: ``0.1 * T_baseline``.
+    mean0 : float or str, optional
+        Initial guess for the amoeba's ``mu`` (only meaningful when the
+        mean is fit).  Accepts var/expr.  Default: the weighted mean.
+    save_result : bool, str, or Output
+        Control the ``.drwfit`` aux file (one row per original light-curve
+        point, NaN rows preserved for filtered-out points; eight columns
+        ``t x sig_meas x_hat_fwd Omega_fwd chi_fwd x_smoothed
+        Omega_smoothed`` from the forward Kalman filter and the RTS
+        backward smoother).
+
+        - ``False`` (default) -- no aux file.
+        - ``True`` -- write to a pipeline-managed temp dir and capture
+          into ``result.files["drwfit_result_N"]``.
+        - path string -- write to that directory, no capture.
+        - ``Output(path, capture=True)`` -- both.
+    correctlc : {"smoothed", "forecast"}, optional
+        Replace the in-memory light curve with the DRW residuals, in
+        place, so downstream commands operate on the corrected curve.
+
+        - ``"smoothed"`` -- subtract the RTS-smoothed model (uses past and
+          future points; whitens the curve toward the noise floor).
+        - ``"forecast"`` -- subtract the one-step-ahead Kalman forecast
+          (uses only past points; retains unexplained variability).
+    modelvar : sequence (mode, varname), optional
+        Store the DRW model into a new light-curve variable ``varname``
+        (usable by downstream commands such as ``-stats`` or ``-expr``)
+        without modifying the light curve.  ``mode`` is ``"smoothed"`` or
+        ``"forecast"`` with the same meaning as ``correctlc``.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute to the fit.
+
+    See Also
+    --------
+    structurefunction : structure-function-based DRW fit (less accurate
+        ``tau`` recovery; useful as an independent cross-check).
+    CLI command: ``-drwfit``.
+    Citations
+        Kelly, Bechtold & Siemiginowska 2009, ApJ, 698, 895;
+        MacLeod et al. 2010, ApJ, 721, 1014.
+    """
+
+    _vt_name = "drwfit"
+
+    _MEAN_MODES = ("fit", "subtract", "fix")
+    _MODEL_MODES = ("smoothed", "forecast")
+
+    def __init__(
+        self,
+        mean: Optional[str] = None,
+        mean_value=None,
+        sigma0=None,
+        tau0=None,
+        mean0=None,
+        save_result=False,
+        correctlc: Optional[str] = None,
+        modelvar=None,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        if mean is not None and mean not in self._MEAN_MODES:
+            raise ValueError(
+                f"mean must be one of {self._MEAN_MODES}; got {mean!r}"
+            )
+        if mean == "fix":
+            if mean_value is None:
+                raise ValueError("mean='fix' requires mean_value")
+        elif mean_value is not None:
+            raise ValueError(
+                "mean_value is only valid when mean='fix'"
+            )
+
+        if isinstance(sigma0, (int, float)) and not isinstance(sigma0, bool) \
+                and sigma0 <= 0.0:
+            raise ValueError(f"sigma0 = {sigma0} must be > 0")
+        if isinstance(tau0, (int, float)) and not isinstance(tau0, bool) \
+                and tau0 <= 0.0:
+            raise ValueError(f"tau0 = {tau0} must be > 0")
+
+        if correctlc is not None and correctlc not in self._MODEL_MODES:
+            raise ValueError(
+                f"correctlc must be one of {self._MODEL_MODES}; "
+                f"got {correctlc!r}"
+            )
+
+        modelvar_norm = None
+        if modelvar is not None:
+            if isinstance(modelvar, str) or len(modelvar) != 2:
+                raise ValueError(
+                    "modelvar must be a (mode, varname) pair, e.g. "
+                    "('smoothed', 'drwmod')"
+                )
+            mv_mode, mv_name = modelvar
+            if mv_mode not in self._MODEL_MODES:
+                raise ValueError(
+                    f"modelvar mode must be one of {self._MODEL_MODES}; "
+                    f"got {mv_mode!r}"
+                )
+            if not isinstance(mv_name, str) or not mv_name:
+                raise ValueError("modelvar varname must be a non-empty string")
+            modelvar_norm = (mv_mode, mv_name)
+
+        self.mean = mean
+        self.mean_value = mean_value
+        self.sigma0 = sigma0
+        self.tau0 = tau0
+        self.mean0 = mean0
+        self.save_result = save_result
+        self.correctlc = correctlc
+        self.modelvar = modelvar_norm
+        self.maskpoints = maskpoints
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-drwfit"]
+
+        if self.mean is not None:
+            args += ["mean", self.mean]
+            if self.mean == "fix":
+                args += _varexpr(self.mean_value)
+
+        if self.sigma0 is not None:
+            args += ["sigma0"] + _varexpr(self.sigma0)
+        if self.tau0 is not None:
+            args += ["tau0"] + _varexpr(self.tau0)
+        if self.mean0 is not None:
+            args += ["mean0"] + _varexpr(self.mean0)
+
+        if _should_emit(self.save_result):
+            outdir = getattr(self, "_outdir", ".")
+            spec = _norm_save(self.save_result)
+            actual_outdir = spec.path if spec.path is not None else outdir
+            args += ["save", actual_outdir]
+
+        if self.correctlc is not None:
+            args += ["correctlc", self.correctlc]
+
+        if self.modelvar is not None:
+            args += ["modelvar", self.modelvar[0], self.modelvar[1]]
+
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+    def _output_file_specs(self):
+        if not _should_emit(self.save_result):
+            return {}
+        return {"result": (".drwfit", None)}
+
+
+class runlength(VartoolsCommand):
+    """Run-length statistics about the median and the ``±k·MAD`` band.
+
+    For each light curve let ``m`` be the median of the (NaN- and
+    mask-filtered) magnitudes and ``D = MAD = 1.483·median(|x − m|)`` their
+    median absolute deviation -- the same 1.483-scaled estimator reported by
+    ``-stats``, so the band ``m ± k·D`` is roughly ``±k`` Gaussian standard
+    deviations.  A *run* is a maximal block of consecutive points, in time
+    order, that all satisfy one condition.  Four conditions are tracked:
+
+    * ``above``   : ``x > m``
+    * ``below``   : ``x < m``
+    * ``outhigh`` : ``x − m > k·D``
+    * ``outlow``  : ``x − m < −k·D``
+
+    Comparisons are strict, so a point exactly at the median is in band and
+    breaks both the above and below runs.  The two outlier conditions are
+    sign-specific: a band excursion that crosses from the high side to the
+    low side ends one run and begins another (there is no combined
+    sign-agnostic outlier run).  For each condition the command reports the
+    longest run, the number of runs, and the mean run length
+    (``npoints / nruns``, NaN when there are no runs).
+
+    Long runs above or below the median flag low-frequency coherent
+    variability or residual trends; long outlier runs flag sustained
+    excursions (flares, blends, systematics) as opposed to isolated bad
+    points.  This is a fast, robust serial-coherence descriptor that
+    complements the scatter statistics (``-rms``, ``-chi2``, the MAD of
+    ``-stats``) and the asymmetry / quasi-periodicity statistics
+    :class:`CodyM` / :class:`CodyQ`.  The light curve is sorted in time
+    before the scan if it is not already in time order.
+
+    Output columns (``N`` = command position): ``RUNLENGTH_ABOVE_MAXLEN_N``,
+    ``RUNLENGTH_ABOVE_NRUNS_N``, ``RUNLENGTH_ABOVE_MEANLEN_N`` and the
+    corresponding ``BELOW`` / ``OUTHIGH`` / ``OUTLOW`` triples, plus
+    ``RUNLENGTH_MEDIAN_N``, ``RUNLENGTH_MAD_N`` (the 1.483-scaled ``D``) and
+    ``RUNLENGTH_K_N`` (the ``k`` used).
+
+    Parameters
+    ----------
+    k : float or str, optional
+        Outlier band half-width in MAD units.  Default ``3.0``; must be
+        ``>= 0``.  Accepts a number, a bare variable name (vartools
+        ``var``), or an explicit ``"var NAME"`` / ``"expr EXPR"`` string for
+        per-LC sourcing.  Emitted on the command line only when it differs
+        from the default.
+    maskpoints : str, optional
+        Name of a light-curve vector; only points with ``maskvar > 0``
+        contribute.
+
+    See Also
+    --------
+    CLI command: ``-runlength``.
+    """
+
+    _vt_name = "runlength"
+
+    _DEFAULT_K = 3.0
+
+    def __init__(
+        self,
+        k=3.0,
+        maskpoints: Optional[str] = None,
+    ) -> None:
+        self.k = k
+        self.maskpoints = maskpoints
+
+        # Validate only a literal numeric k; var/expr values are validated
+        # per-LC at runtime by the kernel.
+        if isinstance(k, (int, float)) and k < 0.0:
+            raise ValueError(f"k = {k} must be >= 0")
+
+    def _to_cli_args(self) -> List[str]:
+        args = ["-runlength"]
+        # Emit k only when non-default, keeping the common case tidy.
+        if not (isinstance(self.k, (int, float))
+                and float(self.k) == self._DEFAULT_K):
+            args += ["k"] + _varexpr(self.k)
+        args += _flag("maskpoints", self.maskpoints)
+        return args
+
+
 class rescalesig(VartoolsCommand):
-    """Rescale measurement uncertainties to match the scatter.
+    """Rescale per-point uncertainties so that χ²/dof = 1.
+
+    Multiply every uncertainty by a single factor chosen so the reduced
+    chi-square about the weighted mean equals 1, and report that factor.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-rescalesig``.
     """
 
     _vt_name = "rescalesig"
@@ -189,13 +1415,23 @@ class rescalesig(VartoolsCommand):
 
 
 class ensemblerescalesig(VartoolsCommand):
-    """Rescale uncertainties using ensemble sigma-clipping.
+    """Rescale uncertainties using the ensemble mag–χ² relation.
+
+    Fit the magnitude-dependent scatter across the ensemble of light
+    curves and rescale each light curve's uncertainties accordingly
+    (sigma-clipped fit).
 
     Parameters
     ----------
     sigclip : float
-        Sigma-clipping threshold.
+        Sigma-clipping threshold for the ensemble fit.  Default 5.0.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-ensemblerescalesig``.
     """
 
     _vt_name = "ensemblerescalesig"
@@ -261,6 +1497,10 @@ class stats(VartoolsCommand):
         stats("mag", "mean,median,stddev")
         stats(["mag", "err"], ["mean", "stddev"])
         stats("mag", ["pct10", "pct50", "pct90"])
+
+    See Also
+    --------
+    CLI command: ``-stats``.
     """
 
     _vt_name = "stats"
@@ -292,22 +1532,45 @@ class harmonicfilter(VartoolsCommand):
     Parameters
     ----------
     period : float or str
-        Period of the signal to remove.  Can be a number, ``"ls"``, ``"aov"``,
-        ``"bls"``, etc.
+        Period of the signal to fit (days).  Forms:
+
+        - A number — fit at that fixed period.
+        - ``"ls"`` / ``"aov"`` / ``"injectharm"`` — back-reference to the
+          best period from a prior command of that type in the same
+          chain.
+        - ``"both"`` — fit at *both* the most-recent LS and AOV periods
+          (a two-period fit).
+        - ``"list"`` — read the period from a list-file column.
+        - A bare identifier or expression string — per-LC variable or
+          analytic expression.
+
+        ``"bls"`` is **not** accepted (the vartools ``-harmonicfilter`` /
+        ``-Killharm`` parser rejects it); use a numeric period or one of
+        the keywords above.  Default ``"ls"``.
     nharm : int
-        Number of harmonics to fit.
+        Number of harmonics to fit.  Default 3.
     nsubharm : int
-        Number of sub-harmonics to fit.
-    save_model : bool
-        Write the fitted harmonic model to a file.
+        Number of sub-harmonics to fit.  Default 0.
+    save_model : bool, str, or Output
+        Fitted harmonic model.  ``True`` captures as
+        ``result.files["harmonicfilter_model_N"]``; a path string writes
+        to that directory without capturing; ``Output(path, capture=True)``
+        does both.
     fitonly : bool
         Fit the model but do not subtract it from the light curve.
     output_format : str, optional
         Coefficient output format: ``"outampphase"``, ``"outampradphase"``,
         ``"outRphi"``, or ``"outRradphi"``.
     clip : float, optional
-        Sigma-clipping threshold to apply after fitting before refitting.
+        Sigma-clipping threshold applied after fitting before refitting.
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded.
+
+    See Also
+    --------
+    CLI command: ``-harmonicfilter`` (the :class:`Killharm` subclass
+    emits the ``-Killharm`` synonym instead).
     """
 
     _vt_name = "harmonicfilter"
@@ -443,6 +1706,11 @@ class Killharm(harmonicfilter):
     compatibility; emits ``-Killharm`` on the command line and produces
     output columns under the ``Killharm_*`` prefix.  New code should use
     :class:`harmonicfilter`.
+
+    See Also
+    --------
+    CLI command: ``-Killharm``.  Same parameters as
+    :class:`harmonicfilter`.
     """
 
     _vt_name = "Killharm"
@@ -470,13 +1738,20 @@ class linfit(VartoolsCommand):
         Maximum number of rejection iterations (requires ``reject_iter=True``).
     correct_lc : bool
         Subtract the best-fit model from the light curve.
-    save_model : bool
-        Write the fitted model to a file.
+    save_model : bool, str, or Output
+        Fitted model curve.  ``True`` captures as
+        ``result.files["linfit_model_N"]``; a path string writes to that
+        directory without capturing; ``Output(path, capture=True)`` does
+        both.
     model_nameformat : str, optional
         Format string for the output model filename.
     fitmask : str, optional
         Name of a mask variable; points where the variable is non-zero are
         excluded from the fit.
+
+    See Also
+    --------
+    CLI command: ``-linfit``.
     """
 
     _vt_name = "linfit"
@@ -563,8 +1838,15 @@ class Injectharm(VartoolsCommand):
     nsubharm : int
         Number of sub-harmonics (default 0).  When non-zero, sub-harmonics
         share the fundamental's amp/phase mode (no per-sub-harmonic list).
-    save_model : bool
-        Write the injected signal model to a file.
+    save_model : bool, str, or Output
+        Injected-signal model.  ``True`` captures as
+        ``result.files["Injectharm_model_N"]``; a path string writes to
+        that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-Injectharm``.
 
     Examples
     --------
@@ -752,10 +2034,19 @@ class Injecttransit(VartoolsCommand):
         Dilution factor.  Float → ``["dilute", "fix", str(val)]``.
         String passthrough (e.g. ``"fix 0.5"`` or ``"list"``).
     ld_type : str
-        Limb-darkening law: ``"quad"`` or ``"nonlin"``.
-    ld_coeffs : list of float
-        Limb-darkening coefficients.
-    save_model : bool
+        Limb-darkening law: ``"quad"`` (default) or ``"nonlin"``.
+    ld_coeffs : list of float, optional
+        Limb-darkening coefficients.  Default ``[0.3, 0.3]`` (quadratic).
+        Two coefficients for ``"quad"``, four for ``"nonlin"``.
+    save_model : bool, str, or Output
+        Injected-transit model.  ``True`` captures as
+        ``result.files["Injecttransit_model_N"]``; a path string writes
+        to that directory without capturing; ``Output(path, capture=True)``
+        does both.
+
+    See Also
+    --------
+    CLI command: ``-Injecttransit``.
     """
 
     _vt_name = "Injecttransit"
@@ -837,6 +2128,10 @@ class sortlc(VartoolsCommand):
         Variable to sort by.  Default is time (``"t"``).
     reverse : bool
         Sort in reverse (descending) order.
+
+    See Also
+    --------
+    CLI command: ``-sortlc``.
     """
 
     _vt_name = "sortlc"
@@ -876,6 +2171,10 @@ class restricttimes(VartoolsCommand):
         Variable to record which points were restricted.
     noinitmark : bool
         Do not initialise the markrestrict variable.
+
+    See Also
+    --------
+    CLI command: ``-restricttimes``.  Undo with :class:`restoretimes`.
     """
 
     _vt_name = "restricttimes"
@@ -926,6 +2225,10 @@ class restoretimes(VartoolsCommand):
     ----------
     prior_command : int
         Index (1-based) of the -restricttimes command to undo.
+
+    See Also
+    --------
+    CLI command: ``-restoretimes``.
     """
 
     _vt_name = "restoretimes"
@@ -940,7 +2243,12 @@ class restoretimes(VartoolsCommand):
 class savelc(VartoolsCommand):
     """Save the current light curve state (for later restoration).
 
-    Use :class:`restorelc` to restore.
+    Pipeline-stateful: meaningful only within a single ``Pipeline``
+    invocation alongside a later :class:`restorelc`.
+
+    See Also
+    --------
+    CLI command: ``-savelc``.  Restore with :class:`restorelc`.
     """
 
     _vt_name = "savelc"
@@ -958,6 +2266,10 @@ class restorelc(VartoolsCommand):
         Index of the -savelc save point to restore (1-based).
     vars : str or list of str, optional
         Restore only specific variables instead of the full light curve.
+
+    See Also
+    --------
+    CLI command: ``-restorelc``.  Save with :class:`savelc`.
     """
 
     _vt_name = "restorelc"
@@ -979,16 +2291,21 @@ class restorelc(VartoolsCommand):
 
 
 class difffluxtomag(VartoolsCommand):
-    """Convert differential flux to magnitude.
+    """Convert image-subtraction differential flux to magnitudes.
 
     Parameters
     ----------
-    mag_constant : float
-        Reference magnitude (zero-point magnitude).
-    offset : float
-        Flux offset (added to the flux before conversion).
+    mag_constant : float or str
+        Zero-point magnitude.  Accepts var/expr forms.
+    offset : float or str
+        Flux offset added before conversion.  Accepts var/expr forms.
+        Default 0.0.
     magcolumn : int, optional
         Which magnitude column to convert (1-based).
+
+    See Also
+    --------
+    CLI command: ``-difffluxtomag``.
     """
 
     _vt_name = "difffluxtomag"
@@ -1010,14 +2327,19 @@ class difffluxtomag(VartoolsCommand):
 
 
 class fluxtomag(VartoolsCommand):
-    """Convert flux to magnitude.
+    """Convert flux to magnitudes.
 
     Parameters
     ----------
-    mag_constant : float
-        Zero-point magnitude.
-    offset : float
-        Flux offset.
+    mag_constant : float or str
+        Zero-point magnitude.  Accepts var/expr forms.
+    offset : float or str
+        Flux offset added before conversion.  Accepts var/expr forms.
+        Default 0.0.
+
+    See Also
+    --------
+    CLI command: ``-fluxtomag``.  Inverse: :class:`magtoflux`.
     """
 
     _vt_name = "fluxtomag"
@@ -1030,12 +2352,66 @@ class fluxtomag(VartoolsCommand):
         return ["-fluxtomag"] + _varexpr(self.mag_constant) + _varexpr(self.offset)
 
 
+class magtoflux(VartoolsCommand):
+    """Convert magnitude to flux.  Inverse of :class:`fluxtomag`.
+
+    Parameters
+    ----------
+    mag_constant : float or str, optional
+        Zero-point magnitude.  Required unless ``normalize=True``.
+        The conversion is ``flux = 10**((mag_constant - mag) / 2.5)``
+        with ``sig_flux = flux * sig_mag / 1.0857``.
+    normalize : bool, optional
+        If True, compute fluxes with an arbitrary internal zero-point
+        and then divide the flux and flux-uncertainty arrays by the
+        median flux (NaNs rejected), so the output light curve has
+        median flux 1.  Cannot be combined with ``mag_constant``.
+
+    See Also
+    --------
+    CLI command: ``-magtoflux``.  Inverse: :class:`fluxtomag`.
+    """
+
+    _vt_name = "magtoflux"
+
+    def __init__(
+        self,
+        mag_constant: Optional[float] = None,
+        normalize: bool = False,
+    ) -> None:
+        if normalize and mag_constant is not None:
+            raise ValueError(
+                "magtoflux: cannot specify both mag_constant and normalize=True"
+            )
+        if not normalize and mag_constant is None:
+            raise ValueError(
+                "magtoflux: must specify mag_constant, or pass normalize=True"
+            )
+        self.mag_constant = mag_constant
+        self.normalize = normalize
+
+    def _to_cli_args(self) -> List[str]:
+        if self.normalize:
+            return ["-magtoflux", "normalize"]
+        return ["-magtoflux"] + _varexpr(self.mag_constant)
+
+
 class changeerror(VartoolsCommand):
-    """Rescale measurement uncertainties by a constant factor.
+    """Set the uncertainties equal to the RMS scatter of the magnitudes.
+
+    Replace every per-point uncertainty with a single value: the RMS
+    deviation of the (finite) magnitudes about their mean.  Useful when
+    the input light curve has no usable error column.
 
     Parameters
     ----------
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the RMS calculation.
+
+    See Also
+    --------
+    CLI command: ``-changeerror``.
     """
 
     _vt_name = "changeerror"
@@ -1053,9 +2429,15 @@ class changevariable(VartoolsCommand):
     Parameters
     ----------
     column : str
-        Target column: ``"t"``, ``"mag"``, ``"err"``, or ``"id"``.
+        Which standard role to reassign: ``"t"``, ``"mag"``, ``"err"``,
+        or ``"id"``.
     var : str
-        Source variable name.
+        Name of the existing variable that subsequent commands should
+        use for that role.
+
+    See Also
+    --------
+    CLI command: ``-changevariable``.
     """
 
     _vt_name = "changevariable"
@@ -1069,11 +2451,23 @@ class changevariable(VartoolsCommand):
 
 
 class copylc(VartoolsCommand):
-    """Duplicate the light curve N times in the output.
+    """Replicate the light curve in memory for Monte-Carlo simulation.
+
+    Make *ncopies* additional copies of the current light curve; each
+    copy flows through the remaining pipeline independently and produces
+    its own output row.  Commonly used ahead of ``-Injecttransit`` /
+    ``-addnoise`` to build a per-LC simulation ensemble.
 
     Parameters
     ----------
     ncopies : int
+        Number of replicated copies to create.
+
+    See Also
+    --------
+    CLI command: ``-copylc``.  (Pipelines containing ``-copylc`` cannot
+    use ``resume=True`` on streaming runs — one input row produces many
+    output rows.)
     """
 
     _vt_name = "copylc"
@@ -1086,16 +2480,26 @@ class copylc(VartoolsCommand):
 
 
 class medianfilter(VartoolsCommand):
-    """Median (or mean) filter the light curve.
+    """Apply a moving median (or mean) filter to the light curve.
+
+    By default the filtered series is subtracted from the magnitudes
+    (a high-pass filter); with ``replace=True`` the magnitudes are
+    replaced by the filtered series (a low-pass filter).
 
     Parameters
     ----------
-    time : float
-        Filter timescale.
+    time : float or str
+        Filter timescale (same units as the time column).  Accepts
+        var/expr forms.
     method : str
         ``"median"`` (default), ``"average"``, or ``"weightedaverage"``.
     replace : bool
-        Replace the magnitude values with the filtered version.
+        Replace the magnitudes with the filtered series (low-pass)
+        rather than subtracting it (high-pass).
+
+    See Also
+    --------
+    CLI command: ``-medianfilter``.
     """
 
     _vt_name = "medianfilter"
@@ -1230,6 +2634,11 @@ class fourierfilter(VartoolsCommand):
         caller has vetted the data and doesn't need the repeated
         advisories.  Parse-time warnings about CLI misuse are not
         suppressed.
+
+    See Also
+    --------
+    CLI command: ``-fourierfilter``.  For fitting harmonics of a
+    *known* period instead, see :class:`harmonicfilter`.
     """
 
     _vt_name = "fourierfilter"
@@ -1461,6 +2870,10 @@ class expr(VartoolsCommand):
     >>> cmd.expr("dmag=mag-10.0")                     # per-observation
     >>> cmd.expr("avg=mean(mag)", vartype="listvar")   # per-star mean
     >>> cmd.expr("pi=3.14159", vartype="const")        # global constant
+
+    See Also
+    --------
+    CLI command: ``-expr``.
     """
 
     _vt_name = "expr"
@@ -1498,7 +2911,11 @@ class expr(VartoolsCommand):
 
 
 class print_cols(VartoolsCommand):
-    """Print selected variables to stdout as additional columns.
+    """Print selected variables to the output table as extra columns.
+
+    Wraps the vartools ``-print`` command (the class is named
+    ``print_cols`` to avoid shadowing the Python built-in; the
+    pipeline-builder method is ``Pipeline.print``).
 
     Parameters
     ----------
@@ -1508,6 +2925,10 @@ class print_cols(VartoolsCommand):
         Output column header names.
     fmt : str or list of str, optional
         printf-style format strings for each column.
+
+    See Also
+    --------
+    CLI command: ``-print``.
     """
 
     _vt_name = "print"
@@ -1534,14 +2955,22 @@ class print_cols(VartoolsCommand):
 
 
 class FFT(VartoolsCommand):
-    """Compute the Fast Fourier Transform of two variables.
+    """Compute the Fast Fourier Transform of a pair of LC vectors.
+
+    Transforms the (real, imaginary) input vector pair into a
+    (real, imaginary) output vector pair.  For a purely real signal,
+    pass a zero-filled vector as *input_imag*.
 
     Parameters
     ----------
     input_real, input_imag : str
         Input real and imaginary variable names.
     output_real, output_imag : str
-        Output real and imaginary variable names.
+        Output real and imaginary variable names (created if absent).
+
+    See Also
+    --------
+    CLI command: ``-FFT``.  Inverse: :class:`IFFT`.
     """
 
     _vt_name = "FFT"
@@ -1564,7 +2993,23 @@ class FFT(VartoolsCommand):
 
 
 class IFFT(VartoolsCommand):
-    """Inverse FFT (same parameter structure as FFT)."""
+    """Compute the inverse Fast Fourier Transform of a pair of LC vectors.
+
+    Same parameter structure as :class:`FFT`: transforms the
+    (real, imaginary) input vector pair into a (real, imaginary) output
+    vector pair.
+
+    Parameters
+    ----------
+    input_real, input_imag : str
+        Input real and imaginary variable names.
+    output_real, output_imag : str
+        Output real and imaginary variable names (created if absent).
+
+    See Also
+    --------
+    CLI command: ``-IFFT``.  Forward transform: :class:`FFT`.
+    """
 
     _vt_name = "IFFT"
 
@@ -1630,6 +3075,14 @@ class resample(VartoolsCommand):
         Column number (1-based) in the *time-grid file* that holds the time
         values.  Maps to the CLI ``column`` keyword (path mode) or
         ``tcolumn`` keyword (list mode).  Defaults to ``1``.
+    gaps : str, optional
+        Gap-handling spec passed through verbatim after the ``gaps``
+        keyword (controls how interpolation behaves across large time
+        gaps).
+
+    See Also
+    --------
+    CLI command: ``-resample``.
     """
 
     _vt_name = "resample"
@@ -1742,6 +3195,12 @@ class decorr(VartoolsCommand):
         pyvartools docs for the full ``Output`` semantics.  Default
         ``False`` (no model output).
     maskpoints : str, optional
+        Name of a mask variable; points with ``maskvar ≤ 0`` are
+        excluded from the fit.
+
+    See Also
+    --------
+    CLI command: ``-decorr``.
     """
 
     _vt_name = "decorr"
@@ -1797,15 +3256,31 @@ class decorr(VartoolsCommand):
 
 
 class Jstet(VartoolsCommand):
-    """J-statistic (Stetson variability index).
+    """Stetson J / L variability statistics + kurtosis.
 
     Parameters
     ----------
     timescale : float
-        Timescale for variability index calculation.
-    dates : str
-        Path to the dates file.
+        Time gap (days) below which adjacent observations are treated as a
+        single "close" pair (weight 1.0); otherwise as a singleton (weight 0.1).
+    dates : str, optional
+        Path to a file of JDs for *every possible* observation in the survey.
+        Used to compute a survey-wide ``weight_max`` so the vartools J is
+        ``J_stetson * (sum_w_actual / weight_max)`` — a multiplier that
+        downweights LCs missing observations relative to the full schedule.
+        Useful within a single survey; misleading when LCs come from surveys
+        with different sampling. Mutually exclusive with ``skipnormalize``.
+    skipnormalize : bool
+        Skip the ``(sum_w / weight_max)`` rescaling and emit Stetson's
+        original J and L. Use this when comparing across surveys / cadences,
+        or when you want the textbook definition.
     maskpoints : str, optional
+        Name of an LC vector; only points with ``maskvar > 0`` contribute.
+
+    See Also
+    --------
+    CLI command: ``-Jstet``.
+    Citation: Stetson 1996 (PASP 108, 851).
     """
 
     _vt_name = "Jstet"
@@ -1813,13 +3288,21 @@ class Jstet(VartoolsCommand):
     def __init__(
         self,
         timescale: float,
-        dates: str,
+        dates: Optional[str] = None,
+        skipnormalize: bool = False,
         maskpoints: Optional[str] = None,
     ) -> None:
+        if (dates is None) == (not skipnormalize):
+            raise ValueError(
+                "Jstet: exactly one of 'dates' (path) or skipnormalize=True "
+                "must be provided"
+            )
         self.timescale = timescale
         self.dates = dates
+        self.skipnormalize = skipnormalize
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
-        return (["-Jstet", str(self.timescale), self.dates]
+        spec = "skipnormalize" if self.skipnormalize else self.dates
+        return (["-Jstet", str(self.timescale), spec]
                 + _flag("maskpoints", self.maskpoints))

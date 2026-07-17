@@ -1339,6 +1339,29 @@ void detrend_tfa(ProgramData *p, _TFA *tfa, int N, double *t, double *m, double 
 
 }
 
+/* Reset the level (mean by default, median if usemedian) of the corrected
+   light curve m[0..N-1] to refmagval by applying a uniform offset to every
+   point.  ave_out is updated to reflect the shift (a constant offset leaves
+   rms_out unchanged, so it is passed only for signature symmetry).  Used by
+   the -TFA / -TFA_SR 'refmag' option, after the corrected light curve has
+   been produced (correctlc enabled). */
+void tfa_reset_level(ProgramData *p, int N, double *m, int usemedian,
+		     double refmagval, double *ave_out, double *rms_out)
+{
+  int i;
+  double level, offset;
+  if(N <= 0) return;
+  if(usemedian)
+    level = median_nanrej(N, m);
+  else
+    level = *ave_out;
+  if(isnan(level)) return;
+  offset = level - refmagval;
+  for(i = 0; i < N; i++)
+    m[i] -= offset;
+  *ave_out = *ave_out - offset;
+}
+
 void initialize_tfa_sr(_TFA_SR *tfa, int Nlcs, ProgramData *p)
 {
   FILE *dates, *trendin, *trend_list, *listfile;

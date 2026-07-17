@@ -139,6 +139,7 @@ _MIN_KWARGS = {
                          paramlist="a=0.1:0.01,p=1.0:0.01,b=0.0:0.001"),
     "fluxtomag":   dict(mag_constant=25.0),
     "difffluxtomag": dict(mag_constant=25.0),
+    "magtoflux":   dict(mag_constant=25.0),
     "changeerror": dict(),
     "changevariable": dict(column="t", var="t"),
     "TFA":         lambda tmp_path: cmd.TFA(

@@ -181,7 +181,7 @@ void getclippedavestddev_blsfixdurtc(int n, double *pow, double *ave_out, double
 }
 
 
-int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
+int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar, int mergepeakdf_mode, double mergepeakdf_val)
 {
 
   double dum1, dum2;
@@ -200,6 +200,7 @@ int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u,
   int kmi, kma,nb1,nbkma,i,jf,j,k,jn1,jn2,jnb,nb2,nsr,nclippedfreq, *best_id;
   double *p_minus, *bper_array, *sr_ave_minus, *binned_sr_ave_minus, *binned_sr_sig_minus, global_best_sr_ave, global_best_sr_stddev;
   double global_best_sr_ave_inv, global_best_sr_stddev_inv;
+  double dffac;
   long double sde_sr_ave, sde_srsqr_ave;
   FILE *outfile, *outfile2;
 
@@ -489,10 +490,11 @@ the periodogram, and then search it for peaks    *
     {
       if(p[i] > 0)
 	{
+	  dffac = (mergepeakdf_mode ? mergepeakdf_val * qtran_array[i] : mergepeakdf_val);
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+	      if(!isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -523,10 +525,11 @@ the periodogram, and then search it for peaks    *
 	{
 	  if(p[i] > minbest)
 	    {
+	      dffac = (mergepeakdf_mode ? mergepeakdf_val * qtran_array[i] : mergepeakdf_val);
 	      test = 1;
 	      for(j=0;j<Npeak;j++)
 		{
-		  if(!isDifferentPeriods(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot))
+		  if(!isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac))
 		    {
 		      if(p[i] > snval[j])
 			{
@@ -680,39 +683,13 @@ the periodogram, and then search it for peaks    *
     }
   else
     {
-      /* We have no peaks, just put -1. for the values and return to the calling function */
-      /*for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  }*/
+      /* No frequencies survive clipping in the inverse-transit pass.  Set
+         the inverse-transit sentinels and fall through so that operiodogram,
+         omodel, ophcurve, ojdcurve, and correctlc still execute on the
+         already-computed forward-transit results. */
       *bperpos = -1.;
       *chisqrminus = 999999.;
       *meanmagval = -1.;
-      free(weight);
-      free(best_id);
-      free(sr_ave);
-      free(binned_sr_ave);
-      free(binned_sr_sig);
-      free(qtran_array);
-      free(depth_array);
-      free(bper_array);
-      free(sr_ave_minus);
-      free(binned_sr_ave_minus);
-      free(binned_sr_sig_minus);
-      free(p_minus);
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
     }
 
   //sde = (*bpow - ((double)sr_ave / (double)nsr))/sqrt((double)((srsqr_ave / (long double) nsr) - (sr_ave*sr_ave/(long double)(nsr*nsr))));

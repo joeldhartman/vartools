@@ -158,7 +158,19 @@ am__objects_1 = libvartoolspipeline_la-alarm.lo \
 	libvartoolspipeline_la-aov_harm.lo \
 	libvartoolspipeline_la-amoeba.lo \
 	libvartoolspipeline_la-analytic.lo \
-	libvartoolspipeline_la-binlc.lo \
+	libvartoolspipeline_la-binlc.lo libvartoolspipeline_la-pdm.lo \
+	libvartoolspipeline_la-ftp.lo \
+	libvartoolspipeline_la-matchedfilter.lo \
+	libvartoolspipeline_la-matchedfilter_nfft.lo \
+	libvartoolspipeline_la-vonneumann.lo \
+	libvartoolspipeline_la-percentileratios.lo \
+	libvartoolspipeline_la-beyondNsigma.lo \
+	libvartoolspipeline_la-slopestats.lo \
+	libvartoolspipeline_la-codym.lo \
+	libvartoolspipeline_la-codyq.lo \
+	libvartoolspipeline_la-structurefunction.lo \
+	libvartoolspipeline_la-drwfit.lo \
+	libvartoolspipeline_la-runlength.lo \
 	libvartoolspipeline_la-binarylcio.lo \
 	libvartoolspipeline_la-chi2rms.lo \
 	libvartoolspipeline_la-copylc.lo \
@@ -270,17 +282,21 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-aov.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-aov_harm.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-autocorrelation.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-binarylcio.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-binlc.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-callrunR.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-callrunpython.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-chi2rms.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-codym.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-codyq.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-converttime.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-copylc.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-decorr.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-error.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-example.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fft.Plo \
@@ -288,6 +304,7 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-ftp.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-help.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo \
@@ -300,6 +317,8 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-linfit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo \
@@ -311,6 +330,8 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-parsecommandline.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-resample.Plo \
@@ -319,17 +340,21 @@ am__depfiles_remade =  \
 	./$(DEPDIR)/libvartoolspipeline_la-runbls_sn.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-runblsfixdurtc.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-runblsfixper.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-runlength.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-saverestorelc.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-saverestorelistdata.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-sigclip.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-slopestats.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-starspot.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-statistics.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-structurefunction.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-svdcmp.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-sysrem.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-transit.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-transitmodel.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-userlib.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-util.Plo \
+	./$(DEPDIR)/libvartoolspipeline_la-vonneumann.Plo \
 	./$(DEPDIR)/libvartoolspipeline_la-wwz.Plo \
 	./$(DEPDIR)/libvartoolsrunpython_la-runpython.Plo \
 	./$(DEPDIR)/runR.Plo ./$(DEPDIR)/vartools-main.Po \
@@ -441,6 +466,7 @@ LIBCFITSIO = @LIBCFITSIO@
 LIBCSPICE = @LIBCSPICE@
 LIBGSL = @LIBGSL@
 LIBLTDL = @LIBLTDL@
+LIBNFFT = @LIBNFFT@
 LIBOBJS = @LIBOBJS@
 LIBPTHREAD = @LIBPTHREAD@
 LIBS = @LIBS@
@@ -568,7 +594,9 @@ libvartools_la_SOURCES = vartools.c
 # Pipeline library: all vartools sources except main.c, plus pipeline_api.c.
 # The vartools binary links against this library instead of re-compiling
 # those sources, so every symbol is compiled exactly once.
-PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
+PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c pdm.c ftp.c \
+ matchedfilter.c matchedfilter_nfft.c vonneumann.c percentileratios.c beyondNsigma.c \
+ slopestats.c codym.c codyq.c structurefunction.c drwfit.c runlength.c \
  binarylcio.c chi2rms.c copylc.c decorr.c detrendtfa.c doublelinklist.c \
  error.c fluxtomag.c getampthresh.c ifelse.c initcommands.c inputoutput.c \
  jstet.c killharm.c lombscargle.c mrqmin.c mysort.c nonlinfit.c nr.c \
@@ -582,7 +610,8 @@ PIPELINE_SOURCES = alarm.c aov.c aov_harm.c amoeba.c analytic.c binlc.c \
  restricttimes.c mcmcfit.c wwz.c callrunpython.c callrunR.c fft.c \
  matchcommand.c pipeline_api.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 
 libvartoolspipeline_la_SOURCES = $(PIPELINE_SOURCES)
@@ -593,19 +622,20 @@ libvartoolspipeline_la_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) \
 
 libvartoolspipeline_la_LDFLAGS = -version-info 1:0:0
 libvartoolspipeline_la_LIBADD = libvartools.la $(LIBCFITSIO) $(LIBGSL) \
-	$(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL) $(am__append_3) \
-	$(am__append_5)
+	$(LIBNFFT) $(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL) \
+	$(am__append_3) $(am__append_5)
 libvartoolspipeline_la_DEPENDENCIES = libvartools.la $(am__append_4) \
 	$(am__append_6)
 vartools_SOURCES = main.c \
  analytic.h functions.h nonlinfit.h userlib.h binarylcio.h ifelse.h \
- outcolumn.h vartools_functionpointers.h commands.h mcmcfit.h programdata.h \
+ outcolumn.h vartools_functionpointers.h commands.h vt_param_macros.h \
+ mcmcfit.h programdata.h \
  vartools.h doublelinklist.h mysort.h userfunc.h statistics.h OutText.h
 
 vartools_CPPFLAGS = $(INCLUDECFITSIO) $(INCLUDECSPICE) $(LTDLINCL) -D VARTOOLSLIB_USERLIBSDIR=\"$(USERLIBSDIR)\" -D VARTOOLSLIB_USERFUNCSDIR=\"$(USERFUNCSDIR)\"
 vartools_LDADD = libvartoolspipeline.la libvartools.la $(am__append_7) \
-	$(am__append_9) $(LIBCFITSIO) $(LIBGSL) $(LIBPTHREAD) \
-	$(LIBCSPICE) $(LIBLTDL)
+	$(am__append_9) $(LIBCFITSIO) $(LIBGSL) $(LIBNFFT) \
+	$(LIBPTHREAD) $(LIBCSPICE) $(LIBLTDL)
 vartools_DEPENDENCIES = $(LTDLDEPS) libvartoolspipeline.la \
 	libvartools.la $(am__append_8) $(am__append_10)
 all: all-am
@@ -756,17 +786,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-aov.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-aov_harm.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-autocorrelation.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-binarylcio.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-binlc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-callrunR.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-callrunpython.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-chi2rms.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-codym.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-codyq.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-converttime.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-copylc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-decorr.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-error.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-example.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fft.Plo@am__quote@ # am--include-marker
@@ -774,6 +808,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-ftp.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-help.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo@am__quote@ # am--include-marker
@@ -786,6 +821,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-linfit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo@am__quote@ # am--include-marker
@@ -797,6 +834,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-parsecommandline.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-resample.Plo@am__quote@ # am--include-marker
@@ -805,17 +844,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-runbls_sn.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-runblsfixdurtc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-runblsfixper.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-runlength.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-saverestorelc.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-saverestorelistdata.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-sigclip.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-slopestats.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-starspot.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-statistics.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-structurefunction.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-svdcmp.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-sysrem.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-transit.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-transitmodel.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-userlib.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-util.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-vonneumann.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolspipeline_la-wwz.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libvartoolsrunpython_la-runpython.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/runR.Plo@am__quote@ # am--include-marker
@@ -893,6 +936,97 @@ libvartoolspipeline_la-binlc.lo: binlc.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='binlc.c' object='libvartoolspipeline_la-binlc.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-binlc.lo `test -f 'binlc.c' || echo '$(srcdir)/'`binlc.c
+
+libvartoolspipeline_la-pdm.lo: pdm.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-pdm.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-pdm.Tpo -c -o libvartoolspipeline_la-pdm.lo `test -f 'pdm.c' || echo '$(srcdir)/'`pdm.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-pdm.Tpo $(DEPDIR)/libvartoolspipeline_la-pdm.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='pdm.c' object='libvartoolspipeline_la-pdm.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-pdm.lo `test -f 'pdm.c' || echo '$(srcdir)/'`pdm.c
+
+libvartoolspipeline_la-ftp.lo: ftp.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-ftp.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-ftp.Tpo -c -o libvartoolspipeline_la-ftp.lo `test -f 'ftp.c' || echo '$(srcdir)/'`ftp.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-ftp.Tpo $(DEPDIR)/libvartoolspipeline_la-ftp.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ftp.c' object='libvartoolspipeline_la-ftp.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-ftp.lo `test -f 'ftp.c' || echo '$(srcdir)/'`ftp.c
+
+libvartoolspipeline_la-matchedfilter.lo: matchedfilter.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-matchedfilter.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-matchedfilter.Tpo -c -o libvartoolspipeline_la-matchedfilter.lo `test -f 'matchedfilter.c' || echo '$(srcdir)/'`matchedfilter.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-matchedfilter.Tpo $(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchedfilter.c' object='libvartoolspipeline_la-matchedfilter.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-matchedfilter.lo `test -f 'matchedfilter.c' || echo '$(srcdir)/'`matchedfilter.c
+
+libvartoolspipeline_la-matchedfilter_nfft.lo: matchedfilter_nfft.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-matchedfilter_nfft.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Tpo -c -o libvartoolspipeline_la-matchedfilter_nfft.lo `test -f 'matchedfilter_nfft.c' || echo '$(srcdir)/'`matchedfilter_nfft.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Tpo $(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='matchedfilter_nfft.c' object='libvartoolspipeline_la-matchedfilter_nfft.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-matchedfilter_nfft.lo `test -f 'matchedfilter_nfft.c' || echo '$(srcdir)/'`matchedfilter_nfft.c
+
+libvartoolspipeline_la-vonneumann.lo: vonneumann.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-vonneumann.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-vonneumann.Tpo -c -o libvartoolspipeline_la-vonneumann.lo `test -f 'vonneumann.c' || echo '$(srcdir)/'`vonneumann.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-vonneumann.Tpo $(DEPDIR)/libvartoolspipeline_la-vonneumann.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='vonneumann.c' object='libvartoolspipeline_la-vonneumann.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-vonneumann.lo `test -f 'vonneumann.c' || echo '$(srcdir)/'`vonneumann.c
+
+libvartoolspipeline_la-percentileratios.lo: percentileratios.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-percentileratios.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-percentileratios.Tpo -c -o libvartoolspipeline_la-percentileratios.lo `test -f 'percentileratios.c' || echo '$(srcdir)/'`percentileratios.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-percentileratios.Tpo $(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='percentileratios.c' object='libvartoolspipeline_la-percentileratios.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-percentileratios.lo `test -f 'percentileratios.c' || echo '$(srcdir)/'`percentileratios.c
+
+libvartoolspipeline_la-beyondNsigma.lo: beyondNsigma.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-beyondNsigma.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Tpo -c -o libvartoolspipeline_la-beyondNsigma.lo `test -f 'beyondNsigma.c' || echo '$(srcdir)/'`beyondNsigma.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Tpo $(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='beyondNsigma.c' object='libvartoolspipeline_la-beyondNsigma.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-beyondNsigma.lo `test -f 'beyondNsigma.c' || echo '$(srcdir)/'`beyondNsigma.c
+
+libvartoolspipeline_la-slopestats.lo: slopestats.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-slopestats.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-slopestats.Tpo -c -o libvartoolspipeline_la-slopestats.lo `test -f 'slopestats.c' || echo '$(srcdir)/'`slopestats.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-slopestats.Tpo $(DEPDIR)/libvartoolspipeline_la-slopestats.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='slopestats.c' object='libvartoolspipeline_la-slopestats.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-slopestats.lo `test -f 'slopestats.c' || echo '$(srcdir)/'`slopestats.c
+
+libvartoolspipeline_la-codym.lo: codym.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-codym.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-codym.Tpo -c -o libvartoolspipeline_la-codym.lo `test -f 'codym.c' || echo '$(srcdir)/'`codym.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-codym.Tpo $(DEPDIR)/libvartoolspipeline_la-codym.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='codym.c' object='libvartoolspipeline_la-codym.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-codym.lo `test -f 'codym.c' || echo '$(srcdir)/'`codym.c
+
+libvartoolspipeline_la-codyq.lo: codyq.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-codyq.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-codyq.Tpo -c -o libvartoolspipeline_la-codyq.lo `test -f 'codyq.c' || echo '$(srcdir)/'`codyq.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-codyq.Tpo $(DEPDIR)/libvartoolspipeline_la-codyq.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='codyq.c' object='libvartoolspipeline_la-codyq.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-codyq.lo `test -f 'codyq.c' || echo '$(srcdir)/'`codyq.c
+
+libvartoolspipeline_la-structurefunction.lo: structurefunction.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-structurefunction.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-structurefunction.Tpo -c -o libvartoolspipeline_la-structurefunction.lo `test -f 'structurefunction.c' || echo '$(srcdir)/'`structurefunction.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-structurefunction.Tpo $(DEPDIR)/libvartoolspipeline_la-structurefunction.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='structurefunction.c' object='libvartoolspipeline_la-structurefunction.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-structurefunction.lo `test -f 'structurefunction.c' || echo '$(srcdir)/'`structurefunction.c
+
+libvartoolspipeline_la-drwfit.lo: drwfit.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-drwfit.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-drwfit.Tpo -c -o libvartoolspipeline_la-drwfit.lo `test -f 'drwfit.c' || echo '$(srcdir)/'`drwfit.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-drwfit.Tpo $(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='drwfit.c' object='libvartoolspipeline_la-drwfit.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-drwfit.lo `test -f 'drwfit.c' || echo '$(srcdir)/'`drwfit.c
+
+libvartoolspipeline_la-runlength.lo: runlength.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-runlength.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-runlength.Tpo -c -o libvartoolspipeline_la-runlength.lo `test -f 'runlength.c' || echo '$(srcdir)/'`runlength.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libvartoolspipeline_la-runlength.Tpo $(DEPDIR)/libvartoolspipeline_la-runlength.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='runlength.c' object='libvartoolspipeline_la-runlength.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o libvartoolspipeline_la-runlength.lo `test -f 'runlength.c' || echo '$(srcdir)/'`runlength.c
 
 libvartoolspipeline_la-binarylcio.lo: binarylcio.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(libvartoolspipeline_la_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT libvartoolspipeline_la-binarylcio.lo -MD -MP -MF $(DEPDIR)/libvartoolspipeline_la-binarylcio.Tpo -c -o libvartoolspipeline_la-binarylcio.lo `test -f 'binarylcio.c' || echo '$(srcdir)/'`binarylcio.c
@@ -1500,17 +1634,21 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-aov.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-aov_harm.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-autocorrelation.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-binarylcio.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-binlc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-callrunR.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-callrunpython.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-chi2rms.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-codym.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-codyq.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-converttime.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-copylc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-decorr.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-error.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-example.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fft.Plo
@@ -1518,6 +1656,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ftp.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-help.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo
@@ -1530,6 +1669,8 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-linfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo
@@ -1541,6 +1682,8 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parsecommandline.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-resample.Plo
@@ -1549,17 +1692,21 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runbls_sn.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runblsfixdurtc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runblsfixper.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runlength.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-saverestorelc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-saverestorelistdata.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-sigclip.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-slopestats.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-starspot.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-statistics.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-structurefunction.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-svdcmp.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-sysrem.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-transit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-transitmodel.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-userlib.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-util.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-vonneumann.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-wwz.Plo
 	-rm -f ./$(DEPDIR)/libvartoolsrunpython_la-runpython.Plo
 	-rm -f ./$(DEPDIR)/runR.Plo
@@ -1618,17 +1765,21 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-aov.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-aov_harm.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-autocorrelation.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-beyondNsigma.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-binarylcio.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-binlc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-callrunR.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-callrunpython.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-chi2rms.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-codym.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-codyq.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-converttime.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-copylc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-decorr.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-detrendtfa.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-dftclean.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-doublelinklist.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-drwfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-error.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-example.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fft.Plo
@@ -1636,6 +1787,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fittrap.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fluxtomag.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-fourierfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ftp.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-getampthresh.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-help.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-ifelse.Plo
@@ -1648,6 +1800,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-linfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-lombscargle.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchcommand.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-matchedfilter_nfft.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-mcmcfit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-medianfilter.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-microlens.Plo
@@ -1659,6 +1813,8 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parsecommandline.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parseinputlist.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-parselc.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pdm.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-percentileratios.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-pipeline_api.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-processcommand.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-resample.Plo
@@ -1667,17 +1823,21 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runbls_sn.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runblsfixdurtc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runblsfixper.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-runlength.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-saverestorelc.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-saverestorelistdata.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-sigclip.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-slopestats.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-starspot.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-statistics.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-structurefunction.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-svdcmp.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-sysrem.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-transit.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-transitmodel.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-userlib.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-util.Plo
+	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-vonneumann.Plo
 	-rm -f ./$(DEPDIR)/libvartoolspipeline_la-wwz.Plo
 	-rm -f ./$(DEPDIR)/libvartoolsrunpython_la-runpython.Plo
 	-rm -f ./$(DEPDIR)/runR.Plo

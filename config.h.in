@@ -132,6 +132,9 @@
 /* Define to 1 if you have the `memset' function. */
 #undef HAVE_MEMSET
 
+/* Define if you have libnfft3 and libfftw3 */
+#undef HAVE_NFFT3
+
 /* Define if the copy keyword is available for the astype method in numpy */
 #undef HAVE_NUMPY_ASTYPE_COPY
 
