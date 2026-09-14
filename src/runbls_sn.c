@@ -787,6 +787,10 @@ void GetExtraBLSParameters1(int n, double *mag, int nf,
 			      nf,
 			      BLS_SR_POLY_ORDER);
   for(i=0; i < Npeak; i++) {
+    /* Skip peaks that were not filled in (best_id < 0); their extra-parameter
+       values were already set to -1 by the peak-selection code.  Using their
+       uninitialized best_id would index probvals/freqarray out of bounds. */
+    if(best_id[i] < 0) continue;
     Bls->logprob[lcnum][i] = probvals[best_id[i]];
     BLSPeakArea(freqarray,
 		probvals,
@@ -827,6 +831,9 @@ void GetExtraBLSParameters1(int n, double *mag, int nf,
     srsig = 0.0;
   }
   for(i=0; i < Npeak; i++) {
+    /* Skip unfilled peaks (best_id < 0); their srshift/srsig/snrextra were
+       already set to -1 by the peak-selection code. */
+    if(best_id[i] < 0) continue;
     Bls->srsig[lcnum][i] = srsig;
     Bls->srshift[lcnum][i] = (*srshiftvals)[best_id[i]];
     Bls->snrextra[lcnum][i] = fabs(Bls->srshift[lcnum][i])/srsig;
@@ -1967,6 +1974,7 @@ the periodogram, and then search it for peaks    *
 	  snval[j] = -1.;
 	  bpow[j] = -1.;
 	  bt0[j] = -1.;
+	  best_id[j] = -1;
 	  in1[j] = -1;
 	  in2[j] = -1;
 	  in1_ph[j] = -1.;
@@ -3302,6 +3310,7 @@ the periodogram, and then search it for peaks    *
 	  snval[j] = -1.;
 	  bpow[j] = -1.;
 	  bt0[j] = -1.;
+	  best_id[j] = -1;
 	  in1[j] = -1;
 	  in2[j] = -1;
 	  in1_ph[j] = -1.;

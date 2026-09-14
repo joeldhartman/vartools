@@ -1149,6 +1149,56 @@ mergepeakdf with a non-positive factor should have failed but exited 0
 EOF
 fi
 
+# -BLS extraparams with more peaks requested than exist: the unfilled peaks
+# must report -1 for their extra-parameter columns, not garbage read through
+# an uninitialized best_id index (regression: when foundsofar < Npeak the
+# fill-in loop left best_id[] unset, so GetExtraBLSParameters1 indexed
+# probvals[] with a stale value -> wrong LogProb/PeakArea/SRShift/... and, for
+# a sufficiently out-of-range index, a segfault).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS extraparams unfilled-peak sentinels" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/2 -oneline
+    -BLS q 0.01 0.1 0.5 2.0 500 100 0 30 0 0 0 extraparams nobinnedrms
+(only a few distinct peaks exist over this range; peaks beyond that must
+ report -1 for the extra-parameter columns rather than uninitialized garbage)
+EOF
+
+cat > $goodout <<EOF
+BLS_SRShift_5_0                     = -1
+BLS_SRSig_5_0                       = -1
+BLS_SRShiftSNR_5_0                  = -1
+BLS_FreqLow_5_0                     = -1
+BLS_FreqHigh_5_0                    = -1
+BLS_LogProb_5_0                     = -1
+BLS_PeakArea_5_0                    = -1
+BLS_PeakMean_5_0                    = -1
+BLS_PeakDev_5_0                     = -1
+BLS_SRShift_30_0                    = -1
+BLS_SRSig_30_0                      = -1
+BLS_SRShiftSNR_30_0                 = -1
+BLS_FreqLow_30_0                    = -1
+BLS_FreqHigh_30_0                   = -1
+BLS_LogProb_30_0                    = -1
+BLS_PeakArea_30_0                   = -1
+BLS_PeakMean_30_0                   = -1
+BLS_PeakDev_30_0                    = -1
+EOF
+
+$VARTOOLS -i EXAMPLES/2 -oneline \
+    -BLS q 0.01 0.1 0.5 2.0 500 100 0 30 0 0 0 extraparams nobinnedrms 2>/dev/null \
+    | grep -E 'BLS_(LogProb|FreqLow|FreqHigh|PeakArea|PeakMean|PeakDev|SRShift|SRSig|SRShiftSNR)_(5|30)_0 ' \
+> $testout
+
+lastcode=${PIPESTATUS[0]}
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -BLSFixDurTc mergepeakdf 1.0 reproduces the default merge resolution
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLSFixDurTc mergepeakdf 1.0 == default" > /dev/stderr
