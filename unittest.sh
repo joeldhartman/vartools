@@ -7016,4 +7016,75 @@ CompareOutput $testnumber $testc $testout $goodout
 rm -f EXAMPLES/OUTDIR1/poly_ft.fits
 
 
+# -BLS peak de-duplication (GetBLSDedupPeaks): with a fine "mergepeakdf transit"
+# resolution the greedy peak collector could leave several reported peaks inside
+# a single physical peak (and, with "reportharmonics", an inverted first-loop
+# merge test reported near-identical periods separately).  Build a deterministic
+# two-box-signal light curve with a portable MINSTD PRNG (P=17.11 d and P=12.37 d
+# transits) that triggers the pathology, and require the reported peaks to be
+# well separated in period -- before the fix the ~12.37 d signal was reported
+# several times.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS mergepeakdf transit peak de-duplication" > /dev/stderr
+
+synlc=`mktemp`
+awk 'BEGIN{
+  s=1;
+  for(n=0;n<240;n++){
+    s=(16807*s)%2147483647; if((s/2147483647.0)<0.75){
+      s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+      for(k=0;k<m;k++){
+        s=(16807*s)%2147483647; frac=(s/2147483647.0)*0.25;
+        t=2458000.0+n+frac;
+        s=(16807*s)%2147483647; g1=(s/2147483647.0);
+        s=(16807*s)%2147483647; g2=(s/2147483647.0);
+        mag=10.0+0.004*(g1+g2-1.0)*1.732;
+        ph1=t/17.11; ph1=ph1-int(ph1); if(ph1>0.5)ph1-=1.0; if(ph1<-0.5)ph1+=1.0;
+        if(ph1<0.02&&ph1>-0.02) mag+=0.030;
+        ph2=t/12.37; ph2=ph2-int(ph2); if(ph2>0.5)ph2-=1.0; if(ph2<-0.5)ph2+=1.0;
+        if(ph2<0.025&&ph2>-0.025) mag+=0.028;
+        printf "%.5f %.6f 0.004\n", t, mag;
+      }
+    }
+  }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic 2-box-signal LC> -ascii -oneline
+    -BLS q 0.005 0.1 1.0 20.0 nf 20000 200 0 8 0 0 0 nobinnedrms mergepeakdf transit 3.0
+(the 8 reported peaks must be pairwise separated in period; before the
+GetBLSDedupPeaks fix the ~12.37 d signal was reported several times)
+EOF
+
+$VARTOOLS -i $synlc -ascii -oneline \
+    -BLS q 0.005 0.1 1.0 20.0 nf 20000 200 0 8 0 0 0 nobinnedrms mergepeakdf transit 3.0 \
+> $testout
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test exited with error code $lastcode for test number $testnumber
+-BLS mergepeakdf transit de-duplication test failed to run.
+EOF
+    cat $testc > /dev/stderr
+    rm -f $synlc
+    exit 1
+fi
+
+minsep=`grep -E "BLS_Period_[0-9]+_0" $testout | awk '{n++; p[n]=$3} END{m=1e30; for(i=1;i<=n;i++)for(j=i+1;j<=n;j++){d=p[i]-p[j]; if(d<0)d=-d; if(d<m)m=d} if(n<2)m=1e30; printf "%.6f", m}'`
+toosmall=`awk -v m="$minsep" 'BEGIN{print (m<0.1)?1:0}'`
+if (( $toosmall == 1 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS mergepeakdf transit reported near-duplicate peaks: the minimum period
+separation ${minsep} d is below the 0.1 d threshold, i.e. GetBLSDedupPeaks did
+not remove duplicate detections of the same signal.  Reported peaks:
+EOF
+    grep -E "BLS_Period_[0-9]+_0" $testout > /dev/stderr
+    rm -f $synlc
+    exit 1
+fi
+rm -f $synlc
+
+
 rm -f $testc $testout $goodout

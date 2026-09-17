@@ -596,6 +596,7 @@ the periodogram, and then search it for peaks    *
 	  /* Put -1 for the remaining peaks */
 	  bper[j] = -1.;
 	  snval[j] = -1.;
+	  best_id[j] = -1;
 	  bpow[j] = -1.;
 	  bt0[j] = -1.;
 	  qtran[j] = -1.;
@@ -662,6 +663,13 @@ the periodogram, and then search it for peaks    *
       j--;
     }
 
+  /* Remove any peaks left within the merge resolution of a stronger peak and
+     back-fill with the next distinct peaks (see GetBLSDedupPeaks in
+     runbls_sn.c).  Done before the medsn block so the reported per-peak medsn
+     values correspond to the final (de-duplicated) peaks. */
+  GetBLSDedupPeaks(Npeak, bper, snval, best_id, nf, bper_array, p, qtran_array,
+		   tot, mergepeakdf_mode, mergepeakdf_val, 0);
+
   /* medsn: per-peak S/N and diagnostic components for the selected peaks. */
   if(BlsFixDurTc->domedfiltsn) {
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
@@ -711,6 +719,27 @@ the periodogram, and then search it for peaks    *
 
 	  /* Get the signal to pink noise for the peak */
 	  getsignaltopinknoiseforgivenblsmodel(n, t, x, e, bper[i], qtran[i], depth[i], in1ph, &nt[i], &Nt[i], &Nbefore[i], &Nafter[i], &rednoise[i], &whitenoise[i], &sigtopink[i], qingress[i], OOTmag[i], NULL);
+	}
+      else
+	{
+	  /* Slot left empty by the collector or emptied by GetBLSDedupPeaks:
+	     sentinel every per-peak output column (bper/snval/best_id already -1). */
+	  bpow[i] = -1.;
+	  bt0[i] = -1.;
+	  qingress[i] = -1.;
+	  OOTmag[i] = -1.;
+	  qtran[i] = -1.;
+	  depth[i] = -1.;
+	  sde[i] = -1.;
+	  chisqrplus[i] = 999999.;
+	  fraconenight[i] = -1.;
+	  nt[i] = 0;
+	  Nt[i] = 0;
+	  Nbefore[i] = 0;
+	  Nafter[i] = 0;
+	  rednoise[i] = -1.;
+	  whitenoise[i] = -1.;
+	  sigtopink[i] = -1.;
 	}
     }
 

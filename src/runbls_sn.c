@@ -1493,6 +1493,83 @@ c========================================================================
 c
 */
 
+/* Guarantee that the final list of BLS peaks contains no two peaks that are
+   within the merge resolution Df of each other.  The greedy peak collector
+   compares each new candidate only against the current peak list and never
+   re-checks the stored peaks against one another, so once two slots settle
+   onto the same physical peak they are never reconciled; with a fine,
+   q-dependent resolution ("mergepeakdf transit") this leaves several reported
+   peaks inside one signal.  This pass removes those duplicates and back-fills.
+
+   For each surviving pair it uses Df = mergepeakdf_val * max(q_a, q_b) / T in
+   transit mode (the LARGER of the two peaks' box widths, so a duplicate is
+   never missed because one member happens to sit on a narrow-box bin), or the
+   fixed factor mergepeakdf_val / T otherwise; reportharmonics keeps harmonically
+   related peaks separate exactly as the collector does.  Duplicates are dropped
+   lowest-S/N first and each freed slot is back-filled with the highest-S/N
+   spectrum bin that is distinct from every surviving peak, so Npeak genuinely
+   distinct peaks are still returned.  Operates in place on bper/snval/best_id
+   (length Npeak; a slot with bper<=0 is empty) and is a byte-for-byte no-op
+   whenever the collected peaks are already pairwise separated. */
+void GetBLSDedupPeaks(int Npeak, double *bper, double *snval, int *best_id,
+		      int nf, double *bper_array, double *p, double *qtran_array,
+		      double tot, int mergepeakdf_mode, double mergepeakdf_val,
+		      int reportharmonics)
+{
+  int a, b, c, k, drop, r, used, ok, any_change = 0, changed;
+  double dffac, best_p, df2;
+  do {
+    changed = 0;
+    for(a=0; a<Npeak && !changed; a++) {
+      if(bper[a] <= 0.) continue;
+      for(b=a+1; b<Npeak && !changed; b++) {
+	if(bper[b] <= 0.) continue;
+	dffac = (mergepeakdf_mode ? mergepeakdf_val * MAX_(qtran_array[best_id[a]], qtran_array[best_id[b]]) : mergepeakdf_val);
+	if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[a],bper[b]),MAX_(bper[a],bper[b]),tot,dffac)) ||
+	   ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[a],bper[b]),MAX_(bper[a],bper[b]),tot,dffac))) {
+	  /* duplicate pair: drop the lower-S/N member, keep the higher one */
+	  drop = (snval[a] <= snval[b]) ? a : b;
+	  /* find the highest-S/N spectrum bin distinct from every surviving peak */
+	  r = -1; best_p = 0.;
+	  for(c=0;c<nf;c++) {
+	    if(p[c] <= best_p) continue;
+	    used = 0;
+	    for(k=0;k<Npeak;k++) { if(k!=drop && bper[k]>0. && best_id[k]==c) { used=1; break; } }
+	    if(used) continue;
+	    ok = 1;
+	    for(k=0;k<Npeak;k++) {
+	      if(k==drop || bper[k]<=0.) continue;
+	      df2 = (mergepeakdf_mode ? mergepeakdf_val * MAX_(qtran_array[c], qtran_array[best_id[k]]) : mergepeakdf_val);
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2)) ||
+		 ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2))) { ok=0; break; }
+	    }
+	    if(!ok) continue;
+	    best_p = p[c]; r = c;
+	  }
+	  if(r >= 0) { bper[drop]=bper_array[r]; snval[drop]=p[r]; best_id[drop]=r; }
+	  else { bper[drop]=-1.; snval[drop]=-1.; best_id[drop]=-1; }
+	  changed = 1; any_change = 1;
+	}
+      }
+    }
+  } while(changed);
+
+  /* if the list changed, re-rank the slots by descending S/N (empty slots last)
+     so the reported peak ordering is unchanged from the un-duplicated case */
+  if(any_change) {
+    for(a=0;a<Npeak-1;a++) {
+      int bi=a;
+      for(b=a+1;b<Npeak;b++) if(snval[b] > snval[bi]) bi=b;
+      if(bi!=a) {
+	double td; int ti;
+	td=snval[a]; snval[a]=snval[bi]; snval[bi]=td;
+	td=bper[a];  bper[a] =bper[bi];  bper[bi] =td;
+	ti=best_id[a]; best_id[a]=best_id[bi]; best_id[bi]=ti;
+      }
+    }
+  }
+}
+
 int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, int nf, double fmin, double df, int nb, double qmi, double qma, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, int *in1, int *in2, double *in1_ph, double *in2_ph, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc,int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int nobinnedrms, int freq_step_type, int adjust_qmin_mindt, int reduce_nb, int reportharmonics, _Bls *Bls, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   double *y;
@@ -2142,7 +2219,7 @@ the periodogram, and then search it for peaks    *
 	  test = 1;
 	  for(j=0;j<foundsofar;j++)
 	    {
-	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
+	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)) || (reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac)))
 		{
 		  if(p[i] > snval[j])
 		    {
@@ -2398,6 +2475,11 @@ the periodogram, and then search it for peaks    *
       j--;
     }
 
+  /* Remove any peaks left within the merge resolution of a stronger peak and
+     back-fill with the next distinct peaks (see GetBLSDedupPeaks). */
+  GetBLSDedupPeaks(Npeak, bper, snval, best_id, nf, bper_array, p, qtran_array,
+		   tot, Bls->mergepeakdf_mode, Bls->mergepeakdf_val, reportharmonics);
+
   if(Bls->extraparams) {
 
     /* Manually compute srsum for each peak - this is a bit redundant, but
@@ -2592,6 +2674,80 @@ the periodogram, and then search it for peaks    *
 	  if(Bls->extraparams) {
 	    /* Collect the extra BLS parameters */
 	    GetExtraBLSParameters2(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], qingress[i], OOTmag[i], Bls, lcnum, i);
+	  }
+	}
+      else
+	{
+	  /* Slot left empty by the collector or emptied by GetBLSDedupPeaks:
+	     sentinel every per-peak output column so no stale or uninitialized
+	     value is reported (bper/snval/best_id are already -1). */
+	  bpow[i] = -1.;
+	  bt0[i] = -1.;
+	  in1[i] = -1;
+	  in2[i] = -1;
+	  in1_ph[i] = -1.;
+	  in2_ph[i] = -1.;
+	  qingress[i] = -1.;
+	  OOTmag[i] = -1.;
+	  qtran[i] = -1.;
+	  depth[i] = -1.;
+	  sde[i] = -1.;
+	  chisqrplus[i] = 999999.;
+	  fraconenight[i] = -1.;
+	  nt[i] = 0;
+	  Nt[i] = 0;
+	  Nbefore[i] = 0;
+	  Nafter[i] = 0;
+	  rednoise[i] = -1.;
+	  whitenoise[i] = -1.;
+	  sigtopink[i] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][i] = -1.;
+	    Bls->ressig[lcnum][i] = -1.;
+	    Bls->dipsig[lcnum][i] = -1.;
+	    Bls->srshift[lcnum][i] = -1.;
+	    Bls->srsig[lcnum][i] = -1.;
+	    Bls->snrextra[lcnum][i] = -1.;
+	    Bls->dsp[lcnum][i] = -1.;
+	    Bls->dspg[lcnum][i] = -1.;
+	    Bls->freqlow[lcnum][i] = -1.;
+	    Bls->freqhigh[lcnum][i] = -1.;
+	    Bls->logprob[lcnum][i] = -1.;
+	    Bls->peakarea[lcnum][i] = -1.;
+	    Bls->peakmean[lcnum][i] = -1.;
+	    Bls->peakdev[lcnum][i] = -1.;
+	    Bls->lomblog[lcnum][i] = -1.;
+	    Bls->ntv[lcnum][i] = 0;
+	    Bls->gezadsp[lcnum][i] = -1.;
+	    Bls->ootsig[lcnum][i] = -1.;
+	    Bls->trsig[lcnum][i] = -1.;
+	    Bls->ootdftf[lcnum][i] = -1.;
+	    Bls->ootdfta[lcnum][i] = -1.;
+	    Bls->binsignaltonoise[lcnum][i] = -1.;
+	    Bls->maxphasegap[lcnum][i] = -1.;
+	    Bls->depth1_2tran[lcnum][i] = -1.;
+	    Bls->depth2_2tran[lcnum][i] = -1.;
+	    Bls->delchi2_2tran[lcnum][i] = -1.;
+	    Bls->sr_sec[lcnum][i] = -1.;
+	    Bls->srsum_sec[lcnum][i] = -1.;
+	    Bls->q_sec[lcnum][i] = -1.;
+	    Bls->epoch_sec[lcnum][i] = -1.;
+	    Bls->H_sec[lcnum][i] = -1.;
+	    Bls->L_sec[lcnum][i] = -1.;
+	    Bls->depth_sec[lcnum][i] = -1.;
+	    Bls->nt_sec[lcnum][i] = 0;
+	    Bls->Nt_sec[lcnum][i] = 0;
+	    Bls->sigtopink_sec[lcnum][i] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][i] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][i] = -1.;
+	    Bls->phaseoffset_sec[lcnum][i] = -1.;
+	    Bls->harmmean[lcnum][i] = -1.;
+	    Bls->fundA[lcnum][i] = -1.;
+	    Bls->fundB[lcnum][i] = -1.;
+	    Bls->harmA[lcnum][i] = -1.;
+	    Bls->harmB[lcnum][i] = -1.;
+	    Bls->harmamp[lcnum][i] = -1.;
+	    Bls->harmdeltachi2[lcnum][i] = -1.;
 	  }
 	}
     }
@@ -3801,6 +3957,11 @@ the periodogram, and then search it for peaks    *
       j--;
     }
 
+  /* Remove any peaks left within the merge resolution of a stronger peak and
+     back-fill with the next distinct peaks (see GetBLSDedupPeaks). */
+  GetBLSDedupPeaks(Npeak, bper, snval, best_id, nf, bper_array, p, qtran_array,
+		   tot, Bls->mergepeakdf_mode, Bls->mergepeakdf_val, reportharmonics);
+
   if(Bls->extraparams) {
 
     /* Manually compute srsum for each peak - this is a bit redundant, but
@@ -4001,6 +4162,80 @@ the periodogram, and then search it for peaks    *
 	  if(Bls->extraparams) {
 	    /* Collect the extra BLS parameters */
 	    GetExtraBLSParameters2(n, t, x, e, bper[i], qtran[i], depth[i], in1_ph[i], qingress[i], OOTmag[i], Bls, lcnum, i);
+	  }
+	}
+      else
+	{
+	  /* Slot left empty by the collector or emptied by GetBLSDedupPeaks:
+	     sentinel every per-peak output column so no stale or uninitialized
+	     value is reported (bper/snval/best_id are already -1). */
+	  bpow[i] = -1.;
+	  bt0[i] = -1.;
+	  in1[i] = -1;
+	  in2[i] = -1;
+	  in1_ph[i] = -1.;
+	  in2_ph[i] = -1.;
+	  qingress[i] = -1.;
+	  OOTmag[i] = -1.;
+	  qtran[i] = -1.;
+	  depth[i] = -1.;
+	  sde[i] = -1.;
+	  chisqrplus[i] = 999999.;
+	  fraconenight[i] = -1.;
+	  nt[i] = 0;
+	  Nt[i] = 0;
+	  Nbefore[i] = 0;
+	  Nafter[i] = 0;
+	  rednoise[i] = -1.;
+	  whitenoise[i] = -1.;
+	  sigtopink[i] = -1.;
+	  if(Bls->extraparams) {
+	    Bls->srsum[lcnum][i] = -1.;
+	    Bls->ressig[lcnum][i] = -1.;
+	    Bls->dipsig[lcnum][i] = -1.;
+	    Bls->srshift[lcnum][i] = -1.;
+	    Bls->srsig[lcnum][i] = -1.;
+	    Bls->snrextra[lcnum][i] = -1.;
+	    Bls->dsp[lcnum][i] = -1.;
+	    Bls->dspg[lcnum][i] = -1.;
+	    Bls->freqlow[lcnum][i] = -1.;
+	    Bls->freqhigh[lcnum][i] = -1.;
+	    Bls->logprob[lcnum][i] = -1.;
+	    Bls->peakarea[lcnum][i] = -1.;
+	    Bls->peakmean[lcnum][i] = -1.;
+	    Bls->peakdev[lcnum][i] = -1.;
+	    Bls->lomblog[lcnum][i] = -1.;
+	    Bls->ntv[lcnum][i] = 0;
+	    Bls->gezadsp[lcnum][i] = -1.;
+	    Bls->ootsig[lcnum][i] = -1.;
+	    Bls->trsig[lcnum][i] = -1.;
+	    Bls->ootdftf[lcnum][i] = -1.;
+	    Bls->ootdfta[lcnum][i] = -1.;
+	    Bls->binsignaltonoise[lcnum][i] = -1.;
+	    Bls->maxphasegap[lcnum][i] = -1.;
+	    Bls->depth1_2tran[lcnum][i] = -1.;
+	    Bls->depth2_2tran[lcnum][i] = -1.;
+	    Bls->delchi2_2tran[lcnum][i] = -1.;
+	    Bls->sr_sec[lcnum][i] = -1.;
+	    Bls->srsum_sec[lcnum][i] = -1.;
+	    Bls->q_sec[lcnum][i] = -1.;
+	    Bls->epoch_sec[lcnum][i] = -1.;
+	    Bls->H_sec[lcnum][i] = -1.;
+	    Bls->L_sec[lcnum][i] = -1.;
+	    Bls->depth_sec[lcnum][i] = -1.;
+	    Bls->nt_sec[lcnum][i] = 0;
+	    Bls->Nt_sec[lcnum][i] = 0;
+	    Bls->sigtopink_sec[lcnum][i] = -1.;
+	    Bls->deltachi2transit_sec[lcnum][i] = -1.;
+	    Bls->binsignaltonoise_sec[lcnum][i] = -1.;
+	    Bls->phaseoffset_sec[lcnum][i] = -1.;
+	    Bls->harmmean[lcnum][i] = -1.;
+	    Bls->fundA[lcnum][i] = -1.;
+	    Bls->fundB[lcnum][i] = -1.;
+	    Bls->harmA[lcnum][i] = -1.;
+	    Bls->harmB[lcnum][i] = -1.;
+	    Bls->harmamp[lcnum][i] = -1.;
+	    Bls->harmdeltachi2[lcnum][i] = -1.;
 	  }
 	}
 

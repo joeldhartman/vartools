@@ -485,6 +485,7 @@ void Run_AddFitsKeyword_Command(ProgramData *p, _AddFitsKeyword *addfitskeyword,
 				int lcnum, int lc_name_num);
 void RunBLSCommand(ProgramData *p, _Bls *Bls, int lcnum, int lc_name_num, int thisindex, int threadindex);
 void GetBLSMedFiltSN(int nf, double *periods, double *sr, double T, int Npeak, double *bper, double medwindow, double innerN, double outerN, double *out_sn, double *out_ph, double *out_lm, double *out_noise, double *normspec);
+void GetBLSDedupPeaks(int Npeak, double *bper, double *snval, int *best_id, int nf, double *bper_array, double *p, double *qtran_array, double tot, int mergepeakdf_mode, double mergepeakdf_val, int reportharmonics);
 void RunLombScargleCommand(ProgramData *p, _Ls *Ls, Command *c, int lcnum, int lc_name_num, int thisindex);
 void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name_num, int thisindex);
 void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum, int lc_name_num, int thisindex);
