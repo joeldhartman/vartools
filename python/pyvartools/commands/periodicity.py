@@ -1097,7 +1097,13 @@ class BLS(VartoolsCommand):
         ``q`` is the per-candidate fitted fractional transit width.  Resolves
         peaks on the scale a box transit actually smears (finer than ``1/T``);
         a value of order a few is recommended.  Mutually exclusive with
-        ``mergepeakdf``.
+        ``mergepeakdf``.  The reported peaks are guaranteed to be separated by
+        at least ``Df`` (duplicates are dropped and back-filled with the next
+        distinct peak).  Because ``q`` is the fitted *box* width, typically well
+        below 1, whenever ``mergepeakdf_transit * q < 1`` the resolution is finer
+        than the default ``1/T`` and closely-spaced peaks that a ``1/T`` merge
+        would combine are reported separately; use the default merge (or
+        ``mergepeakdf`` >= 1) for at-least-Rayleigh (``1/T``) separation.
     medsn : bool, default False
         Replace the ``BLS_SN`` statistic with a median-filter-based
         signal-to-noise.  The SR spectrum is detrended by a moving median
