@@ -1098,6 +1098,25 @@ class BLS(VartoolsCommand):
         peaks on the scale a box transit actually smears (finer than ``1/T``);
         a value of order a few is recommended.  Mutually exclusive with
         ``mergepeakdf``.
+    medsn : bool, default False
+        Replace the ``BLS_SN`` statistic with a median-filter-based
+        signal-to-noise.  The SR spectrum is detrended by a moving median
+        (window ``medsn_window`` c/d) and each peak's S/N is
+        ``(peak − local_mean) / (1.4826·MAD)``, where ``local_mean`` is the
+        mean of the detrended spectrum over the side-bands
+        ``medsn_innerN/T < |f−f_peak| < medsn_outerN/T``.  ``BLS_SR`` and the
+        peak selection are unchanged; the S/N components are output as
+        ``BLS_MedFiltPeakHeight``/``BLS_MedFiltLocalMean``/``BLS_MedFiltNoise``,
+        and the output periodogram's S/N column also becomes the median-filter
+        S/N.
+    medsn_window : float, default 0.5
+        Moving-median window in cycles/day (used only when ``medsn=True``).
+    medsn_innerN, medsn_outerN : float, default 5, 100
+        Inner and outer half-widths (in units of ``1/T``) of the local-mean
+        side-bands; ``medsn_outerN`` must exceed ``medsn_innerN``.
+    medsn_useforpeaks : bool, default False
+        Select and order the reported peaks by the median-filter S/N instead
+        of the standard BLS statistic.
     maskpoints : str, optional
         Mask variable; points with ``maskvar ≤ 0`` are excluded from
         the BLS spectrum.
@@ -1147,6 +1166,11 @@ class BLS(VartoolsCommand):
         reportharmonics: bool = False,
         mergepeakdf: Optional[float] = None,
         mergepeakdf_transit: Optional[float] = None,
+        medsn: bool = False,
+        medsn_window: float = 0.5,
+        medsn_innerN: float = 5,
+        medsn_outerN: float = 100,
+        medsn_useforpeaks: bool = False,
         maskpoints: Optional[str] = None,
     ) -> None:
         self.minper = minper
@@ -1183,7 +1207,20 @@ class BLS(VartoolsCommand):
         self.reportharmonics = reportharmonics
         self.mergepeakdf = mergepeakdf
         self.mergepeakdf_transit = mergepeakdf_transit
+        self.medsn = medsn
+        self.medsn_window = medsn_window
+        self.medsn_innerN = medsn_innerN
+        self.medsn_outerN = medsn_outerN
+        self.medsn_useforpeaks = medsn_useforpeaks
         self.maskpoints = maskpoints
+
+        if self.medsn:
+            if self.medsn_window <= 0:
+                raise ValueError("cmd.BLS: medsn_window must be a positive number (c/d).")
+            if self.medsn_innerN < 0:
+                raise ValueError("cmd.BLS: medsn_innerN must be non-negative.")
+            if self.medsn_outerN <= self.medsn_innerN:
+                raise ValueError("cmd.BLS: medsn_outerN must exceed medsn_innerN.")
 
         if self.mergepeakdf is not None and self.mergepeakdf_transit is not None:
             raise ValueError(
@@ -1263,6 +1300,12 @@ class BLS(VartoolsCommand):
             args += ["mergepeakdf", "transit", str(self.mergepeakdf_transit)]
         elif self.mergepeakdf is not None:
             args += ["mergepeakdf", str(self.mergepeakdf)]
+        if self.medsn:
+            args += ["medsn", "medwindow", str(self.medsn_window),
+                     "innerN", str(self.medsn_innerN),
+                     "outerN", str(self.medsn_outerN)]
+            if self.medsn_useforpeaks:
+                args += ["useforpeaks"]
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -1440,6 +1483,17 @@ class BLSFixDurTc(VartoolsCommand):
         Transit-aware multiplier: ``Df = mergepeakdf_transit · q / T`` with
         ``q`` the per-candidate fitted transit width.  Mutually exclusive
         with ``mergepeakdf``.  See :class:`BLS`.
+    medsn : bool, default False
+        Replace ``BLSFixDurTc_SN`` with a median-filter-based signal-to-noise,
+        exactly as for :class:`BLS` (with ``medsn_window``, ``medsn_innerN``,
+        ``medsn_outerN`` and ``medsn_useforpeaks``; the components are output as
+        ``BLSFixDurTc_MedFiltPeakHeight``/``LocalMean``/``Noise``).
+    medsn_window : float, default 0.5
+        Moving-median window in cycles/day (used only when ``medsn=True``).
+    medsn_innerN, medsn_outerN : float, default 5, 100
+        Local-mean side-band half-widths in units of ``1/T``.
+    medsn_useforpeaks : bool, default False
+        Select and order peaks by the median-filter S/N.
     maskpoints : str, optional
         Mask variable; points with ``maskvar ≤ 0`` are excluded.
 
@@ -1473,6 +1527,11 @@ class BLSFixDurTc(VartoolsCommand):
         ojdcurve_jdstep: float = 0.02,
         mergepeakdf: Optional[float] = None,
         mergepeakdf_transit: Optional[float] = None,
+        medsn: bool = False,
+        medsn_window: float = 0.5,
+        medsn_innerN: float = 5,
+        medsn_outerN: float = 100,
+        medsn_useforpeaks: bool = False,
         maskpoints: Optional[str] = None,
     ) -> None:
         self.duration = duration
@@ -1496,7 +1555,20 @@ class BLSFixDurTc(VartoolsCommand):
         self.ojdcurve_jdstep = ojdcurve_jdstep
         self.mergepeakdf = mergepeakdf
         self.mergepeakdf_transit = mergepeakdf_transit
+        self.medsn = medsn
+        self.medsn_window = medsn_window
+        self.medsn_innerN = medsn_innerN
+        self.medsn_outerN = medsn_outerN
+        self.medsn_useforpeaks = medsn_useforpeaks
         self.maskpoints = maskpoints
+
+        if self.medsn:
+            if self.medsn_window <= 0:
+                raise ValueError("cmd.BLSFixDurTc: medsn_window must be a positive number (c/d).")
+            if self.medsn_innerN < 0:
+                raise ValueError("cmd.BLSFixDurTc: medsn_innerN must be non-negative.")
+            if self.medsn_outerN <= self.medsn_innerN:
+                raise ValueError("cmd.BLSFixDurTc: medsn_outerN must exceed medsn_innerN.")
 
         if self.mergepeakdf is not None and self.mergepeakdf_transit is not None:
             raise ValueError(
@@ -1536,6 +1608,12 @@ class BLSFixDurTc(VartoolsCommand):
             args += ["mergepeakdf", "transit", str(self.mergepeakdf_transit)]
         elif self.mergepeakdf is not None:
             args += ["mergepeakdf", str(self.mergepeakdf)]
+        if self.medsn:
+            args += ["medsn", "medwindow", str(self.medsn_window),
+                     "innerN", str(self.medsn_innerN),
+                     "outerN", str(self.medsn_outerN)]
+            if self.medsn_useforpeaks:
+                args += ["useforpeaks"]
         args += _flag("maskpoints", self.maskpoints)
         return args
 

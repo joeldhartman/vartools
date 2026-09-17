@@ -533,6 +533,46 @@ class TestCLIArgsPeriodicity:
                                 mergepeakdf=1.0)._to_cli_args()
         assert fixed[fixed.index("mergepeakdf") + 1] == "1.0"
 
+    def test_bls_medsn_absent_by_default(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000)._to_cli_args()
+        assert "medsn" not in args
+
+    def test_bls_medsn_defaults(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, medsn=True)._to_cli_args()
+        i = args.index("medsn")
+        assert args[i:i + 7] == ["medsn", "medwindow", "0.5",
+                                 "innerN", "5", "outerN", "100"]
+        assert "useforpeaks" not in args
+
+    def test_bls_medsn_custom_and_useforpeaks(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, medsn=True, medsn_window=0.3,
+                       medsn_innerN=3, medsn_outerN=50,
+                       medsn_useforpeaks=True)._to_cli_args()
+        i = args.index("medsn")
+        assert args[i:i + 8] == ["medsn", "medwindow", "0.3", "innerN", "3",
+                                 "outerN", "50", "useforpeaks"]
+
+    def test_bls_medsn_before_maskpoints(self):
+        args = cmd.BLS(0.5, 10.0, nfreq=1000, medsn=True,
+                       maskpoints="m")._to_cli_args()
+        assert args.index("medsn") < args.index("maskpoints")
+
+    def test_bls_medsn_validation(self):
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, medsn=True, medsn_window=0.0)
+        with pytest.raises(ValueError):
+            cmd.BLS(0.5, 10.0, nfreq=1000, medsn=True,
+                    medsn_innerN=100, medsn_outerN=50)
+
+    def test_blsfixdurtc_medsn(self):
+        args = cmd.BLSFixDurTc(duration=0.05, Tc=1.0, medsn=True,
+                               medsn_useforpeaks=True)._to_cli_args()
+        i = args.index("medsn")
+        assert args[i:i + 7] == ["medsn", "medwindow", "0.5", "innerN", "5",
+                                 "outerN", "100"]
+        assert "useforpeaks" in args
+
+
     def test_blsfixperdurtc_minimal(self):
         args = cmd.BLSFixPerDurTc(period=1.5, duration=0.05,
                                    Tc=1.0)._to_cli_args()
