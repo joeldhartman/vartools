@@ -1381,6 +1381,20 @@ void InitCommands(ProgramData *p, Command *c)
 		  vt_error(ERR_MEMALLOC);
 	      }
 	  }
+	  if(c[i].Bls->domedfiltsn) {
+	    if((c[i].Bls->medfiltsn = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->medfiltpeakheight = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->medfiltlocalmean = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].Bls->medfiltnoise = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++) {
+	      if((c[i].Bls->medfiltsn[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		 (c[i].Bls->medfiltpeakheight[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		 (c[i].Bls->medfiltlocalmean[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL ||
+		 (c[i].Bls->medfiltnoise[j] = (double *) malloc(c[i].Bls->Npeak * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    }
+	  }
 	  break;
 	case CNUM_FINDBLENDS:
 
@@ -1529,6 +1543,20 @@ void InitCommands(ProgramData *p, Command *c)
 		 (c[i].BlsFixDurTc->OOTmag[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL)
 		vt_error(ERR_MEMALLOC);
 	    }
+	  if(c[i].BlsFixDurTc->domedfiltsn) {
+	    if((c[i].BlsFixDurTc->medfiltsn = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].BlsFixDurTc->medfiltpeakheight = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].BlsFixDurTc->medfiltlocalmean = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
+	       (c[i].BlsFixDurTc->medfiltnoise = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	      vt_error(ERR_MEMALLOC);
+	    for(j=0;j<Nlcs;j++) {
+	      if((c[i].BlsFixDurTc->medfiltsn[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
+		 (c[i].BlsFixDurTc->medfiltpeakheight[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
+		 (c[i].BlsFixDurTc->medfiltlocalmean[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL ||
+		 (c[i].BlsFixDurTc->medfiltnoise[j] = (double *) malloc(c[i].BlsFixDurTc->Npeak * sizeof(double))) == NULL)
+		vt_error(ERR_MEMALLOC);
+	    }
+	  }
 	  break;
 	case CNUM_BLSFIXPERDURTC:
 	  if(c[i].BlsFixPerDurTc->pertype != PERTYPE_SPECIFIED)

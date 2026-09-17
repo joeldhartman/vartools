@@ -181,7 +181,7 @@ void getclippedavestddev_blsfixdurtc(int n, double *pow, double *ave_out, double
 }
 
 
-int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar, int mergepeakdf_mode, double mergepeakdf_val)
+int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u, double *v, double inputTC, double inputdur, int fixdepth, double inputdepth, double inputqgress, int nf, double fmin, double df, double *p, int Npeak, double *bper, double *bt0, double *bpow, double *sde, double *snval, double *depth, double *qtran, double *chisqrplus, double *chisqrminus, double *bperpos, double *meanmagval, double timezone, double *fraconenight, int operiodogram, char *outname, int omodel, char *modelname, int correctlc, int ascii,int *nt, int *Nt, int *Nbefore, int *Nafter, double *rednoise, double *whitenoise, double *sigtopink, int fittrap, double *qingress, double *OOTmag, int ophcurve, char *ophcurvename, double phmin, double phmax, double phstep, int ojdcurve, char *ojdcurvename, double jdstep, int lcnum, int lclistnum, int usemask, _Variable *maskvar, int mergepeakdf_mode, double mergepeakdf_val, _BlsFixDurTc *BlsFixDurTc)
 {
 
   double dum1, dum2;
@@ -196,6 +196,8 @@ int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u,
   double rn, s,t1,f0,p0,ph,ph2,pow,rn1,rn3,s3,rn4,rn5;
   double kkmi, kk, allave, allstddev, allave_minus, allstddev_minus, *qtran_array, *depth_array, minbest, qf;
   double *sr_ave, *binned_sr_ave, *binned_sr_sig;
+  double *medfiltspec = NULL;      /* per-frequency median-filter S/N spectrum (medsn) */
+  double *sr_raw_persist = NULL;   /* raw SR spectrum kept for medsn (bpow + useforpeaks) */
   double in1ph, in2ph;
   int kmi, kma,nb1,nbkma,i,jf,j,k,jn1,jn2,jnb,nb2,nsr,nclippedfreq, *best_id;
   double *p_minus, *bper_array, *sr_ave_minus, *binned_sr_ave_minus, *binned_sr_sig_minus, global_best_sr_ave, global_best_sr_stddev;
@@ -277,6 +279,18 @@ int eeblsfixdurtc(int n_in, double *t_in, double *x_in, double *e_in, double *u,
     }
 
   tot = t[n-1] - t[0];
+  
+  /* medsn: initialise the median-filter diagnostic columns to -1 so early
+     returns leave well-defined values. */
+  if(BlsFixDurTc->domedfiltsn) {
+    int jj_medfilt;
+    for(jj_medfilt=0; jj_medfilt<Npeak; jj_medfilt++) {
+      BlsFixDurTc->medfiltsn[lcnum][jj_medfilt] = -1.;
+      BlsFixDurTc->medfiltpeakheight[lcnum][jj_medfilt] = -1.;
+      BlsFixDurTc->medfiltlocalmean[lcnum][jj_medfilt] = -1.;
+      BlsFixDurTc->medfiltnoise[lcnum][jj_medfilt] = -1.;
+    }
+  }
   if(fmin < 1./tot) {
     vt_error(ERR_BLSFMINTOOSMALL);
   }
@@ -469,6 +483,8 @@ the periodogram, and then search it for peaks    *
       free(weight);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(qtran_array);
@@ -484,6 +500,23 @@ the periodogram, and then search it for peaks    *
       return 1;
     }
 
+  /* medsn: reconstruct the raw SR spectrum and the per-frequency median-
+     filter S/N spectrum; with "useforpeaks", rank peaks by that spectrum. */
+  if(BlsFixDurTc->domedfiltsn) {
+    int im_pre;
+    if((sr_raw_persist = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (medfiltspec = (double *) malloc(nf * sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n"); exit(3);
+    }
+    for(im_pre=0; im_pre<nf; im_pre++)
+      sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
+                    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_innerN,
+                    BlsFixDurTc->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
+    if(BlsFixDurTc->medfiltsn_forpeaks)
+      for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
+  }
+  
   foundsofar = 0;
   i = 0;
   while(foundsofar < Npeak && i < nf)
@@ -593,6 +626,8 @@ the periodogram, and then search it for peaks    *
       free(weight);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(qtran_array);
@@ -627,6 +662,15 @@ the periodogram, and then search it for peaks    *
       j--;
     }
 
+  /* medsn: per-peak S/N and diagnostic components for the selected peaks. */
+  if(BlsFixDurTc->domedfiltsn) {
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
+		    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_innerN,
+		    BlsFixDurTc->medfiltsn_outerN,
+		    BlsFixDurTc->medfiltsn[lcnum], BlsFixDurTc->medfiltpeakheight[lcnum],
+		    BlsFixDurTc->medfiltlocalmean[lcnum], BlsFixDurTc->medfiltnoise[lcnum], NULL);
+  }
+
   /* Collect all the output bls parameters for the peaks */
   for(i=0;i<Npeak;i++)
     {
@@ -635,7 +679,14 @@ the periodogram, and then search it for peaks    *
 	  in1ph = (inputT0 - t1)/bper[i] - floor((inputT0 - t1)/bper[i]);
 	  in2ph = (inputT0 + inputdur - t1)/bper[i] - floor((inputT0 + inputdur - t1)/bper[i]);
 	  nb = 100*ceil(qtran_array[best_id[i]]);
-	  bpow[i] = snval[i]*global_best_sr_stddev + global_best_sr_ave;
+	  if(BlsFixDurTc->domedfiltsn)
+	    bpow[i] = sr_raw_persist[best_id[i]];
+	  else
+	    bpow[i] = snval[i]*global_best_sr_stddev + global_best_sr_ave;
+	  /* medsn: report the median-filter S/N as BLS_SN (BLS_SR/bpow above is
+	     the raw signal residue). */
+	  if(BlsFixDurTc->domedfiltsn)
+	    snval[i] = BlsFixDurTc->medfiltsn[lcnum][i];
 	  if(fittrap && !fixdepth) {
 	    qingress[i]=0.25;
 	    OOTmag[i]=*meanmagval;
@@ -708,13 +759,14 @@ the periodogram, and then search it for peaks    *
       if(ascii)
 	{
 	  for(i=0;i<nf;i++)
-	    fprintf(outfile,"%f %f\n",bper_array[i],p[i]);
+	    fprintf(outfile,"%f %f\n",bper_array[i],
+		    ((BlsFixDurTc->domedfiltsn && medfiltspec != NULL) ? medfiltspec[i] : p[i]));
 	}
       else
 	{
 	  fwrite(&nf,4,1,outfile);
 	  fwrite(bper_array,8,nf,outfile);
-	  fwrite(p,8,nf,outfile);
+	  fwrite(((BlsFixDurTc->domedfiltsn && medfiltspec != NULL) ? medfiltspec : p),8,nf,outfile);
 	}
       fclose(outfile);
     }
@@ -874,6 +926,8 @@ the periodogram, and then search it for peaks    *
   free(weight);
   free(best_id);
   free(sr_ave);
+  if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+  if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
   free(binned_sr_ave);
   free(binned_sr_sig);
   free(qtran_array);

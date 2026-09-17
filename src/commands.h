@@ -924,6 +924,18 @@ typedef struct {
   _Variable *maskvar;
   int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
   double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
+  /* Median-filter S/N method (the "medsn" keyword):
+     detrend the SR spectrum with a moving median (window medfiltsn_window
+     c/d), then for each peak report
+       S/N = (peak_resid - local_mean) / (1.4826*MAD(resid))
+     where local_mean is the mean of the detrended spectrum over the two
+     side-bands medfiltsn_innerN/T < |f-f_peak| < medfiltsn_outerN/T. */
+  int domedfiltsn;         /* enable the median-filter S/N method */
+  int medfiltsn_forpeaks;  /* also use the median-filter S/N to rank/select peaks */
+  double medfiltsn_window; /* moving-median window in c/d (default 0.5) */
+  double medfiltsn_innerN; /* inner side-band exclusion in units of 1/T (default 5) */
+  double medfiltsn_outerN; /* outer side-band edge in units of 1/T (default 100) */
+  double **medfiltsn, **medfiltpeakheight, **medfiltlocalmean, **medfiltnoise;
 } _Bls;
 
 typedef struct {
@@ -1013,6 +1025,13 @@ typedef struct {
   _Variable *maskvar;
   int mergepeakdf_mode;   /* 0 = fixed factor (val/T); 1 = transit (val*q/T) */
   double mergepeakdf_val; /* fixed factor (default 1.0), or transit multiplier (default 3.0) */
+  /* Median-filter S/N method ("medsn"); see the _Bls struct for details. */
+  int domedfiltsn;
+  int medfiltsn_forpeaks;
+  double medfiltsn_window;
+  double medfiltsn_innerN;
+  double medfiltsn_outerN;
+  double **medfiltsn, **medfiltpeakheight, **medfiltlocalmean, **medfiltnoise;
 } _BlsFixDurTc;
 
 typedef struct {

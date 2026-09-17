@@ -10343,6 +10343,61 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i--;
 	  } else
 	    i--;
+	  /* medsn [medwindow <c/d>] [innerN <n>] [outerN <n>] [useforpeaks]:
+	     median-filter S/N method.  Detrend the SR spectrum with a moving
+	     median (window medfiltsn_window c/d, default 0.5) and report, for
+	     each peak, (peak_resid - local_mean)/(1.4826*MAD(resid)); local_mean
+	     is over innerN/T<|f-f_peak|<outerN/T (defaults 5,100).  useforpeaks
+	     ranks/selects peaks by this S/N. */
+	  c[cn].Bls->domedfiltsn = 0;
+	  c[cn].Bls->medfiltsn_forpeaks = 0;
+	  c[cn].Bls->medfiltsn_window = 0.5;
+	  c[cn].Bls->medfiltsn_innerN = 5.0;
+	  c[cn].Bls->medfiltsn_outerN = 100.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"medsn")) {
+	      c[cn].Bls->domedfiltsn = 1;
+	      i++;
+	      if(i < argc && !strcmp(argv[i],"medwindow")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].Bls->medfiltsn_window = atof(argv[i]);
+		if(c[cn].Bls->medfiltsn_window <= 0.0) {
+		  fprintf(stderr,"-BLS: 'medsn medwindow' must be a positive number (c/d); got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"innerN")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].Bls->medfiltsn_innerN = atof(argv[i]);
+		if(c[cn].Bls->medfiltsn_innerN < 0.0) {
+		  fprintf(stderr,"-BLS: 'medsn innerN' must be non-negative; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"outerN")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].Bls->medfiltsn_outerN = atof(argv[i]);
+		if(c[cn].Bls->medfiltsn_outerN <= c[cn].Bls->medfiltsn_innerN) {
+		  fprintf(stderr,"-BLS: 'medsn outerN' must exceed innerN; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"useforpeaks")) {
+		c[cn].Bls->medfiltsn_forpeaks = 1;
+		i++;
+	      }
+	      i--;
+	    } else
+	      i--;
+	  } else
+	    i--;
 	  c[cn].Bls->usemask = 0;
 	  c[cn].Bls->maskvar = NULL;
 	  i++;
@@ -10962,6 +11017,57 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  listcommands(argv[iterm],p);
 		}
 	      }
+	    } else
+	      i--;
+	  } else
+	    i--;
+	  /* medsn [medwindow <c/d>] [innerN <n>] [outerN <n>] [useforpeaks]:
+	     median-filter S/N method; see -BLS. */
+	  c[cn].BlsFixDurTc->domedfiltsn = 0;
+	  c[cn].BlsFixDurTc->medfiltsn_forpeaks = 0;
+	  c[cn].BlsFixDurTc->medfiltsn_window = 0.5;
+	  c[cn].BlsFixDurTc->medfiltsn_innerN = 5.0;
+	  c[cn].BlsFixDurTc->medfiltsn_outerN = 100.0;
+	  i++;
+	  if(i < argc) {
+	    if(!strcmp(argv[i],"medsn")) {
+	      c[cn].BlsFixDurTc->domedfiltsn = 1;
+	      i++;
+	      if(i < argc && !strcmp(argv[i],"medwindow")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].BlsFixDurTc->medfiltsn_window = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->medfiltsn_window <= 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'medsn medwindow' must be a positive number (c/d); got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"innerN")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].BlsFixDurTc->medfiltsn_innerN = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->medfiltsn_innerN < 0.0) {
+		  fprintf(stderr,"-BLSFixDurTc: 'medsn innerN' must be non-negative; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"outerN")) {
+		i++;
+		if(i >= argc) listcommands(argv[iterm],p);
+		c[cn].BlsFixDurTc->medfiltsn_outerN = atof(argv[i]);
+		if(c[cn].BlsFixDurTc->medfiltsn_outerN <= c[cn].BlsFixDurTc->medfiltsn_innerN) {
+		  fprintf(stderr,"-BLSFixDurTc: 'medsn outerN' must exceed innerN; got '%s'\n", argv[i]);
+		  listcommands(argv[iterm],p);
+		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"useforpeaks")) {
+		c[cn].BlsFixDurTc->medfiltsn_forpeaks = 1;
+		i++;
+	      }
+	      i--;
 	    } else
 	      i--;
 	  } else

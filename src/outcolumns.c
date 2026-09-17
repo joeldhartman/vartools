@@ -1917,6 +1917,14 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmamp), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmAmp_%d_%d",j,l);
 		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->harmdeltachi2), "%.17g", 2, 0, 0, 0, j-1, "BLS_HarmDeltaChi2_%d_%d",j,l);
 	      }
+	      if(c[l].Bls->domedfiltsn) {
+		/* With medsn enabled the median-filter S/N is reported in the
+		   standard BLS_SN column (see runbls_sn.c); only the diagnostic
+		   components are given their own columns here. */
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->medfiltpeakheight), "%.17g", 2, 0, 0, 0, j-1, "BLS_MedFiltPeakHeight_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->medfiltlocalmean), "%.17g", 2, 0, 0, 0, j-1, "BLS_MedFiltLocalMean_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->medfiltnoise), "%.17g", 2, 0, 0, 0, j-1, "BLS_MedFiltNoise_%d_%d",j,l);
+	      }
 	    }
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->bperpos), "%14.8f", 1, 0, 0, 0, "BLS_Period_invtransit_%d",l);
 	  addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].Bls->chisqrminus), "%9.5f", 1, 0, 0, 0, "BLS_deltaChi2_invtransit_%d",l);
@@ -2020,6 +2028,13 @@ void CreateOutputColumns(ProgramData *p, Command *c, int Ncommands)
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bper), "%14.8f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Period_%d_%d",j,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->snval), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SN_%d_%d",j,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->bpow), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SR_%d_%d",j,l);
+	      if(c[l].BlsFixDurTc->domedfiltsn) {
+		/* With medsn, the median-filter S/N is reported in BLSFixDurTc_SN;
+		   only its diagnostic components get their own columns. */
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->medfiltpeakheight), "%.17g", 2, 0, 0, 0, j-1, "BLSFixDurTc_MedFiltPeakHeight_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->medfiltlocalmean), "%.17g", 2, 0, 0, 0, j-1, "BLSFixDurTc_MedFiltLocalMean_%d_%d",j,l);
+		addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->medfiltnoise), "%.17g", 2, 0, 0, 0, j-1, "BLSFixDurTc_MedFiltNoise_%d_%d",j,l);
+	      }
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->sde), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_SDE_%d_%d",j,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->depth), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Depth_%d_%d",j,l);
 	      addcolumn(p, c, l, VARTOOLS_TYPE_DOUBLE, 0, &(c[l].BlsFixDurTc->qtran), "%9.5f", 2, 0, 0, 0, j-1, "BLSFixDurTc_Qtran_%d_%d",j,l);

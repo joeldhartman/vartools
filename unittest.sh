@@ -1225,6 +1225,134 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -BLS medsn: BLS_SN reports the median-filter S/N, BLS_SR the raw residue
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS medsn output" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn
+(BLS_SN is the median-filter S/N; BLS_SR is the raw signal residue)
+EOF
+
+cat > $goodout <<EOF
+BLS_Period_1_0               =     2.12312625
+BLS_SN_1_0                   =   6.16362
+BLS_SR_1_0                   =   0.00237
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn 2>/dev/null \
+    | grep -E 'BLS_(Period|SN|SR)_1_0 ' \
+> $testout
+
+lastcode=${PIPESTATUS[0]}
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -BLS medsn leaves BLS_Period and BLS_SR unchanged from a standard run
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS medsn leaves SR unchanged" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 [medsn]
+(Period and SR columns must be identical with and without medsn)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 2>/dev/null \
+    | grep -E 'BLS_(Period|SR)_[1-3]_0 ' \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn 2>/dev/null \
+    | grep -E 'BLS_(Period|SR)_[1-3]_0 ' \
+> $testout
+
+CompareOutput $testnumber $testc $testout $goodout
+
+# -BLS medsn useforpeaks changes the peak selection
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS medsn useforpeaks changes peaks" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn [useforpeaks]
+(useforpeaks selects peaks by the median-filter S/N; periods should differ)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn 2>/dev/null \
+    | grep -E 'BLS_Period_[1-3]_0 ' \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn useforpeaks 2>/dev/null \
+    | grep -E 'BLS_Period_[1-3]_0 ' \
+> $testout
+
+if diff $goodout $testout > /dev/null 2>&1 ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+medsn useforpeaks did not change the BLS peak selection
+EOF
+fi
+
+# -BLSFixDurTc medsn: BLSFixDurTc_SN reports the median-filter S/N
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLSFixDurTc medsn output" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 medsn
+(BLSFixDurTc_SN is the median-filter S/N; BLSFixDurTc_SR the raw residue)
+EOF
+
+cat > $goodout <<EOF
+BLSFixDurTc_SN_1_0                   =   5.84023
+BLSFixDurTc_SR_1_0                   =   0.00229
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLSFixDurTc duration fix 0.08 Tc fix 53727.3 0.5 5.0 5000 0 3 0 0 0 medsn 2>/dev/null \
+    | grep -E 'BLSFixDurTc_(SN|SR)_1_0 ' \
+> $testout
+
+lastcode=${PIPESTATUS[0]}
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
+# -BLS medsn useforpeaks: the periodogram SR column is still the raw SR.
+# Regression for the bug where p[] (overwritten by the medsn spectrum to rank
+# peaks) was used to reconstruct the SR column, corrupting it.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS medsn useforpeaks periodogram SR unchanged" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.5 5.0 nf 5000 200 0 3 1 EXAMPLES/OUTDIR1/ 0 0 [medsn useforpeaks]
+(the SR column of the output .bls periodogram must match a standard run)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 5000 200 0 3 1 EXAMPLES/OUTDIR1/ 0 0 2>/dev/null >/dev/null
+gawk 'NR>1{print $3}' EXAMPLES/OUTDIR1/3.transit.bls > $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 5000 200 0 3 1 EXAMPLES/OUTDIR1/ 0 0 medsn useforpeaks 2>/dev/null >/dev/null
+gawk 'NR>1{print $3}' EXAMPLES/OUTDIR1/3.transit.bls > $testout
+
+CompareOutput $testnumber $testc $testout $goodout
+
+
 # -BLSFixPer example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLSFixPer example 1" > /dev/stderr

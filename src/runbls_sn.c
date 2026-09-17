@@ -757,8 +757,207 @@ void BLSPeakArea(double *freq,
 
 
 
+/* ------------------------------------------------------------------------
+   Median-filter S/N method (the "medsn" keyword).
+
+   Given the raw SR periodogram sr[] sampled at periods[] (one value per
+   frequency point, any order), and the light-curve time baseline T:
+
+     1. filt = moving median of SR over a frequency window of width
+        'medwindow' c/d (centred: +/- medwindow/2);
+     2. resid = SR - filt;
+     3. peak_height = resid at the peak frequency;
+     4. local_mean = mean of resid over the two side-bands
+        innerN/T < |f - f_peak| < outerN/T;
+     5. noise = 1.4826 * MAD(resid) over the whole spectrum;
+     6. S/N = (peak_height - local_mean) / noise.
+
+   The moving median uses an exact sliding window implemented with a Fenwick
+   (BIT) tree over value ranks, so the cost is O(nf log nf) regardless of the
+   (large) window point count.  If normspec != NULL it is filled with
+   resid[i]/noise in the ORIGINAL index order (used by "useforpeaks").
+   ------------------------------------------------------------------------ */
+
+/* index-sort helper: pairs of (double key, int idx) sorted ascending by key,
+   thread-safe (no global state). */
+typedef struct { double key; int idx; } _MedFiltKV;
+static int _medfilt_kvcmp(const void *a, const void *b) {
+  double ka = ((const _MedFiltKV *)a)->key, kb = ((const _MedFiltKV *)b)->key;
+  if(ka < kb) return -1;
+  if(ka > kb) return 1;
+  /* stable tie-break by original index so every element gets a unique rank */
+  return ((const _MedFiltKV *)a)->idx - ((const _MedFiltKV *)b)->idx;
+}
+static int _medfilt_dblcmp(const void *a, const void *b) {
+  double ka = *(const double *)a, kb = *(const double *)b;
+  return (ka < kb) ? -1 : (ka > kb ? 1 : 0);
+}
+/* 1-indexed Fenwick tree of counts, size m. */
+static void _medfilt_bit_add(long *bit, int m, int pos, int delta) {
+  for(; pos <= m; pos += pos & (-pos)) bit[pos] += delta;
+}
+/* smallest 1-based position whose prefix count >= k (1<=k<=window count). */
+static int _medfilt_bit_kth(long *bit, int m, int LOG, long k) {
+  int pos = 0, pw;
+  for(pw = LOG; pw >= 0; pw--) {
+    int nxt = pos + (1 << pw);
+    if(nxt <= m && bit[nxt] < k) { pos = nxt; k -= bit[nxt]; }
+  }
+  return pos + 1;
+}
+
+/* first index k in [0,n] with x[k] >= key (x ascending) */
+static int lower_bound_d(double *x, int n, double key) {
+  int a=0, b=n, mid;
+  while(a<b){ mid=(a+b)/2; if(x[mid]<key) a=mid+1; else b=mid; }
+  return a;
+}
+/* first index k in [0,n] with x[k] > key (x ascending) */
+static int upper_bound_d(double *x, int n, double key) {
+  int a=0, b=n, mid;
+  while(a<b){ mid=(a+b)/2; if(x[mid]<=key) a=mid+1; else b=mid; }
+  return a;
+}
+static double _medfilt_median_copy(double *x, int n) {
+  double *tmp, med;
+  if(n <= 0) return 0.0;
+  if((tmp = (double *) malloc(n * sizeof(double))) == NULL) {
+    fprintf(stderr,"Memory Allocation Error\n"); exit(3);
+  }
+  { int ii; for(ii=0;ii<n;ii++) tmp[ii]=x[ii]; }
+  qsort(tmp, n, sizeof(double), _medfilt_dblcmp);
+  med = (n % 2) ? tmp[n/2] : 0.5*(tmp[n/2 - 1] + tmp[n/2]);
+  free(tmp);
+  return med;
+}
+
+void GetBLSMedFiltSN(int nf, double *periods, double *sr, double T,
+		     int Npeak, double *bper,
+		     double medwindow, double innerN, double outerN,
+		     double *out_sn, double *out_ph, double *out_lm,
+		     double *out_noise, double *normspec)
+{
+  int k, j;
+  double half = 0.5 * medwindow;
+  _MedFiltKV *fkv, *vkv;
+  double *fs, *srs, *resid, *absdev, *med;
+  int *forder, *vrank;
+  double *vval;
+  long *bit;
+  int LOG, m;
+  double noise, medresid;
+
+  if(nf <= 0) return;
+
+  fkv = (_MedFiltKV *) malloc(nf * sizeof(_MedFiltKV));
+  vkv = (_MedFiltKV *) malloc(nf * sizeof(_MedFiltKV));
+  fs = (double *) malloc(nf * sizeof(double));
+  srs = (double *) malloc(nf * sizeof(double));
+  resid = (double *) malloc(nf * sizeof(double));
+  absdev = (double *) malloc(nf * sizeof(double));
+  med = (double *) malloc(nf * sizeof(double));
+  forder = (int *) malloc(nf * sizeof(int));
+  vrank = (int *) malloc(nf * sizeof(int));
+  vval = (double *) malloc((nf + 1) * sizeof(double));
+  bit = (long *) calloc(nf + 1, sizeof(long));
+  if(fkv==NULL||vkv==NULL||fs==NULL||srs==NULL||resid==NULL||absdev==NULL||
+     med==NULL||forder==NULL||vrank==NULL||vval==NULL||bit==NULL) {
+    fprintf(stderr,"Memory Allocation Error\n"); exit(3);
+  }
+
+  /* sort by frequency (ascending); frequencies are 1/period */
+  for(k=0;k<nf;k++) { fkv[k].key = 1.0/periods[k]; fkv[k].idx = k; }
+  qsort(fkv, nf, sizeof(_MedFiltKV), _medfilt_kvcmp);
+  for(k=0;k<nf;k++) { forder[k]=fkv[k].idx; fs[k]=fkv[k].key; srs[k]=sr[forder[k]]; }
+
+  /* value ranks over srs[] (ascending, unique via idx tie-break) */
+  for(k=0;k<nf;k++) { vkv[k].key = srs[k]; vkv[k].idx = k; }
+  qsort(vkv, nf, sizeof(_MedFiltKV), _medfilt_kvcmp);
+  for(k=0;k<nf;k++) { vrank[vkv[k].idx] = k+1; vval[k+1] = vkv[k].key; }
+
+  /* sliding-window median via Fenwick over ranks */
+  m = nf; LOG = 0; while((1 << (LOG+1)) <= m) LOG++;
+  {
+    int lo=0, hi=0;
+    long cnt=0, kk;
+    for(k=0;k<nf;k++) {
+      double flo = fs[k]-half, fhi = fs[k]+half;
+      while(hi<nf && fs[hi] <= fhi) { _medfilt_bit_add(bit,m,vrank[hi],1); cnt++; hi++; }
+      while(lo<k && fs[lo] < flo)   { _medfilt_bit_add(bit,m,vrank[lo],-1); cnt--; lo++; }
+      if(cnt & 1) {
+	kk = (cnt+1)/2;
+	med[k] = vval[_medfilt_bit_kth(bit,m,LOG,kk)];
+      } else {
+	kk = cnt/2;
+	med[k] = 0.5*(vval[_medfilt_bit_kth(bit,m,LOG,kk)]
+		      + vval[_medfilt_bit_kth(bit,m,LOG,kk+1)]);
+      }
+      resid[k] = srs[k]-med[k];
+    }
+  }
+
+  /* overall noise = 1.4826 * MAD(resid) */
+  medresid = _medfilt_median_copy(resid, nf);
+  for(k=0;k<nf;k++) absdev[k] = fabs(resid[k]-medresid);
+  noise = 1.4826 * _medfilt_median_copy(absdev, nf);
+
+  /* Full per-frequency median-filter S/N spectrum (used for the periodogram
+     output column and, when requested, for peak ranking).  For every
+     frequency the same local-mean side-band subtraction is applied as for the
+     reported peaks, so the spectrum value at a peak equals its BLS_SN. */
+  if(normspec != NULL) {
+    double *prefix = (double *) malloc((nf+1) * sizeof(double));
+    double wi = innerN/T, wo = outerN/T, lm, s2;
+    int a1, a2, b1, b2, c2;
+    if(prefix == NULL) { fprintf(stderr,"Memory Allocation Error\n"); exit(3); }
+    prefix[0] = 0.0;
+    for(k=0;k<nf;k++) prefix[k+1] = prefix[k] + resid[k];
+    for(k=0;k<nf;k++) {
+      a1 = lower_bound_d(fs, nf, fs[k]-wo);
+      a2 = lower_bound_d(fs, nf, fs[k]-wi);
+      b1 = upper_bound_d(fs, nf, fs[k]+wi);
+      b2 = upper_bound_d(fs, nf, fs[k]+wo);
+      s2 = (prefix[a2]-prefix[a1]) + (prefix[b2]-prefix[b1]);
+      c2 = (a2-a1) + (b2-b1);
+      lm = (c2>0) ? s2/((double)c2) : 0.0;
+      normspec[forder[k]] = (noise>0.0) ? (resid[k]-lm)/noise : 0.0;
+    }
+    free(prefix);
+  }
+
+  /* per-peak S/N */
+  for(j=0;j<Npeak;j++) {
+    double fpeak, ph, lm; int kpk, lolo, lohi, hilo, hihi, cnt2; double sum2;
+    if(bper[j] <= 0.0 || noise <= 0.0) {
+      out_sn[j]=-1.; out_ph[j]=-1.; out_lm[j]=-1.; out_noise[j]=-1.; continue;
+    }
+    fpeak = 1.0/bper[j];
+    /* nearest grid point to fpeak (fs is ascending) */
+    { int a=0,b=nf-1,mid; while(a<b){mid=(a+b)/2; if(fs[mid]<fpeak) a=mid+1; else b=mid;}
+      kpk=a; if(kpk>0 && fabs(fs[kpk-1]-fpeak) < fabs(fs[kpk]-fpeak)) kpk--; }
+    ph = resid[kpk];
+    /* side-band bounds: [fpeak-outerN/T, fpeak-innerN/T] U [fpeak+innerN/T, fpeak+outerN/T] */
+    { double wi=innerN/T, wo=outerN/T;
+      /* left band [fpeak-wo, fpeak-wi) : indices [lolo,lohi) */
+      lolo = (int)(lower_bound_d(fs,nf,fpeak-wo));
+      lohi = (int)(lower_bound_d(fs,nf,fpeak-wi));
+      hilo = (int)(upper_bound_d(fs,nf,fpeak+wi));
+      hihi = (int)(upper_bound_d(fs,nf,fpeak+wo));
+      sum2=0.0; cnt2=0;
+      for(k=lolo;k<lohi;k++){ sum2+=resid[k]; cnt2++; }
+      for(k=hilo;k<hihi;k++){ sum2+=resid[k]; cnt2++; }
+      lm = (cnt2>0) ? sum2/cnt2 : 0.0;
+    }
+    out_ph[j]=ph; out_lm[j]=lm; out_noise[j]=noise;
+    out_sn[j]=(ph-lm)/noise;
+  }
+
+  free(fkv); free(vkv); free(fs); free(srs); free(resid); free(absdev);
+  free(med); free(forder); free(vrank); free(vval); free(bit);
+}
+
 void GetExtraBLSParameters1(int n, double *mag, int nf,
-			    double *srnoshiftvals, double **srshiftvals, 
+			    double *srnoshiftvals, double **srshiftvals,
 			    double *probvals,
 			    double *freqarray, _Bls *Bls, int lcnum, int Npeak,
 			    int *best_id)
@@ -1328,6 +1527,8 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
   double *probvals = NULL;
   double *srshiftvals = NULL;
   double *srnoshiftvals = NULL;
+  double *medfiltspec = NULL;  /* per-frequency median-filter S/N spectrum (medsn) */
+  double *sr_raw_persist = NULL;  /* raw SR spectrum kept for medsn (bpow + useforpeaks) */
   int *ntvptr = NULL;
   int n;
   double *t, *x, *e;
@@ -1477,6 +1678,18 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
     vt_error(ERR_BLSNBMAX);
   }
   tot = t[n-1] - t[0];
+
+  /* initialise the median-filter S/N columns to -1 so early-return paths
+     (no peaks found) leave well-defined values */
+  if(Bls->domedfiltsn) {
+    int jj_medfilt;
+    for(jj_medfilt=0; jj_medfilt<Npeak; jj_medfilt++) {
+      Bls->medfiltsn[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltpeakheight[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltlocalmean[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltnoise[lcnum][jj_medfilt] = -1.;
+    }
+  }
   if(fmin < 1./tot) {
     vt_error(ERR_BLSFMINTOOSMALL);
   }
@@ -1864,6 +2077,8 @@ the periodogram, and then search it for peaks    *
       free(ibi);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(in1_array);
@@ -1892,6 +2107,30 @@ the periodogram, and then search it for peaks    *
       if(e_mask != NULL) free(e_mask);
       return 1;
     }
+
+  /* medsn: reconstruct the raw SR spectrum (kept for BLS_SR and to restore
+     ranking) and compute the per-frequency median-filter S/N spectrum.  With
+     "useforpeaks", replace the ranking periodogram p[] with that spectrum so
+     the peak search selects/orders peaks by the median-filter S/N. */
+  if(Bls->domedfiltsn) {
+    int im_pre;
+    if((sr_raw_persist = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (medfiltspec = (double *) malloc(nf * sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n"); exit(3);
+    }
+    for(im_pre=0; im_pre<nf; im_pre++) {
+      if(!nobinnedrms)
+	sr_raw_persist[im_pre] = p[im_pre]*allstddev + binned_sr_ave[im_pre];
+      else
+	sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
+    }
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
+		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
+    if(Bls->medfiltsn_forpeaks) {
+      for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
+    }
+  }
 
   foundsofar = 0;
   i = 0;
@@ -2109,6 +2348,8 @@ the periodogram, and then search it for peaks    *
       free(ibi);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(in1_array);
@@ -2278,15 +2519,32 @@ the periodogram, and then search it for peaks    *
   }
 
 
+  /* Median-filter S/N method: compute the per-peak S/N and its components for
+     the selected peaks, using the raw SR spectrum (sr_raw_persist) and the
+     per-frequency spectrum (medfiltspec) built before the peak search. */
+  if(Bls->domedfiltsn) {
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
+		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_outerN,
+		    Bls->medfiltsn[lcnum], Bls->medfiltpeakheight[lcnum],
+		    Bls->medfiltlocalmean[lcnum], Bls->medfiltnoise[lcnum], NULL);
+  }
+
   /* Collect all the output bls parameters for the peaks */
   for(i=0;i<Npeak;i++)
     {
       if(bper[i] > -1)
 	{
-	  if(!nobinnedrms)
+	  if(Bls->domedfiltsn)
+	    bpow[i] = sr_raw_persist[best_id[i]];
+	  else if(!nobinnedrms)
 	    bpow[i] = snval[i]*allstddev + binned_sr_ave[best_id[i]];
 	  else
 	    bpow[i] = snval[i]*global_best_sr_stddev + global_best_sr_ave;
+	    /* medsn: replace BLS_SN with the median-filter S/N; BLS_SR (bpow) keeps the
+	       raw signal residue, reconstructed just above from the standard SN. */
+	    if(Bls->domedfiltsn)
+	      snval[i] = Bls->medfiltsn[lcnum][i];
 	  if(adjust_qmin_mindt && reduce_nb) {
 	    qmi_test = mindt/bper[i];
 	    if(qmi_test > 1.0) qmi_test = 1.0;
@@ -2409,12 +2667,18 @@ the periodogram, and then search it for peaks    *
 	  fprintf(outfile,"#Period  S/N   SR\n");
 	  if(!nobinnedrms) {
 	    for(i=0;i<nf;i++) {
-	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],p[i],(p[i]*allstddev+binned_sr_ave[i]));
+	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],
+		      ((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec[i] : p[i]),
+		      ((Bls->domedfiltsn && sr_raw_persist != NULL) ? sr_raw_persist[i]
+		       : (p[i]*allstddev+binned_sr_ave[i])));
 	    }
 	  }
 	  else {
 	    for(i=0;i<nf;i++) {
-	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],p[i],(p[i]*global_best_sr_stddev + global_best_sr_ave));
+	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],
+		      ((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec[i] : p[i]),
+		      ((Bls->domedfiltsn && sr_raw_persist != NULL) ? sr_raw_persist[i]
+		       : (p[i]*global_best_sr_stddev + global_best_sr_ave)));
 	    }
 	  }
 	}
@@ -2422,7 +2686,7 @@ the periodogram, and then search it for peaks    *
 	{
 	  fwrite(&nf,4,1,outfile);
 	  fwrite(bper_array,8,nf,outfile);
-	  fwrite(p,8,nf,outfile);
+	  fwrite(((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec : p),8,nf,outfile);
 	}
       fclose(outfile);
     }
@@ -2588,6 +2852,8 @@ the periodogram, and then search it for peaks    *
   free(ibi);
   free(best_id);
   free(sr_ave);
+  if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+  if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
   free(binned_sr_ave);
   free(binned_sr_sig);
   free(in1_array);
@@ -2654,6 +2920,8 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   double *probvals = NULL;
   double *srshiftvals = NULL;
   double *srnoshiftvals = NULL;
+  double *medfiltspec = NULL;  /* per-frequency median-filter S/N spectrum (medsn) */
+  double *sr_raw_persist = NULL;  /* raw SR spectrum kept for medsn (bpow + useforpeaks) */
   int *ntvptr = NULL;
   int n;
   double *t, *x, *e;
@@ -2813,6 +3081,18 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   }
   if(nb < 2) nb = 2;
   tot = t[n-1] - t[0];
+
+  /* initialise the median-filter S/N columns to -1 so early-return paths
+     (no peaks found) leave well-defined values */
+  if(Bls->domedfiltsn) {
+    int jj_medfilt;
+    for(jj_medfilt=0; jj_medfilt<Npeak; jj_medfilt++) {
+      Bls->medfiltsn[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltpeakheight[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltlocalmean[lcnum][jj_medfilt] = -1.;
+      Bls->medfiltnoise[lcnum][jj_medfilt] = -1.;
+    }
+  }
   if(fmin < 1./tot) {
     vt_error(ERR_BLSFMINTOOSMALL);
   }
@@ -3199,6 +3479,8 @@ the periodogram, and then search it for peaks    *
       free(ibi);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(in1_array);
@@ -3228,6 +3510,30 @@ the periodogram, and then search it for peaks    *
       if(e_mask != NULL) free(e_mask);
       return 1;
     }
+
+  /* medsn: reconstruct the raw SR spectrum (kept for BLS_SR and to restore
+     ranking) and compute the per-frequency median-filter S/N spectrum.  With
+     "useforpeaks", replace the ranking periodogram p[] with that spectrum so
+     the peak search selects/orders peaks by the median-filter S/N. */
+  if(Bls->domedfiltsn) {
+    int im_pre;
+    if((sr_raw_persist = (double *) malloc(nf * sizeof(double))) == NULL ||
+       (medfiltspec = (double *) malloc(nf * sizeof(double))) == NULL) {
+      fprintf(stderr,"Memory Allocation Error\n"); exit(3);
+    }
+    for(im_pre=0; im_pre<nf; im_pre++) {
+      if(!nobinnedrms)
+	sr_raw_persist[im_pre] = p[im_pre]*allstddev + binned_sr_ave[im_pre];
+      else
+	sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
+    }
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
+		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
+    if(Bls->medfiltsn_forpeaks) {
+      for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
+    }
+  }
 
   foundsofar = 0;
   i = 0;
@@ -3445,6 +3751,8 @@ the periodogram, and then search it for peaks    *
       free(ibi);
       free(best_id);
       free(sr_ave);
+      if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+      if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
       free(binned_sr_ave);
       free(binned_sr_sig);
       free(in1_array);
@@ -3618,15 +3926,32 @@ the periodogram, and then search it for peaks    *
 			   best_id);
   }
 
+  /* Median-filter S/N method: compute the per-peak S/N and its components for
+     the selected peaks, using the raw SR spectrum (sr_raw_persist) and the
+     per-frequency spectrum (medfiltspec) built before the peak search. */
+  if(Bls->domedfiltsn) {
+    GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
+		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_outerN,
+		    Bls->medfiltsn[lcnum], Bls->medfiltpeakheight[lcnum],
+		    Bls->medfiltlocalmean[lcnum], Bls->medfiltnoise[lcnum], NULL);
+  }
+
   /* Collect all the output bls parameters for the peaks */
   for(i=0;i<Npeak;i++)
     {
       if(bper[i] > -1)
 	{
-	  if(!nobinnedrms)
+	  if(Bls->domedfiltsn)
+	    bpow[i] = sr_raw_persist[best_id[i]];
+	  else if(!nobinnedrms)
 	    bpow[i] = snval[i]*allstddev + binned_sr_ave[best_id[i]];
 	  else
 	    bpow[i] = snval[i]*global_best_sr_stddev + global_best_sr_ave;
+	    /* medsn: replace BLS_SN with the median-filter S/N; BLS_SR (bpow) keeps the
+	       raw signal residue, reconstructed just above from the standard SN. */
+	    if(Bls->domedfiltsn)
+	      snval[i] = Bls->medfiltsn[lcnum][i];
 
 	  if(adjust_qmin_mindt && reduce_nb) {
 	    Ppow = pow(bper[i],0.6666667);
@@ -3753,12 +4078,18 @@ the periodogram, and then search it for peaks    *
 	  fprintf(outfile,"#Period  S/N   SR\n");
 	  if(!nobinnedrms) {
 	    for(i=0;i<nf;i++) {
-	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],p[i],(p[i]*allstddev+binned_sr_ave[i]));
+	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],
+		      ((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec[i] : p[i]),
+		      ((Bls->domedfiltsn && sr_raw_persist != NULL) ? sr_raw_persist[i]
+		       : (p[i]*allstddev+binned_sr_ave[i])));
 	    }
 	  }
 	  else {
 	    for(i=0;i<nf;i++) {
-	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],p[i],(p[i]*global_best_sr_stddev + global_best_sr_ave));
+	      fprintf(outfile,"%.17g %.17g %.17g\n",bper_array[i],
+		      ((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec[i] : p[i]),
+		      ((Bls->domedfiltsn && sr_raw_persist != NULL) ? sr_raw_persist[i]
+		       : (p[i]*global_best_sr_stddev + global_best_sr_ave)));
 	    }
 	  }
 	}
@@ -3766,7 +4097,7 @@ the periodogram, and then search it for peaks    *
 	{
 	  fwrite(&nf,4,1,outfile);
 	  fwrite(bper_array,8,nf,outfile);
-	  fwrite(p,8,nf,outfile);
+	  fwrite(((Bls->domedfiltsn && medfiltspec != NULL) ? medfiltspec : p),8,nf,outfile);
 	}
       fclose(outfile);
     }
@@ -3930,6 +4261,8 @@ the periodogram, and then search it for peaks    *
   free(ibi);
   free(best_id);
   free(sr_ave);
+  if(medfiltspec != NULL) { free(medfiltspec); medfiltspec = NULL; }
+  if(sr_raw_persist != NULL) { free(sr_raw_persist); sr_raw_persist = NULL; }
   free(binned_sr_ave);
   free(binned_sr_sig);
   free(in1_array);
