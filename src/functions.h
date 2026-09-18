@@ -101,6 +101,7 @@ double TestPeriod_aov_harm(int N, double *t, double *m, double *sig, int Nharm, 
 void aov_harm(int N, double *t, double *m, double *sig, int Nharm, int Nfreq, double freqmin, double freqstep, double *periodogram, double **out_m_noave, double **out_t_nostart, double **out_weight, double *out_lcvariance);
 //void AOVPeriodogram(int, double *, double *, int, double *, double *, int, _HistType *h);
 int isDifferentPeriods(double, double, double);
+void GetPeriodogramDedupPeaks(int Npeak, double *perpeaks, double *peakval, int Ngrid, double *period_grid, double *gridval, double T, int smaller_is_better, int reportharmonics, double sentinel_period, double sentinel_val, int *srcidx);
 int isDifferentPeriodsDontCheckHarmonics(double, double, double);
 int isDifferentPeriods_df(double, double, double, double);
 int isDifferentPeriodsDontCheckHarmonics_df(double, double, double, double);

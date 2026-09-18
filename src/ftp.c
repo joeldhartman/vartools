@@ -3378,6 +3378,23 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* the fine-tune / period-multiple double-check can move several peaks onto the
+     same signal (harmonics collapse onto the fundamental); remove such
+     duplicates and back-fill with the next distinct peaks (larger P is better),
+     restoring the neg-amp / theta of a back-filled peak from the grid. */
+  {
+    int *dd_src = (int *) malloc((Npeaks > 0 ? Npeaks : 1) * sizeof(int));
+    if (dd_src != NULL) {
+      int dk;
+      GetPeriodogramDedupPeaks(Npeaks, perpeaks, Ppeaks, Nperiod, periods, periodogram, T, 0, 0, -1.0, -1.0, dd_src);
+      for (dk = 0; dk < Npeaks; dk++) {
+        if (dd_src[dk] == -1) { peakNegAmp[dk] = 0; peakTheta[dk] = 0.0; }
+        else if (dd_src[dk] >= 0) { peakNegAmp[dk] = negamp_grid[dd_src[dk]]; peakTheta[dk] = theta_grid[dd_src[dk]]; }
+      }
+      free(dd_src);
+    }
+  }
+
   /* Final descending sort on Ppeaks. */
   {
     int n, m;

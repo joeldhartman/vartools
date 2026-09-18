@@ -509,6 +509,75 @@ int isDifferentPeriodsDontCheckHarmonics (double period1, double period2, double
   return isDifferentPeriodsDontCheckHarmonics_df(period1, period2, T, 1.0);
 }
 
+/* De-duplicate a period-finder's reported peaks.  AoV, PDM, AoV_harm and FTP
+   refine each collected peak with a fine-tune scan and a period-multiple
+   "double-check" that moves a peak found at a harmonic onto its stronger
+   fundamental.  Applied independently to every reported peak, this can move
+   several peaks onto the SAME strong signal (all the harmonics of one signal
+   collapse onto its fundamental) with no de-duplication afterward, so the same
+   signal is reported many times.  Run this pass after the double-check: it keeps
+   the best member of each set of peaks that are the same detection (within the
+   Rayleigh resolution 1/T, or harmonically related unless reportharmonics) and
+   back-fills each freed slot from the compacted periodogram (period_grid/gridval,
+   Ngrid local extrema) with the next distinct extremum, so Npeak genuinely
+   distinct peaks are still returned.  smaller_is_better = 1 when a stronger peak
+   has a SMALLER statistic (AoV and PDM store theta so a peak is a minimum), 0
+   when larger (AoV_harm, FTP).  A freed slot with no distinct back-fill is set
+   to (sentinel_period, sentinel_val), the caller's empty-peak marker.  Operates
+   in place on perpeaks[]/peakval[] (length Npeak); a no-op when the reported
+   peaks are already distinct.  reportharmonics is honoured now so the finders
+   can later expose a report-harmonics option (pass 0 to suppress harmonics, the
+   current behaviour). */
+void GetPeriodogramDedupPeaks(int Npeak, double *perpeaks, double *peakval,
+			     int Ngrid, double *period_grid, double *gridval,
+			     double T, int smaller_is_better, int reportharmonics,
+			     double sentinel_period, double sentinel_val, int *srcidx)
+{
+  int a, b, c, k, drop, r, ok, changed;
+  double pa, pb, plo, phi, bv = 0.;
+  /* srcidx (optional): per slot, records this pass's outcome so a caller can
+     fix up auxiliary per-peak arrays -- -2 = unchanged, -1 = emptied,
+     >=0 = back-filled from that compacted-grid index. */
+  if(srcidx != NULL) for(a=0;a<Npeak;a++) srcidx[a] = -2;
+  do {
+    changed = 0; drop = -1;
+    /* find a "same detection" pair and mark the worse member for dropping */
+    for(a=0; a<Npeak && drop<0; a++) {
+      if(perpeaks[a] == sentinel_period) continue;
+      for(b=a+1; b<Npeak && drop<0; b++) {
+	if(perpeaks[b] == sentinel_period) continue;
+	pa = perpeaks[a]; pb = perpeaks[b];
+	plo = (pa < pb ? pa : pb); phi = (pa < pb ? pb : pa);
+	if((!reportharmonics && !isDifferentPeriods(plo, phi, T)) ||
+	   ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics(plo, phi, T)))
+	  drop = (smaller_is_better ? (peakval[a] <= peakval[b]) : (peakval[a] >= peakval[b])) ? b : a;
+      }
+    }
+    if(drop >= 0) {
+      /* back-fill with the best grid extremum distinct from every surviving peak */
+      r = -1;
+      for(c=0; c<Ngrid; c++) {
+	if(smaller_is_better ? (gridval[c] >= sentinel_val) : (gridval[c] <= sentinel_val)) continue;
+	if(r >= 0 && (smaller_is_better ? (gridval[c] >= bv) : (gridval[c] <= bv))) continue;
+	ok = 1;
+	for(k=0; k<Npeak; k++) {
+	  if(k == drop || perpeaks[k] == sentinel_period) continue;
+	  pa = period_grid[c]; pb = perpeaks[k];
+	  plo = (pa < pb ? pa : pb); phi = (pa < pb ? pb : pa);
+	  if((!reportharmonics && !isDifferentPeriods(plo, phi, T)) ||
+	     ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics(plo, phi, T))) { ok = 0; break; }
+	}
+	if(!ok) continue;
+	r = c; bv = gridval[c];
+      }
+      if(r >= 0) { perpeaks[drop] = period_grid[r]; peakval[drop] = gridval[r]; }
+      else { perpeaks[drop] = sentinel_period; peakval[drop] = sentinel_val; }
+      if(srcidx != NULL) srcidx[drop] = r;
+      changed = 1;
+    }
+  } while(changed);
+}
+
 /* Given a light curve, this function will compute an AOV periodogram and find the top Npeaks peaks */
 void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
@@ -1062,6 +1131,11 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	    }
 
 	}
+
+      /* the fine-tune / period-multiple double-check above can move several
+	 peaks onto the same signal (harmonics collapse onto the fundamental);
+	 remove such duplicates and back-fill with the next distinct peaks */
+      GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 1, 0, ERROR_SCORE + 1., ERROR_SCORE + 1., NULL);
 
       mysort2(Npeaks,aovpeaks,perpeaks);
 

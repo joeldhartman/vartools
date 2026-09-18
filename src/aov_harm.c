@@ -1445,6 +1445,25 @@ void findPeaks_aovharm(double *t_in, double *mag_in, double *sig_in, int N_in, d
 	    }
 	}
       
+      /* the fine-tune / period-multiple double-check can move several peaks onto
+	 the same signal (harmonics collapse onto the fundamental); remove such
+	 duplicates and back-fill with the next distinct peaks (larger theta is
+	 better).  Reset Nharm_used for any back-filled/emptied slot. */
+      {
+	int *dd_src = (int *) malloc((Npeaks > 0 ? Npeaks : 1) * sizeof(int));
+	if(dd_src != NULL) {
+	  GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 0, 0, ERROR_SCORE - 1., ERROR_SCORE - 1., dd_src);
+	  for(k=0;k<Npeaks;k++) {
+	    /* a back-filled peak was not adaptively fine-tuned: in fixed-Nharm mode
+	       it used exactly Nharm harmonics; in auto mode (Nharm<1) its optimal
+	       harmonic count is undetermined, so mark it -1 rather than under-report */
+	    if(dd_src[k] == -1) Nharm_used[k] = -1;
+	    else if(dd_src[k] >= 0) Nharm_used[k] = (Nharm >= 1 ? Nharm : -1);
+	  }
+	  free(dd_src);
+	}
+      }
+
       /* Sort it so that the higher aov values come first in the vector */
       for(k=0;k<Npeaks;k++)
 	aovpeaks[k] = -aovpeaks[k];

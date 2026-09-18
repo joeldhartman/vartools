@@ -951,6 +951,11 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
     }
   }
 
+  /* the fine-tune / period-multiple double-check can move several peaks onto the
+     same signal (harmonics collapse onto the fundamental); remove such
+     duplicates and back-fill with the next distinct peaks (theta is minimised) */
+  GetPeriodogramDedupPeaks(Npeaks, perpeaks, thetapeaks, Nperiod, periods, periodogram, T, 1, 0, -1.0, PDM_ERROR_SCORE + 1.0, NULL);
+
   mysort2(Npeaks, thetapeaks, perpeaks);
 
   /* SNR and (optional) analytic FAP per peak */
