@@ -7087,4 +7087,71 @@ fi
 rm -f $synlc
 
 
+
+# -BLS local-maximum peak selection (IsBLSSpectrumLocalMax / GetBLSDedupPeaks):
+# a reported peak must be a local maximum of the spectrum over +-Df, not a point
+# on the sloping shoulder of a stronger peak.  Build a deterministic LC (portable
+# MINSTD PRNG) with one strong, deep P=17.11 d transit -> a broad SR peak with
+# shoulders -> and search with the fine resolution "mergepeakdf 0.1" (Df=0.1/T)
+# so shoulder bins beyond Df survive the de-duplication.  Output the periodogram
+# and require every reported peak to be the highest bin within +-Df of its
+# frequency.  Before the fix such shoulder bins were reported as separate peaks.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS local-maximum peak selection (no shoulder peaks)" > /dev/stderr
+
+synlc=$(mktemp)
+pgdir=$(mktemp -d)
+awk 'BEGIN{ s=1;
+  for(n=0;n<240;n++){ s=(16807*s)%2147483647; if((s/2147483647.0)<0.8){
+    s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+    for(k=0;k<m;k++){ s=(16807*s)%2147483647; t=2458000.0+n+(s/2147483647.0)*0.25;
+      s=(16807*s)%2147483647; g1=(s/2147483647.0); s=(16807*s)%2147483647; g2=(s/2147483647.0);
+      mag=10.0+0.004*(g1+g2-1.0)*1.732;
+      ph=t/17.11; ph=ph-int(ph); if(ph>0.5)ph-=1.0; if(ph<-0.5)ph+=1.0;
+      if(ph<0.03&&ph>-0.03) mag+=0.05;
+      printf "%.5f %.6f 0.004\n", t, mag; } } }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic strong single-transit LC> -ascii -header
+    -BLS q 0.005 0.1 1.0 20.0 nf 20000 200 0 12 1 <pgdir>/ 0 0 nobinnedrms mergepeakdf 0.1
+(with the fine mergepeakdf 0.1 resolution Df=0.1/T, shoulder bins beyond Df
+survive the de-duplication; every reported peak must still be the highest
+spectrum bin within +-Df of it;
+before the IsBLSSpectrumLocalMax fix, shoulder bins were reported as peaks)
+EOF
+
+$VARTOOLS -i $synlc -ascii -header \
+    -BLS q 0.005 0.1 1.0 20.0 nf 20000 200 0 12 1 $pgdir/ 0 0 nobinnedrms mergepeakdf 0.1 \
+> $testout
+lastcode=$?
+if (( $lastcode != 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test exited with error code $lastcode for test number $testnumber
+-BLS local-maximum peak selection test failed to run.
+EOF
+    cat $testc > /dev/stderr
+    rm -rf $synlc $pgdir
+    exit 1
+fi
+
+blsfile=$pgdir/$(basename $synlc).bls
+base=$(awk 'NR==1{mn=$1;mx=$1} {if($1<mn)mn=$1; if($1>mx)mx=$1} END{printf "%.6f", mx-mn}' $synlc)
+Df=$(awk -v b="$base" 'BEGIN{printf "%.8f", 0.1/b}')
+peakfreqs=$(awk 'NR==1{for(i=1;i<=NF;i++){n=$i;sub(/^#/,"",n);col[n]=i}} NR==2{for(k=1;k<=12;k++){p=$(col["BLS_Period_" k "_0"]); if(p>0)printf "%.10f ",1.0/p}}' $testout)
+nviol=$(awk -v pf="$peakfreqs" -v Df="$Df" 'BEGIN{np=split(pf,PK," ")} /^#/{next} {m++; F[m]=1.0/$1; S[m]=$2} END{ v=0; for(i=1;i<=np;i++){ fp=PK[i]+0; bestd=1e30; sp=0; mx=-1e30; for(j=1;j<=m;j++){ d=F[j]-fp; if(d<0)d=-d; if(d<bestd){bestd=d;sp=S[j]} if(d<Df && S[j]>mx)mx=S[j] } if(mx>sp+1e-9 && mx>sp*1.0001) v++ } print v }' $blsfile)
+if (( $nviol != 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS reported $nviol peak(s) that are not local maxima of the spectrum within
++-1/T; a shoulder of a stronger peak was reported instead of being rejected by
+the IsBLSSpectrumLocalMax local-maximum test.  Reported peaks:
+EOF
+    grep -E "BLS_Period_[0-9]+_0" $testout > /dev/stderr
+    rm -rf $synlc $pgdir
+    exit 1
+fi
+rm -rf $synlc $pgdir
+
+
 rm -f $testc $testout $goodout

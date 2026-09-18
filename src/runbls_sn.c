@@ -1493,24 +1493,55 @@ c========================================================================
 c
 */
 
+/* A frequency bin is eligible to be reported as a BLS peak only if it is a
+   local maximum of the spectrum over the merge resolution: its value p[i] must
+   be >= that of every neighbouring bin within +-Df in frequency (Df = dffac/T,
+   the same window used to merge peaks).  Without this test the greedy "top-N
+   with a Df exclusion radius" collector reports the highest bin just outside a
+   strong broad peak's exclusion zone -- a point on the peak's declining
+   shoulder that is not itself a local maximum.  The frequency grid (bper_array,
+   i.e. 1/f) is monotonic, so the scan stops as soon as a neighbour leaves the
+   window.  Harmonics are irrelevant here (this is a purely local frequency
+   test), so isDifferentPeriodsDontCheckHarmonics_df defines the window
+   regardless of reportharmonics. */
+int IsBLSSpectrumLocalMax(int i, int nf, double *p, double *bper_array, double tot, double dffac)
+{
+  int k;
+  double pi = p[i], Pi = bper_array[i];
+  for(k = i-1; k >= 0; k--) {
+    if(isDifferentPeriodsDontCheckHarmonics_df(MIN_(Pi,bper_array[k]),MAX_(Pi,bper_array[k]),tot,dffac)) break;
+    if(p[k] > pi) return 0;
+  }
+  for(k = i+1; k < nf; k++) {
+    if(isDifferentPeriodsDontCheckHarmonics_df(MIN_(Pi,bper_array[k]),MAX_(Pi,bper_array[k]),tot,dffac)) break;
+    if(p[k] > pi) return 0;
+  }
+  return 1;
+}
+
 /* Guarantee that the final list of BLS peaks contains no two peaks that are
    within the merge resolution Df of each other.  The greedy peak collector
    compares each new candidate only against the current peak list and never
    re-checks the stored peaks against one another, so once two slots settle
    onto the same physical peak they are never reconciled; with a fine,
    q-dependent resolution ("mergepeakdf transit") this leaves several reported
-   peaks inside one signal.  This pass removes those duplicates and back-fills.
+   peaks inside one signal.  It also drops any reported peak that is not a local
+   maximum of the spectrum over its own +-Df window -- a point sitting on the
+   sloping shoulder of a stronger peak, which the greedy "top-N with a Df
+   exclusion radius" collector reports at the edge of the exclusion zone.
 
-   For each surviving pair it uses Df = mergepeakdf_val * max(q_a, q_b) / T in
+   A within-Df duplicate pair uses Df = mergepeakdf_val * max(q_a, q_b) / T in
    transit mode (the LARGER of the two peaks' box widths, so a duplicate is
    never missed because one member happens to sit on a narrow-box bin), or the
-   fixed factor mergepeakdf_val / T otherwise; reportharmonics keeps harmonically
-   related peaks separate exactly as the collector does.  Duplicates are dropped
-   lowest-S/N first and each freed slot is back-filled with the highest-S/N
-   spectrum bin that is distinct from every surviving peak, so Npeak genuinely
-   distinct peaks are still returned.  Operates in place on bper/snval/best_id
-   (length Npeak; a slot with bper<=0 is empty) and is a byte-for-byte no-op
-   whenever the collected peaks are already pairwise separated. */
+   fixed factor mergepeakdf_val / T otherwise; the local-maximum test uses the
+   candidate bin's own Df; reportharmonics keeps harmonically related peaks
+   separate exactly as the collector does.  Bad peaks (shoulders first, then the
+   lower-S/N member of each duplicate pair) are dropped and each freed slot is
+   back-filled with the highest-S/N spectrum bin that is itself a local maximum
+   and distinct from every surviving peak, so Npeak genuinely distinct local
+   maxima are still returned.  Operates in place on bper/snval/best_id (length
+   Npeak; a slot with bper<=0 is empty) and is a byte-for-byte no-op whenever
+   the collected peaks are already separated local maxima. */
 void GetBLSDedupPeaks(int Npeak, double *bper, double *snval, int *best_id,
 		      int nf, double *bper_array, double *p, double *qtran_array,
 		      double tot, int mergepeakdf_mode, double mergepeakdf_val,
@@ -1520,37 +1551,51 @@ void GetBLSDedupPeaks(int Npeak, double *bper, double *snval, int *best_id,
   double dffac, best_p, df2;
   do {
     changed = 0;
-    for(a=0; a<Npeak && !changed; a++) {
+    drop = -1;
+    /* first, drop any reported peak that is not a local maximum of the
+       spectrum over its own +-Df window (a point on the shoulder of a
+       stronger peak, which the greedy collector selects at the edge of the
+       Df exclusion radius) */
+    for(a=0; a<Npeak; a++) {
       if(bper[a] <= 0.) continue;
-      for(b=a+1; b<Npeak && !changed; b++) {
+      dffac = (mergepeakdf_mode ? mergepeakdf_val * qtran_array[best_id[a]] : mergepeakdf_val);
+      if(!IsBLSSpectrumLocalMax(best_id[a], nf, p, bper_array, tot, dffac)) { drop = a; break; }
+    }
+    /* otherwise drop the lower-S/N member of any within-Df duplicate pair */
+    for(a=0; a<Npeak && drop<0; a++) {
+      if(bper[a] <= 0.) continue;
+      for(b=a+1; b<Npeak && drop<0; b++) {
 	if(bper[b] <= 0.) continue;
 	dffac = (mergepeakdf_mode ? mergepeakdf_val * MAX_(qtran_array[best_id[a]], qtran_array[best_id[b]]) : mergepeakdf_val);
 	if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[a],bper[b]),MAX_(bper[a],bper[b]),tot,dffac)) ||
-	   ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[a],bper[b]),MAX_(bper[a],bper[b]),tot,dffac))) {
-	  /* duplicate pair: drop the lower-S/N member, keep the higher one */
+	   ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[a],bper[b]),MAX_(bper[a],bper[b]),tot,dffac)))
 	  drop = (snval[a] <= snval[b]) ? a : b;
-	  /* find the highest-S/N spectrum bin distinct from every surviving peak */
-	  r = -1; best_p = 0.;
-	  for(c=0;c<nf;c++) {
-	    if(p[c] <= best_p) continue;
-	    used = 0;
-	    for(k=0;k<Npeak;k++) { if(k!=drop && bper[k]>0. && best_id[k]==c) { used=1; break; } }
-	    if(used) continue;
-	    ok = 1;
-	    for(k=0;k<Npeak;k++) {
-	      if(k==drop || bper[k]<=0.) continue;
-	      df2 = (mergepeakdf_mode ? mergepeakdf_val * MAX_(qtran_array[c], qtran_array[best_id[k]]) : mergepeakdf_val);
-	      if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2)) ||
-		 ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2))) { ok=0; break; }
-	    }
-	    if(!ok) continue;
-	    best_p = p[c]; r = c;
-	  }
-	  if(r >= 0) { bper[drop]=bper_array[r]; snval[drop]=p[r]; best_id[drop]=r; }
-	  else { bper[drop]=-1.; snval[drop]=-1.; best_id[drop]=-1; }
-	  changed = 1; any_change = 1;
-	}
       }
+    }
+    if(drop >= 0) {
+      /* back-fill the freed slot with the highest-S/N spectrum bin that is a
+	 local maximum and distinct from every surviving peak */
+      r = -1; best_p = 0.;
+      for(c=0;c<nf;c++) {
+	if(p[c] <= best_p) continue;
+	if(!IsBLSSpectrumLocalMax(c, nf, p, bper_array, tot,
+		 (mergepeakdf_mode ? mergepeakdf_val * qtran_array[c] : mergepeakdf_val))) continue;
+	used = 0;
+	for(k=0;k<Npeak;k++) { if(k!=drop && bper[k]>0. && best_id[k]==c) { used=1; break; } }
+	if(used) continue;
+	ok = 1;
+	for(k=0;k<Npeak;k++) {
+	  if(k==drop || bper[k]<=0.) continue;
+	  df2 = (mergepeakdf_mode ? mergepeakdf_val * MAX_(qtran_array[c], qtran_array[best_id[k]]) : mergepeakdf_val);
+	  if((!reportharmonics && !isDifferentPeriods_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2)) ||
+	     ( reportharmonics && !isDifferentPeriodsDontCheckHarmonics_df(MIN_(bper[k],bper_array[c]),MAX_(bper[k],bper_array[c]),tot,df2))) { ok=0; break; }
+	}
+	if(!ok) continue;
+	best_p = p[c]; r = c;
+      }
+      if(r >= 0) { bper[drop]=bper_array[r]; snval[drop]=p[r]; best_id[drop]=r; }
+      else { bper[drop]=-1.; snval[drop]=-1.; best_id[drop]=-1; }
+      changed = 1; any_change = 1;
     }
   } while(changed);
 
