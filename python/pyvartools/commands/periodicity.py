@@ -1145,6 +1145,12 @@ class BLS(VartoolsCommand):
         S/N.
     medsn_window : float, default 0.5
         Moving-median window in cycles/day (used only when ``medsn=True``).
+    medsn_fixedsteps : bool, default False
+        Interpret ``medsn_window`` as a window size at a reference frequency of
+        1 c/d and use a fixed number of frequency bins
+        (``N = medsn_window / df(1)``) for the moving median, instead of a fixed
+        frequency range.  Matters only for non-uniform frequency sampling
+        (``optimal`` / ``stepP`` / ``steplogP``).
     medsn_innerN, medsn_outerN : float, default 5, 100
         Inner and outer half-widths (in units of ``1/T``) of the local-mean
         side-bands; ``medsn_outerN`` must exceed ``medsn_innerN``.
@@ -1202,6 +1208,7 @@ class BLS(VartoolsCommand):
         mergepeakdf_transit: Optional[float] = None,
         medsn: bool = False,
         medsn_window: float = 0.5,
+        medsn_fixedsteps: bool = False,
         medsn_innerN: float = 5,
         medsn_outerN: float = 100,
         medsn_useforpeaks: bool = False,
@@ -1243,6 +1250,7 @@ class BLS(VartoolsCommand):
         self.mergepeakdf_transit = mergepeakdf_transit
         self.medsn = medsn
         self.medsn_window = medsn_window
+        self.medsn_fixedsteps = medsn_fixedsteps
         self.medsn_innerN = medsn_innerN
         self.medsn_outerN = medsn_outerN
         self.medsn_useforpeaks = medsn_useforpeaks
@@ -1335,8 +1343,10 @@ class BLS(VartoolsCommand):
         elif self.mergepeakdf is not None:
             args += ["mergepeakdf", str(self.mergepeakdf)]
         if self.medsn:
-            args += ["medsn", "medwindow", str(self.medsn_window),
-                     "innerN", str(self.medsn_innerN),
+            args += ["medsn", "medwindow", str(self.medsn_window)]
+            if self.medsn_fixedsteps:
+                args += ["fixedsteps"]
+            args += ["innerN", str(self.medsn_innerN),
                      "outerN", str(self.medsn_outerN)]
             if self.medsn_useforpeaks:
                 args += ["useforpeaks"]
@@ -1524,6 +1534,12 @@ class BLSFixDurTc(VartoolsCommand):
         ``BLSFixDurTc_MedFiltPeakHeight``/``LocalMean``/``Noise``).
     medsn_window : float, default 0.5
         Moving-median window in cycles/day (used only when ``medsn=True``).
+    medsn_fixedsteps : bool, default False
+        Interpret ``medsn_window`` as a window size at a reference frequency of
+        1 c/d and use a fixed number of frequency bins
+        (``N = medsn_window / df(1)``) for the moving median, instead of a fixed
+        frequency range.  Matters only for non-uniform frequency sampling
+        (``optimal`` / ``stepP`` / ``steplogP``).
     medsn_innerN, medsn_outerN : float, default 5, 100
         Local-mean side-band half-widths in units of ``1/T``.
     medsn_useforpeaks : bool, default False
@@ -1563,6 +1579,7 @@ class BLSFixDurTc(VartoolsCommand):
         mergepeakdf_transit: Optional[float] = None,
         medsn: bool = False,
         medsn_window: float = 0.5,
+        medsn_fixedsteps: bool = False,
         medsn_innerN: float = 5,
         medsn_outerN: float = 100,
         medsn_useforpeaks: bool = False,
@@ -1591,6 +1608,7 @@ class BLSFixDurTc(VartoolsCommand):
         self.mergepeakdf_transit = mergepeakdf_transit
         self.medsn = medsn
         self.medsn_window = medsn_window
+        self.medsn_fixedsteps = medsn_fixedsteps
         self.medsn_innerN = medsn_innerN
         self.medsn_outerN = medsn_outerN
         self.medsn_useforpeaks = medsn_useforpeaks
@@ -1643,8 +1661,10 @@ class BLSFixDurTc(VartoolsCommand):
         elif self.mergepeakdf is not None:
             args += ["mergepeakdf", str(self.mergepeakdf)]
         if self.medsn:
-            args += ["medsn", "medwindow", str(self.medsn_window),
-                     "innerN", str(self.medsn_innerN),
+            args += ["medsn", "medwindow", str(self.medsn_window)]
+            if self.medsn_fixedsteps:
+                args += ["fixedsteps"]
+            args += ["innerN", str(self.medsn_innerN),
                      "outerN", str(self.medsn_outerN)]
             if self.medsn_useforpeaks:
                 args += ["useforpeaks"]

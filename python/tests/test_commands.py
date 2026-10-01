@@ -98,6 +98,22 @@ class TestCLIArgs:
         args = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, nfreq=1000)._to_cli_args()
         assert args[0] == "-BLS"
 
+    def test_bls_medsn_fixedsteps(self):
+        # fixedsteps emitted only when requested, and right after the
+        # medwindow value (before innerN), matching the vartools parser.
+        base = dict(nfreq=1000, medsn=True, medsn_window=0.5)
+        off = cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, **base)._to_cli_args()
+        assert "fixedsteps" not in off
+        for c in (
+            cmd.BLS(0.5, 10.0, 1e-4, 0.01, 0.1, medsn_fixedsteps=True, **base),
+            cmd.BLSFixDurTc(0.1, 1.23, 0.5, 10.0, 200, 0.0,
+                            medsn=True, medsn_window=0.5, medsn_fixedsteps=True),
+        ):
+            args = c._to_cli_args()
+            assert "fixedsteps" in args
+            assert args.index("fixedsteps") == args.index("medwindow") + 2
+            assert args.index("fixedsteps") < args.index("innerN")
+
     def test_phase_basic(self):
         args = cmd.Phase(period=1.5)._to_cli_args()
         assert args[0] == "-Phase"
