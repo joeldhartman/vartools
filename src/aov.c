@@ -1159,6 +1159,8 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	    {
 	      aovpeaks[j] = -ERROR_SCORE - 1.;
 	      perpeaks[j] = 1.0;
+	      aovSNR[j] = 0.0;
+	      aovFAP[j] = 0.0;
 	    }
 	}
     }
@@ -1419,6 +1421,8 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
 	    {
 	      aovpeaks[j] = -ERROR_SCORE - 1.;
 	      perpeaks[j] = 1.0;
+	      aovSNR[j] = 0.0;
+	      aovFAP[j] = 0.0;
 	    }
 	}
 
