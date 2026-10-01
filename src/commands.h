@@ -479,6 +479,7 @@ typedef struct {
   double *fixperiodSNR_peakSNR;
   double *fixperiodSNR_peakFAP;
   OutColumn *fixperiodSNR_linkedcolumn;
+  int reportharmonics;
   int usemask;
   _Variable *maskvar;
 } _Aov;
@@ -534,6 +535,7 @@ typedef struct {
   double *fixperiodSNR_peakSNR;
   double *fixperiodSNR_peakFAP;
   OutColumn *fixperiodSNR_linkedcolumn;
+  int reportharmonics;
   int usemask;
   _Variable *maskvar;
 } _AovHarm;
@@ -2724,6 +2726,7 @@ typedef struct {
    * SCz Beta FAP is replaced by an empirical CDF + log-log polynomial
    * tail extrapolation (mirrors -LS's bounded-statistic branch). */
   int bootstrap_Nboot;
+  int reportharmonics;
 } _PDM;
 
 
@@ -2832,6 +2835,7 @@ typedef struct {
   double **peakTheta;     /* [Nlcs][Npeaks]  -- best-fit theta_2 (radians) */
   double *avepower;       /* [Nlcs] -- clipped mean of the periodogram */
   double *rmspower;       /* [Nlcs] -- clipped RMS  of the periodogram */
+  int reportharmonics;
 } _FTP;
 
 

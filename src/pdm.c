@@ -558,6 +558,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    double *fixperiodSNR_value, double *fixperiodSNR_SNR,
                    double *fixperiodSNR_FAP,
                    int usemask, _Variable *maskvar,
+                   int reportharmonics,
                    int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple, m_eff;
@@ -954,7 +955,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
   /* the fine-tune / period-multiple double-check can move several peaks onto the
      same signal (harmonics collapse onto the fundamental); remove such
      duplicates and back-fill with the next distinct peaks (theta is minimised) */
-  GetPeriodogramDedupPeaks(Npeaks, perpeaks, thetapeaks, Nperiod, periods, periodogram, T, 1, 0, -1.0, PDM_ERROR_SCORE + 1.0, NULL);
+  GetPeriodogramDedupPeaks(Npeaks, perpeaks, thetapeaks, Nperiod, periods, periodogram, T, 1, reportharmonics, -1.0, PDM_ERROR_SCORE + 1.0, NULL);
 
   mysort2(Npeaks, thetapeaks, perpeaks);
 
@@ -1387,5 +1388,5 @@ void RunPDMCommand(ProgramData *p, Command *c, _PDM *Pdm, int lcnum, int lc_name
                 Pdm->whiten, Pdm->bootstrap_Nboot,
                 Pdm->operiodogram, outname, p->ascii,
                 fix_on, fix_period, fix_value_ptr, fix_SNR_ptr, fix_FAP_ptr,
-                Pdm->usemask, Pdm->maskvar, lcnum, lc_name_num);
+                Pdm->usemask, Pdm->maskvar, Pdm->reportharmonics, lcnum, lc_name_num);
 }

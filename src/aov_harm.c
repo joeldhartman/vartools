@@ -932,7 +932,7 @@ Note that memory for periodogram should be allocated before calling this functio
 }
 
 /* Given a light curve, this function will compute an AOV Multiharmonic periodogram and find the top Npeaks peaks */
-void findPeaks_aovharm(double *t_in, double *mag_in, double *sig_in, int N_in, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
+void findPeaks_aovharm(double *t_in, double *mag_in, double *sig_in, int N_in, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int reportharmonics, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple, Ngood,l1, l2, peakiter, nclippedthis, nclippedlast, testNharm, m_eff;
 
@@ -1452,7 +1452,7 @@ void findPeaks_aovharm(double *t_in, double *mag_in, double *sig_in, int N_in, d
       {
 	int *dd_src = (int *) malloc((Npeaks > 0 ? Npeaks : 1) * sizeof(int));
 	if(dd_src != NULL) {
-	  GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 0, 0, ERROR_SCORE - 1., ERROR_SCORE - 1., dd_src);
+	  GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 0, reportharmonics, ERROR_SCORE - 1., ERROR_SCORE - 1., dd_src);
 	  for(k=0;k<Npeaks;k++) {
 	    /* a back-filled peak was not adaptively fine-tuned: in fixed-Nharm mode
 	       it used exactly Nharm harmonics; in auto mode (Nharm<1) its optimal
@@ -1901,6 +1901,6 @@ void RunAOVHarmCommand(ProgramData *p, Command *c, _AovHarm *AovHarm, int lcnum,
       d3ptr = NULL;
     }
   if(p->NJD[lcnum] > 1) {
-    findPeaks_aovharm(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum], AovHarm->peakperiods[lcnum], AovHarm->peakvalues[lcnum], AovHarm->peakSNR[lcnum], AovHarm->peakFAP[lcnum], AovHarm->peakNharm[lcnum], AovHarm->Npeaks, AovHarm->minp_vals[lcnum], AovHarm->maxp_vals[lcnum], AovHarm->subsample_vals[lcnum], AovHarm->finetune_vals[lcnum], AovHarm->operiodogram, outname, &AovHarm->aveaov[lcnum], &AovHarm->rmsaov[lcnum],AovHarm->aveaov_whiten[lcnum],AovHarm->rmsaov_whiten[lcnum],p->ascii, AovHarm->Nharm_vals[lcnum],AovHarm->whiten, AovHarm->clip, AovHarm->clipiter, AovHarm->fixperiodSNR, d1, d1ptr, d2ptr, d3ptr, lcnum, lc_name_num, AovHarm->usemask, AovHarm->maskvar);
+    findPeaks_aovharm(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum], AovHarm->peakperiods[lcnum], AovHarm->peakvalues[lcnum], AovHarm->peakSNR[lcnum], AovHarm->peakFAP[lcnum], AovHarm->peakNharm[lcnum], AovHarm->Npeaks, AovHarm->minp_vals[lcnum], AovHarm->maxp_vals[lcnum], AovHarm->subsample_vals[lcnum], AovHarm->finetune_vals[lcnum], AovHarm->operiodogram, outname, &AovHarm->aveaov[lcnum], &AovHarm->rmsaov[lcnum],AovHarm->aveaov_whiten[lcnum],AovHarm->rmsaov_whiten[lcnum],p->ascii, AovHarm->Nharm_vals[lcnum],AovHarm->whiten, AovHarm->clip, AovHarm->clipiter, AovHarm->fixperiodSNR, d1, d1ptr, d2ptr, d3ptr, AovHarm->reportharmonics, lcnum, lc_name_num, AovHarm->usemask, AovHarm->maskvar);
   }
 }

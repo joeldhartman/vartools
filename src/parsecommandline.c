@@ -4844,6 +4844,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    }
 	  else
 	    i--;
+	  c[cn].Aov->reportharmonics = 0;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"reportharmonics"))
+		c[cn].Aov->reportharmonics = 1;
+	      else
+		i--;
+	    }
+	  else
+	    i--;
 	  c[cn].Aov->usemask = 0;
 	  c[cn].Aov->maskvar = NULL;
 	  i++;
@@ -5210,6 +5221,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      fprintf(stderr, "-PDM: bootstrap Nboot must be >= 1\n");
 	      listcommands(argv[iterm], p);
 	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "reportharmonics" */
+	  c[cn].Pdm->reportharmonics = 0;
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "reportharmonics")) {
+	    c[cn].Pdm->reportharmonics = 1;
 	  } else {
 	    i--;
 	  }
@@ -5654,6 +5674,15 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	              c[cn].Ftp->bootstrap_Nboot);
 	      listcommands(argv[iterm], p);
 	    }
+	  } else {
+	    i--;
+	  }
+
+	  /* "reportharmonics" */
+	  c[cn].Ftp->reportharmonics = 0;
+	  i++;
+	  if(i < argc && !strcmp(argv[i], "reportharmonics")) {
+	    c[cn].Ftp->reportharmonics = 1;
 	  } else {
 	    i--;
 	  }
@@ -6237,6 +6266,17 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  else
 		    listcommands(argv[iterm],p);
 		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  c[cn].AovHarm->reportharmonics = 0;
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"reportharmonics"))
+		c[cn].AovHarm->reportharmonics = 1;
 	      else
 		i--;
 	    }

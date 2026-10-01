@@ -7214,4 +7214,56 @@ nd=$(finder_dups); if (( $nd != 0 )); then fail_finder "-FTP" $nd; fi
 rm -f $synlc
 
 
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing period-finder reportharmonics option (-aov/-aov_harm/-PDM/-FTP)" > /dev/stderr
+
+synlc=$(mktemp)
+awk 'BEGIN{ s=1;
+  for(n=0;n<240;n++){ s=(16807*s)%2147483647; if((s/2147483647.0)<0.8){
+    s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+    for(k=0;k<m;k++){ s=(16807*s)%2147483647; t=2458000.0+n+(s/2147483647.0)*0.25;
+      s=(16807*s)%2147483647; g1=(s/2147483647.0); s=(16807*s)%2147483647; g2=(s/2147483647.0);
+      mag=10.0+0.004*(g1+g2-1.0)*1.732;
+      ph=t/17.11; ph=ph-int(ph); if(ph>0.5)ph-=1.0; if(ph<-0.5)ph+=1.0;
+      if(ph<0.03&&ph>-0.03) mag+=0.05;
+      printf "%.5f %.6f 0.004\n", t, mag; } } }
+}' > $synlc
+
+base=$(awk 'NR==1{mn=$1;mx=$1} {if($1<mn)mn=$1; if($1>mx)mx=$1} END{printf "%.6f", mx-mn}' $synlc)
+
+# Is any reported peak within 1/T of the P/2 sub-harmonic (17.11/2 = 8.555 d)?
+# By default that harmonic is collapsed onto the 17.11 d fundamental and not
+# reported; with "reportharmonics" it should appear as its own peak.
+half_present() {
+  awk -v P=8.555 -v b="$base" 'NR==1{for(i=1;i<=NF;i++){h=$i; sub(/^#/,"",h); if(h ~ /_?Period_[0-9]+_0$/) col[++n]=i}}
+     NR==2{ r=0; for(k=1;k<=n;k++){v=$(col[k]); if(v+0>0){f=1.0/v-1.0/P; if(f<0)f=-f; if(f<1.0/b) r=1}} print r }' $testout
+}
+
+fail_reportharm() {
+  cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+$1 reportharmonics: P/2 sub-harmonic (8.555 d) of the 17.11 d signal was
+present-by-default=$2 (expected 0) and present-with-reportharmonics=$3 (expected 1).
+EOF
+  rm -f $synlc
+  exit 1
+}
+
+check_reportharm() { # name cmd...
+  local nm="$1"; shift
+  $VARTOOLS -i $synlc -ascii -header "$@" > $testout 2>/dev/null
+  local off=$(half_present)
+  $VARTOOLS -i $synlc -ascii -header "$@" reportharmonics > $testout 2>/dev/null
+  local on=$(half_present)
+  if (( off != 0 || on != 1 )); then fail_reportharm "$nm" "$off" "$on"; fi
+}
+
+check_reportharm "-aov"      -aov Nbin 8 1.0 20.0 0.1 0.01 10 0
+check_reportharm "-aov_harm" -aov_harm 2 1.0 20.0 0.1 0.01 10 0
+check_reportharm "-PDM"      -PDM step 1.0 20.0 0.1 0.01 10 0
+check_reportharm "-FTP"      -FTP fitlc $synlc ascii 1 2 3 2 12.0 1.0 20.0 0.1 0.01 10 0
+
+rm -f $synlc
+
+
 rm -f $testc $testout $goodout

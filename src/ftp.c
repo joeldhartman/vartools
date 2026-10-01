@@ -2591,6 +2591,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                     int    *fix_negamp_ptr, double *fix_theta_ptr,
                     double *fix_FAP_ptr,
                     int bootstrap_Nboot, double *peakFAP,
+                    int reportharmonics,
                     int lcnum, int lc_name_num)
 {
   int i, j, k, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple;
@@ -3386,7 +3387,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
     int *dd_src = (int *) malloc((Npeaks > 0 ? Npeaks : 1) * sizeof(int));
     if (dd_src != NULL) {
       int dk;
-      GetPeriodogramDedupPeaks(Npeaks, perpeaks, Ppeaks, Nperiod, periods, periodogram, T, 0, 0, -1.0, -1.0, dd_src);
+      GetPeriodogramDedupPeaks(Npeaks, perpeaks, Ppeaks, Nperiod, periods, periodogram, T, 0, reportharmonics, -1.0, -1.0, dd_src);
       for (dk = 0; dk < Npeaks; dk++) {
         if (dd_src[dk] == -1) { peakNegAmp[dk] = 0; peakTheta[dk] = 0.0; }
         else if (dd_src[dk] >= 0) { peakNegAmp[dk] = negamp_grid[dd_src[dk]]; peakTheta[dk] = theta_grid[dd_src[dk]]; }
@@ -3687,5 +3688,6 @@ void RunFTPCommand(ProgramData *p, Command *c, _FTP *Ftp, int lcnum, int lc_name
                 fix_FAP_ptr,
                 Ftp->bootstrap_Nboot,
                 Ftp->peakFAP[lcnum],
+                Ftp->reportharmonics,
                 lcnum, lc_name_num);
 }

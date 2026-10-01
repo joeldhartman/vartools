@@ -105,8 +105,8 @@ void GetPeriodogramDedupPeaks(int Npeak, double *perpeaks, double *peakval, int 
 int isDifferentPeriodsDontCheckHarmonics(double, double, double);
 int isDifferentPeriods_df(double, double, double, double);
 int isDifferentPeriodsDontCheckHarmonics_df(double, double, double, double);
-void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
-void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int reportharmonics, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
+void findPeaks_aovharm(double *t, double *mag, double *sig, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int *Nharm_used, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nharm, int whiten, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int reportharmonics, int lcnum, int lclistnum, int usemask, _Variable *maskvar);
 void ludcmp(long double **, int, int *, long double *);
 void lubksb(long double **, int, int *, long double *);
 void docorr(double *, double *, int, int, double **, int *, double *, double *, double, int, int, _Variable *, int, int);
@@ -523,6 +523,7 @@ void findPeaks_ftp(double *t_, double *mag_, double *sig_, int N,
                    int    *fix_negamp_ptr, double *fix_theta_ptr,
                    double *fix_FAP_ptr,
                    int bootstrap_Nboot, double *peakFAP,
+                   int reportharmonics,
                    int lcnum, int lc_name_num);
 void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    int kind, int Nbin, int Nc, double dphi, int useerr,
@@ -539,6 +540,7 @@ void findPeaks_pdm(double *t_, double *mag_, double *sig_, int N,
                    double *fixperiodSNR_value, double *fixperiodSNR_SNR,
                    double *fixperiodSNR_FAP,
                    int usemask, _Variable *maskvar,
+                   int reportharmonics,
                    int lcnum, int lc_name_num);
 void AdjustPrintCommandOutColumnFormat(ProgramData *p, Command *c, int cnum, int varnum);
 void parse_setparam_expr(Command *c, char *exprstr, _Expression **exprptr);

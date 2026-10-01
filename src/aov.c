@@ -579,7 +579,7 @@ void GetPeriodogramDedupPeaks(int Npeak, double *perpeaks, double *peakval,
 }
 
 /* Given a light curve, this function will compute an AOV periodogram and find the top Npeaks peaks */
-void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
+void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpeaks, double *aovpeaks, double *aovSNR, double *aovFAP, int Npeaks, double minP, double maxP, double subsample, double fine_tune, int outflag, char *outname, double *aveaov, double *stddevaov, double *aveaov_whiten, double *stddevaov_whiten, int ascii, int Nbin, int whiten, int uselog, double clip, int clipiter, int fixperiodSNR, double fixperiodSNR_period, double *fixperiodSNR_value, double *fixperiodSNR_SNR, double *fixperiodSNR_FAP, int reportharmonics, int lcnum, int lclistnum, int usemask, _Variable *maskvar)
 {
   int i, j, k, peakiter, foundsofar, test, Nperiod, a, b, abest, bbest, ismultiple, Ngood, nclippedthis, nclippedlast, m_eff, sizeHISTvector = 0;
 
@@ -1135,7 +1135,7 @@ void findPeaks_aov(double *t_, double *mag_, double *sig_, int N, double *perpea
       /* the fine-tune / period-multiple double-check above can move several
 	 peaks onto the same signal (harmonics collapse onto the fundamental);
 	 remove such duplicates and back-fill with the next distinct peaks */
-      GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 1, 0, ERROR_SCORE + 1., ERROR_SCORE + 1., NULL);
+      GetPeriodogramDedupPeaks(Npeaks, perpeaks, aovpeaks, Nperiod, periods, periodogram, T, 1, reportharmonics, ERROR_SCORE + 1., ERROR_SCORE + 1., NULL);
 
       mysort2(Npeaks,aovpeaks,perpeaks);
 
@@ -1572,7 +1572,7 @@ void RunAOVCommand(ProgramData *p, Command *c, _Aov *Aov, int lcnum, int lc_name
       d2ptr = NULL;
       d3ptr = NULL;
     }
-  findPeaks_aov(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum], Aov->peakperiods[lcnum], Aov->peakvalues[lcnum], Aov->peakSNR[lcnum], Aov->peakFAP[lcnum], Aov->Npeaks, Aov->minp_vals[lcnum], Aov->maxp_vals[lcnum], Aov->subsample_vals[lcnum], Aov->finetune_vals[lcnum], Aov->operiodogram, outname, &Aov->aveaov[lcnum], &Aov->rmsaov[lcnum], Aov->aveaov_whiten[lcnum], Aov->rmsaov_whiten[lcnum], p->ascii, Aov->Nbin_vals[lcnum], Aov->whiten, Aov->uselog, Aov->clip, Aov->clipiter, Aov->fixperiodSNR, d1, d1ptr, d2ptr, d3ptr, lcnum, lc_name_num, Aov->usemask, Aov->maskvar);
+  findPeaks_aov(p->t[lcnum], p->mag[lcnum], p->sig[lcnum], p->NJD[lcnum], Aov->peakperiods[lcnum], Aov->peakvalues[lcnum], Aov->peakSNR[lcnum], Aov->peakFAP[lcnum], Aov->Npeaks, Aov->minp_vals[lcnum], Aov->maxp_vals[lcnum], Aov->subsample_vals[lcnum], Aov->finetune_vals[lcnum], Aov->operiodogram, outname, &Aov->aveaov[lcnum], &Aov->rmsaov[lcnum], Aov->aveaov_whiten[lcnum], Aov->rmsaov_whiten[lcnum], p->ascii, Aov->Nbin_vals[lcnum], Aov->whiten, Aov->uselog, Aov->clip, Aov->clipiter, Aov->fixperiodSNR, d1, d1ptr, d2ptr, d3ptr, Aov->reportharmonics, lcnum, lc_name_num, Aov->usemask, Aov->maskvar);
 
 }
 
