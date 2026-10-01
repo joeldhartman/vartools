@@ -511,7 +511,7 @@ the periodogram, and then search it for peaks    *
     for(im_pre=0; im_pre<nf; im_pre++)
       sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
-                    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_innerN,
+                    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_fixedsteps, BlsFixDurTc->medfiltsn_innerN,
                     BlsFixDurTc->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
     if(BlsFixDurTc->medfiltsn_forpeaks)
       for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
@@ -673,7 +673,7 @@ the periodogram, and then search it for peaks    *
   /* medsn: per-peak S/N and diagnostic components for the selected peaks. */
   if(BlsFixDurTc->domedfiltsn) {
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
-		    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_innerN,
+		    BlsFixDurTc->medfiltsn_window, BlsFixDurTc->medfiltsn_fixedsteps, BlsFixDurTc->medfiltsn_innerN,
 		    BlsFixDurTc->medfiltsn_outerN,
 		    BlsFixDurTc->medfiltsn[lcnum], BlsFixDurTc->medfiltpeakheight[lcnum],
 		    BlsFixDurTc->medfiltlocalmean[lcnum], BlsFixDurTc->medfiltnoise[lcnum], NULL);

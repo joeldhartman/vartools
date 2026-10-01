@@ -1253,6 +1253,36 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -BLS medsn fixedsteps: on a uniform (nf) frequency grid the fixed-bin-count
+# window and the fixed-frequency-range window cover the same centred set of bins
+# -- and hence give byte-identical BLS_SN -- WHEN floor(medwindow/df) is odd (so
+# the odd-forcing in fixedsteps leaves the count unchanged).  For these fixed
+# parameters (nf 20000, f in [0.2,2.0] c/d, medwindow 0.5) floor(medwindow/df) is
+# odd, so the two modes coincide exactly; this is a deterministic property of
+# THESE parameters, not a general guarantee (if floor(medwindow/df) were even
+# =2m, the frequency-range window would span 2m+1 bins while fixedsteps forces it
+# down to the nearest odd 2m-1, a two-bin difference).
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS medsn fixedsteps (uniform grid == frequency range)" > /dev/stderr
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/3.transit -ascii -oneline
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn medwindow 0.5 [fixedsteps]
+(on a uniform-frequency grid fixedsteps must reproduce the frequency-range medsn S/N)
+EOF
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn medwindow 0.5 2>/dev/null \
+    | grep -E 'BLS_(Period|SN)_[1-3]_0 ' \
+> $goodout
+
+$VARTOOLS -i EXAMPLES/3.transit -ascii -oneline \
+    -BLS q 0.01 0.1 0.5 5.0 nf 20000 200 0 3 0 0 0 medsn medwindow 0.5 fixedsteps 2>/dev/null \
+    | grep -E 'BLS_(Period|SN)_[1-3]_0 ' \
+> $testout
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -BLS medsn leaves BLS_Period and BLS_SR unchanged from a standard run
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -BLS medsn leaves SR unchanged" > /dev/stderr

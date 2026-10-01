@@ -833,12 +833,13 @@ static double _medfilt_median_copy(double *x, int n) {
 
 void GetBLSMedFiltSN(int nf, double *periods, double *sr, double T,
 		     int Npeak, double *bper,
-		     double medwindow, double innerN, double outerN,
+		     double medwindow, int fixedsteps, double innerN, double outerN,
 		     double *out_sn, double *out_ph, double *out_lm,
 		     double *out_noise, double *normspec)
 {
   int k, j;
   double half = 0.5 * medwindow;
+  int Nsteps = 0, half_steps = 0;
   _MedFiltKV *fkv, *vkv;
   double *fs, *srs, *resid, *absdev, *med;
   int *forder, *vrank;
@@ -870,6 +871,29 @@ void GetBLSMedFiltSN(int nf, double *periods, double *sr, double T,
   qsort(fkv, nf, sizeof(_MedFiltKV), _medfilt_kvcmp);
   for(k=0;k<nf;k++) { forder[k]=fkv[k].idx; fs[k]=fkv[k].key; srs[k]=sr[forder[k]]; }
 
+  /* fixed-steps mode: convert the window size (medwindow, in c/d, interpreted as
+     the window measured at a reference frequency of 1 c/d) into a fixed, odd
+     number of frequency bins Nsteps = medwindow / df(1), where df(1) is the
+     grid's local frequency spacing at f=1.  This keeps the window a constant
+     number of bins across the spectrum even when the frequency sampling is
+     non-uniform (optimal / stepP / steplogP), where a fixed frequency range
+     would otherwise span a varying number of bins. */
+  if(fixedsteps) {
+    double df1 = 0.;
+    if(nf >= 2) {
+      int jj = lower_bound_d(fs, nf, 1.0);  /* first fs[jj] >= 1.0 (fs ascending) */
+      if(jj <= 0)        df1 = fs[1] - fs[0];
+      else if(jj >= nf)  df1 = fs[nf-1] - fs[nf-2];
+      else               df1 = fs[jj] - fs[jj-1];
+    }
+    Nsteps = (df1 > 0.) ? (int)(medwindow / df1) : 1;
+    if(Nsteps > nf) Nsteps = nf;
+    if(Nsteps < 1)  Nsteps = 1;
+    if((Nsteps & 1) == 0) Nsteps -= 1;   /* force odd so the window is centred */
+    if(Nsteps < 1)  Nsteps = 1;
+    half_steps = (Nsteps - 1) / 2;
+  }
+
   /* value ranks over srs[] (ascending, unique via idx tie-break) */
   for(k=0;k<nf;k++) { vkv[k].key = srs[k]; vkv[k].idx = k; }
   qsort(vkv, nf, sizeof(_MedFiltKV), _medfilt_kvcmp);
@@ -881,9 +905,20 @@ void GetBLSMedFiltSN(int nf, double *periods, double *sr, double T,
     int lo=0, hi=0;
     long cnt=0, kk;
     for(k=0;k<nf;k++) {
-      double flo = fs[k]-half, fhi = fs[k]+half;
-      while(hi<nf && fs[hi] <= fhi) { _medfilt_bit_add(bit,m,vrank[hi],1); cnt++; hi++; }
-      while(lo<k && fs[lo] < flo)   { _medfilt_bit_add(bit,m,vrank[lo],-1); cnt--; lo++; }
+      if(!fixedsteps) {
+	/* window = fixed frequency range [f-half, f+half] (varies in bin count) */
+	double flo = fs[k]-half, fhi = fs[k]+half;
+	while(hi<nf && fs[hi] <= fhi) { _medfilt_bit_add(bit,m,vrank[hi],1); cnt++; hi++; }
+	while(lo<k && fs[lo] < flo)   { _medfilt_bit_add(bit,m,vrank[lo],-1); cnt--; lo++; }
+      } else {
+	/* window = centred Nsteps-bin range [k-half_steps, k+half_steps], clamped
+	   at the grid edges so the window shrinks there (no artificial values,
+	   matching a NaN-padded centred moving median with min_count=1) */
+	int hiend = k + half_steps + 1; if(hiend > nf) hiend = nf;
+	int lostart = k - half_steps;   if(lostart < 0) lostart = 0;
+	while(hi < hiend)   { _medfilt_bit_add(bit,m,vrank[hi],1); cnt++; hi++; }
+	while(lo < lostart) { _medfilt_bit_add(bit,m,vrank[lo],-1); cnt--; lo++; }
+      }
       if(cnt & 1) {
 	kk = (cnt+1)/2;
 	med[k] = vval[_medfilt_bit_kth(bit,m,LOG,kk)];
@@ -2247,7 +2282,7 @@ the periodogram, and then search it for peaks    *
 	sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
     }
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
-		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_window, Bls->medfiltsn_fixedsteps, Bls->medfiltsn_innerN,
 		    Bls->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
     if(Bls->medfiltsn_forpeaks) {
       for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
@@ -2651,7 +2686,7 @@ the periodogram, and then search it for peaks    *
      per-frequency spectrum (medfiltspec) built before the peak search. */
   if(Bls->domedfiltsn) {
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
-		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_window, Bls->medfiltsn_fixedsteps, Bls->medfiltsn_innerN,
 		    Bls->medfiltsn_outerN,
 		    Bls->medfiltsn[lcnum], Bls->medfiltpeakheight[lcnum],
 		    Bls->medfiltlocalmean[lcnum], Bls->medfiltnoise[lcnum], NULL);
@@ -3729,7 +3764,7 @@ the periodogram, and then search it for peaks    *
 	sr_raw_persist[im_pre] = p[im_pre]*global_best_sr_stddev + global_best_sr_ave;
     }
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, 0, bper,
-		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_window, Bls->medfiltsn_fixedsteps, Bls->medfiltsn_innerN,
 		    Bls->medfiltsn_outerN, NULL, NULL, NULL, NULL, medfiltspec);
     if(Bls->medfiltsn_forpeaks) {
       for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
@@ -4137,7 +4172,7 @@ the periodogram, and then search it for peaks    *
      per-frequency spectrum (medfiltspec) built before the peak search. */
   if(Bls->domedfiltsn) {
     GetBLSMedFiltSN(nf, bper_array, sr_raw_persist, tot, Npeak, bper,
-		    Bls->medfiltsn_window, Bls->medfiltsn_innerN,
+		    Bls->medfiltsn_window, Bls->medfiltsn_fixedsteps, Bls->medfiltsn_innerN,
 		    Bls->medfiltsn_outerN,
 		    Bls->medfiltsn[lcnum], Bls->medfiltpeakheight[lcnum],
 		    Bls->medfiltlocalmean[lcnum], Bls->medfiltnoise[lcnum], NULL);

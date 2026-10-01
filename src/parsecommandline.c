@@ -10383,7 +10383,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i--;
 	  } else
 	    i--;
-	  /* medsn [medwindow <c/d>] [innerN <n>] [outerN <n>] [useforpeaks]:
+	  /* medsn [medwindow <c/d>] [fixedsteps] [innerN <n>] [outerN <n>] [useforpeaks]:
 	     median-filter S/N method.  Detrend the SR spectrum with a moving
 	     median (window medfiltsn_window c/d, default 0.5) and report, for
 	     each peak, (peak_resid - local_mean)/(1.4826*MAD(resid)); local_mean
@@ -10392,6 +10392,7 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	  c[cn].Bls->domedfiltsn = 0;
 	  c[cn].Bls->medfiltsn_forpeaks = 0;
 	  c[cn].Bls->medfiltsn_window = 0.5;
+	  c[cn].Bls->medfiltsn_fixedsteps = 0;
 	  c[cn].Bls->medfiltsn_innerN = 5.0;
 	  c[cn].Bls->medfiltsn_outerN = 100.0;
 	  i++;
@@ -10407,6 +10408,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  fprintf(stderr,"-BLS: 'medsn medwindow' must be a positive number (c/d); got '%s'\n", argv[i]);
 		  listcommands(argv[iterm],p);
 		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"fixedsteps")) {
+		c[cn].Bls->medfiltsn_fixedsteps = 1;
 		i++;
 	      }
 	      if(i < argc && !strcmp(argv[i],"innerN")) {
@@ -11061,11 +11066,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      i--;
 	  } else
 	    i--;
-	  /* medsn [medwindow <c/d>] [innerN <n>] [outerN <n>] [useforpeaks]:
+	  /* medsn [medwindow <c/d>] [fixedsteps] [innerN <n>] [outerN <n>] [useforpeaks]:
 	     median-filter S/N method; see -BLS. */
 	  c[cn].BlsFixDurTc->domedfiltsn = 0;
 	  c[cn].BlsFixDurTc->medfiltsn_forpeaks = 0;
 	  c[cn].BlsFixDurTc->medfiltsn_window = 0.5;
+	  c[cn].BlsFixDurTc->medfiltsn_fixedsteps = 0;
 	  c[cn].BlsFixDurTc->medfiltsn_innerN = 5.0;
 	  c[cn].BlsFixDurTc->medfiltsn_outerN = 100.0;
 	  i++;
@@ -11081,6 +11087,10 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 		  fprintf(stderr,"-BLSFixDurTc: 'medsn medwindow' must be a positive number (c/d); got '%s'\n", argv[i]);
 		  listcommands(argv[iterm],p);
 		}
+		i++;
+	      }
+	      if(i < argc && !strcmp(argv[i],"fixedsteps")) {
+		c[cn].BlsFixDurTc->medfiltsn_fixedsteps = 1;
 		i++;
 	      }
 	      if(i < argc && !strcmp(argv[i],"innerN")) {

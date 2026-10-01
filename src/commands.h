@@ -934,7 +934,12 @@ typedef struct {
      side-bands medfiltsn_innerN/T < |f-f_peak| < medfiltsn_outerN/T. */
   int domedfiltsn;         /* enable the median-filter S/N method */
   int medfiltsn_forpeaks;  /* also use the median-filter S/N to rank/select peaks */
-  double medfiltsn_window; /* moving-median window in c/d (default 0.5) */
+  double medfiltsn_window; /* moving-median window in c/d (default 0.5); with
+			      medfiltsn_fixedsteps it is instead the window size at
+			      f=1 c/d, converted to a fixed bin count */
+  int medfiltsn_fixedsteps; /* 0 = window is a frequency range (c/d, varies in
+			       bin count across the grid); 1 = window is a fixed
+			       number of bins N = medfiltsn_window / df(f=1) */
   double medfiltsn_innerN; /* inner side-band exclusion in units of 1/T (default 5) */
   double medfiltsn_outerN; /* outer side-band edge in units of 1/T (default 100) */
   double **medfiltsn, **medfiltpeakheight, **medfiltlocalmean, **medfiltnoise;
@@ -1031,6 +1036,7 @@ typedef struct {
   int domedfiltsn;
   int medfiltsn_forpeaks;
   double medfiltsn_window;
+  int medfiltsn_fixedsteps;
   double medfiltsn_innerN;
   double medfiltsn_outerN;
   double **medfiltsn, **medfiltpeakheight, **medfiltlocalmean, **medfiltnoise;
