@@ -75,6 +75,23 @@ class TestCLIArgs:
         args = cmd.aov(0.1, 10.0, 0.1, finetune=2)._to_cli_args()
         assert args[0] == "-aov"
 
+    def test_reportharmonics_option(self):
+        # off by default: no token emitted
+        assert "reportharmonics" not in cmd.aov(0.1, 10.0, 0.1, 2)._to_cli_args()
+        # emitted for each affected finder when requested
+        for c in (
+            cmd.aov(0.1, 10.0, 0.1, 2, reportharmonics=True),
+            cmd.aov_harm(2, 0.1, 10.0, 0.1, 2, reportharmonics=True),
+            cmd.PDM("step", 0.1, 10.0, 0.1, 2, reportharmonics=True),
+            cmd.FTP("file", 0.1, 10.0, 0.1, 2, template_file="t.dat",
+                    reportharmonics=True),
+        ):
+            assert "reportharmonics" in c._to_cli_args()
+        # must precede maskpoints in the strict trailing-keyword order
+        args = cmd.PDM("step", 0.1, 10.0, 0.1, 2, reportharmonics=True,
+                       maskpoints="m")._to_cli_args()
+        assert args.index("reportharmonics") < args.index("maskpoints")
+
     def test_bls_basic(self):
         # nfreq= required when density_mode=False (the "optimal"
         # frequency grid is density-mode-only per vartools).

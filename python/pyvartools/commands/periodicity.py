@@ -214,6 +214,10 @@ class aov(VartoolsCommand):
     uselog : bool
         Use ``−ln(θ_aov)`` for the SNR statistic; also outputs the mean
         and RMS of ``−ln(θ_aov)``.
+    reportharmonics : bool
+        Report peaks whose frequency is a lower-order rational multiple of a
+        stronger peak's (a harmonic).  By default such harmonics are collapsed
+        onto the stronger peak and not reported separately.
     maskpoints : str, optional
         Name of a mask variable; points where the variable is ``≤ 0``
         are excluded.
@@ -255,6 +259,7 @@ class aov(VartoolsCommand):
         clip: Optional[float] = None,
         clipiter: Optional[int] = None,
         uselog: bool = False,
+        reportharmonics: bool = False,
         maskpoints: Optional[str] = None,
         fixperiod_snr: Union[float, int, str, None] = None,
     ) -> None:
@@ -269,6 +274,7 @@ class aov(VartoolsCommand):
         self.clip = clip
         self.clipiter = clipiter
         self.uselog = uselog
+        self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
         self.fixperiod_snr = fixperiod_snr
 
@@ -286,6 +292,7 @@ class aov(VartoolsCommand):
             args += ["clip", str(self.clip), str(self.clipiter or 3)]
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
         args += _bool("uselog", self.uselog)
+        args += _bool("reportharmonics", self.reportharmonics)
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -345,6 +352,10 @@ class aov_harm(VartoolsCommand):
     clipiter : int, optional
         Number of clipping iterations.  ``1`` enables iterative
         clipping (the default when *clip* is set).
+    reportharmonics : bool
+        Report peaks whose frequency is a lower-order rational multiple of a
+        stronger peak's (a harmonic).  By default such harmonics are collapsed
+        onto the stronger peak and not reported separately.
     maskpoints : str, optional
         Name of a mask variable; points where the variable is ``≤ 0``
         are excluded.
@@ -386,6 +397,7 @@ class aov_harm(VartoolsCommand):
         whiten: bool = False,
         clip: Optional[float] = None,
         clipiter: Optional[int] = None,
+        reportharmonics: bool = False,
         maskpoints: Optional[str] = None,
         fixperiod_snr: Union[float, int, str, None] = None,
     ) -> None:
@@ -399,6 +411,7 @@ class aov_harm(VartoolsCommand):
         self.whiten = whiten
         self.clip = clip
         self.clipiter = clipiter
+        self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
         self.fixperiod_snr = fixperiod_snr
 
@@ -414,6 +427,7 @@ class aov_harm(VartoolsCommand):
         if self.clip is not None:
             args += ["clip", str(self.clip), str(self.clipiter or 3)]
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
+        args += _bool("reportharmonics", self.reportharmonics)
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -496,6 +510,10 @@ class PDM(VartoolsCommand):
     bootstrap : int, optional
         Enable empirical-CDF FAP via ``Nboot`` shuffled-LC trials.  Replaces
         the analytic Schwarzenberg-Czerny Beta FAP when set.
+    reportharmonics : bool
+        Report peaks whose frequency is a lower-order rational multiple of a
+        stronger peak's (a harmonic).  By default such harmonics are collapsed
+        onto the stronger peak and not reported separately.
     maskpoints : str, optional
         Name of an LC vector; points with maskvar > VARTOOLS_MASK_TINY are
         included, others excluded.
@@ -531,6 +549,7 @@ class PDM(VartoolsCommand):
         whiten: bool = False,
         fixperiod_snr: Union[float, int, str, None] = None,
         bootstrap: Optional[int] = None,
+        reportharmonics: bool = False,
         maskpoints: Optional[str] = None,
     ) -> None:
         # Constructor-time validation -- mirrors the strict-parser behaviour
@@ -581,6 +600,7 @@ class PDM(VartoolsCommand):
         self.whiten = whiten
         self.fixperiod_snr = fixperiod_snr
         self.bootstrap = bootstrap
+        self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
@@ -599,7 +619,7 @@ class PDM(VartoolsCommand):
                  + [str(self.npeaks)])
         args += _outtoken(self.save_periodogram, outdir)
         # Trailing keywords in the canonical (strict-parser) order:
-        # clip / noerr / whiten / fixperiodSNR / bootstrap / maskpoints.
+        # clip / noerr / whiten / fixperiodSNR / bootstrap / reportharmonics / maskpoints.
         if self.clip is not None:
             args += ["clip", str(self.clip), str(self.clipiter if self.clipiter is not None else 1)]
         args += _bool("noerr", self.noerr)
@@ -607,6 +627,7 @@ class PDM(VartoolsCommand):
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
         if self.bootstrap is not None:
             args += ["bootstrap", str(int(self.bootstrap))]
+        args += _bool("reportharmonics", self.reportharmonics)
         args += _flag("maskpoints", self.maskpoints)
         return args
 
@@ -721,6 +742,10 @@ class FTP(VartoolsCommand):
         ``"list [column N]"``, or a numeric value (treated as a literal).
     bootstrap : int, optional
         Empirical-CDF FAP via ``Nboot`` shuffled-LC trials.
+    reportharmonics : bool
+        Report peaks whose frequency is a lower-order rational multiple of a
+        stronger peak's (a harmonic).  By default such harmonics are collapsed
+        onto the stronger peak and not reported separately.
     maskpoints : str, optional
         Name of an LC vector; points with maskvar > VARTOOLS_MASK_TINY are
         included, others excluded.
@@ -776,6 +801,7 @@ class FTP(VartoolsCommand):
         whiten: bool = False,
         fixperiod_snr: Union[float, int, str, None] = None,
         bootstrap: Optional[int] = None,
+        reportharmonics: bool = False,
         maskpoints: Optional[str] = None,
         method: Optional[str] = None,
         sums: Optional[str] = None,
@@ -907,6 +933,7 @@ class FTP(VartoolsCommand):
         self.whiten = whiten
         self.fixperiod_snr = fixperiod_snr
         self.bootstrap = bootstrap
+        self.reportharmonics = reportharmonics
         self.maskpoints = maskpoints
         self.method = method
         self.sums = sums
@@ -935,7 +962,7 @@ class FTP(VartoolsCommand):
         args += _outtoken(self.save_periodogram, outdir)
         # Trailing keywords in the canonical (strict-parser) order:
         # clip / noerr / posamponly / whiten / fixperiodSNR / bootstrap /
-        # maskpoints / method / sums.
+        # reportharmonics / maskpoints / method / sums.
         if self.clip is not None:
             args += ["clip", str(self.clip),
                      str(self.clipiter if self.clipiter is not None else 1)]
@@ -945,6 +972,7 @@ class FTP(VartoolsCommand):
         args += _fixperiodsnr_tokens(self.fixperiod_snr)
         if self.bootstrap is not None:
             args += ["bootstrap", str(int(self.bootstrap))]
+        args += _bool("reportharmonics", self.reportharmonics)
         args += _flag("maskpoints", self.maskpoints)
         args += _flag("method", self.method)
         args += _flag("sums", self.sums)
