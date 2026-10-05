@@ -7296,4 +7296,40 @@ check_reportharm "-FTP"      -FTP fitlc $synlc ascii 1 2 3 2 12.0 1.0 20.0 0.1 0
 rm -f $synlc
 
 
+# FITS NULL/NaN row handling: by default a row that is NULL/NaN in a read
+# column is kept (the NaN is read in), so the mean over all 10 times is 5.5;
+# with -fitsdropnan the two NaN rows (t=3,7) are dropped and the mean is 5.625.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing FITS NaN default-keep and -fitsdropnan" > /dev/stderr
+
+awk 'BEGIN{for(t=1;t<=10;t++){x=(t==3||t==7)?"nan":t; printf "%d %f %s\n", t, 10+t, x}}' > EXAMPLES/OUTDIR1/nanlc_fitsdropnan.txt
+
+cat > $testc <<EOF
+./vartools -i EXAMPLES/OUTDIR1/nanlc_fitsdropnan.txt -inputlcformat t:1,mag:2,x:3 -o EXAMPLES/OUTDIR1/nan_fitsdropnan.fits allcols fits
+./vartools -i EXAMPLES/OUTDIR1/nan_fitsdropnan.fits -inputlcformat t:t,mag:mag,x:x -stats t mean -oneline
+./vartools -i EXAMPLES/OUTDIR1/nan_fitsdropnan.fits -inputlcformat t:t,mag:mag,x:x -fitsdropnan -stats t mean -oneline
+EOF
+
+cat > $goodout <<EOF
+Name           = EXAMPLES/OUTDIR1/nan_fitsdropnan.fits
+STATS_t_MEAN_0 = 5.5
+
+Name           = EXAMPLES/OUTDIR1/nan_fitsdropnan.fits
+STATS_t_MEAN_0 = 5.625
+
+EOF
+
+$VARTOOLS -i EXAMPLES/OUTDIR1/nanlc_fitsdropnan.txt -inputlcformat t:1,mag:2,x:3 -o EXAMPLES/OUTDIR1/nan_fitsdropnan.fits allcols fits > /dev/null 2>&1
+( $VARTOOLS -i EXAMPLES/OUTDIR1/nan_fitsdropnan.fits -inputlcformat t:t,mag:mag,x:x -stats t mean -oneline ; $VARTOOLS -i EXAMPLES/OUTDIR1/nan_fitsdropnan.fits -inputlcformat t:t,mag:mag,x:x -fitsdropnan -stats t mean -oneline ) > $testout 2>/dev/null
+
+lastcode=$?
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
+rm -f EXAMPLES/OUTDIR1/nan_fitsdropnan.fits EXAMPLES/OUTDIR1/nanlc_fitsdropnan.txt
+
+
 rm -f $testc $testout $goodout
