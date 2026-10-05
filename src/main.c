@@ -249,6 +249,7 @@ int main(int argc, char **argv)
   p.storecmd = 0;
   p.skipmissing = 0;
   p.skipempty = 1;
+  p.fitsdropnan = 0;
 
   p.NDataFromLightCurve = 0;
   p.maxinputlccolumn = 0;

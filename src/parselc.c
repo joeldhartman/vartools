@@ -1948,8 +1948,9 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	      nullarray[k-1] = 1;
 	      anynulallcolumns = 1;
 	      anynul = 0;
-	    } 
-	  else 
+	      if(!p->fitsdropnan) (*dblptr)[lc2][k-1 + Ninit] = NAN;
+	    }
+	  else
 	    {
 	      convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dblptr)[lc2][k-1 + Ninit])));
 	    }
@@ -1995,6 +1996,15 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	for(k=0; k < nrows; k++) {
 	  nullarraystore[k] = nullarraystore[k] || nullarray[k];
 	}
+	if(!p->fitsdropnan) {
+	  if(d->datatype == VARTOOLS_TYPE_FLOAT) {
+	    for(k=0; k < nrows; k++)
+	      if(nullarray[k]) (*floatptr)[lc2][k+Ninit] = (float) NAN;
+	  } else if(d->datatype == VARTOOLS_TYPE_DOUBLE) {
+	    for(k=0; k < nrows; k++)
+	      if(nullarray[k]) (*dblptr)[lc2][k+Ninit] = NAN;
+	  }
+	}
       }
       if(status) {
 	fits_report_error(stderr, status);
@@ -2018,8 +2028,9 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		nullarray[k-1] = 1;
 		anynulallcolumns = 1;
 		anynul = 0;
-	      } 
-	    else 
+		if(!p->fitsdropnan) (*dbl2ptr)[lc2][u][k-1+Ninit] = NAN;
+	      }
+	    else
 	      {
 		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][u][k-1+Ninit])));
 	      }
@@ -2065,6 +2076,15 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 	  for(k=0; k < nrows; k++) {
 	    nullarraystore[k] = nullarraystore[k] || nullarray[k];
 	  }
+	  if(!p->fitsdropnan) {
+	    if(d->datatype == VARTOOLS_TYPE_FLOAT) {
+	      for(k=0; k < nrows; k++)
+		if(nullarray[k]) (*float2ptr)[lc2][u][k+Ninit] = (float) NAN;
+	    } else if(d->datatype == VARTOOLS_TYPE_DOUBLE) {
+	      for(k=0; k < nrows; k++)
+		if(nullarray[k]) (*dbl2ptr)[lc2][u][k+Ninit] = NAN;
+	    }
+	  }
 	}
 	if(status) {
 	  fits_report_error(stderr, status);
@@ -2085,6 +2105,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		nullarraystore[k-1] = 1;
 		anynulallcolumns = 1;
 		anynul = 0;
+		if(!p->fitsdropnan) (*dbl2ptr)[lc2][k-1+Ninit][u] = NAN;
 	      }
 	  }
 	  break;
@@ -2097,8 +2118,9 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		nullarraystore[k-1] = 1;
 		anynulallcolumns = 1;
 		anynul = 0;
-	      } 
-	    else 
+		if(!p->fitsdropnan) (*dbl2ptr)[lc2][k-1+Ninit][u] = NAN;
+	      }
+	    else
 	      {
 		convertUTCtoJD(tmpstring[0],d->scanformat,d->UTCindex,(double *) (&((*dbl2ptr)[lc2][k-1+Ninit][u])));
 	      }
@@ -2137,6 +2159,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
 		nullarraystore[k-1] = 1;
 		anynulallcolumns = 1;
 		anynul = 0;
+		if(!p->fitsdropnan) (*float2ptr)[lc2][k-1+Ninit][u] = (float) NAN;
 	      }
 	  }
 	  break;
@@ -2201,7 +2224,7 @@ int ReadFitsLightCurve(ProgramData *p, Command *c, int lc, int lc2, int combinel
   }
 #endif
 
-  if(anynulallcolumns) {
+  if(anynulallcolumns && p->fitsdropnan) {
     for(i=0,j=0; i < nrows; i++) {
         if(!nullarraystore[i])
 	{

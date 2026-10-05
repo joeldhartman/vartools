@@ -423,6 +423,7 @@ typedef struct {
 
   char skipmissing;
   char skipempty;
+  char fitsdropnan;
 
   int *skipfaillc;
 

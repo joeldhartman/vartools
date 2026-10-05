@@ -14934,7 +14934,12 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	{
 	  p->skipmissing = 1;
 	}
-	  
+
+      else if(!strcmp(argv[i],"-fitsdropnan"))
+	{
+	  p->fitsdropnan = 1;
+	}
+
       else if(!strcmp(argv[i],"-noskipempty"))
 	{
 	  p->skipempty = 0;

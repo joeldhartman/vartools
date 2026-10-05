@@ -1147,6 +1147,7 @@ void usage_common(OutText *s)
     printtostring(s, "[-showinputlcformat] ");
     printtostring(s, "[-log-command-line] [-skipmissing] [-noskipempty]");
     printtostring(s, "\n");
+  printtostring(s, "\t[-fitsdropnan]\n");
 #ifdef PARALLEL
   printtostring(s, "\t[-parallel Nproc] [-functionlist]\n");
 #endif
@@ -1466,6 +1467,12 @@ void help(char *c, ProgramData *p)
     {
       printtostring(&s,"-skipmissing\n\n");
       printtostring(&s,"Do not abort if a missing or unreadable light curve file is encountered. Instead skip the light curve and proceed with others in the list.\n\n");
+      commandfound=1;
+    }
+  if(all == 1 || !strcmp(c,"-fitsdropnan"))
+    {
+      printtostring(&s,"-fitsdropnan\n\n");
+      printtostring(&s,"By default, when reading a binary FITS table light curve, any row that is NULL (or NaN) in one or more of the columns being read is kept, with the NULL/NaN entries read in as NaN (for floating-point columns). This makes FITS input behave like ASCII input, where NaN values are read in and left for individual commands to handle. Give this option to instead drop any such row from the light curve. Note that NULL entries in integer or string columns cannot be represented as NaN; when the rows are kept, the raw value returned by cfitsio is used for those columns. This option has no effect on ASCII light curve input.\n\n");
       commandfound=1;
     }
   if(all == 1 || !strcmp(c,"-noskipempty"))
