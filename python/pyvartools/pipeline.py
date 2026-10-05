@@ -603,6 +603,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         _command_offset: int = 0,
     ) -> Result:
         """Run the pipeline on a single light curve.
@@ -639,6 +640,9 @@ class Pipeline:
             Pass ``-jdtol N`` to set the tolerance for Julian-date matching.
         matchstringid : bool
             Pass ``-matchstringid`` to force string-based LC name matching.
+        fitsdropnan : bool
+            Pass ``-fitsdropnan`` to drop FITS rows that are NULL/NaN in a
+            read column (default: such rows are kept with NaN values).
 
         Returns
         -------
@@ -655,7 +659,8 @@ class Pipeline:
         lc = _to_lc(lc)
 
         _has_global_opts = (randseed is not None or skipmissing
-                            or jdtol is not None or matchstringid)
+                            or jdtol is not None or matchstringid
+                            or fitsdropnan)
 
         # If any command requested cmd.python(inprocess=True), we MUST go
         # through library mode — the host-namespace callback only fires when
@@ -689,7 +694,7 @@ class Pipeline:
                 )
             if _has_global_opts:
                 obstacles.append(
-                    "randseed/skipmissing/jdtol/matchstringid force subprocess mode"
+                    "randseed/skipmissing/jdtol/matchstringid/fitsdropnan force subprocess mode"
                 )
             if obstacles:
                 raise RuntimeError(
@@ -740,6 +745,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
                 scalars=lc.scalars,
                 command_offset=_command_offset,
                 setlcname=lc.name or None,
@@ -793,6 +799,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
     ) -> Result:
         """Run the pipeline on a light curve file already on disk.
 
@@ -846,6 +853,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
             )
             stdout, _ = self._execute(cmd, timeout=timeout)
             stats_full = parse_oneline_output(stdout)
@@ -886,6 +894,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         stats_file: Optional[str] = None,
         stats_file_mode: str = "overwrite",
         stats_file_buffer_lines: Optional[int] = None,
@@ -1023,6 +1032,7 @@ class Pipeline:
                         "nthreads": nthreads, "randseed": randseed,
                         "skipmissing": skipmissing, "jdtol": jdtol,
                         "matchstringid": matchstringid,
+                        "fitsdropnan": fitsdropnan,
                     },
                 )
                 if not ran_indices:
@@ -1115,6 +1125,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
                 inject_print_var=_SEQ_VAR if use_seq else None,
             )
             try:
@@ -1197,6 +1208,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
     ) -> Result:
         """Combine *files* into a single light curve and run the pipeline.
 
@@ -1287,6 +1299,7 @@ class Pipeline:
             skipmissing=skipmissing,
             jdtol=jdtol,
             matchstringid=matchstringid,
+            fitsdropnan=fitsdropnan,
         )
         if batch.error is not None:
             return Result(
@@ -1314,6 +1327,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
     ) -> BatchResult:
         """Run the pipeline using vartools ``-l … combinelcs`` mode.
 
@@ -1382,6 +1396,9 @@ class Pipeline:
             Pass ``-jdtol N`` to vartools.
         matchstringid : bool
             Pass ``-matchstringid`` to vartools.
+        fitsdropnan : bool
+            Pass ``-fitsdropnan`` to drop FITS rows that are NULL/NaN in a
+            read column (default: such rows are kept with NaN values).
 
         Notes
         -----
@@ -1601,6 +1618,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
                 inject_print_var=_SEQ_VAR if use_seq else None,
             )
             try:
@@ -1660,6 +1678,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         stats_file: Optional[str] = None,
         stats_file_mode: str = "overwrite",
         stats_file_buffer_lines: Optional[int] = None,
@@ -1729,7 +1748,8 @@ class Pipeline:
                 timeout=timeout, raise_on_error=raise_on_error,
                 perpoint_vars=perpoint_vars, perlc_vars=perlc_vars,
                 randseed=randseed, skipmissing=skipmissing, jdtol=jdtol,
-                matchstringid=matchstringid, stats_file=stats_file,
+                matchstringid=matchstringid, fitsdropnan=fitsdropnan,
+                stats_file=stats_file,
                 stats_file_mode=stats_file_mode,
                 stats_file_buffer_lines=stats_file_buffer_lines,
                 resume=resume, _command_offset=_command_offset,
@@ -1743,7 +1763,8 @@ class Pipeline:
         *,
         nthreads, capture_lc, outdir, timeout, raise_on_error,
         perpoint_vars, perlc_vars, randseed, skipmissing, jdtol,
-        matchstringid, stats_file, stats_file_mode, stats_file_buffer_lines,
+        matchstringid, fitsdropnan, stats_file, stats_file_mode,
+        stats_file_buffer_lines,
         resume, _command_offset, _perlc_outname_additions,
     ) -> BatchResult:
         """Body of run_batch after the auto-rewrite has been applied.
@@ -1772,6 +1793,7 @@ class Pipeline:
                     "nthreads": nthreads, "randseed": randseed,
                     "skipmissing": skipmissing, "jdtol": jdtol,
                     "matchstringid": matchstringid,
+                    "fitsdropnan": fitsdropnan,
                 },
             )
             if not ran_indices:
@@ -1786,7 +1808,8 @@ class Pipeline:
                               for filt_pos, orig in enumerate(ran_indices)}
 
         _has_global_opts = (randseed is not None or skipmissing
-                            or jdtol is not None or matchstringid)
+                            or jdtol is not None or matchstringid
+                            or fitsdropnan)
 
         # Collect per-LC carried-forward scalars.  These are injected via the
         # -inlistvars mechanism (as INLIST variables) so each LC sees its own
@@ -1824,6 +1847,7 @@ class Pipeline:
                 command_offset=_command_offset,
                 randseed=randseed, skipmissing=skipmissing,
                 jdtol=jdtol, matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
                 perpoint_vars=perpoint_vars,
                 capture_lc=capture_lc,
                 stats_file=stats_file,
@@ -1965,6 +1989,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
                 inject_print_var=_SEQ_VAR if use_seq else None,
                 command_offset=_command_offset,
                 harvest_scalars=bool(scalar_col_assignments),
@@ -2303,6 +2328,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         perlc_subs: Optional[Dict[int, Dict[str, str]]] = None,
     ) -> List[str]:
         """Build a CLI arg list from pipeline commands (for LibPipeline init).
@@ -2334,6 +2360,8 @@ class Pipeline:
             args += ["-randseed", str(randseed)]
         if jdtol is not None:
             args += ["-jdtol", str(jdtol)]
+        if fitsdropnan:
+            args += ["-fitsdropnan"]
         # skipmissing / matchstringid are list-file-only — see docstring.
         del skipmissing, matchstringid
         args += self._scalar_injection_args(scalars)
@@ -2535,6 +2563,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         perpoint_vars: Optional[Dict[str, "PerPointVar"]] = None,
         capture_lc: bool = False,
         stats_file: Optional[str] = None,
@@ -2659,6 +2688,7 @@ class Pipeline:
                     skipmissing=skipmissing,
                     jdtol=jdtol,
                     matchstringid=matchstringid,
+                    fitsdropnan=fitsdropnan,
                     perlc_subs=perlc_subs if perlc_subs else None)
                 if inlist_decls:
                     argv = ["-inlistvars", ",".join(inlist_decls)] + argv
@@ -3064,6 +3094,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         inject_print_var: Optional[str] = None,
         scalars: Optional[Dict[str, float]] = None,
         command_offset: int = 0,
@@ -3091,6 +3122,8 @@ class Pipeline:
             cmd += ["-matchstringid"]
         if skipmissing:
             cmd += ["-skipmissing"]
+        if fitsdropnan:
+            cmd += ["-fitsdropnan"]
         # Override the "stdin" placeholder name when the caller is
         # piping a single LC through stdin (-i -).  Vartools ignores
         # this when -i is a real file path or when -l is in use.
@@ -3802,6 +3835,7 @@ class Pipeline:
         skipmissing: bool = False,
         jdtol: Optional[float] = None,
         matchstringid: bool = False,
+        fitsdropnan: bool = False,
         timeout: Optional[int] = 30,
         perlc_vars: Optional[Dict[str, Union[int, "PerLCColumn", list, tuple]]] = None,
     ) -> List[str]:
@@ -3882,6 +3916,7 @@ class Pipeline:
                 skipmissing=skipmissing,
                 jdtol=jdtol,
                 matchstringid=matchstringid,
+                fitsdropnan=fitsdropnan,
             )
             cmd += ["-headeronly"]
 

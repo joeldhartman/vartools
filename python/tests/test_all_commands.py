@@ -5393,7 +5393,7 @@ class TestNonlinfitOutputFileSpecs:
 
 
 class TestGlobalPipelineOptions:
-    """Unit tests for randseed/skipmissing/jdtol/matchstringid pipeline options."""
+    """Unit tests for randseed/skipmissing/jdtol/matchstringid/fitsdropnan pipeline options."""
 
     def _capture_cmd(self, pipe, method, *args, **kwargs):
         """Run *method* on *pipe*, intercept _execute, return the cmd list."""
@@ -5452,6 +5452,16 @@ class TestGlobalPipelineOptions:
         pipe = vt.Pipeline([cmd.rms()])
         result = self._capture_cmd(pipe, "run_file", "dummy.lc", matchstringid=False)
         assert "-matchstringid" not in result
+
+    def test_pipeline_fitsdropnan_in_cmd(self):
+        pipe = vt.Pipeline([cmd.rms()])
+        result = self._capture_cmd(pipe, "run_file", "dummy.lc", fitsdropnan=True)
+        assert "-fitsdropnan" in result
+
+    def test_fitsdropnan_false_not_emitted(self):
+        pipe = vt.Pipeline([cmd.rms()])
+        result = self._capture_cmd(pipe, "run_file", "dummy.lc", fitsdropnan=False)
+        assert "-fitsdropnan" not in result
 
 
 class TestRunCombinelcs:
