@@ -517,96 +517,11 @@ the periodogram, and then search it for peaks    *
       for(im_pre=0; im_pre<nf; im_pre++) p[im_pre] = medfiltspec[im_pre];
   }
   
-  foundsofar = 0;
-  i = 0;
-  while(foundsofar < Npeak && i < nf)
-    {
-      if(p[i] > 0)
-	{
-	  dffac = (mergepeakdf_mode ? mergepeakdf_val * qtran_array[i] : mergepeakdf_val);
-	  test = 1;
-	  for(j=0;j<foundsofar;j++)
-	    {
-	      if(!isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac))
-		{
-		  if(p[i] > snval[j])
-		    {
-		      bper[j] = bper_array[i];
-		      snval[j] = p[i];
-		      best_id[j] = i;
-		    }
-		  test = 0;
-		  break;
-		}
-	    }
-	  if(test)
-	    {
-	      snval[foundsofar] = p[i];
-	      bper[foundsofar] = bper_array[i];
-	      best_id[foundsofar] = i;
-	      foundsofar++;
-	    }
-	}
-      i++;
-    }
+  foundsofar = SelectBLSPeaks(Npeak, bper, snval, best_id, nf, bper_array, p,
+                              qtran_array, tot, mergepeakdf_mode,
+                              mergepeakdf_val, 0);
 
-  if(i < nf)
-    {
-      mysort3_int(Npeak,snval,bper,best_id);
-      minbest = snval[0];
-      for(;i<nf;i++)
-	{
-	  if(p[i] > minbest)
-	    {
-	      dffac = (mergepeakdf_mode ? mergepeakdf_val * qtran_array[i] : mergepeakdf_val);
-	      test = 1;
-	      for(j=0;j<Npeak;j++)
-		{
-		  if(!isDifferentPeriods_df(MIN_(bper[j],bper_array[i]),MAX_(bper[j],bper_array[i]),tot,dffac))
-		    {
-		      if(p[i] > snval[j])
-			{
-			  snval[j] = p[i];
-			  bper[j] = bper_array[i];
-			  best_id[j] = i;
-			  mysort3_int(Npeak,snval,bper,best_id);
-			  minbest = snval[0];
-			}
-		      test = 0;
-		      break;
-		    }
-		}
-	      if(test)
-		{
-		  snval[0] = p[i];
-		  bper[0] = bper_array[i];
-		  best_id[0] = i;
-		  mysort3_int(Npeak,snval,bper,best_id);
-		  minbest = snval[0];
-		}
-	    }
-	}
-    }
-  else if(foundsofar >= 1)
-    {
-      /* We have a few peaks, but Npeak of them */
-      mysort3_int(foundsofar,snval,bper,best_id);
-      for(j=foundsofar;j<Npeak;j++)
-	{
-	  /* Put -1 for the remaining peaks */
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  best_id[j] = -1;
-	  bpow[j] = -1.;
-	  bt0[j] = -1.;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	}
-    }
-  else
+  if(foundsofar < 1)
     {
       /* We have no peaks, just put -1. for the values and return to the calling function */
       for(j=0;j<Npeak;j++)
@@ -643,32 +558,6 @@ the periodogram, and then search it for peaks    *
       if(e_mask != NULL) free(e_mask);
       return 1;
     }
-  //fprintf(stderr,"Error Running BLS - no frequencies survive clipping!\n");
-
-  /* invert the snval, bper and best_id vectors */
-  for(i = 0, j = foundsofar - 1; i < foundsofar/2 + 1; i++)
-    {
-      if(i < j)
-	{
-	  dumdbl1 = snval[j];
-	  dumdbl2 = bper[j];
-	  dumint1 = best_id[j];
-	  snval[j] = snval[i];
-	  bper[j] = bper[i];
-	  best_id[j] = best_id[i];
-	  snval[i] = dumdbl1;
-	  bper[i] = dumdbl2;
-	  best_id[i] = dumint1;
-	}
-      j--;
-    }
-
-  /* Remove any peaks left within the merge resolution of a stronger peak and
-     back-fill with the next distinct peaks (see GetBLSDedupPeaks in
-     runbls_sn.c).  Done before the medsn block so the reported per-peak medsn
-     values correspond to the final (de-duplicated) peaks. */
-  GetBLSDedupPeaks(Npeak, bper, snval, best_id, nf, bper_array, p, qtran_array,
-		   tot, mergepeakdf_mode, mergepeakdf_val, 0);
 
   /* medsn: per-peak S/N and diagnostic components for the selected peaks. */
   if(BlsFixDurTc->domedfiltsn) {
@@ -722,7 +611,7 @@ the periodogram, and then search it for peaks    *
 	}
       else
 	{
-	  /* Slot left empty by the collector or emptied by GetBLSDedupPeaks:
+	  /* Slot not filled by SelectBLSPeaks:
 	     sentinel every per-peak output column (bper/snval/best_id already -1). */
 	  bpow[i] = -1.;
 	  bt0[i] = -1.;

@@ -240,7 +240,9 @@ int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, d
   rn = (double) n;
   kmi = (int) (qmi*(double)nb);
   if(kmi < 1) kmi = 1;
+  if(kmi > nb-1) kmi = nb-1;
   kma = ((int) (qma*(double)nb)) + 1;
+  if(kma > nb-1) kma = nb-1;
   kkmi = qmi;
   if(kkmi < (double) minbin / rn) kkmi = (double) minbin / rn;
   //*bpow = 0.;
@@ -648,7 +650,9 @@ int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *
   rn = (double) n;
   kmi = (int) (qmi*(double)nb);
   if(kmi < 1) kmi = 1;
+  if(kmi > nb-1) kmi = nb-1;
   kma = ((int) (qma*(double)nb)) + 1;
+  if(kma > nb-1) kma = nb-1;
   kkmi = qmi;
   if(kkmi < (double) minbin / rn) kkmi = (double) minbin / rn;
   //*bpow = 0.;
