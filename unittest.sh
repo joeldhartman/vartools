@@ -7332,4 +7332,151 @@ CompareOutput $testnumber $testc $testout $goodout
 rm -f EXAMPLES/OUTDIR1/nan_fitsdropnan.fits EXAMPLES/OUTDIR1/nanlc_fitsdropnan.txt
 
 
+# -BLS optimal-mode (eebls_rad) peak selection + harmonic de-duplication.
+# Deterministic single P=17.11 d box transit (portable MINSTD PRNG).  Folding a
+# transit at its true period gives the strongest BLS power, so the fundamental
+# ~17.1 d is the global spectrum maximum; folding at P/2 ~ 8.56 d stacks every
+# transit at one phase too, giving a weaker subharmonic peak.  In the default
+# (harmonic-aware) mode SelectBLSPeaks must report the fundamental as peak 1 and
+# SUPPRESS the weaker P/2 subharmonic.  Expectations are derived from the
+# injected period and the raw periodogram, independent of the selection code.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS optimal-mode peak selection + harmonic de-duplication" > /dev/stderr
+
+synlc=$(mktemp)
+awk 'BEGIN{ s=1;
+  for(n=0;n<240;n++){ s=(16807*s)%2147483647; if((s/2147483647.0)<0.8){
+    s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+    for(k=0;k<m;k++){ s=(16807*s)%2147483647; t=2458000.0+n+(s/2147483647.0)*0.25;
+      s=(16807*s)%2147483647; g1=(s/2147483647.0); s=(16807*s)%2147483647; g2=(s/2147483647.0);
+      mag=10.0+0.004*(g1+g2-1.0)*1.732;
+      ph=t/17.11; ph=ph-int(ph); if(ph>0.5)ph-=1.0; if(ph<-0.5)ph+=1.0;
+      if(ph<0.03&&ph>-0.03) mag+=0.05;
+      printf "%.5f %.6f 0.004\n", t, mag; } } }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic P=17.11 d box-transit LC> -ascii -oneline
+    -BLS density 1.0 0.5 2.0 1.0 20.0 optimal 0.1 200 0 15 0 0 0 nobinnedrms
+(peak 1 must be the fundamental ~17.1 d; the P/2 ~8.56 d subharmonic must be
+absent -- suppressed as a harmonic of the stronger fundamental)
+EOF
+
+$VARTOOLS -i $synlc -ascii -oneline \
+    -BLS density 1.0 0.5 2.0 1.0 20.0 optimal 0.1 200 0 15 0 0 0 nobinnedrms > $testout
+lastcode=$?
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+p1=$(awk -F'=' '/BLS_Period_1_0 /{print $2+0; exit}' $testout)
+p1ok=$(awk -v p="$p1" 'BEGIN{print (p>16.9 && p<17.4)?1:0}')
+nsub=$(awk -F'=' '/BLS_Period_[0-9]+_0 /{p=$2+0; if(p>8.4&&p<8.7)n++} END{print n+0}' $testout)
+if (( $p1ok != 1 || $nsub != 0 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS optimal-mode selection wrong: strongest peak BLS_Period_1=${p1} d (expected
+the ~17.1 d fundamental in [16.9,17.4]) and ${nsub} reported peak(s) fell in the
+P/2 subharmonic window [8.4,8.7] d (expected 0 -- it should be suppressed).
+EOF
+    grep -E "BLS_Period_[0-9]+_0 " $testout > /dev/stderr
+    rm -f $synlc
+    exit 1
+fi
+rm -f $synlc
+
+
+# -BLS optimal-mode reportharmonics: the P/2 ~8.56 d subharmonic of the 17.11 d
+# transit is suppressed by default (collapsed onto the fundamental) but reported
+# as its own peak when reportharmonics is given.  Same deterministic LC; the
+# subharmonic window is P/2 of the injected period.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS optimal-mode reportharmonics subharmonic" > /dev/stderr
+
+synlc=$(mktemp)
+awk 'BEGIN{ s=1;
+  for(n=0;n<240;n++){ s=(16807*s)%2147483647; if((s/2147483647.0)<0.8){
+    s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+    for(k=0;k<m;k++){ s=(16807*s)%2147483647; t=2458000.0+n+(s/2147483647.0)*0.25;
+      s=(16807*s)%2147483647; g1=(s/2147483647.0); s=(16807*s)%2147483647; g2=(s/2147483647.0);
+      mag=10.0+0.004*(g1+g2-1.0)*1.732;
+      ph=t/17.11; ph=ph-int(ph); if(ph>0.5)ph-=1.0; if(ph<-0.5)ph+=1.0;
+      if(ph<0.03&&ph>-0.03) mag+=0.05;
+      printf "%.5f %.6f 0.004\n", t, mag; } } }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic P=17.11 d box-transit LC> -ascii -oneline
+    -BLS density 1.0 0.5 2.0 1.0 20.0 optimal 0.1 200 0 15 0 0 0 nobinnedrms [reportharmonics]
+(the P/2 ~8.56 d subharmonic must be ABSENT by default and PRESENT with
+reportharmonics)
+EOF
+
+sub_def=$($VARTOOLS -i $synlc -ascii -oneline \
+    -BLS density 1.0 0.5 2.0 1.0 20.0 optimal 0.1 200 0 15 0 0 0 nobinnedrms 2>/dev/null \
+    | awk -F'=' '/BLS_Period_[0-9]+_0 /{p=$2+0; if(p>8.4&&p<8.7)n++} END{print n+0}')
+sub_rh=$($VARTOOLS -i $synlc -ascii -oneline \
+    -BLS density 1.0 0.5 2.0 1.0 20.0 optimal 0.1 200 0 15 0 0 0 nobinnedrms reportharmonics 2>/dev/null \
+    | awk -F'=' '/BLS_Period_[0-9]+_0 /{p=$2+0; if(p>8.4&&p<8.7)n++} END{print n+0}')
+if (( $sub_def != 0 || $sub_rh < 1 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS optimal-mode reportharmonics wrong: P/2 subharmonic count in [8.4,8.7] d was
+${sub_def} by default (expected 0) and ${sub_rh} with reportharmonics (expected >=1).
+EOF
+    rm -f $synlc
+    exit 1
+fi
+rm -f $synlc
+
+
+# -BLS with an unphysical q >= 1 (qmax 1.5) plus extraparams used to overrun the
+# phase-binned y[]/ibi[] arrays (sized 2*nb): the transit-width "wrap" extension
+# runs to nb+kma with kma = q*nb+1, so q >= 1 gives nb+kma > 2*nb and corrupted
+# the heap -- crashing in the extraparams pink-noise step.  The transit width is
+# now clamped to kma <= nb-1 (q < 1), as the radius-mode BLS already did.  Expect
+# a clean run reporting a finite, in-range period for the injected ~17.1 d signal.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS q>=1 extraparams (no transit-width array overflow)" > /dev/stderr
+
+synlc=$(mktemp)
+awk 'BEGIN{ s=1;
+  for(n=0;n<240;n++){ s=(16807*s)%2147483647; if((s/2147483647.0)<0.8){
+    s=(16807*s)%2147483647; m=3+int((s/2147483647.0)*5);
+    for(k=0;k<m;k++){ s=(16807*s)%2147483647; t=2458000.0+n+(s/2147483647.0)*0.25;
+      s=(16807*s)%2147483647; g1=(s/2147483647.0); s=(16807*s)%2147483647; g2=(s/2147483647.0);
+      mag=10.0+0.004*(g1+g2-1.0)*1.732;
+      ph=t/17.11; ph=ph-int(ph); if(ph>0.5)ph-=1.0; if(ph<-0.5)ph+=1.0;
+      if(ph<0.03&&ph>-0.03) mag+=0.05;
+      printf "%.5f %.6f 0.004\n", t, mag; } } }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic P=17.11 d box-transit LC> -ascii -oneline
+    -BLS q 0.01 1.5 1.0 20.0 nf 1000 200 0 3 0 0 0 extraparams fittrap nobinnedrms
+(qmax=1.5 is unphysical; the transit width must be clamped so the run completes
+without a heap overflow and reports a finite in-range period)
+EOF
+
+$VARTOOLS -i $synlc -ascii -oneline \
+    -BLS q 0.01 1.5 1.0 20.0 nf 1000 200 0 3 0 0 0 extraparams fittrap nobinnedrms > $testout
+lastcode=$?
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+p1=$(awk -F'=' '/BLS_Period_1_0 /{print $2+0; exit}' $testout)
+p1ok=$(awk -v p="$p1" 'BEGIN{print (p>0.0 && p<=20.0)?1:0}')
+if (( $p1ok != 1 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS q>=1 run did not report a finite in-range period (BLS_Period_1=${p1} d,
+expected a positive value <= 20 d, i.e. no crash/garbage from the clamp).
+EOF
+    rm -f $synlc
+    exit 1
+fi
+rm -f $synlc
+
+
 rm -f $testc $testout $goodout
