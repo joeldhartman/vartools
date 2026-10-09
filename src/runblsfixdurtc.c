@@ -391,7 +391,7 @@ the periodogram, and then search it for peaks    *
 	
 	rn1 = (double) kk;
 	rn4 = (double) k;
-	pow = s*s/(rn1*(1. - rn1));
+	pow = (rn1 < 1.0 ? s*s/(rn1*(1. - rn1)) : 0.0);
       } else {
 	phb1 = inputqgress*qf;
 	phb2 = qf - inputqgress*qf;
@@ -458,8 +458,16 @@ the periodogram, and then search it for peaks    *
 
   if(nclippedfreq > Npeak)
     {
-      for(i=0; i<nf; i++) {
-	p[i] = (p[i] - global_best_sr_ave)/global_best_sr_stddev;
+      if(global_best_sr_stddev > 0.) {
+	for(i=0; i<nf; i++) {
+	  p[i] = (p[i] - global_best_sr_ave)/global_best_sr_stddev;
+	}
+      }
+      else {
+	/* Degenerate spectrum: emit a flat 0 rather than dividing by a zero
+	   stddev, which would make the whole spectrum NaN. */
+	for(i=0; i<nf; i++)
+	  p[i] = 0.;
       }
     }
   else
@@ -640,7 +648,7 @@ the periodogram, and then search it for peaks    *
     {
       for(i=0;i<nf;i++)
 	{
-	  p_minus[i] = (p_minus[i] - global_best_sr_ave_inv) / global_best_sr_stddev_inv;
+	  p_minus[i] = (global_best_sr_stddev_inv > 0. ? (p_minus[i] - global_best_sr_ave_inv) / global_best_sr_stddev_inv : 0.);
 	  if(p_minus[i] > bpowminus)
 	    {
 	      bpowminus = p_minus[i];

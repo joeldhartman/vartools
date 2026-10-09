@@ -387,7 +387,7 @@ int eeblsfixper(int n_in, double *t_in, double *x_in, double *e_in, double *u, d
 	    {
 	      rn1 = (double) kk;
 	      rn4 = (double) k;
-	      pow = s*s/(rn1*(1. - rn1));
+	      pow = (rn1 < 1.0 ? s*s/(rn1*(1. - rn1)) : 0.0);
 	      if(s > 0. && srsumout != NULL) {
 		srsum += sqrt(pow);
 	      }
@@ -796,7 +796,7 @@ int eeblsfixper_rad(int n_in, double *t_in, double *x_in, double *e_in, double *
 	    {
 	      rn1 = (double) kk;
 	      rn4 = (double) k;
-	      pow_ = s*s/(rn1*(1. - rn1));
+	      pow_ = (rn1 < 1.0 ? s*s/(rn1*(1. - rn1)) : 0.0);
 	      if(s > 0. && srsumout != NULL) {
 		srsum += sqrt(pow_);
 	      }
