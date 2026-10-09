@@ -7479,4 +7479,58 @@ fi
 rm -f $synlc
 
 
+# -BLS finite-spectrum guard: a light curve that folds entirely into a
+# sub-half-phase block at the shortest trial period makes a trial transit box
+# cover essentially all the weight, so the in-transit fraction r -> 1 and the
+# BLS statistic SR = s^2/(r*(1-r)) diverged to +inf; with "nobinnedrms" that one
+# inf poisoned the global normalization and the ENTIRE spectrum came back NaN.
+# SR is now computed only for r < 1 (0 otherwise) and the normalization guards a
+# zero stddev, so the periodogram must be fully finite.  Deterministic LC
+# (portable MINSTD PRNG): every point falls in phase [0,0.25] of P = 2 d.
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -BLS finite spectrum when a box holds all the weight (r->1)" > /dev/stderr
+
+synlc=$(mktemp)
+pgdir=$(mktemp -d)
+awk 'BEGIN{ s=1;
+  for(n=0;n<120;n++){
+    for(k=0;k<5;k++){
+      s=(16807*s)%2147483647; u=(s/2147483647.0)*0.5;
+      s=(16807*s)%2147483647; g=(s/2147483647.0);
+      printf "%.6f %.6f 0.004\n", 2458000.0+2.0*n+u, 10.0+0.004*(g-0.5);
+    }
+  }
+}' > $synlc
+
+cat > $testc <<EOF
+./vartools -i <deterministic LC folding into phase [0,0.25] at P=2 d> -ascii -oneline
+    -inlistvars T:0:double -stats t min,max -expr 'T=(STATS_t_MAX_0-STATS_t_MIN_0)/2.0'
+    -BLS q 0.4 0.6 2.0 var T nf 5000 10 0 3 1 <pgdir> 0 0 nobinnedrms
+(the output periodogram must be entirely finite; before the r<1 guard every bin
+was NaN -- a box held all the weight and the inf poisoned the nobinnedrms norm)
+EOF
+
+$VARTOOLS -i $synlc -ascii -oneline -inlistvars T:0:double -stats t min,max \
+    -expr 'T=(STATS_t_MAX_0-STATS_t_MIN_0)/2.0' \
+    -BLS q 0.4 0.6 2.0 var T nf 5000 10 0 3 1 $pgdir/ 0 0 nobinnedrms > $testout 2>/dev/null
+lastcode=$?
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+blsfile=$pgdir/$(basename $synlc).bls
+nnan=$(awk 'NR>1{ if($2=="nan"||$2=="-nan"||$3=="nan"||$3=="-nan"||$2+0!=$2+0||$3+0!=$3+0) n++ } END{print n+0}' "$blsfile")
+nrow=$(awk 'NR>1{t++} END{print t+0}' "$blsfile")
+if (( $nnan != 0 || $nrow < 1 )) ; then
+    cat > /dev/stderr <<EOF
+Unit test produced unexpected output for test number $testnumber
+-BLS spectrum was not finite: ${nnan} of ${nrow} periodogram rows are NaN
+(expected 0 -- the r>=1 box statistic and the zero-stddev normalization must be
+guarded so a degenerate fold yields SR=0, not a NaN spectrum).
+EOF
+    rm -rf $synlc $pgdir
+    exit 1
+fi
+rm -rf $synlc $pgdir
+
+
 rm -f $testc $testout $goodout
