@@ -49,86 +49,84 @@ double doalarm(int N_in, double *resid_in, double *err_in, int lcnum, int lclist
 {
   double a, ave;
   long double sum1, sum2;
-  int sign, i, n;
+  int sign, i;
   int N;
-  double *resid, *err;
   double *resid_mask = NULL, *err_mask = NULL;
 
   if(N_in < 1)
     return 0.;
 
-  if(!usemask) {
-    N = N_in;
-    resid = resid_in;
-    err = err_in;
-  } else {
-    if((resid_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
+  if((resid_mask = (double *) malloc(N_in * sizeof(double))) == NULL ||
        (err_mask = (double *) malloc(N_in * sizeof(double))) == NULL)
       vt_error(ERR_MEMALLOC);
-    N = 0;
-    for(i=0; i < N_in; i++) {
-      if(!isnan(resid_in[i]) && !isnan(err_in[i]) && err_in[i] > 0. &&
-	 EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
-	resid_mask[N] = resid_in[i];
-	err_mask[N] = err_in[i];
-	N++;
-      }
-    }
-    resid = resid_mask;
-    err = err_mask;
-    if(N < 1) {
-      free(resid_mask);
-      free(err_mask);
-      return(0.);
-    }
-  }
-      
 
+  /* Always create a filtered copy, regardless a mask is used. */
+  N = 0;
+  for(i=0; i < N_in; i++) {
+    if(usemask && !(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY))
+      continue;
+
+    if(!isfinite(resid_in[i]) || !isfinite(err_in[i]) || err_in[i] <= 0.0)
+      continue;
+
+    resid_mask[N] = resid_in[i];
+    err_mask[N] = err_in[i];
+    N++;
+  }
+
+  if(N < 2) {
+    free(resid_mask);
+    free(err_mask);
+    return(0.);
+  }
+
+  /* Calculate the inverse-variance-weighted mean. */
   sum1 = 0.;
   sum2 = 0.;
   for(i=0;i<N;i++)
     {
-      if(!isnan(resid[i]) && !isnan(err[i]) && err[i] > 0.)
-	{
-	  sum1 += (long double) (resid[i] / (err[i]*err[i]));
-	  sum2 += (long double) (1. / (err[i]*err[i]));
-	}
+	  sum1 += (long double) (resid_mask[i] / (err_mask[i]*err_mask[i]));
+	  sum2 += (long double) (1. / (err_mask[i]*err_mask[i]));
     }
 
+  if(!(sum2 > 0.0L) || !isfinite(sum1) || !isfinite(sum2)) {
+    free(resid_mask);
+    free(err_mask);
+    return(0.);
+  }
+
+  ave = (double) (sum1 / sum2);
+
+  if(!isfinite(ave)) {
+    free(resid_mask);
+    free(err_mask);
+    return 0.0;
+  }
+
   a = 0.;
-  if(N > 0)
-    {
-      ave = sum1 / sum2;
-      resid[0] -= ave;
-      sum1 = resid[0]*resid[0] / (err[0]*err[0]);
-      sum2 = resid[0] / err[0];
-      n = 1;
-      sign = SIGN(resid[0]);
-      for(i=1;i<N;i++)
-	{
-	  if(!isnan(resid[i]))
-	    {
-	      resid[i] -= ave;
-	      if(SIGN(resid[i]) != sign)
-		{
-		  a += (sum2 * sum2);
-		  sum2 = resid[i] / err[i];
-		  n = 1;
-		  sign = SIGN(resid[i]);
-		}
-	      else
-		{
-		  sum2 += resid[i] / err[i];
-		  n++;
-		}
-	      sum1 += resid[i]*resid[i] / (err[i]*err[i]);
-	    }
-	}
-      a += (sum2 * sum2);
-      a = (a / sum1) - DEFAULT_ALARMVAL;
-    }
-  if(resid_mask != NULL) free(resid_mask);
-  if(err_mask != NULL) free(err_mask);
+  resid_mask[0] -= ave;
+  sum1 = resid_mask[0]*resid_mask[0] / (err_mask[0]*err_mask[0]);
+  sum2 = resid_mask[0] / err_mask[0];
+  sign = SIGN(resid_mask[0]);
+  for(i=1;i<N;i++)
+  {
+	resid_mask[i] -= ave;
+    if(SIGN(resid_mask[i]) != sign) {
+	  a += (double) (sum2 * sum2);
+	  sum2 = resid_mask[i] / err_mask[i];
+	  sign = SIGN(resid_mask[i]);
+      }
+    else {
+	  sum2 += resid_mask[i] / err_mask[i];
+      }
+	sum1 += resid_mask[i]*resid_mask[i] / (err_mask[i]*err_mask[i]);
+  }
+  a += (double) (sum2 * sum2);
+  a = (double) (a / sum1) - DEFAULT_ALARMVAL;
+
+  free(resid_mask);
+  free(err_mask);
+
   return(a);
 }
 
