@@ -973,8 +973,12 @@ double getsum(int n, double *data) {
 
 void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 {
-  int i, j, k, Npct, Ntouse;
-  double *tmpdata = NULL, *tmpweight = NULL;
+  int i, j, k, Npct, Ntouse, Nweighted, needweights = 0;
+  double *tmpdata = NULL;
+  double *tmpdata_weighted = NULL;
+  double *tmpweight = NULL;
+  double tmpval, tmpw;
+
   if(p->NJD[threadindex] <= 0) {
     for(i=0, k=0; i < s->Nvar; i++) {
       for(j=0; j < s->Nstats; j++, k++) {
@@ -983,33 +987,72 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
     }
     return;
   }
+
+  for(j = 0; j < s->Nstats; j++) {
+    if(s->statstocalc[j] == VARTOOLS_STATSTYPE_WEIGHTEDMEAN ||
+       s->statstocalc[j] == VARTOOLS_STATSTYPE_MEDIAN_WEIGHT ||
+       s->statstocalc[j] == VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT) {
+      needweights = 1;
+      break;
+       }
+  }
+
   if((tmpdata = (double *) malloc(p->NJD[threadindex]*sizeof(double))) == NULL) {
     vt_error(ERR_MEMALLOC);
   }
+
+  if(needweights) {
+    if((tmpdata_weighted = (double *) malloc(p->NJD[threadindex] * sizeof(double))) == NULL) {
+      vt_error(ERR_MEMALLOC);
+    }
+
+    if((tmpweight = (double *) malloc(p->NJD[threadindex] * sizeof(double))) == NULL) {
+      vt_error(ERR_MEMALLOC);
+    }
+  }
+
   for(i = 0, k=0; i < s->Nvar; i++) {
     if(s->vars[i]->vectortype != VARTOOLS_VECTORTYPE_LC) {
       vt_error(ERR_BADVARIABLETYPE_STATSCOMMAND);
     }
-    if(!s->usemask) {
-      for(j=0; j < p->NJD[threadindex]; j++) {
-	tmpdata[j] = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
+
+    Ntouse = 0;
+    Nweighted = 0;
+    for(j = 0; j < p->NJD[threadindex]; j++) {
+
+      /* Apply the optional mask. */
+      if(s->usemask && !(EvaluateVariable_Double(lcindex, threadindex, j, s->maskvar) > VARTOOLS_MASK_TINY)) {
+        continue;
       }
-      Ntouse = p->NJD[threadindex];
-    } else {
-      Ntouse = 0;
-      for(j=0; j < p->NJD[threadindex]; j++) {
-	if(EvaluateVariable_Double(lcindex, threadindex, j, s->maskvar) > VARTOOLS_MASK_TINY) {
-	  tmpdata[Ntouse] = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
-	  Ntouse++;
-	}
+
+      /* Exclude NaN data values from all statistics. */
+      tmpval = EvaluateVariable_Double(lcindex, threadindex, j, s->vars[i]);
+      if(isnan(tmpval)) {
+        continue;
       }
-      if(!Ntouse) {
-	for(j=0; j < s->Nstats; j++, k++) {
-	  s->statsout[threadindex][k] = 0.0;
-	}
-	continue;
+
+      /* Retain every valid data value for unweighted statistics. */
+      tmpdata[Ntouse++] = tmpval;
+
+      /* Build a separate list for weighted statistics. */
+      if(needweights) {
+        tmpw = p->sig[threadindex][j];
+
+        if(!isnan(tmpw)) {
+          tmpdata_weighted[Nweighted] = tmpval;
+          tmpweight[Nweighted] = tmpw;
+          Nweighted++;
+        }
       }
     }
+
+    if(!Ntouse) {
+      for(j = 0; j < s->Nstats; j++, k++) {
+        s->statsout[threadindex][k] = 0.0;
+      }
+      continue;
+    }
+
     Npct = 0;
     for(j = 0; j < s->Nstats; j++, k++) {
       switch(s->statstocalc[j]) {
@@ -1017,13 +1060,13 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 	s->statsout[threadindex][k] = getmean(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_WEIGHTEDMEAN:
-	s->statsout[threadindex][k] = getweightedmean(Ntouse, tmpdata, p->sig[threadindex]);
+    s->statsout[threadindex][k] = Nweighted > 0 ? getweightedmean(Nweighted, tmpdata_weighted, tmpweight) : 0.0;
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN:
 	s->statsout[threadindex][k] = median(Ntouse, tmpdata);
 	break;
       case VARTOOLS_STATSTYPE_MEDIAN_WEIGHT:
-	s->statsout[threadindex][k] = median_weight(Ntouse, tmpdata, p->sig[threadindex]);
+	s->statsout[threadindex][k] = Nweighted > 0 ? median_weight(Nweighted, tmpdata_weighted, tmpweight) : 0.0;
 	break;
       case VARTOOLS_STATSTYPE_STDDEV:
 	s->statsout[threadindex][k] = stddev(Ntouse, tmpdata);
@@ -1050,10 +1093,12 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
 	Npct++;
 	break;
       case VARTOOLS_STATSTYPE_PERCENTILE_WEIGHT:
-	s->statsout[threadindex][k] = percentile_weight(Ntouse, 
-							tmpdata,
-							       p->sig[threadindex],
-							s->pctval[Npct]);
+	s->statsout[threadindex][k] = Nweighted > 0
+        ? percentile_weight(Nweighted,
+							tmpdata_weighted,
+							tmpweight,
+							s->pctval[Npct])
+        : 0.0;
 	Npct++;
 	break;
       case VARTOOLS_STATSTYPE_MAXIMUM:
@@ -1070,8 +1115,13 @@ void RunStatsCommand(ProgramData *p, int lcindex, int threadindex, _Stats *s)
       }
     }
   }
+
   if(tmpdata != NULL)
     free(tmpdata);
+  if(tmpdata_weighted != NULL)
+    free(tmpdata_weighted);
+  if(tmpweight != NULL)
+    free(tmpweight);
 }
 
 int ParseStatsCommand(int *iret, int argc, char **argv, ProgramData *p, _Stats *s)
