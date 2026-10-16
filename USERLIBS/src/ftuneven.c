@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ftuneven.h"
+#include <math.h>
+#include "../../src/functions.h"
 
 /* This is the source code to implement the -ftuneven command which computes
    the complex Fourier Transform of data with arbitrary spacing.
@@ -458,16 +460,27 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
 
 */
 {
-  int i;
-  int NJD;
-  double domega;
-  double *t, *inputdata_real, *inputdata_imag;
+  int i, NJD, NJD_in, Nfreq;
+
+  double *t = NULL;
+  double *inputdata_real = NULL;
+  double *inputdata_imag = NULL;
   char *lcname;
-  int Nfreq;
-  double *freqvals;
-  double *FT_real;
-  double *FT_imag;
-  double *FT_periodogram;
+
+  double *t_in = NULL;
+  double *real_in = NULL;
+  double *imag_in = NULL;
+
+  double *t_keep = NULL;
+  double *real_keep = NULL;
+  double *imag_keep = NULL;
+
+  double *freqvals = NULL;
+  double *FT_real = NULL;
+  double *FT_imag = NULL;
+  double *FT_periodogram = NULL;
+
+  double domega;
 
   FILE *outfile;
 
@@ -489,19 +502,55 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
      below. Note that t, mag, and err are vectors, t[0] is the time of
      the first observation in the light curve, t[NJD-1] is the time of
      the last observation, etc. */
-  NJD=p->NJD[lc_num];
+  NJD_in=p->NJD[lc_num];
 
   if(!FTuneven->changeinputvectors) {
-    t = p->t[lc_num];
-    inputdata_real = p->mag[lc_num];
+    t_in = p->t[lc_num];
+    real_in = p->mag[lc_num];
   } else {
-    t = FTuneven->input_tvar_vals[lc_num];
-    inputdata_real = FTuneven->input_real_vals[lc_num];
-    inputdata_imag = FTuneven->input_imag_vals[lc_num];
+    t_in = FTuneven->input_tvar_vals[lc_num];
+    real_in = FTuneven->input_real_vals[lc_num];
+    imag_in = FTuneven->input_imag_vals[lc_num];
   }
 
-  /* If the light curve is too short, just quit */
-  if(NJD <= 1) return;
+  if(NJD_in <= 0)
+    goto cleanup;
+
+  if ((t_keep = (double*)malloc((size_t)NJD_in * sizeof(double))) == NULL ||
+    (real_keep = (double*)malloc((size_t)NJD_in * sizeof(double))) == NULL ||
+    (FTuneven->changeinputvectors && (imag_keep = (double*)malloc((size_t)NJD_in * sizeof(double))) == NULL))
+  {
+    vt_error(ERR_MEMALLOC);
+  }
+
+  NJD = 0;
+
+  for(i = 0; i < NJD_in; i++) {
+
+    if(!isfinite(t_in[i]) || !isfinite(real_in[i]))
+      continue;
+
+    if(FTuneven->changeinputvectors && !isfinite(imag_in[i]))
+      continue;
+
+    t_keep[NJD] = t_in[i];
+    real_keep[NJD] = real_in[i];
+
+    if(FTuneven->changeinputvectors)
+      imag_keep[NJD] = imag_in[i];
+
+    NJD++;
+  }
+
+  /* The transform requires at least two valid observations. */
+  if(NJD < 2)
+    goto cleanup;
+
+  t = t_keep;
+  inputdata_real = real_keep;
+
+  if(FTuneven->changeinputvectors)
+    inputdata_imag = imag_keep;
 
   /* Access the light curve name as follows: */
   lcname = p->lcnames[lc_name_num];
@@ -522,7 +571,7 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
 
   /* Setup the frequencies to compute the Fourier Transform at */
   if(FTuneven->freqtype == FTUNEVEN_FREQTYPE_AUTO) {
-    if((t[NJD-1] - t[0]) <= 0.0) return;
+    if((t[NJD-1] - t[0]) <= 0.0) goto cleanup;
     domega = 2.0*M_PI/(t[NJD-1]-t[0]);
     Nfreq = 2*NJD + 1;
     if((freqvals = (double *) malloc(Nfreq*sizeof(double))) == NULL) {
@@ -535,7 +584,7 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
     }
   } else if(FTuneven->freqtype == FTUNEVEN_FREQTYPE_RANGE) {
     if((FTuneven->maxfreq[lc_num] <= FTuneven->minfreq[lc_num]) ||
-       (FTuneven->freqstep[lc_num] <= 0.0)) return;
+       (FTuneven->freqstep[lc_num] <= 0.0)) goto cleanup;
     Nfreq = floor((FTuneven->maxfreq[lc_num] - FTuneven->minfreq[lc_num])/FTuneven->freqstep[lc_num])+1;
     if((freqvals = (double *) malloc(Nfreq*sizeof(double))) == NULL) {
       fprintf(stderr,"Memory allocation error for range frequency initialization in ftuneven_RunCommand for lc_name_num=%d lc_num=%d\n", lc_name_num, lc_num);
@@ -564,7 +613,7 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
       freqvals[i] = FTuneven->freqvals_file[i];
     }
   } else
-    return;
+    goto cleanup;
 
   if((FT_real = (double *) malloc(Nfreq*sizeof(double))) == NULL ||
      (FT_imag = (double *) malloc(Nfreq*sizeof(double))) == NULL ||
@@ -583,13 +632,13 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
   /* Re-size the light curves if needed and store the output vectors */
   if(FTuneven->outputtype == FTUNEVEN_OUTPUTVECTORS ||
      FTuneven->outputtype == FTUNEVEN_OUTPUTVECTORSANDFILE) {
-    if(Nfreq > NJD) {
+    if(Nfreq > NJD_in) {
       VARTOOLS_MemAllocDataFromLightCurveMidProcess(p, lc_num, Nfreq);
       p->NJD[lc_num] = Nfreq;
-    } else if(Nfreq < NJD) {
+    } else if(Nfreq < NJD_in) {
       p->NJD[lc_num] = Nfreq;
     }
-    if(Nfreq != NJD && p->readimagestring) {
+    if(Nfreq != NJD_in && p->readimagestring) {
       for(i=0;i<p->NJD[lc_num];i++)
 	p->stringid_idx[lc_num][i] = i;
       VARTOOLS_mysortstringint(p->NJD[lc_num],MAXIDSTRINGLENGTH, p->stringid[lc_num], p->stringid_idx[lc_num]);
@@ -601,7 +650,7 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
       FTuneven->Periodogram_vec[lc_num][i] = FT_periodogram[i];
     }
   }
-  
+
   /* Output the results to the file if requested */
   if(lcoutname[0] != '\0') {
     if((outfile = fopen(lcoutname,"w")) == NULL) {
@@ -614,10 +663,18 @@ void ftuneven_RunCommand(ProgramData *p, void *userdata, int lc_name_num, int lc
     }
     fclose(outfile);
   }
-  
-  free(freqvals); free(FT_real); free(FT_imag); free(FT_periodogram);
 
-  return;
+  cleanup:
+    free(freqvals);
+    free(FT_real);
+    free(FT_imag);
+    free(FT_periodogram);
+
+    free(t_keep);
+    free(real_keep);
+    free(imag_keep);
+
+    return;
 }
 
 /* This is a translation to C of a matlab code written and provided by
