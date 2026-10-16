@@ -49,7 +49,9 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
   *aveval = -1.;
 
   *ngood = 0;
-  if(N > 0)
+  /* A non-finite or negative bin width is meaningless and would drive the
+     bisection below to out-of-range indices; treat it as no good data. */
+  if(N > 0 && isfinite(bintime) && bintime >= 0.0)
     {
       if((sumval1 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sumval2 = (double *) malloc(N * sizeof(double))) == NULL ||
@@ -63,7 +65,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 	}
 
       /* First get the average binned magnitude */
-      
+
       if(!usemask) {
 	if(!isnan(mag[0]) && sig[0] > 0)
 	  {
@@ -148,7 +150,7 @@ double binnedchi2(int N, double *t, double *mag, double *sig, double bintime, do
 	  jmax = findX(t,maxdt,jmaxold,N);
 
 	  jmax = (jmax < N ? (t[jmax] > maxdt ? jmax - 1 : jmax) : N - 1);
-	  jminold = jmin;
+	  jminold = (jmin < N ? jmin : N - 1);
 	  jmaxold = jmax;
 
 	  if(jmin < N && jmin > 0)
@@ -300,7 +302,9 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
   int *nval;
 
   *aveval = -1.;
-  if(N > 0)
+  /* A non-finite or negative bin width is meaningless and would drive the
+     bisection below to out-of-range indices; treat it as no good data. */
+  if(N > 0 && isfinite(bintime) && bintime >= 0.0)
     {
       if((sumval1 = (double *) malloc(N * sizeof(double))) == NULL ||
 	 (sumval2 = (double *) malloc(N * sizeof(double))) == NULL ||
@@ -396,7 +400,7 @@ double binnedrms(int N, double *t, double *mag, double *sig, double bintime, dou
 	  jmax = findX(t,maxdt,jmaxold,N);
 
 	  jmax = (jmax < N ? (t[jmax] > maxdt ? jmax - 1 : jmax) : N - 1);
-	  jminold = jmin;
+	  jminold = (jmin < N ? jmin : N - 1);
 	  jmaxold = jmax;
 
 	  if(jmin < N && jmin > 0)
