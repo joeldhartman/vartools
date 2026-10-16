@@ -2151,7 +2151,7 @@ int findX(double *x, double xval, int i1, int N)
 	    return(u);
 	  N = u;
 	}
-      if(x[u] <= xval)
+      else if(x[u] <= xval)
 	{
 	  if(u == N-1)
 	    return(N);
