@@ -187,7 +187,8 @@ Embedded in this routine is the zbrent algorithm (see Numerical Recipes in C) to
   int i;
   double *subharmA, *subharmB, *harmA, *harmB, fundA, fundB, meanval, dum1, dum2;
   double *t_tmp, *mag_tmp, *sig_tmp, *mag_signal, *mag_orig, val0, val1;
-  int iter;
+  int iter, Nwork;
+  double *twork, *sigwork;
   double a, b, c, d, e, min1, min2, fa, fb, fc, p, q, r, s, tol1, xm, tol;
   char *line;
   size_t line_size = MAXLEN;
@@ -202,6 +203,11 @@ Embedded in this routine is the zbrent algorithm (see Numerical Recipes in C) to
      (harmA = (double *) malloc((Nharm + 1) * sizeof(double))) == NULL ||
      (harmB = (double *) malloc((Nharm + 1) * sizeof(double))) == NULL)
     vt_error(ERR_MEMALLOC);
+
+  /* By default operate on the full light curve; the Fourier-fit branch
+     below replaces this with a compacted copy of only the finite points
+     so that non-finite values never reach the harmonic fit / svdcmp. */
+  Nwork = N; twork = t; sigwork = sig;
 
   /* First Get the signal */
   /* Read the signal in from the file if we're doing that */
@@ -229,21 +235,48 @@ Embedded in this routine is the zbrent algorithm (see Numerical Recipes in C) to
   /* Otherwise fit a fourier series at the period to compute the signal */
   else
     {
+      /* Build a compacted copy containing only the finite points so the
+         harmonic fit (svdcmp) never sees NaN/Inf.  The finite magnitudes
+         are stashed in mag_signal for the post-fit reconstruction. */
+      Nwork = 0;
       for(i=0;i<N;i++)
 	{
-	  t_tmp[i] = t[i]; mag_tmp[i] = mag[i]; sig_tmp[i] = sig[i];
+	  if(!isfinite(t[i]) || !isfinite(mag[i]) || !isfinite(sig[i]) || sig[i] <= 0.0)
+	    continue;
+	  t_tmp[Nwork] = t[i]; mag_tmp[Nwork] = mag[i]; sig_tmp[Nwork] = sig[i];
+	  mag_signal[Nwork] = mag[i];
+	  Nwork++;
 	}
-      dokillharms(N, t_tmp, mag_tmp, sig_tmp, 1, &period, Nsubharm, Nharm, &subharmA, &subharmB, &harmA, &harmB, &fundA, &fundB, &meanval, 0, NULL, amp, 0, KILLHARM_OUTTYPE_DEFAULT, -1.);
-      for(i=0;i<N;i++)
+      twork = t_tmp; sigwork = sig_tmp;
+      dokillharms(Nwork, t_tmp, mag_tmp, sig_tmp, 1, &period, Nsubharm, Nharm, &subharmA, &subharmB, &harmA, &harmB, &fundA, &fundB, &meanval, 0, NULL, amp, 0, KILLHARM_OUTTYPE_DEFAULT, -1.);
+      for(i=0;i<Nwork;i++)
 	{
-	  mag_signal[i] = mag[i] - mag_tmp[i];
 	  mag_orig[i] = mag_tmp[i];
+	  mag_signal[i] = mag_signal[i] - mag_tmp[i];
 	}
     }
 
+  /* If too few valid points remain, no meaningful threshold can be
+     determined; return 0 (as for a light curve that fails the signal). */
+  if(Nwork < 2)
+    {
+      *ampthresh_scale = 0.;
+      *amp = (*amp)*(*ampthresh_scale);
+      free(t_tmp);
+      free(mag_tmp);
+      free(sig_tmp);
+      free(mag_signal);
+      free(mag_orig);
+      free(subharmA);
+      free(subharmB);
+      free(harmA);
+      free(harmB);
+      return;
+    }
+
   /* Check to see if no signal still lies above the threshhold, or if the original signal lies below the threshhold */
-  val0 = getlsampthresh_func(0., N, t, mag_orig, sig, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
-  val1 = getlsampthresh_func(1., N, t, mag_orig, sig, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
+  val0 = getlsampthresh_func(0., Nwork, twork, mag_orig, sigwork, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
+  val1 = getlsampthresh_func(1., Nwork, twork, mag_orig, sigwork, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
   if(val0 < 0)
     {
       *ampthresh_scale = 0.;
@@ -339,7 +372,7 @@ Embedded in this routine is the zbrent algorithm (see Numerical Recipes in C) to
       b += d;
     else
       b += SIGN(tol1,xm);
-    fb = getlsampthresh_func(b, N, t, mag_orig, sig, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
+    fb = getlsampthresh_func(b, Nwork, twork, mag_orig, sigwork, mag_signal, mag_tmp, period, Nsubharm, Nharm, subharmA, subharmB, harmA, harmB, fundA, fundB, minPer, thresh, use_orig_ls);
   }
   /* Too many iterations - set ampthresh_scale to -2. */
   *ampthresh_scale = -2.;
