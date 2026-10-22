@@ -1134,7 +1134,10 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
   harmA = (double *) malloc(sizeof(double));
   harmB = (double *) malloc(sizeof(double));
   
-  Nbins = ceil(1. / q) + 1;
+  /* A non-finite or non-positive transit width gives a meaningless (and
+     possibly huge/negative) bin count; treat it as "no bins" and skip the
+     binned-S/N calculation rather than indexing out of bounds. */
+  Nbins = (isfinite(q) && q > 0.) ? (int)(ceil(1. / q) + 1) : 0;
   if(Nbins > 0) {
     if((Nbin = (int *) malloc(Nbins * sizeof(int))) == NULL ||
        (binmag = (double *) malloc(Nbins * sizeof(double))) == NULL) {
@@ -1206,8 +1209,10 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
     j = (int) ((t[i] - t1)*f0);
     ph = ph - floor(ph);
     binj = (int) (ph / q);
-    Nbin[binj]++;
-    binmag[binj] += mag[i];
+    if(Nbin != NULL && binj >= 0 && binj < Nbins) {
+      Nbin[binj]++;
+      binmag[binj] += mag[i];
+    }
     tmpphase[i] = ph;
     if(ph < q) {
       if(ph >= phb1 && ph <= phb2) {
@@ -1374,13 +1379,20 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
   Bls->phaseoffset_sec[lcnum][peaknum] = (bt0sec - Tc)/P - 
     floor((bt0sec - Tc)/P);
 
-  /* Get the binned signal to noise for the secondary transit */
-  if(Nbin != NULL)
+  /* Get the binned signal to noise for the secondary transit.  The secondary
+     search can fail and return qtransec = -1; a non-finite or non-positive
+     width must not drive the binning (freed/dangling pointers, negative
+     indices, and a double free at the end of the function). */
+  if(Nbin != NULL) {
     free(Nbin);
-  if(binmag != NULL)
+    Nbin = NULL;
+  }
+  if(binmag != NULL) {
     free(binmag);
+    binmag = NULL;
+  }
 
-  Nbins = ceil(1. / qtransec) + 1;
+  Nbins = (isfinite(qtransec) && qtransec > 0.) ? (int)(ceil(1. / qtransec) + 1) : 0;
   if(Nbins > 0) {
     if((Nbin = (int *) malloc(Nbins * sizeof(int))) == NULL ||
        (binmag = (double *) malloc(Nbins * sizeof(double))) == NULL) {
@@ -1394,13 +1406,15 @@ void GetExtraBLSParameters2(int n, double *t, double *mag, double *sig, double P
   }
 
   t1 = bt0sec - qtransec*P/2.0;
-  
+
   for(i=0; i < Ncut; i++) {
     ph = (tcut[i] - t1)*f0;
     ph = ph - floor(ph);
     binj = (int) (ph / qtransec);
-    Nbin[binj]++;
-    binmag[binj] += magcut[i];
+    if(Nbin != NULL && binj >= 0 && binj < Nbins) {
+      Nbin[binj]++;
+      binmag[binj] += magcut[i];
+    }
   }
   
   
@@ -1527,7 +1541,6 @@ c
 c========================================================================
 c
 */
-
 /* A frequency bin is eligible to be reported as a BLS peak only if it is a
    local maximum of the spectrum over the merge resolution: its value p[i] must
    be >= that of every neighbouring bin within +-Df in frequency (Df = dffac/T,
@@ -1696,104 +1709,109 @@ int eebls(int n_in, double *t_in, double *x_in, double *e_in, double *u, double 
   double *t, *x, *e;
   double *t_mask = NULL, *x_mask = NULL, *e_mask = NULL;
 
-  if(!usemask) {
-    n = n_in;
-    t = t_in;
-    x = x_in;
-    e = e_in;
-  } else {
-    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
-       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
-       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      vt_error(ERR_MEMALLOC);
-    }
-    n = 0;
-    for(i = 0; i < n_in; i++) {
-      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
-	t_mask[n] = t_in[i];
-	x_mask[n] = x_in[i];
-	e_mask[n] = e_in[i];
-	n++;
-      }
-    }
-    t = t_mask;
-    x = x_mask;
-    e = e_mask;
-    if(n <= 1) {
-      for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-          bt0[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  in1_ph[j] = -1.;
-	  in2_ph[j] = -1.;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  if(Bls->extraparams) {
-	    Bls->srsum[lcnum][j] = -1.;
-	    Bls->ressig[lcnum][j] = -1.;
-	    Bls->dipsig[lcnum][j] = -1.;
-	    Bls->srshift[lcnum][j] = -1.;
-	    Bls->srsig[lcnum][j] = -1.;
-	    Bls->snrextra[lcnum][j] = -1.;
-	    Bls->dsp[lcnum][j] = -1.;
-	    Bls->dspg[lcnum][j] = -1.;
-	    Bls->freqlow[lcnum][j] = -1.;
-	    Bls->freqhigh[lcnum][j] = -1.;
-	    Bls->logprob[lcnum][j] = -1.;
-	    Bls->peakarea[lcnum][j] = -1.;
-	    Bls->peakmean[lcnum][j] = -1.;
-	    Bls->peakdev[lcnum][j] = -1.;
-	    Bls->lomblog[lcnum][j] = -1.;
-	    Bls->ntv[lcnum][j] = 0;
-	    Bls->gezadsp[lcnum][j] = -1.;
-	    Bls->ootsig[lcnum][j] = -1.;
-	    Bls->trsig[lcnum][j] = -1.;
-	    Bls->ootdftf[lcnum][j] = -1.;
-	    Bls->ootdfta[lcnum][j] = -1.;
-	    Bls->binsignaltonoise[lcnum][j] = -1.;
-	    Bls->maxphasegap[lcnum][j] = -1.;
-	    Bls->depth1_2tran[lcnum][j] = -1.;
-	    Bls->depth2_2tran[lcnum][j] = -1.;
-	    Bls->delchi2_2tran[lcnum][j] = -1.;
-	    Bls->sr_sec[lcnum][j] = -1.;
-	    Bls->srsum_sec[lcnum][j] = -1.;
-	    Bls->q_sec[lcnum][j] = -1.;
-	    Bls->epoch_sec[lcnum][j] = -1.;
-	    Bls->H_sec[lcnum][j] = -1.;
-	    Bls->L_sec[lcnum][j] = -1.;
-	    Bls->depth_sec[lcnum][j] = -1.;
-	    Bls->nt_sec[lcnum][j] = 0;
-	    Bls->Nt_sec[lcnum][j] = 0;
-	    Bls->sigtopink_sec[lcnum][j] = -1.;
-	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
-	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
-	    Bls->phaseoffset_sec[lcnum][j] = -1.;
-	    Bls->harmmean[lcnum][j] = -1.;
-	    Bls->fundA[lcnum][j] = -1.;
-	    Bls->fundB[lcnum][j] = -1.;
-	    Bls->harmA[lcnum][j] = -1.;
-	    Bls->harmB[lcnum][j] = -1.;
-	    Bls->harmamp[lcnum][j] = -1.;
-	    Bls->harmdeltachi2[lcnum][j] = -1.;
-	  }
-	}
-      *bperpos = -1.;
-      *chisqrminus = 999999.;
-      *meanmagval = -1.;
-
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
-    }
+  if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+     (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+     (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+    vt_error(ERR_MEMALLOC);
   }
+
+  n = 0;
+  for(i = 0; i < n_in; i++) {
+
+    /* Apply maskpoints only when requested. */
+    if(usemask && !(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY)) {
+      continue;
+    }
+
+    /* Reject all non-finite data and non-positive uncertainties. */
+    if(!isfinite(t_in[i]) ||!isfinite(x_in[i]) || !isfinite(e_in[i]) || e_in[i] <= 0.0) {
+      continue;
+    }
+
+    t_mask[n] = t_in[i];
+    x_mask[n] = x_in[i];
+    e_mask[n] = e_in[i];
+    n++;
+  }
+  t = t_mask;
+  x = x_mask;
+  e = e_mask;
+
+  if(n <= 1|| !isfinite(t[n-1] - t[0]) || t[n-1] <= t[0]) {
+    for(j=0;j<Npeak;j++)
+  {
+	bper[j] = -1.;
+        bt0[j] = -1.;
+	snval[j] = -1.;
+	bpow[j] = -1.;
+	in1[j] = -1;
+	in2[j] = -1;
+	in1_ph[j] = -1.;
+	in2_ph[j] = -1.;
+	qtran[j] = -1.;
+	depth[j] = -1.;
+	sde[j] = -1.;
+	chisqrplus[j] = 999999.;
+      	fraconenight[j] = -1.;
+	if(Bls->extraparams) {
+	  Bls->srsum[lcnum][j] = -1.;
+	  Bls->ressig[lcnum][j] = -1.;
+	  Bls->dipsig[lcnum][j] = -1.;
+	  Bls->srshift[lcnum][j] = -1.;
+	  Bls->srsig[lcnum][j] = -1.;
+	  Bls->snrextra[lcnum][j] = -1.;
+	  Bls->dsp[lcnum][j] = -1.;
+	  Bls->dspg[lcnum][j] = -1.;
+	  Bls->freqlow[lcnum][j] = -1.;
+	  Bls->freqhigh[lcnum][j] = -1.;
+	  Bls->logprob[lcnum][j] = -1.;
+	  Bls->peakarea[lcnum][j] = -1.;
+	  Bls->peakmean[lcnum][j] = -1.;
+	  Bls->peakdev[lcnum][j] = -1.;
+	  Bls->lomblog[lcnum][j] = -1.;
+	  Bls->ntv[lcnum][j] = 0;
+	  Bls->gezadsp[lcnum][j] = -1.;
+	  Bls->ootsig[lcnum][j] = -1.;
+	  Bls->trsig[lcnum][j] = -1.;
+	  Bls->ootdftf[lcnum][j] = -1.;
+	  Bls->ootdfta[lcnum][j] = -1.;
+	  Bls->binsignaltonoise[lcnum][j] = -1.;
+	  Bls->maxphasegap[lcnum][j] = -1.;
+	  Bls->depth1_2tran[lcnum][j] = -1.;
+	  Bls->depth2_2tran[lcnum][j] = -1.;
+	  Bls->delchi2_2tran[lcnum][j] = -1.;
+	  Bls->sr_sec[lcnum][j] = -1.;
+	  Bls->srsum_sec[lcnum][j] = -1.;
+	  Bls->q_sec[lcnum][j] = -1.;
+	  Bls->epoch_sec[lcnum][j] = -1.;
+	  Bls->H_sec[lcnum][j] = -1.;
+	  Bls->L_sec[lcnum][j] = -1.;
+	  Bls->depth_sec[lcnum][j] = -1.;
+	  Bls->nt_sec[lcnum][j] = 0;
+	  Bls->Nt_sec[lcnum][j] = 0;
+	  Bls->sigtopink_sec[lcnum][j] = -1.;
+	  Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	  Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	  Bls->phaseoffset_sec[lcnum][j] = -1.;
+	  Bls->harmmean[lcnum][j] = -1.;
+	  Bls->fundA[lcnum][j] = -1.;
+	  Bls->fundB[lcnum][j] = -1.;
+	  Bls->harmA[lcnum][j] = -1.;
+	  Bls->harmB[lcnum][j] = -1.;
+	  Bls->harmamp[lcnum][j] = -1.;
+	  Bls->harmdeltachi2[lcnum][j] = -1.;
+	}
+  }
+    *bperpos = -1.;
+    *chisqrminus = 999999.;
+    *meanmagval = -1.;
+
+    if(t_mask != NULL) free(t_mask);
+    if(x_mask != NULL) free(x_mask);
+    if(e_mask != NULL) free(e_mask);
+    return 1;
+  }
+
 
   nbmax = 2*nb;
 
@@ -2909,15 +2927,13 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
-      if(usemask) {
-	n = n_in;
-	t = t_in;
-	x = x_in;
-	e = e_in;
-	for(i=0;i<n;i++)
-	  {
-	    u[i]=t[i]-t1;
-	  }
+      n = n_in;
+      t = t_in;
+      x = x_in;
+      e = e_in;
+      for(i=0; i<n; i++)
+      {
+        u[i] = t[i] - t1;
       }
 
       for(i=0;i<n;i++)
@@ -3023,104 +3039,108 @@ int eebls_rad(int n_in, double *t_in, double *x_in, double *e_in, double *u, dou
   if(isoptimal) {
     Cval = pow(fmin, (1.0/3.0)) - Aval/3.0;
   }
-  
-  if(!usemask) {
-    n = n_in;
-    t = t_in;
-    x = x_in;
-    e = e_in;
-  } else {
-    if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
-       (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
-       (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
-      vt_error(ERR_MEMALLOC);
+
+  if((t_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+     (x_mask = (double *) malloc(n_in*sizeof(double))) == NULL ||
+     (e_mask = (double *) malloc(n_in*sizeof(double))) == NULL) {
+    vt_error(ERR_MEMALLOC);
+  }
+
+  n = 0;
+  for(i = 0; i < n_in; i++) {
+
+    /* Apply maskpoints only when requested. */
+    if(usemask && !(EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY)) {
+      continue;
     }
-    n = 0;
-    for(i = 0; i < n_in; i++) {
-      if(!isnan(x_in[i]) && EvaluateVariable_Double(lclistnum, lcnum, i, maskvar) > VARTOOLS_MASK_TINY) {
-	t_mask[n] = t_in[i];
-	x_mask[n] = x_in[i];
-	e_mask[n] = e_in[i];
-	n++;
-      }
+
+    /* Reject all non-finite data and non-positive uncertainties. */
+    if(!isfinite(t_in[i]) ||!isfinite(x_in[i]) || !isfinite(e_in[i]) || e_in[i] <= 0.0) {
+      continue;
     }
-    t = t_mask;
-    x = x_mask;
-    e = e_mask;
-    if(n <= 1) {
-      for(j=0;j<Npeak;j++)
-	{
-	  bper[j] = -1.;
-	  snval[j] = -1.;
-	  bpow[j] = -1.;
-	  bt0[j] = -1.;
-	  in1[j] = -1;
-	  in2[j] = -1;
-	  in1_ph[j] = -1.;
-	  in2_ph[j] = -1.;
-	  qtran[j] = -1.;
-	  depth[j] = -1.;
-	  sde[j] = -1.;
-	  chisqrplus[j] = 999999.;
-      	  fraconenight[j] = -1.;
-	  if(Bls->extraparams) {
-	    Bls->srsum[lcnum][j] = -1.;
-	    Bls->ressig[lcnum][j] = -1.;
-	    Bls->dipsig[lcnum][j] = -1.;
-	    Bls->srshift[lcnum][j] = -1.;
-	    Bls->srsig[lcnum][j] = -1.;
-	    Bls->snrextra[lcnum][j] = -1.;
-	    Bls->dsp[lcnum][j] = -1.;
-	    Bls->dspg[lcnum][j] = -1.;
-	    Bls->freqlow[lcnum][j] = -1.;
-	    Bls->freqhigh[lcnum][j] = -1.;
-	    Bls->logprob[lcnum][j] = -1.;
-	    Bls->peakarea[lcnum][j] = -1.;
-	    Bls->peakmean[lcnum][j] = -1.;
-	    Bls->peakdev[lcnum][j] = -1.;
-	    Bls->lomblog[lcnum][j] = -1.;
-	    Bls->ntv[lcnum][j] = 0;
-	    Bls->gezadsp[lcnum][j] = -1.;
-	    Bls->ootsig[lcnum][j] = -1.;
-	    Bls->trsig[lcnum][j] = -1.;
-	    Bls->ootdftf[lcnum][j] = -1.;
-	    Bls->ootdfta[lcnum][j] = -1.;
-	    Bls->binsignaltonoise[lcnum][j] = -1.;
-	    Bls->maxphasegap[lcnum][j] = -1.;
-	    Bls->depth1_2tran[lcnum][j] = -1.;
-	    Bls->depth2_2tran[lcnum][j] = -1.;
-	    Bls->delchi2_2tran[lcnum][j] = -1.;
-	    Bls->sr_sec[lcnum][j] = -1.;
-	    Bls->srsum_sec[lcnum][j] = -1.;
-	    Bls->q_sec[lcnum][j] = -1.;
-	    Bls->epoch_sec[lcnum][j] = -1.;
-	    Bls->H_sec[lcnum][j] = -1.;
-	    Bls->L_sec[lcnum][j] = -1.;
-	    Bls->depth_sec[lcnum][j] = -1.;
-	    Bls->nt_sec[lcnum][j] = 0;
-	    Bls->Nt_sec[lcnum][j] = 0;
-	    Bls->sigtopink_sec[lcnum][j] = -1.;
-	    Bls->deltachi2transit_sec[lcnum][j] = -1.;
-	    Bls->binsignaltonoise_sec[lcnum][j] = -1.;
-	    Bls->phaseoffset_sec[lcnum][j] = -1.;
-	    Bls->harmmean[lcnum][j] = -1.;
-	    Bls->fundA[lcnum][j] = -1.;
-	    Bls->fundB[lcnum][j] = -1.;
-	    Bls->harmA[lcnum][j] = -1.;
-	    Bls->harmB[lcnum][j] = -1.;
-	    Bls->harmamp[lcnum][j] = -1.;
-	    Bls->harmdeltachi2[lcnum][j] = -1.;
-	  }
+
+    t_mask[n] = t_in[i];
+    x_mask[n] = x_in[i];
+    e_mask[n] = e_in[i];
+    n++;
+  }
+  t = t_mask;
+  x = x_mask;
+  e = e_mask;
+
+  if(n <= 1|| !isfinite(t[n-1] - t[0]) || t[n-1] <= t[0]) {
+    for(j=0;j<Npeak;j++)
+  {
+	bper[j] = -1.;
+	snval[j] = -1.;
+	bpow[j] = -1.;
+	bt0[j] = -1.;
+	in1[j] = -1;
+	in2[j] = -1;
+	in1_ph[j] = -1.;
+	in2_ph[j] = -1.;
+	qtran[j] = -1.;
+	depth[j] = -1.;
+	sde[j] = -1.;
+	chisqrplus[j] = 999999.;
+      	fraconenight[j] = -1.;
+	if(Bls->extraparams) {
+	  Bls->srsum[lcnum][j] = -1.;
+	  Bls->ressig[lcnum][j] = -1.;
+	  Bls->dipsig[lcnum][j] = -1.;
+	  Bls->srshift[lcnum][j] = -1.;
+	  Bls->srsig[lcnum][j] = -1.;
+	  Bls->snrextra[lcnum][j] = -1.;
+	  Bls->dsp[lcnum][j] = -1.;
+	  Bls->dspg[lcnum][j] = -1.;
+	  Bls->freqlow[lcnum][j] = -1.;
+	  Bls->freqhigh[lcnum][j] = -1.;
+	  Bls->logprob[lcnum][j] = -1.;
+	  Bls->peakarea[lcnum][j] = -1.;
+	  Bls->peakmean[lcnum][j] = -1.;
+	  Bls->peakdev[lcnum][j] = -1.;
+	  Bls->lomblog[lcnum][j] = -1.;
+	  Bls->ntv[lcnum][j] = 0;
+	  Bls->gezadsp[lcnum][j] = -1.;
+	  Bls->ootsig[lcnum][j] = -1.;
+	  Bls->trsig[lcnum][j] = -1.;
+	  Bls->ootdftf[lcnum][j] = -1.;
+	  Bls->ootdfta[lcnum][j] = -1.;
+	  Bls->binsignaltonoise[lcnum][j] = -1.;
+	  Bls->maxphasegap[lcnum][j] = -1.;
+	  Bls->depth1_2tran[lcnum][j] = -1.;
+	  Bls->depth2_2tran[lcnum][j] = -1.;
+	  Bls->delchi2_2tran[lcnum][j] = -1.;
+	  Bls->sr_sec[lcnum][j] = -1.;
+	  Bls->srsum_sec[lcnum][j] = -1.;
+	  Bls->q_sec[lcnum][j] = -1.;
+	  Bls->epoch_sec[lcnum][j] = -1.;
+	  Bls->H_sec[lcnum][j] = -1.;
+	  Bls->L_sec[lcnum][j] = -1.;
+	  Bls->depth_sec[lcnum][j] = -1.;
+	  Bls->nt_sec[lcnum][j] = 0;
+	  Bls->Nt_sec[lcnum][j] = 0;
+	  Bls->sigtopink_sec[lcnum][j] = -1.;
+	  Bls->deltachi2transit_sec[lcnum][j] = -1.;
+	  Bls->binsignaltonoise_sec[lcnum][j] = -1.;
+	  Bls->phaseoffset_sec[lcnum][j] = -1.;
+	  Bls->harmmean[lcnum][j] = -1.;
+	  Bls->fundA[lcnum][j] = -1.;
+	  Bls->fundB[lcnum][j] = -1.;
+	  Bls->harmA[lcnum][j] = -1.;
+	  Bls->harmB[lcnum][j] = -1.;
+	  Bls->harmamp[lcnum][j] = -1.;
+	  Bls->harmdeltachi2[lcnum][j] = -1.;
 	}
-      *bperpos = -1.;
-      *chisqrminus = 999999.;
-      *meanmagval = -1.;
-      
-      if(t_mask != NULL) free(t_mask);
-      if(x_mask != NULL) free(x_mask);
-      if(e_mask != NULL) free(e_mask);
-      return 1;
-    }
+  }
+    *bperpos = -1.;
+    *chisqrminus = 999999.;
+    *meanmagval = -1.;
+
+    if(t_mask != NULL) free(t_mask);
+    if(x_mask != NULL) free(x_mask);
+    if(e_mask != NULL) free(e_mask);
+    return 1;
   }
   
 
@@ -4244,16 +4264,16 @@ the periodogram, and then search it for peaks    *
       f0 = 1./bper[0];
       phb1 = qingress[0]*qtran[0];
       phb2 = qtran[0] - phb1;
-      if(usemask) {
-	n = n_in;
-	t = t_in;
-	x = x_in;
-	e = e_in;
-	for(i=0;i<n;i++)
-	  {
-	    u[i]=t[i]-t1;
-	  }
+
+      n = n_in;
+      t = t_in;
+      x = x_in;
+      e = e_in;
+      for(i=0; i<n; i++)
+      {
+        u[i] = t[i] - t1;
       }
+
       for(i=0;i<n;i++)
 	{
 	  ph = (u[i] - in1_ph[0]*bper[0])*f0;
