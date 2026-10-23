@@ -38,6 +38,12 @@
 #include "programdata.h"
 #include "functions.h"
 
+/* Upper bound on the trapezoid duration fraction q = duration/period.  At
+   q = 1 every point is in transit (no out-of-transit baseline), so depth and
+   OOTmag degenerate and the fit can absorb systematics as a "transit"; cap q
+   well below 1 while still allowing durations wider than the brute-scan grid. */
+#define MAX_TRAP_Q 0.75
+
 double chisqtraptransit(double *a_, int ma, int N, double *t, double *mag, double *sig, void *userparams)
 {
   double ph;
@@ -59,8 +65,8 @@ double chisqtraptransit(double *a_, int ma, int N, double *t, double *mag, doubl
     qingress = 0.5;
   if(qingress < 0.)
     qingress = 0.;
-  if(q > 1.)
-    q = 1.;
+  if(q > MAX_TRAP_Q)
+    q = MAX_TRAP_Q;
   if(q < 0.)
     q = 0.;
 
@@ -120,6 +126,7 @@ void dofittrap_amoeba(int N, double *t, double *mag, double *sig, double P, doub
 
   double ftol;
   int amoeba_val;
+  double q_in = *q;
 
   p = (double **) malloc(6*sizeof(double *));
   for(i=0; i < 6; i++) {
@@ -158,6 +165,16 @@ void dofittrap_amoeba(int N, double *t, double *mag, double *sig, double P, doub
       }
       *q = p[j][1]; *qingress = p[j][2]; *in1_ph = p[j][3];
       *depth = p[j][4]; *OOTmag = p[j][5];
+      /* The amoeba can drift the width parameters outside the range that
+         chisqtraptransit actually models (q in [0,MAX_TRAP_Q], qingress in
+         [0,0.5]), because chi^2 is flat beyond the clamp.  Clamp the reported
+         values to that range so q/qingress -- and the SPN, model LC and
+         correctlc computed from them -- match the fitted model.  A collapsed
+         q<=0 keeps the brute-scan width. */
+      if(*q > MAX_TRAP_Q) *q = MAX_TRAP_Q;
+      if(*q <= 0.) *q = q_in;
+      if(*qingress > 0.5) *qingress = 0.5;
+      if(*qingress < 0.) *qingress = 0.;
       *in2_ph = *in1_ph + *q;
     }
   else
@@ -235,12 +252,16 @@ void dofittrap_amoeba_fixdur(int N, double *t, double *mag, double *sig, double 
       }
       *qingress = p[j][2];
       *depth = p[j][4]; *OOTmag = p[j][5];
+      /* Clamp qingress to the range chisqtraptransit models (see
+         dofittrap_amoeba); q is fixed here and not refit. */
+      if(*qingress > 0.5) *qingress = 0.5;
+      if(*qingress < 0.) *qingress = 0.;
     }
   else
     {
       *qingress = 0.;
     }
-  
+
   for(i=0; i < 4; i++)
     free(p[i]);
   free(p);
