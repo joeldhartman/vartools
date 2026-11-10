@@ -2496,6 +2496,12 @@ class medianfilter(VartoolsCommand):
     replace : bool
         Replace the magnitudes with the filtered series (low-pass)
         rather than subtracting it (high-pass).
+    maskpoints : str, optional
+        Name of a light-curve variable used as a mask: only points where
+        this variable exceeds ~0 contribute to each sliding window's
+        median/average.  The filtered value is still applied to every
+        point; a point whose window contains no unmasked points is left
+        unchanged.
 
     See Also
     --------
@@ -2509,16 +2515,20 @@ class medianfilter(VartoolsCommand):
         time: float,
         method: str = "median",
         replace: bool = False,
+        maskpoints: Optional[str] = None,
     ) -> None:
         self.time = time
         self.method = method
         self.replace = replace
+        self.maskpoints = maskpoints
 
     def _to_cli_args(self) -> List[str]:
         args = ["-medianfilter"] + _varexpr(self.time)
         if self.method in ("average", "weightedaverage"):
             args.append(self.method)
         args += _bool("replace", self.replace)
+        if self.maskpoints is not None:
+            args += ["maskpoints", str(self.maskpoints)]
         return args
 
 

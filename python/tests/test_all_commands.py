@@ -2011,6 +2011,12 @@ class TestCLIArgsManipulation:
         args = cmd.medianfilter(time=0.5, replace=True)._to_cli_args()
         assert "replace" in args
 
+    def test_medianfilter_maskpoints(self):
+        args = cmd.medianfilter(time=0.5, maskpoints="mask")._to_cli_args()
+        assert args[-2:] == ["maskpoints", "mask"]
+        # no maskpoints -> keyword absent
+        assert "maskpoints" not in cmd.medianfilter(time=0.5)._to_cli_args()
+
     def test_expr_basic(self):
         args = cmd.expr("mag=mag-0.01")._to_cli_args()
         assert args[0] == "-expr"
