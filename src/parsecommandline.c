@@ -14069,6 +14069,8 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	    listcommands(argv[iterm],p);
 	  c[cn].MedianFilter->usemean=0;
 	  c[cn].MedianFilter->replace=0;
+	  c[cn].MedianFilter->usemask=0;
+	  c[cn].MedianFilter->maskvar=NULL;
 	  i++;
 	  if(i < argc)
 	    {
@@ -14091,6 +14093,23 @@ void parsecommandline(int argc, char **argv, ProgramData *p, Command **cptr)
 	      if(!strncmp(argv[i],"replace",7) && strlen(argv[i]) == 7)
 		{
 		  c[cn].MedianFilter->replace=1;
+		}
+	      else
+		i--;
+	    }
+	  else
+	    i--;
+	  /* ["maskpoints" maskvar] */
+	  i++;
+	  if(i < argc)
+	    {
+	      if(!strcmp(argv[i],"maskpoints"))
+		{
+		  c[cn].MedianFilter->usemask=1;
+		  i++;
+		  if(i >= argc)
+		    listcommands(argv[iterm],p);
+		  parse_setparam_existingvariable(&(c[cn]), argv[i], &(c[cn].MedianFilter->maskvar), VARTOOLS_VECTORTYPE_LC, VARTOOLS_TYPE_NUMERIC);
 		}
 	      else
 		i--;

@@ -672,7 +672,7 @@ int listcommands_noexit(char *c, ProgramData *p, OutText *s)
     }
   if(c == NULL || (!strncmp(c,"-medianfilter",13) && strlen(c) == 13))
     {
-      printtostring(s,"-medianfilter <\"var\" tvar | \"expr\" texpr | time> [\"average\" | \"weightedaverage\"] [\"replace\"]\n");
+      printtostring(s,"-medianfilter <\"var\" tvar | \"expr\" texpr | time> [\"average\" | \"weightedaverage\"] [\"replace\"] [\"maskpoints\" maskvar]\n");
       commandfound = 1;
     }
   if(c == NULL || (!strncmp(c,"-microlens",10) && strlen(c) == 10))

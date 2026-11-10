@@ -1761,7 +1761,7 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 
     case CNUM_MEDIANFILTER:
       /* median filter the light curve */
-      medianfilter(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc2),c->MedianFilter->usemean,c->MedianFilter->replace);
+      domedianfilter(p->NJD[lc2],p->t[lc2],p->mag[lc2],p->sig[lc2],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc2),c->MedianFilter->usemean,c->MedianFilter->replace,c->MedianFilter->usemask,c->MedianFilter->maskvar,lc,lc2);
       break;
 
     case CNUM_PHASE:
@@ -4162,7 +4162,7 @@ void ProcessCommandAll(ProgramData *p, Command *c, int thisindex)
 	    continue;
 	  }
 	}
-	medianfilter(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc),c->MedianFilter->usemean,c->MedianFilter->replace);
+	domedianfilter(p->NJD[lc],p->t[lc],p->mag[lc],p->sig[lc],VT_EVAL_DOUBLE(c->MedianFilter, time, lc, lc),c->MedianFilter->usemean,c->MedianFilter->replace,c->MedianFilter->usemask,c->MedianFilter->maskvar,lc,lc);
       }
       break;
 

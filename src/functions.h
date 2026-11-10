@@ -212,6 +212,7 @@ void AOV_getfixedperiodSNR(double *p, double *pr, int N, double ave, double rms,
 void increaselinkedcols(ProgramData *p, OutColumn **c, char *s, int cmdidx);
 void linkcolumns(ProgramData *p);
 void medianfilter(int N, double *t, double *mag, double *sig, double timesize, int meanflag, int replace);
+void domedianfilter(int N, double *t, double *mag, double *sig, double timesize, int meanflag, int replace, int usemask, _Variable *maskvar, int lcindex, int threadindex);
 void getoutcolumnvalue(OutColumn *c, int lc, int reallc, int outtype, void *outvalue, ...);
 void setoutcolumnvalue(OutColumn *c, int lc, int reallc, int intype, void *invalue, ...);
 void findblends(int Nvars, int *N, double **t, double **mag, double **sig, _FindBlends *c);

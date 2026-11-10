@@ -2940,6 +2940,40 @@ fi
 
 CompareOutput $testnumber $testc $testout $goodout
 
+# -medianfilter maskpoints
+testnumber=$((testnumber+1))
+echo "$testnumber. Testing -medianfilter maskpoints" > /dev/stderr
+
+cat > $testc <<EOF
+printf '1 1 1 1\n2 2 1 1\n3 50 1 0\n4 3 1 1\n5 4 1 1\n' | ./vartools -i - -oneline \\
+    -inputlcformat t:1,mag:2,err:3,mask:4 \\
+    -medianfilter 1.5 replace maskpoints mask \\
+    -stats mag sum,median
+# point 3 (the outlier) is masked out of each running-median window; its own
+# value is still replaced.  Without maskpoints the result would be 14 / 3.
+EOF
+
+cat > $goodout <<EOF
+Name               = stdin
+STATS_mag_SUM_1    = 12.5
+STATS_mag_MEDIAN_1 = 2.5
+
+EOF
+
+printf '1 1 1 1\n2 2 1 1\n3 50 1 0\n4 3 1 1\n5 4 1 1\n' | $VARTOOLS -i - -oneline \
+    -inputlcformat t:1,mag:2,err:3,mask:4 \
+    -medianfilter 1.5 replace maskpoints mask \
+    -stats mag sum,median \
+> $testout
+
+lastcode=$?
+
+if (( $lastcode != 0 )) ; then
+    ReportVartoolsError $testnumber $testc $testout $goodout $lastcode
+fi
+
+CompareOutput $testnumber $testc $testout $goodout
+
 # -microlens example 1
 testnumber=$((testnumber+1))
 echo "$testnumber. Testing -microlens example 1" > /dev/stderr

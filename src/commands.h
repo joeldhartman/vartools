@@ -1723,6 +1723,10 @@ typedef struct {
   int replace;
   double time;
   VT_PARAM_COMPANIONS(time);
+  /* maskpoints: optional LC vector; points with maskvar > VARTOOLS_MASK_TINY
+     are the only ones that contribute to each sliding-window statistic. */
+  int usemask;
+  _Variable *maskvar;
 } _MedianFilter;
 
 typedef struct {

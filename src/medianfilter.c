@@ -38,7 +38,15 @@
 
 /* This file contains the function to median filter a light curve */
 
+/* Public/ABI-stable entry point (7 arguments, exported to user libraries as
+   VARTOOLS_medianfilter).  Masking support is provided by domedianfilter;
+   keep this signature unchanged so the userlib ABI is not broken. */
 void medianfilter(int N, double *t, double *mag, double *sig, double timesize, int meanflag, int replace)
+{
+  domedianfilter(N, t, mag, sig, timesize, meanflag, replace, 0, NULL, 0, 0);
+}
+
+void domedianfilter(int N, double *t, double *mag, double *sig, double timesize, int meanflag, int replace, int usemask, _Variable *maskvar, int lcindex, int threadindex)
 {
   /* N, t, mag and sig define the input light curve, the output light curve is stored in these variables as well.
 
@@ -50,85 +58,77 @@ timesize - the median/average is calculated for all points within timesize of th
 
 replace - 0 means the median is subtracted from each point.
           1 means each point is replaced with the running median.
+
+usemask - if non-zero, only points j with maskvar > VARTOOLS_MASK_TINY
+          contribute to the window statistic.  The filter value is still
+          applied to every point; a point whose window contains no unmasked
+          points is left unchanged.
   */
 
-  int i, j, k, jstart, jstop;
-  double *vals, *magout, medval, meanval, val1, val2;
+  int i, j, jstart, jstop;
+  double *vals, *wvals = NULL, *magout, filtval;
   int Nvals;
 
   if(N <= 0)
     return;
 
-  if((magout = (double *) malloc(N * sizeof(double))) == NULL)
+  if((magout = (double *) malloc(N * sizeof(double))) == NULL ||
+     (vals = (double *) malloc(N * sizeof(double))) == NULL)
     vt_error(ERR_MEMALLOC);
+  if(meanflag == 2) {
+    if((wvals = (double *) malloc(N * sizeof(double))) == NULL)
+      vt_error(ERR_MEMALLOC);
+  }
 
-  if(!meanflag)
+  jstart = 0;
+  jstop = 0;
+  for(i=0;i<N;i++)
     {
-      if((vals = (double *) malloc(N * sizeof(double))) == NULL)
-	vt_error(ERR_MEMALLOC);
+      while(t[i] - t[jstart] > timesize)
+	jstart++;
+      if(jstop < i)
+	jstop = i;
+      while(jstop < N ? (t[jstop] - t[i] < timesize) : 0)
+	jstop++;
+      jstop--;
 
-      jstart = 0;
-      jstop = 0;
-      for(i=0;i<N;i++)
+      /* Gather the points in the window [jstart, jstop], keeping only the
+	 unmasked ones when a mask is in use.  With no mask this collects the
+	 full contiguous window, so the result is identical to the original. */
+      Nvals = 0;
+      for(j = jstart; j <= jstop; j++)
 	{
-	  while(t[i] - t[jstart] > timesize)
-	    jstart++;
-	  if(jstop < i)
-	    jstop = i;
-	  while(jstop < N ? (t[jstop] - t[i] < timesize) : 0)
-	    jstop++;
-	  jstop--;
-	  medval = median((jstop - jstart + 1), &mag[jstart]);
-	  if(!replace)
-	    magout[i] = mag[i] - medval;
-	  else
-	    magout[i] = medval;
+	  if(usemask && !(EvaluateVariable_Double(lcindex, threadindex, j, maskvar) > VARTOOLS_MASK_TINY))
+	    continue;
+	  vals[Nvals] = mag[j];
+	  if(meanflag == 2)
+	    wvals[Nvals] = sig[j];
+	  Nvals++;
 	}
-      memcpy(mag,magout,N*sizeof(double));
-      free(vals);
-    }
-  else if(meanflag == 1)
-    {
-      jstart = 0;
-      jstop = 0;
-      for(i=0;i<N;i++)
+
+      if(Nvals <= 0)
 	{
-	  while(t[i] - t[jstart] > timesize)
-	    jstart++;
-	  if(jstop < i)
-	    jstop = i;
-	  while(jstop < N ? (t[jstop] - t[i] < timesize) : 0)
-	    jstop++;
-	  jstop--;
-	  meanval = getmean((jstop - jstart + 1), &mag[jstart]);
-	  if(!replace)
-	    magout[i] = mag[i] - meanval;
-	  else
-	    magout[i] = meanval;
+	  /* No unmasked points in the window; leave this point unchanged. */
+	  magout[i] = mag[i];
+	  continue;
 	}
-      memcpy(mag,magout,N*sizeof(double));
+
+      if(!meanflag)
+	filtval = median(Nvals, vals);
+      else if(meanflag == 1)
+	filtval = getmean(Nvals, vals);
+      else
+	filtval = getweightedmean(Nvals, vals, wvals);
+
+      if(!replace)
+	magout[i] = mag[i] - filtval;
+      else
+	magout[i] = filtval;
     }
-  else if(meanflag == 2)
-    {
-      jstart = 0;
-      jstop = 0;
-      for(i=0;i<N;i++)
-	{
-	  while(t[i] - t[jstart] > timesize)
-	    jstart++;
-	  if(jstop < i)
-	    jstop = i;
-	  while(jstop < N ? (t[jstop] - t[i] < timesize) : 0)
-	    jstop++;
-	  jstop--;
-	  meanval = getweightedmean((jstop - jstart + 1), &mag[jstart], &sig[jstart]);
-	  if(!replace)
-	    magout[i] = mag[i] - meanval;
-	  else
-	    magout[i] = meanval;
-	}
-      memcpy(mag,magout,N*sizeof(double));
-    }
+  memcpy(mag,magout,N*sizeof(double));
 
   free(magout);
+  free(vals);
+  if(wvals != NULL)
+    free(wvals);
 }
