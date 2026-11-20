@@ -44,6 +44,42 @@ typedef struct {
 #include <ltdl.h>
 #endif
 
+/* Keep allocated capture slots for the next call, but discard their data. */
+static void clear_captured_light_curves(ProgramData *p)
+{
+  if (p->captured && p->Ncaptured > 0) {
+    int j;
+    for (j = 0; j < p->Ncaptured; j++) {
+      _CapturedLC *cap = &p->captured[j];
+      if (cap->databufs) {
+        int v;
+        for (v = 0; v < cap->n_vars; v++) {
+          if (cap->databufs[v]) {
+            if (cap->datatypes[v] == VARTOOLS_TYPE_STRING) {
+              /* For strings the buffer is a malloc'd char ** of length njd
+                 with one strdup'd entry per row. */
+              char **strs = (char **) cap->databufs[v];
+              int r;
+              for (r = 0; r < cap->njd; r++) {
+                if (strs[r]) free(strs[r]);
+              }
+            }
+            free(cap->databufs[v]);
+          }
+        }
+        free(cap->databufs);
+        cap->databufs = NULL;
+      }
+      if (cap->varnames)  { free(cap->varnames);  cap->varnames  = NULL; }
+      if (cap->datatypes) { free(cap->datatypes); cap->datatypes = NULL; }
+      cap->n_vars = 0;
+      cap->njd    = 0;
+      cap->filled = 0;
+    }
+    p->Ncaptured_filled = 0;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Internal wrapper struct.
  *
@@ -56,6 +92,7 @@ typedef struct {
 typedef struct {
   ProgramData p;    /* MUST be first */
   Command    *c;
+  int         lc_allocation_failed;
 } _PipelineState;
 
 
@@ -282,9 +319,14 @@ int vartools_process_lc(ProgramData       *p,
   char  *printbuf      = NULL;
   int    printbuf_size = 0;
 
+  if (s->lc_allocation_failed) return ERR_MEMALLOC;
+
   /* Re-arm the error context so error() / error2() land back here. */
   vartools_error_set_pipeline_context(p);
   if (setjmp(p->exit_jmp)) {
+    /* The LC registry can be partially grown after an allocation failure. */
+    if (p->exit_code == ERR_MEMALLOC)
+      s->lc_allocation_failed = 1;
     /* Re-arm for the next call. */
     vartools_error_set_pipeline_context(p);
     if (printbuf) free(printbuf);
@@ -294,41 +336,7 @@ int vartools_process_lc(ProgramData       *p,
   /* ---- Reset per-call state ---- */
   p->skipfaillc[0] = 0;
 
-  /* Free any LC snapshots from the previous vartools_process_lc() call so
-     captures from this run can be written into the same slots.  Memory
-     usage stays bounded by one LC's worth of snapshots; nothing
-     accumulates across batch iterations. */
-  if (p->captured && p->Ncaptured > 0) {
-    int j;
-    for (j = 0; j < p->Ncaptured; j++) {
-      _CapturedLC *cap = &p->captured[j];
-      if (cap->databufs) {
-        int v;
-        for (v = 0; v < cap->n_vars; v++) {
-          if (cap->databufs[v]) {
-            if (cap->datatypes[v] == VARTOOLS_TYPE_STRING) {
-              /* For strings the buffer is a malloc'd char ** of length njd
-                 with one strdup'd entry per row. */
-              char **strs = (char **) cap->databufs[v];
-              int r;
-              for (r = 0; r < cap->njd; r++) {
-                if (strs[r]) free(strs[r]);
-              }
-            }
-            free(cap->databufs[v]);
-          }
-        }
-        free(cap->databufs);
-        cap->databufs = NULL;
-      }
-      if (cap->varnames)  { free(cap->varnames);  cap->varnames  = NULL; }
-      if (cap->datatypes) { free(cap->datatypes); cap->datatypes = NULL; }
-      cap->n_vars = 0;
-      cap->njd    = 0;
-      cap->filled = 0;
-    }
-    p->Ncaptured_filled = 0;
-  }
+  clear_captured_light_curves(p);
 
   /* Grow the LC data arrays if this light curve is larger than any seen
    * so far.  MemAllocDataFromLightCurve is a no-op when already big enough. */
@@ -399,6 +407,49 @@ int vartools_process_lc(ProgramData       *p,
 }
 
 
+/* Only the command owns these work arrays. The period in list mode is
+   allocated by the input-list registry. */
+static void free_bls_fix_per(_BlsFixPer *bls, int slots)
+{
+  int i;
+
+  for (i = 0; i < slots; i++) {
+    free(bls->u[i]);
+    free(bls->v[i]);
+    if (bls->pertype != PERTYPE_SPECIFIED)
+      free(bls->period[i]);
+  }
+  if (bls->pertype != PERTYPE_SPECIFIED)
+    free(bls->period);
+  free(bls->u);
+  free(bls->v);
+  free(bls->sizeuv);
+  free(bls->bpow);
+  free(bls->bt0);
+  free(bls->sde);
+  free(bls->snval);
+  free(bls->depth);
+  free(bls->qtran);
+  free(bls->chisqrplus);
+  free(bls->chisqrminus);
+  free(bls->meanmagval);
+  free(bls->fraconenight);
+  free(bls->i1);
+  free(bls->i2);
+  free(bls->i1_ph);
+  free(bls->i2_ph);
+  free(bls->nt);
+  free(bls->Nt);
+  free(bls->Nbefore);
+  free(bls->Nafter);
+  free(bls->rednoise);
+  free(bls->whitenoise);
+  free(bls->sigtopink);
+  free(bls->qingress);
+  free(bls->OOTmag);
+  free(bls);
+}
+
 /* ---------------------------------------------------------------------------
  * vartools_free_pipeline
  *
@@ -430,6 +481,70 @@ void vartools_free_pipeline(ProgramData *p)
 #ifdef _HAVE_R
   KillAllRProcesses(p, s->c);
 #endif
+
+  clear_captured_light_curves(p);
+  free(p->captured);
+  if (!s->lc_allocation_failed)
+    FreeDataFromLightCurve(p);
+
+  for (i = 0; i < p->Ncommands; i++) {
+    if (s->c[i].cnum == CNUM_FIXPERBLS) {
+      int slots = 1;
+      if (p->readallflag && !p->headeronly && !p->inputlistformat &&
+          !p->showinputlcformat)
+        slots = p->Nlcs;
+#ifdef PARALLEL
+      else
+        slots = p->Nproc_allow;
+#endif
+      free_bls_fix_per(s->c[i].BlsFixPer, slots);
+    } else if (s->c[i].cnum == CNUM_MEDIANFILTER) {
+      free(s->c[i].MedianFilter);
+    }
+  }
+
+  for (i = 0; i < p->NDefinedVariables; i++) {
+    _Variable *var = p->DefinedVariables[i];
+    if (var->owns_dataptr) {
+      if (var->vectortype == VARTOOLS_VECTORTYPE_CONSTANT &&
+          var->datatype == VARTOOLS_TYPE_STRING)
+        free(*(char **) var->dataptr);
+      free(var->dataptr);
+    }
+    free(var->varname);
+    free(var);
+  }
+  free(p->DefinedVariables);
+
+  free(p->skipchars);
+  free(p->delimstring);
+#ifdef PARALLEL
+  free(p->threadsinuse);
+  free(p->pth);
+  free(p->pth_init);
+  pthread_mutex_destroy(&p->Nproc_mutex);
+  pthread_mutex_destroy(&p->outfile_mutex);
+  pthread_mutex_destroy(&p->cfitsio_mutex);
+  pthread_mutex_destroy(&p->is_lc_ready_mutex);
+  pthread_mutex_destroy(&p->lc_getcolumnsfromheader_mutex);
+  pthread_mutex_destroy(&p->cspice_mutex);
+#endif
+  for (i = 0; i < p->Ncolumns; i++)
+    free(p->outcolumns[i].dereference);
+  free(p->outcolumns);
+  free(p->col_commandstart);
+  free(p->col_commandstop);
+  for (i = 0; i < p->Nlcs; i++)
+    free(p->lcnames[i]);
+  free(p->lcnames);
+  free(p->NJD);
+  free(p->is_inputlc_fits);
+  free(p->skipfaillc);
+  for (i = 0; i < p->Nlcs; i++) {
+    free(p->fits_header_adds[i].hdrterms);
+    free(p->fits_header_adds[i].delterms);
+  }
+  free(p->fits_header_adds);
 
   free(s->c);
   free(s);
@@ -588,10 +703,9 @@ int vartools_capture_current_lc(ProgramData *p, const char *id)
   cap->n_vars    = count;
   cap->varnames  = (char **) malloc(count * sizeof(char *));
   cap->datatypes = (int *)   malloc(count * sizeof(int));
-  cap->databufs  = (void **) malloc(count * sizeof(void *));
+  cap->databufs  = (void **) calloc(count, sizeof(void *));
   if (!cap->varnames || !cap->datatypes || !cap->databufs)
     vt_error(ERR_MEMALLOC);
-  for (v = 0; v < count; v++) cap->databufs[v] = NULL;
 
   v = 0;
   for (i = 0; i < p->NDefinedVariables; i++) {
@@ -753,11 +867,20 @@ int vartools_set_lc_data(ProgramData     *p,
                          const double   **col_data,
                          const char      *lc_name)
 {
+  _PipelineState *s = (_PipelineState *) p;
   int i, j;
   _Variable *v;
   double **arr;
 
   if (n_columns < 3) return -1;
+
+  if (s->lc_allocation_failed) return ERR_MEMALLOC;
+  vartools_error_set_pipeline_context(p);
+  if (setjmp(p->exit_jmp)) {
+    if (p->exit_code == ERR_MEMALLOC)
+      s->lc_allocation_failed = 1;
+    return p->exit_code;
+  }
 
   /* Grow internal arrays if needed */
   MemAllocDataFromLightCurve(p, 0, n_points);

@@ -2690,6 +2690,7 @@ void printresults_buffer_new(ProgramData *p, int lc, int reallc, char **buf, int
   growbuffer(buf, sizebuf, indx+1);
   sprintf(&((*buf)[indx]),"\n");
   indx++;
+  if (sizeouts) free(outs);
 }
 
 void emptyresults_buffer(ProgramData *p, FILE *outfile) {

@@ -1429,8 +1429,8 @@ void InitCommands(ProgramData *p, Command *c)
 		  vt_error(ERR_MEMALLOC);
 	    }
 	  if((c[i].BlsFixPer->sizeuv = (int *) malloc(Nlcs * sizeof(int))) == NULL ||
-	     (c[i].BlsFixPer->u = (double **) malloc(Nlcs * sizeof(double *))) == NULL ||
-	     (c[i].BlsFixPer->v = (double **) malloc(Nlcs * sizeof(double *))) == NULL)
+	     (c[i].BlsFixPer->u = (double **) calloc(Nlcs, sizeof(double *))) == NULL ||
+	     (c[i].BlsFixPer->v = (double **) calloc(Nlcs, sizeof(double *))) == NULL)
 	    vt_error(ERR_MEMALLOC);
 	  for(j=0; j<Nlcs; j++)
 	    c[i].BlsFixPer->sizeuv[j] = 0;

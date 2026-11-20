@@ -1953,6 +1953,7 @@ _Variable* CreateVariable(ProgramData *p, char *varname, char datatype, char vec
   }
   
   v->dataptr = vptr;
+  v->owns_dataptr = vptrinput == NULL;
 
   return v;
   
