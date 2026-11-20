@@ -266,6 +266,7 @@ void RegisterDataFromLightCurve(ProgramData *p, void *dataptr, int datatype,
 				int Nonuniformnames, char *scanformat, 
 				_Variable *variable, ...);
 void InitializeMemAllocDataFromLightCurve(ProgramData *p, Command *c, int Nthread);
+void FreeDataFromLightCurve(ProgramData *p);
 void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm);
 void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm);
 void CompileAllExpressions(ProgramData *p, Command *c);

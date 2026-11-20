@@ -1479,6 +1479,116 @@ void MemAllocDataFromLightCurve(ProgramData *p, int threadid, int Nterm) {
   
 }
 
+static void free_lc_values(void *values, int count)
+{
+  (void) count;
+  free(values);
+}
+
+static void free_lc_strings(void *values, int count)
+{
+  char **strings = values;
+  int i;
+
+  for(i=0; i<count; i++)
+    free(strings[i]);
+  free(strings);
+}
+
+/* Mirror the three layouts in MemAllocDataFromLightCurve. The registry
+   holds the owning pointers, while t, mag, sig and stringid are aliases. */
+#define FREE_LC_STORAGE(type, free_values) \
+  do { \
+    if(columns == 0) { \
+      type ***owner = d->dataptr; \
+      for(thread=0; thread<p->Nthread; thread++) { \
+        if(p->sizesinglelc[thread] > 0) \
+          free_values((*owner)[thread], p->sizesinglelc[thread]); \
+      } \
+      free(*owner); \
+      *owner = NULL; \
+    } else { \
+      type ****owner = d->dataptr; \
+      for(thread=0; thread<p->Nthread; thread++) { \
+        int rows = p->sizesinglelc[thread]; \
+        if(columns > 0) { \
+          if(rows > 0) { \
+            for(j=0; j<columns; j++) \
+              free_values((*owner)[thread][j], rows); \
+          } \
+          free((*owner)[thread]); \
+        } else if(rows > 0) { \
+          for(j=0; j<rows; j++) \
+            free_values((*owner)[thread][j], -columns); \
+          free((*owner)[thread]); \
+        } \
+      } \
+      free(*owner); \
+      *owner = NULL; \
+    } \
+  } while(0)
+
+void FreeDataFromLightCurve(ProgramData *p)
+{
+  int i, j, thread;
+
+  for(i=0; i<p->NDataFromLightCurve; i++) {
+    _DataFromLightCurve *d = &p->DataFromLightCurve[i];
+    int columns = d->Ncolumns;
+    /* Scalar assignments can overwrite entries in this table with a value
+       rather than a vector pointer. Do not dereference those entries. */
+    if(!d->variable || d->variable->vectortype != VARTOOLS_VECTORTYPE_SCALAR) {
+      switch(d->datatype) {
+        case VARTOOLS_TYPE_DOUBLE:
+        case VARTOOLS_TYPE_CONVERTJD:
+          FREE_LC_STORAGE(double, free_lc_values);
+          break;
+        case VARTOOLS_TYPE_STRING:
+          FREE_LC_STORAGE(char *, free_lc_strings);
+          break;
+        case VARTOOLS_TYPE_INT:
+          FREE_LC_STORAGE(int, free_lc_values);
+          break;
+        case VARTOOLS_TYPE_SHORT:
+          FREE_LC_STORAGE(short, free_lc_values);
+          break;
+        case VARTOOLS_TYPE_FLOAT:
+          FREE_LC_STORAGE(float, free_lc_values);
+          break;
+        case VARTOOLS_TYPE_LONG:
+          FREE_LC_STORAGE(long, free_lc_values);
+          break;
+        case VARTOOLS_TYPE_CHAR:
+          FREE_LC_STORAGE(char, free_lc_values);
+          break;
+      }
+    }
+    for(j=0; j<(columns ? abs(columns) : 1); j++)
+      free(d->incolumn_names[j]);
+    free(d->incolumn_names);
+    free(d->incolumns);
+    if(d->incolumn_header_names)
+      free(d->incolumn_header_names[0]);
+    free(d->incolumn_header_names);
+    free(d->scanformat);
+  }
+  free(p->DataFromLightCurve);
+  if(p->stringid_idx) {
+    for(thread=0; thread<p->Nthread; thread++) {
+      if(p->sizesinglelc[thread] > 0)
+        free(p->stringid_idx[thread]);
+    }
+  }
+  free(p->stringid_idx);
+  free(p->stringid);
+  free(p->t);
+  free(p->mag);
+  free(p->sig);
+  free(p->sizesinglelc);
+}
+
+#undef FREE_LC_STORAGE
+
 /* The version of MemAllocDataFromLightCurve below should be called if additional space needs to be allocated for the light curves within a processing thread; This version takes care of re-aligning the pointers to t, mag, err and id. */
 void MemAllocDataFromLightCurveMidProcess(ProgramData *p, int threadid, int Nterm) {
   int i;

@@ -927,23 +927,21 @@ void ProcessCommandSingle(ProgramData *p, Command *c, int lc, int thisindex, int
 	}
       if(p->NJD[lc2] > 1) {
 	/* First check to see that the u/v vectors are large enough */
-	if(c->BlsFixPer->sizeuv[lc2] == 0)
+	if(c->BlsFixPer->sizeuv[lc2] < p->NJD[lc2])
 	  {
-	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
-	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
-	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
+	    double *grown;
+	    size_t bytes = p->NJD[lc2] * sizeof(double);
+	    grown = (double *) realloc(c->BlsFixPer->u[lc2], bytes);
+	    if(!grown)
 	      vt_error(ERR_MEMALLOC);
-	  }
-	else if(c->BlsFixPer->sizeuv[lc2] < p->NJD[lc2])
-	  {
-	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
-	    free(c->BlsFixPer->u[lc2]);
-	    free(c->BlsFixPer->v[lc2]);
-	    if((c->BlsFixPer->u[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL ||
-	       (c->BlsFixPer->v[lc2] = (double *) malloc(c->BlsFixPer->sizeuv[lc2] * sizeof(double))) == NULL)
+	    c->BlsFixPer->u[lc2] = grown;
+	    grown = (double *) realloc(c->BlsFixPer->v[lc2], bytes);
+	    if(!grown)
 	      vt_error(ERR_MEMALLOC);
+	    c->BlsFixPer->v[lc2] = grown;
+	    c->BlsFixPer->sizeuv[lc2] = p->NJD[lc2];
 	  }
-	
+
 	/* Find the period if we're getting it from a previous command */
 	if(c->BlsFixPer->pertype == PERTYPE_AOV)
 	  {

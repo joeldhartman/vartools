@@ -138,6 +138,7 @@ typedef struct {
   char datatype;
   void *dataptr;
   char vectortype;
+  char owns_dataptr;
   OutColumn *outc;
   int vectorlength;
   void *vectorlengthptr;

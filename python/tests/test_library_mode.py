@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import os
+import subprocess
 import sys
 from unittest.mock import patch, MagicMock
 
@@ -125,6 +126,56 @@ class TestLibPipelineImport:
 
 @needs_library
 class TestLibPipelineUnit:
+
+    @pytest.mark.skipif(sys.platform not in ("darwin", "linux"), reason="RSS units are platform-specific")
+    def test_repeated_bls_fix_per_destruction_leaves_rss_stable(self):
+        """Exercise the native allocator in a fresh process with a warmed-up RSS baseline."""
+        script = """
+import resource
+import sys
+
+import numpy as np
+from pyvartools._libpipeline import LibPipeline
+
+rng = np.random.default_rng(42)
+t = np.sort(rng.uniform(0, 200, 12000))
+mag = rng.normal(0, 0.002, t.size) + 0.02 * ((t % 2.5) < 0.09)
+err = np.full_like(t, 0.002)
+commands = ["-BLSFixPer", "fix", "2.5", "q", "0.015", "0.08",
+            "2000", "0", "0", "0", "fittrap", "-oneline"]
+
+for i in range(250):
+    pipeline = LibPipeline(commands)
+    pipeline.process_lc(t, mag, err, name="synthetic")
+    del pipeline
+    if i == 49:
+        warm_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+
+peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+scale = 1 if sys.platform == "darwin" else 1024
+growth_mib = (peak_rss - warm_rss) * scale / 2**20
+assert growth_mib < 8, f"Process RSS grew by {growth_mib:.1f} MiB after warm-up"
+"""
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
+        run = subprocess.run([sys.executable, "-c", script], env=env,
+                             capture_output=True, text=True, timeout=60)
+        assert run.returncode == 0, run.stdout + run.stderr
+
+    def test_bls_fix_per_reuses_buffers_with_larger_curve(self):
+        pipe = vt.Pipeline([
+            cmd.medianfilter(5.0, method="weightedaverage", replace=True),
+            cmd.BLSFixPer(period=2.5, qmin=0.015, qmax=0.08, nbins=2000, fittrap=True),
+            cmd.o(capture=True, key="detrended"),
+        ])
+        rng = np.random.default_rng(42)
+        for n in (512, 2048):
+            t = np.sort(rng.uniform(0, 200, n))
+            mag = rng.normal(0, 0.002, n) + 0.02 * ((t % 2.5) < 0.09)
+            lc = vt.LightCurve.from_arrays(t, mag, np.full(n, 0.002), name="synthetic")
+            result = pipe.run(lc)
+            assert len(result.files["detrended"]) == n
+            assert result.vars["BLSFixPer_Period_1"] == 2.5
+        assert pipe._lib_pipeline is not None
 
     def test_libpipeline_init_rms(self):
         """LibPipeline initializes without error for a simple -rms pipeline."""
